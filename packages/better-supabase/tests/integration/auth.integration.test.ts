@@ -199,7 +199,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     });
     const refreshed = readSession(resolution.requestCookies, name)!;
     expect(refreshed.refresh_token).not.toBe(session.refresh_token);
-    expect(resolution.headers["Cache-Control"]).toContain("no-store");
+    expect(resolution.headers["cache-control"]).toContain("no-store");
   });
 
   it("binds repositories to the caller through createServer", async () => {

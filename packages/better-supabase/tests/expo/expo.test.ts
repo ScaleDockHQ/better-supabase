@@ -287,7 +287,7 @@ describe("createExpo", () => {
     resolutions.stop();
   });
 
-  it("never refreshes an expired cookie on a prefetch", async () => {
+  it("refreshes an expired cookie on a prefetch, once for the token", async () => {
     const cookie = await sessionCookie(-60, "r-prefetch");
 
     const headers = {
@@ -302,7 +302,7 @@ describe("createExpo", () => {
         "sec-purpose": "prefetch",
       }),
     );
-    expect(refreshed).not.toHaveBeenCalled();
+    expect(refreshed).toHaveBeenCalledOnce();
 
     await bsb.middleware()(immutable("https://app.test/prefetch", headers));
     expect(refreshed).toHaveBeenCalledOnce();

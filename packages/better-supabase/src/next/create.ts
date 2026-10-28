@@ -49,7 +49,6 @@ import {
   requireCaller,
   formDataObject,
 } from "../server/kit.ts";
-import { isPrefetch } from "../server/refresh.ts";
 import { resourceRouter } from "../server/resources.ts";
 import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
@@ -82,7 +81,6 @@ import {
   STATS_URL_HEADER,
   endedRedirect,
   shouldCheckSession,
-  shouldRefresh,
 } from "./support.ts";
 
 /**
@@ -568,7 +566,7 @@ export function createNext<
         proxyOptions.before?.(request),
         base
           .resolve(request, {
-            refresh: shouldRefresh(request),
+            refresh: true,
             ...(verifySession ? { verifySession } : {}),
             ...(proxyOptions.leeway === undefined
               ? {}
@@ -593,12 +591,6 @@ export function createNext<
       if (resolution.cookies.length > 0) {
         await base.sessions.seed(resolution.auth);
       }
-
-      const rendersSignedOut =
-        proxyOptions.onExpiredPrefetch === "render" &&
-        resolution.auth.kind === "none" &&
-        resolution.auth.reason === "expired" &&
-        isPrefetch(request);
 
       const protectMethods = proxyOptions.protectMethods;
 
@@ -628,9 +620,9 @@ export function createNext<
           request,
           betterSupabase.events.logger,
         )) ??
-        (rendersSignedOut || !runsProtect
-          ? undefined
-          : await proxyOptions.protect?.(resolution.auth, request));
+        (runsProtect
+          ? await proxyOptions.protect?.(resolution.auth, request)
+          : undefined);
 
       const initial = custom ?? early;
 
@@ -679,7 +671,7 @@ export function createNext<
         const replaced = await proxyOptions.after(response, resolution.auth);
 
         if (replaced) {
-          response = mutableResponse(replaced);
+          response = resolution.apply(mutableResponse(replaced));
         }
       }
 

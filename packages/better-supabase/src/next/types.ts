@@ -104,21 +104,15 @@ export interface ProxyOptions<C = unknown, P = unknown> {
     request: NextRequest,
   ) => Response | undefined | Promise<Response | undefined>;
   /**
-   * A prefetch never refreshes, so a session cookie whose token expired
-   * resolves to `{ kind: 'none', reason: 'expired' }` there. `'redirect'` (the
-   * default) passes that to `protect` like any other caller. `'render'` skips
-   * `protect` for it, so the prefetch renders signed out instead of caching a
-   * redirect to sign-in; `sessionStale` keeps that view out of the App Shell,
-   * and the navigation itself refreshes the session.
-   */
-  readonly onExpiredPrefetch?: "redirect" | "render";
-  /**
    * Methods that run `protect`. Defaults to `GET` and `HEAD`, so a Server
    * Action POST is not redirected before the action runs. Set `true` to include
    * mutations, or pass the methods yourself.
    */
   readonly protectMethods?: true | readonly string[];
-  /** Post-processes the final response; return a new one to replace it. */
+  /**
+   * Post-processes the final response; return a new one to replace it. The
+   * session cookies and cache headers are added to a replacement too.
+   */
   readonly after?: (
     response: Response,
     auth: AuthState<C, P>,

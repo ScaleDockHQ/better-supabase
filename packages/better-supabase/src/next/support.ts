@@ -8,7 +8,7 @@ import type { VerifySessionOptions, RequireAalOptions } from "./types.ts";
 
 import { checkAal } from "../auth/mfa.ts";
 import { problemResponse } from "../core/problem.ts";
-import { isPrefetch } from "../server/refresh.ts";
+import { isDocumentLoad } from "../server/request-kind.ts";
 
 /** Response header with the URL of the request's totals on `bsb.debugRoute()`. */
 export const STATS_URL_HEADER = "x-bsb-stats";
@@ -24,64 +24,21 @@ export function endedRedirect(
   return NextResponse.redirect(target);
 }
 
+/**
+ * Whether the proxy asks Auth if the session still exists: top-level document
+ * loads (`sec-fetch-dest: document`) on `options.paths`, else on every path.
+ * Next.js strips its router headers before the proxy runs, so client
+ * navigations and prefetches are told apart by the browser's own headers.
+ */
 export function shouldCheckSession(
   request: NextRequest,
   options: VerifySessionOptions = {},
 ): boolean {
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    return false;
-  }
-
-  if (isPrefetch(request) || !isDocument(request)) {
+  if (!isDocumentLoad(request)) {
     return false;
   }
 
   return options.paths?.includes(request.nextUrl.pathname) ?? true;
-}
-
-/** A top-level page load, not an RSC request, a fetch or an iframe. */
-function isDocument(request: Request): boolean {
-  const h = request.headers;
-
-  if (h.get("rsc") === "1") {
-    return false;
-  }
-
-  const dest = h.get("sec-fetch-dest");
-
-  if (dest) {
-    return dest === "document";
-  }
-
-  return h.get("accept")?.includes("text/html") ?? false;
-}
-
-/**
- * Page loads, client navigations and server actions; never prefetches or
- * assets.
- */
-export function shouldRefresh(request: Request): boolean {
-  const h = request.headers;
-
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    return h.has("next-action");
-  }
-
-  if (isPrefetch(request)) {
-    return false;
-  }
-
-  if (h.get("rsc") === "1") {
-    return true;
-  }
-
-  const dest = h.get("sec-fetch-dest");
-
-  if (dest) {
-    return dest === "document";
-  }
-
-  return h.get("accept")?.includes("text/html") ?? false;
 }
 
 /**

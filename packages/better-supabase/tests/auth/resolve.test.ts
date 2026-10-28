@@ -2,6 +2,7 @@ import type { StandardSchemaV1 } from "@standard-schema/spec";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type * as Resolve from "../../src/auth/resolve.ts";
 import type { ResolveAuthOptions } from "../../src/auth/resolve.ts";
 import type { StoredSession } from "../../src/auth/session.ts";
 
@@ -201,15 +202,14 @@ describe("verified token memo", () => {
   );
 
   it("maps an unreachable JWKS to a network error and keeps the cookie session", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () => new Response("down", { status: 500 })),
+    const down = vi.fn<typeof globalThis.fetch>(
+      async () => new Response("down", { status: 500 }),
     );
 
     const options: ResolveAuthOptions = {
       env: { ...env, jwksUrl: new URL(`${PROJECT_URL}/remote-b/jwks.json`) },
       refresh: true,
-      fetch: vi.fn<typeof globalThis.fetch>(),
+      fetch: down,
     };
 
     const token = await signer.sign({ sub: USER });
@@ -234,7 +234,9 @@ describe("verified token memo", () => {
     );
 
     expect(session.auth).toMatchObject({ error: { kind: "network" } });
-    expect(options.fetch).not.toHaveBeenCalled();
+    expect(
+      down.mock.calls.filter(([input]) => String(input).includes("/token")),
+    ).toEqual([]);
   });
 });
 
@@ -357,43 +359,7 @@ describe("cookie sessions", () => {
     expect(cleared.cookies.every((write) => write.options.maxAge === 0)).toBe(
       true,
     );
-    expect(cleared.headers["Cache-Control"]).toContain("no-store");
-  });
-
-  it("prunes leftover chunks next to a valid session where it can write", async () => {
-    const token = await signer.sign({ sub: USER });
-
-    const cookie = `${sessionCookie({
-      access_token: token,
-      refresh_token: "r",
-      expires_at: exp(token),
-      token_type: "bearer",
-      user: { id: USER },
-    })}; ${NAME}.0=old; ${NAME}.1=old`;
-
-    const read = await resolveAuth(cookieRequest(cookie), options);
-    expect(read.auth.kind).toBe("user");
-    expect(read.cookies).toEqual([]);
-
-    const pruned = await resolveAuth(cookieRequest(cookie), {
-      ...options,
-      refresh: true,
-    });
-
-    expect(pruned.auth.kind).toBe("user");
-    expect(pruned.cookies.map((write) => write.name)).toEqual([
-      `${NAME}.0`,
-      `${NAME}.1`,
-    ]);
-    expect(pruned.headers["Cache-Control"]).toContain("no-store");
-
-    const off = await resolveAuth(cookieRequest(cookie), {
-      ...options,
-      refresh: true,
-      pruneChunks: false,
-    });
-
-    expect(off.cookies).toEqual([]);
+    expect(cleared.headers["cache-control"]).toContain("no-store");
   });
 
   it("reports an auth outage with the cause, and whether the token was kept", async () => {
@@ -655,5 +621,83 @@ describe("authContext", () => {
         error: { kind: "unauthorized", message: "x", status: 401 } as never,
       }),
     ).toEqual(anon);
+  });
+});
+
+describe("issuer", () => {
+  it("rejects a token another project issued, and accepts one without iss", async () => {
+    const options: ResolveAuthOptions = { env, jwks: keys() };
+
+    const own = await signer.sign({ sub: USER, iss: `${PROJECT_URL}/auth/v1` });
+    const bare = await signer.sign({ sub: USER });
+
+    const foreign = await signer.sign({
+      sub: USER,
+      iss: "https://zyxwvutsrqponmlkjihg.supabase.co/auth/v1",
+    });
+
+    expect((await resolveAuth(bearer(own), options)).auth.kind).toBe("user");
+    expect((await resolveAuth(bearer(bare), options)).auth.kind).toBe("user");
+    expect((await resolveAuth(bearer(foreign), options)).auth).toMatchObject({
+      kind: "invalid",
+      reason: "token",
+      error: { code: "INVALID_ISSUER" },
+    });
+  });
+
+  it("requires the claim when issuer is set, and skips the check with false", async () => {
+    const bare = await signer.sign({ sub: USER });
+    const foreign = await signer.sign({ sub: USER, iss: "https://other.test" });
+
+    expect(
+      (
+        await resolveAuth(bearer(bare), {
+          env,
+          jwks: keys(),
+          issuer: `${PROJECT_URL}/auth/v1`,
+        })
+      ).auth.kind,
+    ).toBe("invalid");
+    expect(
+      (await resolveAuth(bearer(foreign), { env, jwks: keys(), issuer: false }))
+        .auth.kind,
+    ).toBe("user");
+  });
+});
+
+describe("shared JWKS", () => {
+  it("fetches the JWKS once for resolvers in separate module graphs", async () => {
+    clearVerifiedTokens();
+
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json(signer.jwks),
+    );
+
+    const jwksEnv = {
+      ...env,
+      jwksUrl: new URL(`${PROJECT_URL}/shared-graph/jwks.json`),
+    };
+
+    vi.resetModules();
+
+    // A second copy of the module, as the proxy and the server render load it.
+    const graph = "../../src/auth/resolve.ts?graph=server";
+    // SAFETY: the same module, loaded under a query that gives it its own state.
+    const other = (await import(graph)) as typeof Resolve;
+
+    const [proxy, server] = await Promise.all([
+      resolveAuth(bearer(await signer.sign({ sub: USER })), {
+        env: jwksEnv,
+        fetch,
+      }),
+      other.resolveAuth(bearer(await signer.sign({ sub: USER, n: 2 })), {
+        env: jwksEnv,
+        fetch,
+      }),
+    ]);
+
+    expect(proxy.auth.kind).toBe("user");
+    expect(server.auth.kind).toBe("user");
+    expect(fetch).toHaveBeenCalledOnce();
   });
 });

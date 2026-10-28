@@ -9,7 +9,7 @@ import type {
 
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
-import { refreshFor } from "./refresh.ts";
+import { refreshFor } from "./request-kind.ts";
 import {
   assertCookieRefresh,
   defaultExpose,

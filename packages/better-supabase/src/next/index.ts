@@ -44,12 +44,7 @@ export {
   type RecordTagOptions,
 } from "./records.ts";
 
-export {
-  requireAal,
-  shouldCheckSession,
-  shouldRefresh,
-  STATS_URL_HEADER,
-} from "./support.ts";
+export { requireAal, shouldCheckSession, STATS_URL_HEADER } from "./support.ts";
 
 export { tagFor, type TagOptions } from "../core/tags.ts";
 

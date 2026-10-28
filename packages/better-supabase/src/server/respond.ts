@@ -1,7 +1,7 @@
 import type { Aal } from "../auth/mfa.ts";
 import type { AuthState } from "../auth/resolve.ts";
 import type { DbError } from "../core/errors.ts";
-import type { RefreshPolicy } from "./refresh.ts";
+import type { RefreshPolicy } from "./request-kind.ts";
 
 import { actorOf, delegationOf } from "../auth/actor.ts";
 import { checkAal } from "../auth/mfa.ts";
@@ -48,8 +48,8 @@ export interface GuardOptions {
 export interface MiddlewareOptions extends GuardOptions {
   /**
    * Refresh an expired cookie session and send the new cookies. Only for routes
-   * browsers call with cookies; bearer tokens never refresh. `'navigation'`
-   * refreshes page loads and form posts only (`shouldRefresh`).
+   * browsers call with cookies; bearer tokens never refresh. Parallel requests
+   * share one token refresh, so every request may refresh.
    */
   readonly refresh?: RefreshPolicy;
   /**

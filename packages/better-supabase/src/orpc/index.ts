@@ -31,7 +31,7 @@ import { toProblem } from "../core/problem.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { authorizeCaller } from "../server/kit.ts";
 import { rateLimitGate } from "../server/rate-limit.ts";
-import { refreshFor } from "../server/refresh.ts";
+import { refreshFor } from "../server/request-kind.ts";
 import {
   assertCookieRefresh,
   defaultExpose,

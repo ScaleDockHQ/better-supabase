@@ -1,21 +1,14 @@
 export {
   applyCookieWrites,
-  AUTH_CACHE_HEADERS,
   authContext,
-  clearSessionAtScopes,
   clearSessionCookies,
-  DEFAULT_SESSION_ENCODING,
   parseCookies,
-  pruneSessionChunks,
   readSession,
-  refreshSession,
   resolveAuth,
   serializeCookie,
   sessionCookieName,
-  sessionEncoding,
   sessionStatus,
   toSession,
-  writeSession,
 } from "../auth/index.ts";
 
 export type {
@@ -29,12 +22,9 @@ export type {
   CookieScope,
   CookieWrite,
   MembershipClaim,
-  RefreshOptions,
-  RefreshOutcome,
   ResolveAuthOptions,
   SessionEncoding,
   SessionStatus,
   SessionStatusOptions,
   StoredSession,
-  WriteSessionOptions,
 } from "../auth/index.ts";

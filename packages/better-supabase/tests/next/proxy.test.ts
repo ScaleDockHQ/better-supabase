@@ -112,9 +112,13 @@ describe("proxy fast path", () => {
     { "x-middleware-prefetch": "1" },
     { purpose: "prefetch" },
     { "sec-purpose": "prefetch;prerender" },
-  ])("never calls Auth for a prefetch with %o", async (headers) => {
-    await run(page(await expiring(20), headers));
-    expect(auth).not.toHaveBeenCalled();
+  ])("refreshes an expiring cookie on a prefetch with %o", async (headers) => {
+    const { response } = await run(
+      page(await expiring(20, `r-${Object.keys(headers)[0]!}`), headers),
+    );
+
+    expect(auth).toHaveBeenCalledOnce();
+    expect(response.headers.getSetCookie().join("\n")).toContain(NAME);
   });
 
   it("refreshes the same expiring cookie on a page load", async () => {

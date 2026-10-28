@@ -1245,7 +1245,6 @@
       "actorOf",
       "agentClaims",
       "amrOf",
-      "AUTH_CACHE_HEADERS",
       "authContext",
       "authModeOf",
       "AUTHZ_VERSION_CLAIM",
@@ -1280,6 +1279,7 @@
       "impersonationEvents",
       "impersonatorOf",
       "isApiKeySession",
+      "isDocumentLoad",
       "isPrefetch",
       "isProblem",
       "isRateLimitPolicyName",
@@ -1310,7 +1310,6 @@
       "realtimeRelay",
       "realtimeTopicAccess",
       "refreshFor",
-      "refreshSession",
       "requestMemo",
       "resolveAuth",
       "resolveToken",
@@ -1325,8 +1324,6 @@
       "sessionStatus",
       "sessionStatusRoute",
       "settle",
-      "shouldCheckSession",
-      "shouldRefresh",
       "snapshotOf",
       "sqlSupportStore",
       "subjectReaders",
@@ -1356,8 +1353,7 @@
       "withFlush",
       "withGuard",
       "withServerTiming",
-      "withSession",
-      "writeSession"
+      "withSession"
     ],
     "types": [
       "Aal",
@@ -1449,7 +1445,6 @@
       "RateLimitPolicy",
       "RateLimitState",
       "RealtimeRelayOptions",
-      "RefreshOutcome",
       "RefreshPolicy",
       "RelayAccessInput",
       "RelayAuthorize",
@@ -1634,22 +1629,15 @@
   "./ssr": {
     "values": [
       "applyCookieWrites",
-      "AUTH_CACHE_HEADERS",
       "authContext",
-      "clearSessionAtScopes",
       "clearSessionCookies",
-      "DEFAULT_SESSION_ENCODING",
       "parseCookies",
-      "pruneSessionChunks",
       "readSession",
-      "refreshSession",
       "resolveAuth",
       "serializeCookie",
       "sessionCookieName",
-      "sessionEncoding",
       "sessionStatus",
-      "toSession",
-      "writeSession"
+      "toSession"
     ],
     "types": [
       "AuthResolution",
@@ -1662,14 +1650,11 @@
       "CookieScope",
       "CookieWrite",
       "MembershipClaim",
-      "RefreshOptions",
-      "RefreshOutcome",
       "ResolveAuthOptions",
       "SessionEncoding",
       "SessionStatus",
       "SessionStatusOptions",
-      "StoredSession",
-      "WriteSessionOptions"
+      "StoredSession"
     ]
   },
   "./next": {
@@ -1693,7 +1678,6 @@
       "sessionStale",
       "sessionTag",
       "shouldCheckSession",
-      "shouldRefresh",
       "STATS_URL_HEADER",
       "supportOf",
       "supportSessions",

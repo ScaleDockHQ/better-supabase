@@ -338,19 +338,13 @@ const protect: NonNullable<ProxyOptions["protect"]> = (auth, request) => {
   return undefined;
 };
 
-export const proxy = (request: NextRequest) =>
-  bsb.proxy(request, { protect, onExpiredPrefetch: "render" });
+export const proxy = (request: NextRequest) => bsb.proxy(request, { protect });
 ```
 
-Prefetches never refresh, so a session whose token expired arrives as
-`{ kind: "none", reason: "expired" }`. Without `onExpiredPrefetch`, `protect`
-sees it like any other caller and the prefetch caches a redirect to
-`/login`, even though the click would refresh the session. With
-`onExpiredPrefetch: "render"`, `protect` is skipped for those prefetches, so
-they render signed out. `sessionStale` gives that view 0, so it never joins
-the App Shell, and the navigation itself refreshes the session. Other
-requests with an expired token, and prefetches without any session, still
-go through `protect`.
+The proxy refreshes prefetches too, so a session whose token expired is
+refreshed before `protect` sees it, and a prefetch never caches a redirect
+to `/login` for a user who is still signed in. Parallel prefetches with the
+same refresh token share one call to Auth.
 
 ## 6. Data derived from the session
 

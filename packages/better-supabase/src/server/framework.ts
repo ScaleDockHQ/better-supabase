@@ -102,7 +102,7 @@ export function frameworkEntry<
   expose: boolean,
 ): BetterSupabaseEntry<M, F, E, C, P, B> {
   return withBetterSupabase(server, {
-    refresh: options.refresh ?? "navigation",
+    refresh: options.refresh ?? true,
     allow: EVERY_CALLER,
     expose,
     ...(options.verifySession === undefined

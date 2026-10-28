@@ -374,11 +374,13 @@ describe("resolveAuth", async () => {
     expect(fetchSpy).toHaveBeenCalledOnce();
     const [url, init] = fetchSpy.mock.calls[0]!;
     expect(url).toBe(`${PROJECT_URL}/auth/v1/token?grant_type=refresh_token`);
-    expect(init?.headers).toMatchObject({ apikey: "sb_publishable_test" });
+    expect(new Headers(init?.headers).get("apikey")).toBe(
+      "sb_publishable_test",
+    );
 
     for (const resolution of [a, b]) {
       expect(resolution.auth).toMatchObject({ kind: "user", token: fresh });
-      expect(resolution.headers["Cache-Control"]).toContain("no-store");
+      expect(resolution.headers["cache-control"]).toContain("no-store");
       expect(readSession(resolution.requestCookies, NAME)?.refresh_token).toBe(
         "refresh-2",
       );
@@ -477,22 +479,20 @@ describe("resolveAuth", async () => {
 
     const secretEnv = { ...options, env, refresh: true, fetch: fetchSpy };
     await resolveAuth(request("ip-a"), secretEnv);
-    expect(fetchSpy.mock.calls[0]![1]!.headers).toMatchObject({
-      apikey: "sb_secret_test",
-      "sb-forwarded-for": "2001:db8::1",
-    });
+
+    const sent = (call: number) =>
+      new Headers(fetchSpy.mock.calls[call]![1]!.headers);
+
+    expect(sent(0).get("apikey")).toBe("sb_secret_test");
+    expect(sent(0).get("sb-forwarded-for")).toBe("2001:db8::1");
     await resolveAuth(request("ip-b"), { ...secretEnv, clientIp: false });
-    expect(fetchSpy.mock.calls[1]![1]!.headers).toEqual({
-      apikey: "sb_publishable_test",
-      "content-type": "application/json",
-    });
+    expect(sent(1).get("apikey")).toBe("sb_publishable_test");
+    expect(sent(1).has("sb-forwarded-for")).toBe(false);
     await resolveAuth(request("ip-c"), {
       ...secretEnv,
       clientIp: (req) => req.headers.get("x-real-ip") ?? undefined,
     });
-    expect(fetchSpy.mock.calls[2]![1]!.headers).not.toHaveProperty(
-      "sb-forwarded-for",
-    );
+    expect(sent(2).has("sb-forwarded-for")).toBe(false);
   });
 
   it("reads the last x-forwarded-for hop and ignores junk", () => {

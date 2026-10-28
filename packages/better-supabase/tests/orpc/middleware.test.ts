@@ -92,7 +92,7 @@ describe("oRPC middleware", () => {
       TypeError,
     );
     expect(() =>
-      bsb.middleware({ cookies: false, refresh: "navigation" }),
+      bsb.middleware({ cookies: false, refresh: () => true }),
     ).toThrow(/can't be combined with `refresh`/);
     expect(() =>
       bsb.middleware({ cookies: false, refresh: false }),

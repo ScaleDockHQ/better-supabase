@@ -102,18 +102,14 @@ A token is refreshed only when it expires within `leeway`
 (`auth.leeway`, else 60). Outside that window the proxy parses the cookie
 and verifies the token locally, with no fetch. After a refresh it stores the
 new session in the [session memo](/docs/frameworks/next-islands), so the
-render that follows doesn't verify it again. When two requests race to
-rotate one refresh token, Auth answers the loser with
-`refresh_token_already_used`. The proxy treats that as `raced`: it keeps the
-cookies the winner set and keeps the user signed in while the old token is
-still valid, instead of signing them out.
-
-A prefetch never refreshes, so a session whose token expired reaches
-`protect` as `{ kind: "none", reason: "expired" }`. `onExpiredPrefetch: "render"`
-skips `protect` for those prefetches, so they render signed out instead of
-caching a redirect to sign-in; the click refreshes the session
-([details](/docs/frameworks/next-cache-components#5-optimistic-redirects-in-the-proxy)).
-The default, `"protect"`, passes them to `protect` like any other request.
+render that follows doesn't verify it again. Every request the proxy matches refreshes, prefetches included, so a
+prefetch of a page whose token expired renders signed in, and `protect`
+never caches a redirect to sign-in for it. Parallel requests that carry the
+same refresh token (a burst of prefetches, or islands loading together)
+share one call to Auth, so the single-use refresh token is spent once
+([details](/docs/auth/sessions#refreshing)). When two instances still race,
+Auth answers the loser with `refresh_token_already_used`; the proxy keeps the
+user signed in while the old token is valid instead of signing them out.
 
 ### Ended sessions
 

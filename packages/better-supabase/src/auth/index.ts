@@ -1,7 +1,3 @@
-export { refreshSession } from "./refresh.ts";
-
-export type { RefreshOptions, RefreshOutcome } from "./refresh.ts";
-
 export { authContext } from "./context.ts";
 
 export { clientIp, resolveAuth } from "./resolve.ts";
@@ -74,16 +70,10 @@ export type { EntitlementKey, MembershipClaim } from "./entitlements.ts";
 
 export {
   applyCookieWrites,
-  AUTH_CACHE_HEADERS,
-  clearSessionAtScopes,
-  DEFAULT_SESSION_ENCODING,
   parseCookies,
-  pruneSessionChunks,
   readSession,
   serializeCookie,
   sessionCookieName,
-  sessionEncoding,
-  writeSession,
 } from "./session.ts";
 
 export type {
@@ -93,5 +83,4 @@ export type {
   CookieWrite,
   SessionEncoding,
   StoredSession,
-  WriteSessionOptions,
 } from "./session.ts";

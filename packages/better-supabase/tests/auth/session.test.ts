@@ -1,19 +1,11 @@
-import {
-  clearAuthCookiesAtScopes,
-  createServerClient,
-  stringFromBase64URL,
-} from "@supabase/ssr";
+import { createServerClient, stringFromBase64URL } from "@supabase/ssr";
 import { describe, expect, it } from "vitest";
 
 import type { CookieWrite, StoredSession } from "../../src/auth/session.ts";
 
 import {
   applyCookieWrites,
-  clearSessionAtScopes,
-  DEFAULT_SESSION_ENCODING,
-  pruneSessionChunks,
   readSession,
-  sessionEncoding,
   writeSession,
 } from "../../src/auth/session.ts";
 
@@ -43,7 +35,6 @@ const decoded = (writes: readonly CookieWrite[]): unknown =>
 
 describe("session encoding", () => {
   it("keeps the user object by default", () => {
-    expect(DEFAULT_SESSION_ENCODING).toBe("user-and-tokens");
     const writes = writeSession([], NAME, session());
     expect(decoded(writes)).toMatchObject({ user: USER });
     expect(writeSession([], NAME, session(), {}, {})).toEqual(writes);
@@ -72,7 +63,6 @@ describe("session encoding", () => {
     const tokensOnly = readSession(applyCookieWrites([], writes), NAME)!;
     expect(tokensOnly.user).toBeUndefined();
     expect(tokensOnly.access_token).toBe("access");
-    expect(sessionEncoding(tokensOnly)).toBe("tokens-only");
 
     const full = readSession(
       applyCookieWrites([], writeSession([], NAME, session())),
@@ -80,8 +70,6 @@ describe("session encoding", () => {
     )!;
 
     expect(full.user).toEqual(USER);
-    expect(sessionEncoding(full)).toBe("user-and-tokens");
-    expect(sessionEncoding(session({ user: null }))).toBe("tokens-only");
   });
 
   it("expires the chunks a tokens-only rewrite of a large session no longer uses", () => {
@@ -108,7 +96,7 @@ describe("session encoding", () => {
     expect(readSession(after, NAME)?.user).toBeUndefined();
   });
 
-  it("reads the longest chunk prefix that parses and prunes the rest", () => {
+  it("reads the longest chunk prefix that parses", () => {
     const big = session({
       user: { ...USER, user_metadata: { bio: "x".repeat(6000) } },
     });
@@ -124,21 +112,6 @@ describe("session encoding", () => {
     ];
 
     expect(readSession(leftover, NAME)?.user).toEqual(big.user);
-    expect(
-      pruneSessionChunks(leftover, NAME).map((write) => write.name),
-    ).toEqual([`${NAME}.${count}`, `${NAME}.${count + 1}`]);
-    expect(pruneSessionChunks(chunks, NAME)).toEqual([]);
-    expect(
-      pruneSessionChunks([{ name: `${NAME}.0`, value: "x" }], NAME),
-    ).toEqual([]);
-
-    const whole = applyCookieWrites([], writeSession([], NAME, session()));
-    expect(
-      pruneSessionChunks(
-        [...whole, { name: `${NAME}.0`, value: "old" }],
-        NAME,
-      ).map((write) => [write.name, write.options.maxAge]),
-    ).toEqual([[`${NAME}.0`, 0]]);
   });
 
   it("is read by @supabase/ssr with encode: tokens-only", async () => {
@@ -161,58 +134,5 @@ describe("session encoding", () => {
     const { data } = await client.auth.getSession();
     expect(data.session?.access_token).toBe("access");
     expect(data.session?.refresh_token).toBe("refresh");
-  });
-});
-
-describe("clearSessionAtScopes", () => {
-  const existing = [
-    { name: `${NAME}.0`, value: "a" },
-    { name: `${NAME}.1`, value: "b" },
-    { name: `${NAME}-code-verifier`, value: "c" },
-    { name: "other", value: "d" },
-  ];
-
-  const scopes = [{ domain: ".old.example.com" }, { path: "/app" }];
-
-  it("writes what clearAuthCookiesAtScopes writes", async () => {
-    let theirs: CookieWrite[] = [];
-    await clearAuthCookiesAtScopes({
-      getAll: () => existing,
-      setAll: (cookies) => {
-        theirs = cookies;
-      },
-      storageKey: NAME,
-      scopes,
-    });
-    const ours = clearSessionAtScopes(existing, NAME, scopes);
-    expect(ours).toEqual(theirs);
-    expect(ours.map((write) => [write.name, write.options])).toEqual([
-      [
-        `${NAME}.0`,
-        expect.objectContaining({ domain: ".old.example.com", maxAge: 0 }),
-      ],
-      [
-        `${NAME}.1`,
-        expect.objectContaining({ domain: ".old.example.com", maxAge: 0 }),
-      ],
-      [`${NAME}.0`, expect.objectContaining({ path: "/app", maxAge: 0 })],
-      [`${NAME}.1`, expect.objectContaining({ path: "/app", maxAge: 0 })],
-    ]);
-  });
-
-  it("writes nothing without scopes or session cookies", () => {
-    expect(clearSessionAtScopes(existing, NAME, [])).toEqual([]);
-    expect(
-      clearSessionAtScopes([{ name: "other", value: "d" }], NAME, scopes),
-    ).toEqual([]);
-    expect(
-      clearSessionAtScopes([{ name: NAME, value: "x" }], NAME, [{}]),
-    ).toEqual([
-      {
-        name: NAME,
-        value: "",
-        options: expect.objectContaining({ path: "/", maxAge: 0 }),
-      },
-    ]);
   });
 });

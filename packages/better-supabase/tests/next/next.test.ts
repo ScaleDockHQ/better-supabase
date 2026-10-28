@@ -14,7 +14,6 @@ import {
   createNext,
   requireAal,
   shouldCheckSession,
-  shouldRefresh,
   tagFor,
 } from "../../src/next/index.ts";
 import { testAdapter } from "../../src/testing/adapter.ts";
@@ -101,29 +100,6 @@ function cookieFor(token: string, refresh: string): string {
     .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
     .join("; ");
 }
-
-describe("shouldRefresh", () => {
-  it("refreshes page loads, navigations and server actions only", () => {
-    expect(shouldRefresh(page())).toBe(true);
-    expect(
-      shouldRefresh(page({ headers: { "sec-fetch-dest": "empty", rsc: "1" } })),
-    ).toBe(true);
-    expect(
-      shouldRefresh(
-        page({ method: "POST", headers: { "next-action": "abc" } }),
-      ),
-    ).toBe(true);
-    expect(
-      shouldRefresh(
-        page({ headers: { rsc: "1", "next-router-prefetch": "1" } }),
-      ),
-    ).toBe(false);
-    expect(shouldRefresh(page({ method: "POST" }))).toBe(false);
-    expect(
-      shouldRefresh(page({ headers: { "sec-fetch-dest": "image" } })),
-    ).toBe(false);
-  });
-});
 
 describe("shouldCheckSession", () => {
   it("checks document loads, only to the listed paths when there are any", () => {
@@ -531,7 +507,9 @@ describe("createNext", () => {
       expect(response.headers.has("x-middleware-override-headers")).toBe(false);
     });
 
-    it("never refreshes a prefetch, whatever before() does", async () => {
+    it("refreshes a prefetch under a before() rewrite", async () => {
+      await renew();
+
       const response = await bsb.proxy(
         page({
           cookie: cookieFor(await stale(), "compose-3"),
@@ -543,8 +521,8 @@ describe("createNext", () => {
         },
       );
 
-      expect(fresh).not.toHaveBeenCalled();
-      expect(response.headers.getSetCookie()).toEqual([]);
+      expect(fresh).toHaveBeenCalledOnce();
+      expect(response.headers.getSetCookie()).toHaveLength(1);
       expect(response.headers.get("x-middleware-rewrite")).toBe(
         "https://app.test/nl",
       );
@@ -607,11 +585,9 @@ describe("createNext", () => {
         headers: { "x-forwarded-for": "198.51.100.9, 203.0.113.7" },
       }),
     );
-    const init = fresh.mock.calls[0]![1]!;
-    expect(init.headers).toMatchObject({
-      apikey: "sb_secret_test",
-      "sb-forwarded-for": "203.0.113.7",
-    });
+    const sent = new Headers(fresh.mock.calls[0]![1]!.headers);
+    expect(sent.get("apikey")).toBe("sb_secret_test");
+    expect(sent.get("sb-forwarded-for")).toBe("203.0.113.7");
 
     fresh.mockClear();
     await bsb.proxy(
@@ -623,9 +599,9 @@ describe("createNext", () => {
         headers: { "x-forwarded-for": "203.0.113.7" },
       }),
     );
-    expect(fresh.mock.calls[0]![1]!.headers).toMatchObject({
-      apikey: "sb_publishable_test",
-    });
+    expect(new Headers(fresh.mock.calls[0]![1]!.headers).get("apikey")).toBe(
+      "sb_publishable_test",
+    );
     expect(fresh.mock.calls[0]![1]!.headers).not.toHaveProperty(
       "sb-forwarded-for",
     );
@@ -1206,59 +1182,87 @@ describe("createNext", () => {
     expect(passed.headers.get("x-middleware-next")).toBe("1");
   });
 
-  it("renders prefetches with an expired token signed out when asked to", async () => {
+  it("refreshes prefetches, with one token call for parallel requests", async () => {
     const expired = writeSession([], NAME, {
       access_token: await signer.sign({ sub: USER, expiresIn: -60 }),
-      refresh_token: "expired-1",
+      refresh_token: "expired-prefetch",
       expires_at: Math.floor(Date.now() / 1000) - 60,
     })
       .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
       .join("; ");
 
-    const prefetch = () =>
-      page({
-        cookie: expired,
-        headers: { "next-router-prefetch": "1", rsc: "1" },
-      });
+    const token = await signer.sign({ sub: USER });
 
-    const protect = vi.fn((_auth: unknown, request: NextRequest) =>
-      NextResponse.redirect(new URL("/login", request.url)),
+    fresh.mockImplementation(async () =>
+      Response.json({
+        access_token: token,
+        refresh_token: "rotated-prefetch",
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: "bearer",
+        user: { id: USER, aud: "authenticated" },
+      }),
     );
 
-    const redirected = await bsb.proxy(prefetch(), { protect });
-    expect(redirected.status).toBe(307);
-    expect(protect).toHaveBeenLastCalledWith(
-      { kind: "none", reason: "expired" },
+    const protect = vi.fn(() => undefined);
+
+    const responses = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        bsb.proxy(
+          page({
+            cookie: expired,
+            headers: { "next-router-prefetch": "1", rsc: "1" },
+          }),
+          { protect },
+        ),
+      ),
+    );
+
+    const tokenCalls = fresh.mock.calls.filter(([input]) =>
+      String(input).includes("grant_type=refresh_token"),
+    );
+
+    expect(tokenCalls).toHaveLength(1);
+    expect(protect).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "user" }),
       expect.anything(),
     );
 
-    protect.mockClear();
+    for (const response of responses) {
+      expect(response.headers.getSetCookie().join(";")).toContain(NAME);
+      expect(response.headers.get("cache-control")).toContain("no-store");
+    }
+  });
 
-    const rendered = await bsb.proxy(prefetch(), {
-      protect,
-      onExpiredPrefetch: "render",
+  it("keeps the session cookies on a response after replaces", async () => {
+    const expired = writeSession([], NAME, {
+      access_token: await signer.sign({ sub: USER, expiresIn: -60 }),
+      refresh_token: "expired-after",
+      expires_at: Math.floor(Date.now() / 1000) - 60,
+    })
+      .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+      .join("; ");
+
+    const token = await signer.sign({ sub: USER });
+
+    fresh.mockImplementation(async () =>
+      Response.json({
+        access_token: token,
+        refresh_token: "rotated-after",
+        expires_in: 3600,
+        expires_at: Math.floor(Date.now() / 1000) + 3600,
+        token_type: "bearer",
+        user: { id: USER, aud: "authenticated" },
+      }),
+    );
+
+    const response = await bsb.proxy(page({ cookie: expired }), {
+      after: () => NextResponse.redirect(new URL("https://app.test/home")),
     });
 
-    expect(protect).not.toHaveBeenCalled();
-    expect(rendered.headers.get("x-middleware-next")).toBe("1");
-    expect(fresh).not.toHaveBeenCalled();
-
-    const signedOut = await bsb.proxy(
-      page({ headers: { "next-router-prefetch": "1", rsc: "1" } }),
-      { protect, onExpiredPrefetch: "render" },
-    );
-
-    expect(signedOut.status).toBe(307);
-
-    const api = await bsb.proxy(
-      new NextRequest("https://app.test/api/x", {
-        method: "POST",
-        headers: { cookie: expired },
-      }),
-      { protect, onExpiredPrefetch: "render", protectMethods: true },
-    );
-
-    expect(api.status).toBe(307);
+    expect(response.status).toBe(307);
+    expect(response.headers.getSetCookie().join(";")).toContain(NAME);
+    expect(response.headers.get("cache-control")).toContain("no-store");
   });
 
   it("skips protect on Server Action POSTs unless asked", async () => {
