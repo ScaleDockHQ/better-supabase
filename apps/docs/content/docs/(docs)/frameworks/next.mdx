@@ -348,6 +348,56 @@ export const GET = bsb.route<{ id: string }>((request, { db, params }) =>
   internal details (unless `exposeErrors`), while `redirect()` and
   `notFound()` still reach Next.js.
 
+### Middleware entries
+
+`toNextRoute(entries, handler)` and `toNextAction(entries, action)` run an
+array of [`@supabase/middleware` entries](/docs/auth/middleware) around a
+route handler or a Server Action, for code that composes the Supabase entries
+(`withRequiredClaims`, `withSupabaseClient`, `withCors`) instead of
+`bsb.route()`:
+
+```ts title="src/app/api/notes/route.ts"
+import { withCors } from "@supabase/middleware/cors";
+import { withRequiredClaims } from "@supabase/server/middleware/required-claims";
+import { withSupabaseClient } from "@supabase/server/middleware/client";
+import { toNextRoute } from "better-supabase/next";
+
+export const GET = toNextRoute(
+  [
+    withCors({ origin: "https://app.example.com" }),
+    withRequiredClaims(),
+    withSupabaseClient(),
+  ],
+  async (_request, ctx) => (await ctx.supabase.from("notes").select()).data,
+);
+```
+
+The handler returns a `Response` or a value (sent as JSON, `undefined` as
+204), and gets the route `params` as its third argument. Response-phase
+entries see its response, so `withCors` adds its headers to it, including on
+the 401 `withRequiredClaims` sends a caller without a session.
+
+`toNextAction` builds the request from `headers()`, so the entries read the
+session cookie, and writes the cookies they set through `cookies().set`. When
+an entry answers first, such as `withRequiredClaims` with a 401, the action
+doesn't run and the call throws `NextActionRejected` with that `status` and
+`response`:
+
+```ts title="src/app/notes/actions.ts"
+"use server";
+
+import { withRequiredClaims } from "@supabase/server/middleware/required-claims";
+import { withSupabaseClient } from "@supabase/server/middleware/client";
+import { toNextAction } from "better-supabase/next";
+
+export const addNote = toNextAction(
+  [withRequiredClaims(), withSupabaseClient()],
+  async (ctx, body: string) => {
+    await ctx.supabase.from("notes").insert({ body });
+  },
+);
+```
+
 ## REST resources
 
 `bsb.resources(map, options)` serves the same REST routes as
