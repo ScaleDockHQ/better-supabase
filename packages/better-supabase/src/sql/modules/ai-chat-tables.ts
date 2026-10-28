@@ -180,6 +180,23 @@ export function participates(
 }
 
 /**
+ * `participates` for a chat row in a security definer function, which skips the
+ * tenant scope policy: in a chat with a tenant the caller must also still be a
+ * member of it.
+ */
+export function participatesIn(
+  ctx: BlockSqlContext,
+  names: AiChatNames,
+  row: string,
+  roles: readonly ("viewer" | "editor")[] = [],
+): string {
+  const ch = names.c.chats;
+  const tenant = `${row}.${ch.tenant}`;
+
+  return `(${participates(names, `${row}.${ch.id}`, roles)} and (${tenant} is null or ${tenant} in (select ${ctx.scope.members()})))`;
+}
+
+/**
  * The `alter table` lines that apply `options.tenant: false` to an existing
  * table the module owns: its tenant column takes nulls.
  */

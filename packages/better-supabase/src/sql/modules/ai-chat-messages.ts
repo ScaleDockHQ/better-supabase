@@ -21,7 +21,7 @@ import {
   asText,
   assignments,
   columnOr,
-  participates,
+  participatesIn,
   rowJson,
   variableConflict,
   writtenPairs,
@@ -140,7 +140,7 @@ export function aiChatMessages(
 
   const ownChat = (name: string): string => `
   select * into v_chat from ${t.chats} x where x.${ch.id} = ${name}.chat for update;
-  if not found or not (${SERVICE_CALLER} or coalesce(v_chat.${ch.owner} = (select auth.uid()), false) or ${participates(names, `v_chat.${ch.id}`, ["editor"])}) then
+  if not found or not (${SERVICE_CALLER} or coalesce(v_chat.${ch.owner} = (select auth.uid()), false) or ${participatesIn(ctx, names, "v_chat", ["editor"])}) then
     ${raise("No chat %", "P0002", "AI_CHAT_NOT_FOUND", `${name}.chat`)}
   end if;`;
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:3815250154ba7af5733af5c6f0fe395dbdff97cc85fbdc69a3b5bece60bb2aba
+-- @bsb-hash sha256:ece779727a8075000fec808ac1259cd98c8a3606858db4dc780453b1c308896e
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -472,7 +472,7 @@ as $$
         coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
         or x."owner_id" = (select auth.uid())
         or (x."visibility" = 'organization' and coalesce(better_supabase.can('tenant', x."workspace_id", 'ai_chat.read'), false))
-        or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and pa."user_id" = (select auth.uid()))
+        or (exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and pa."user_id" = (select auth.uid())) and (x."workspace_id" is null or x."workspace_id" in (select better_supabase.member_workspace_ids())))
       )
   );
 $$;
@@ -703,7 +703,7 @@ begin
   into v_items
   from (
     select x.* from "better_supabase"."ai_chats" x
-    where (x."owner_id" = v_uid or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and pa."user_id" = (select auth.uid())))
+    where (x."owner_id" = v_uid or (exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = x."id" and pa."user_id" = (select auth.uid())) and (x."workspace_id" is null or x."workspace_id" in (select better_supabase.member_workspace_ids()))))
       and not x."is_temporary"
       and (list_ai_chats.tenant is null or x."workspace_id" = list_ai_chats.tenant)
       and (list_ai_chats.project is null or x."project_id" = list_ai_chats.project)
@@ -842,6 +842,9 @@ begin
   end if;
   if add_ai_chat_participant.participant is null or add_ai_chat_participant.participant = v_chat.owner then
     raise exception 'The owner already takes part in chat %', add_ai_chat_participant.chat using errcode = '22023', hint = 'AI_CHAT_INVALID';
+  end if;
+  if v_chat.tenant is not null and not coalesce(better_supabase.can_user(add_ai_chat_participant.participant, 'tenant', v_chat.tenant, 'ai_chat.read'), false) then
+    raise exception '% can''t read chats in the chat''s organization', add_ai_chat_participant.participant using errcode = '22023', hint = 'AI_CHAT_INVALID';
   end if;
   insert into "better_supabase"."ai_chat_participants" ("chat_id", "user_id", "role", "added_by")
   values (v_chat.id, add_ai_chat_participant.participant, v_role, auth.uid())
@@ -1010,7 +1013,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = switch_ai_branch.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."user_id" = (select auth.uid()) and pa."role"::text in ('editor'))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."user_id" = (select auth.uid()) and pa."role"::text in ('editor')) and (v_chat."workspace_id" is null or v_chat."workspace_id" in (select better_supabase.member_workspace_ids())))) then
     raise exception 'No chat %', switch_ai_branch.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if not exists (select 1 from "better_supabase"."ai_messages" x where x."chat_id" = switch_ai_branch.chat and x."id" = switch_ai_branch.message_id) then
@@ -1061,7 +1064,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = append_ai_user_message.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."user_id" = (select auth.uid()) and pa."role"::text in ('editor'))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."user_id" = (select auth.uid()) and pa."role"::text in ('editor')) and (v_chat."workspace_id" is null or v_chat."workspace_id" in (select better_supabase.member_workspace_ids())))) then
     raise exception 'No chat %', append_ai_user_message.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if coalesce(append_ai_user_message.trigger, 'submit-message') = 'regenerate-message' then
@@ -1293,7 +1296,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_chat from "better_supabase"."ai_chats" x where x."id" = request_ai_chat_stop.chat for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."user_id" = (select auth.uid()) and pa."role"::text in ('editor'))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_chat."owner_id" = (select auth.uid()), false) or (exists (select 1 from "better_supabase"."ai_chat_participants" pa where pa."chat_id" = v_chat."id" and pa."user_id" = (select auth.uid()) and pa."role"::text in ('editor')) and (v_chat."workspace_id" is null or v_chat."workspace_id" in (select better_supabase.member_workspace_ids())))) then
     raise exception 'No chat %', request_ai_chat_stop.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   if v_chat."active_stream_id" is null then

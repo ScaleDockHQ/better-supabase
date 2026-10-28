@@ -73,6 +73,9 @@ begin
   if add_ai_chat_participant.participant is null or add_ai_chat_participant.participant = v_chat.owner then
     ${raise("The owner already takes part in chat %", "22023", "AI_CHAT_INVALID", "add_ai_chat_participant.chat")}
   end if;
+  if v_chat.tenant is not null and not ${ctx.scope.canUser("add_ai_chat_participant.participant", "v_chat.tenant", perm.read)} then
+    ${raise("% can't read chats in the chat's organization", "22023", "AI_CHAT_INVALID", "add_ai_chat_participant.participant")}
+  end if;
   insert into ${t.participants} (${columns}${inserted.columns})
   values (${values}${inserted.values})
   on conflict (${pa.chat}, ${pa.user}) do update set ${pa.role} = excluded.${pa.role}

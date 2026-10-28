@@ -19,7 +19,7 @@ import {
   asText,
   assignments,
   columnOr,
-  participates,
+  participatesIn,
   rowJson,
   writtenPairs,
   AI_RUN_STATES,
@@ -175,7 +175,7 @@ as $$
         ${SERVICE_CALLER}
         or x.${ch.owner} = (select auth.uid())
         or (${visibility("x")} = 'organization' and ${can(`x.${ch.tenant}`, perm.read)})
-        or ${participates(names, `x.${ch.id}`)}
+        or ${participatesIn(ctx, names, "x")}
       )
   );
 $$;
@@ -393,7 +393,7 @@ begin
   into v_items
   from (
     select x.* from ${t.chats} x
-    where (x.${ch.owner} = v_uid or ${participates(names, `x.${ch.id}`)})
+    where (x.${ch.owner} = v_uid or ${participatesIn(ctx, names, "x")})
       and not x.${ch.temporary}
       and (list_ai_chats.tenant is null or x.${ch.tenant} = list_ai_chats.tenant)
       and (list_ai_chats.project is null or x.${ch.project} = list_ai_chats.project)

@@ -57,6 +57,18 @@ describe("ai-chat participants", () => {
     );
   });
 
+  it("keeps participants of a tenant chat inside the tenant", () => {
+    const sql = body();
+
+    expect(sql).toContain("can''t read chats in the chat''s organization");
+    expect(sql).toContain(
+      'and (x."organization_id" is null or x."organization_id" in (select',
+    );
+    expect(sql).toContain(
+      'and (v_chat."organization_id" is null or v_chat."organization_id" in (select',
+    );
+  });
+
   it("checks the share permission only for a chat with a tenant", () => {
     expect(body()).toContain("You may not share chats here");
     expect(body({ tenant: false })).toContain("v_chat.tenant is not null and");
