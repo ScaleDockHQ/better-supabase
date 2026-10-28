@@ -333,7 +333,7 @@ create table if not exists ${t.participants} (
   ${pa.role} text not null default 'viewer' check (${pa.role} in ('viewer', 'editor')),${opt("participants")("addedBy", () => "uuid references auth.users (id) on delete set null")}${opt("participants")("createdAt", () => "timestamptz not null default now()")}
   primary key (${pa.chat}, ${pa.user})
 );
-create index if not exists ${ctx.naming.rename("ai_chat_participants_user_idx")} on ${t.participants} (${pa.user});${appKey(ctx, "participants", "user", ["chat", "user"])}${addExtraColumns(t.participants, extras.participants)}
+create index if not exists ${ctx.naming.rename("ai_chat_participants_user_idx")} on ${t.participants} (${pa.user});${ctx.has("participants", "addedBy") ? `\ncreate index if not exists ${ctx.naming.rename("ai_chat_participants_added_by_idx")} on ${t.participants} (${pa.addedBy});` : ""}${appKey(ctx, "participants", "user", ["chat", "user"])}${addExtraColumns(t.participants, extras.participants)}
 ${lockTable(t.participants)}
 grant select on ${t.participants} to authenticated;
 ${renderPolicy(makePolicy({ table: t.participants, name: ctx.naming.rename("ai_chat_participants_own_read"), command: "select", roles: ["authenticated"], using: `${pa.user} = (select auth.uid())` }), { drop: true, target: t.participants })}
@@ -368,7 +368,7 @@ create table if not exists ${t.messages} (
   primary key (${m.chat}, ${m.id})${parentKey}
 );${mode.tree ? `\ncreate index if not exists ai_messages_parent_idx on ${t.messages} (${m.chat}, ${m.parent});` : `\ncreate index if not exists ai_messages_seq_idx on ${t.messages} (${m.chat}, ${m.seq});`}
 create index if not exists ai_messages_owner_idx on ${t.messages} (${m.owner});
-create index if not exists ai_messages_search_idx on ${t.messages} using gin (${m.search});${ctx.owns("messages") && ctx.has("messages", "author") ? `\nalter table ${t.messages} add column if not exists ${m.author} uuid references auth.users (id) on delete set null;` : ""}${addExtraColumns(t.messages, extras.messages)}${appKey(ctx, "messages", "id", ["chat", "id"])}
+create index if not exists ai_messages_search_idx on ${t.messages} using gin (${m.search});${ctx.owns("messages") && ctx.has("messages", "author") ? `\nalter table ${t.messages} add column if not exists ${m.author} uuid references auth.users (id) on delete set null;` : ""}${ctx.has("messages", "author") ? `\ncreate index if not exists ai_messages_author_idx on ${t.messages} (${m.author});` : ""}${addExtraColumns(t.messages, extras.messages)}${appKey(ctx, "messages", "id", ["chat", "id"])}
 ${lockTable(t.messages)}
 grant select on ${t.messages} to authenticated;
 ${renderPolicy(makePolicy({ table: t.messages, name: "ai_messages_read", command: "select", roles: ["authenticated"], using: `${m.chat} in (select x.${ch.id} from ${t.chats} x)` }), { drop: true, target: t.messages })}

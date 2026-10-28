@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:d7ec0f2bad126bce57cfa4e93a3225a58b16eae6e72eb31fa209533a3a84b84b
+-- @bsb-hash sha256:38a49cb9ff1e721ef85022d67ced935d51a32f71205cdf99738bb7bf53c6d601
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -156,6 +156,7 @@ create table if not exists "better_supabase"."ai_chat_participants" (
   primary key ("chat_id", "user_id")
 );
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
@@ -200,6 +201,7 @@ create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messa
 create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
 create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
 alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
+create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
@@ -2600,7 +2602,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:20315602c1f3f6d2f42d43e76b42de6985cae4c6455b9906ff368765a92242af
+-- @bsb-hash sha256:d1c894cb2c8349dacb76e73b3843b91a082ad8ed307332ee375ad57285f96c42
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2755,6 +2757,7 @@ create table if not exists "better_supabase"."ai_chat_participants" (
   primary key ("chat_id", "user_id")
 );
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
@@ -2799,6 +2802,7 @@ create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messa
 create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
 create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
 alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
+create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
@@ -5269,7 +5273,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:42a219dd3459fcb96838cb0af7982206f37097568ec6759e65dc8100cfbc5eb6
+-- @bsb-hash sha256:abf5d4d8219d76257db94043036ee37f9151622cd3da67278d2762cf48f89b53
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5429,6 +5433,7 @@ create table if not exists "app_private"."ai_chat_participants" (
   primary key ("chat_id", "user_id")
 );
 create index if not exists ai_chat_participants_user_idx on "app_private"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_added_by_idx on "app_private"."ai_chat_participants" ("added_by");
 alter table "app_private"."ai_chat_participants" enable row level security;
 revoke all on "app_private"."ai_chat_participants" from public, anon, authenticated;
 grant all on "app_private"."ai_chat_participants" to service_role;
@@ -5473,6 +5478,7 @@ create index if not exists ai_messages_parent_idx on "app_private"."ai_messages"
 create index if not exists ai_messages_owner_idx on "app_private"."ai_messages" ("owner_id");
 create index if not exists ai_messages_search_idx on "app_private"."ai_messages" using gin ("search_tsv");
 alter table "app_private"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
+create index if not exists ai_messages_author_idx on "app_private"."ai_messages" ("author_id");
 alter table "app_private"."ai_messages" enable row level security;
 revoke all on "app_private"."ai_messages" from public, anon, authenticated;
 grant all on "app_private"."ai_messages" to service_role;
@@ -7873,7 +7879,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:4c3e3f3a25855ba4ed31276943e5c6a74742812672e0ebfe815b33051ebda713
+-- @bsb-hash sha256:4d06c53988bce2c8f0e468034975d23611970624f0a06406c6dfe49d3c1a980e
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8028,6 +8034,7 @@ create table if not exists "better_supabase"."ai_chat_participants" (
   primary key ("chat_id", "user_id")
 );
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
@@ -8072,6 +8079,7 @@ create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messa
 create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
 create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
 alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
+create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
@@ -10982,7 +10990,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:65f3c7b7bbb2d9e422079e19ffa130354d1b6ec89b72e34d0cef73086d469347
+-- @bsb-hash sha256:fbd7eaba1dace0043e7a8186223a27d85005c06cc1928be6f039e8949bb83654
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11146,6 +11154,7 @@ alter table "better_supabase"."ai_chat_participants" add column if not exists "r
 alter table "better_supabase"."ai_chat_participants" add column if not exists "added_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."ai_chat_participants" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 create unique index if not exists "bsb_ai_chat_participants_user_key" on "better_supabase"."ai_chat_participants" ("chat_id", "user_id");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
@@ -11183,6 +11192,7 @@ alter table "better_supabase"."ai_messages" add column if not exists "search_tsv
 create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messages" ("chat_id", "parent_id");
 create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
 create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
+create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 create unique index if not exists "bsb_ai_messages_id_key" on "better_supabase"."ai_messages" ("chat_id", "id");
 alter table "better_supabase"."ai_messages" enable row level security;
 grant all on "better_supabase"."ai_messages" to service_role;
@@ -13558,7 +13568,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:af64b87dbbab12dfbf6b52e4aedd47624455c822af4f9bbf596326d262b02b43
+-- @bsb-hash sha256:715da3b70aa65ff6022fdc7e99149b6971526d494b418e4345dbba378610b310
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13713,6 +13723,7 @@ create table if not exists "better_supabase"."ai_chat_participants" (
   primary key ("chat_id", "user_id")
 );
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
@@ -13757,6 +13768,7 @@ create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messa
 create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
 create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
 alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
+create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;

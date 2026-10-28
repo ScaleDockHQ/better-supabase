@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:ece779727a8075000fec808ac1259cd98c8a3606858db4dc780453b1c308896e
+-- @bsb-hash sha256:7ccfe85f887e676706de5e45dc393afaa8b828887d2dbd8d8ddfb7c85d092463
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -156,6 +156,7 @@ create table if not exists "better_supabase"."ai_chat_participants" (
   primary key ("chat_id", "user_id")
 );
 create index if not exists ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
+create index if not exists ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
@@ -200,6 +201,7 @@ create index if not exists ai_messages_parent_idx on "better_supabase"."ai_messa
 create index if not exists ai_messages_owner_idx on "better_supabase"."ai_messages" ("owner_id");
 create index if not exists ai_messages_search_idx on "better_supabase"."ai_messages" using gin ("search_tsv");
 alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
+create index if not exists ai_messages_author_idx on "better_supabase"."ai_messages" ("author_id");
 alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
