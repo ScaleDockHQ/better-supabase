@@ -1,8 +1,8 @@
 -- ==== schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
--- @bsb-block orders@2 managed
--- @bsb-hash sha256:ec35e814c7b4b16dfd733e31c4c5e6dc6e49645376702c7e8138325b95843650
--- Carts on anonymous or signed-in users, checkout priced from the catalog, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
+-- @bsb-block orders@3 managed
+-- @bsb-hash sha256:0d6e46a66af1f2cd570751250dcae8027b18a0de63f71ae9c25a4b217b5ae6b6
+-- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -245,6 +245,8 @@ create table if not exists "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
+  "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "origin_id" text check (length("origin_id") between 1 and 200),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "invoice_number")
@@ -252,6 +254,7 @@ create table if not exists "better_supabase"."orders" (
 create index if not exists orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
 create index if not exists orders_customer_idx on "better_supabase"."orders" ("customer_id");
 create index if not exists orders_sequence_idx on "better_supabase"."orders" ("tenant_id", "sequence");
+create unique index if not exists orders_origin_idx on "better_supabase"."orders" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null and "status" <> 'cancelled';
 alter table "better_supabase"."orders" add column if not exists "app_note" text;
 alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
@@ -348,6 +351,7 @@ create table if not exists "better_supabase"."fulfillment_lines" (
   "fulfillment_id" uuid not null references "better_supabase"."fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
   "quantity" integer not null check ("quantity" > 0),
+  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
 create index if not exists fulfillment_lines_line_idx on "better_supabase"."fulfillment_lines" ("order_line_id");
@@ -955,6 +959,7 @@ begin
   end if;
   if not (case v_from
     when 'pending_payment' then p_to = any ('{paid,cancelled}'::text[])
+    when 'confirmed' then p_to = any ('{paid,fulfilled,cancelled}'::text[])
     when 'paid' then p_to = any ('{fulfilled,refunded}'::text[])
     when 'fulfilled' then p_to = any ('{paid,completed,refunded}'::text[])
     when 'completed' then p_to = any ('{refunded}'::text[])
@@ -1211,7 +1216,7 @@ begin
   select coalesce(sum(x."captured"), 0) into v_paid from "better_supabase"."order_payments" x
   where x."order_id" = v_order.id and x."status" = 'succeeded';
   update "better_supabase"."orders" x set "paid_total" = v_paid, "updated_at" = now() where x."id" = v_order.id;
-  if v_order.status = 'pending_payment' and v_paid >= v_order.total then
+  if v_order.status::text in ('pending_payment', 'confirmed') and v_paid >= v_order.total then
     perform "better_supabase"."order_transition"(v_order.id, 'paid');
     perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_order.tenant::text || ':commerce:invoice', 0));
   select coalesce(max(x."invoice_sequence"), 0) + 1 into v_seq from "better_supabase"."orders" x where x."tenant_id" = v_order.tenant;
@@ -1248,8 +1253,8 @@ $$;
 revoke execute on function "better_supabase"."set_order_tax_transaction"(uuid, jsonb) from public, anon, authenticated;
 grant execute on function "better_supabase"."set_order_tax_transaction"(uuid, jsonb) to service_role;
 
--- Cancels an order waiting for payment: releases its stock and its
--- promotion redemptions. Internal: cancel_order and expire_orders check first.
+-- Cancels an order waiting for payment or confirmed: releases its stock
+-- reservations and allocations and its promotion redemptions. Internal: cancel_order and expire_orders check first.
 create or replace function "better_supabase"."order_cancel"(p_order uuid, p_reason text)
 returns void
 language plpgsql
@@ -1269,8 +1274,9 @@ end;
 $$;
 revoke execute on function "better_supabase"."order_cancel"(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment. Staff with orders.manage
--- and the customer who placed it can.
+-- Cancels an order that is waiting for payment, or a confirmed one before
+-- anything shipped. Staff with orders.manage and the customer who placed
+-- it can.
 create or replace function "better_supabase"."cancel_order"(order_id uuid, reason text default null)
 returns boolean
 language plpgsql
@@ -1290,8 +1296,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status <> 'pending_payment' then
-    raise exception 'only an order waiting for payment can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
+  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."fulfillments" y
+    where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
+    raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   perform "better_supabase"."order_cancel"(v_order.id, cancel_order.reason);
   return true;
@@ -1353,8 +1360,161 @@ $$;
 revoke execute on function "better_supabase"."get_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_order"(uuid) to authenticated, service_role;
 
--- Fulfills lines of a paid order from one location. lines is
--- [{lineId, quantity}]; null fulfills everything not yet fulfilled.
+-- Inserts a confirmed order with computed lines and totals, allocates its
+-- stock and records order.placed. p_attrs carries the totals as text and an
+-- optional origin; an order with the same origin is returned instead.
+-- Internal: order_from_lines and order_from_quote check first.
+create or replace function "better_supabase"."order_from_document"(p_tenant uuid, p_attrs jsonb, p_lines jsonb, p_location uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order record;
+  v_line record;
+  v_allocation jsonb;
+  v_seq bigint;
+  v_number text;
+  v_id uuid;
+  v_claims text;
+begin
+  if p_attrs -> 'origin' is not null then
+    select x."id" into v_id from "better_supabase"."orders" x
+    where x."tenant_id" = p_tenant and x."origin_type" = p_attrs #>> '{origin,type}' and x."origin_id" = p_attrs #>> '{origin,id}'
+      and x."status" <> 'cancelled'
+    limit 1;
+    if v_id is not null then
+      return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', false);
+    end if;
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(p_tenant::text || ':commerce:order', 0));
+  select coalesce(max(x."sequence"), 0) + 1 into v_seq from "better_supabase"."orders" x where x."tenant_id" = p_tenant;
+  v_number := v_seq::text;
+  insert into "better_supabase"."orders" ("tenant_id", "number", "sequence", "customer_id", "email", "status", "currency",
+    "subtotal", "discount_total", "shipping_total", "tax_total", "total", "tax_inclusive",
+    "shipping_address", "billing_address", "origin_type", "origin_id")
+  values (p_tenant, v_number, v_seq, nullif(p_attrs ->> 'customerId', '')::uuid, p_attrs ->> 'email', 'confirmed', p_attrs ->> 'currency',
+    (p_attrs ->> 'subtotal')::bigint, (p_attrs ->> 'discountTotal')::bigint, (p_attrs ->> 'shippingTotal')::bigint,
+    (p_attrs ->> 'taxTotal')::bigint, (p_attrs ->> 'total')::bigint, coalesce((p_attrs ->> 'taxInclusive')::boolean, false),
+    p_attrs -> 'shippingAddress', p_attrs -> 'billingAddress', p_attrs #>> '{origin,type}', p_attrs #>> '{origin,id}')
+  returning "id" into v_id;
+  insert into "better_supabase"."order_lines" ("tenant_id", "order_id", "position", "variant_id", "product_id", "sku", "title",
+    "quantity", "unit_amount", "subtotal", "discount", "tax", "total", "requires_shipping")
+  select p_tenant, v_id, e.n, nullif(e.l ->> 'variantId', '')::uuid, nullif(e.l ->> 'productId', '')::uuid, e.l ->> 'sku', e.l ->> 'title',
+    (e.l ->> 'quantity')::integer, (e.l ->> 'unitAmount')::bigint, (e.l ->> 'subtotal')::bigint, (e.l ->> 'discount')::bigint,
+    (e.l ->> 'tax')::bigint, (e.l ->> 'total')::bigint, (e.l ->> 'requiresShipping')::boolean
+  from jsonb_array_elements(p_lines) with ordinality as e(l, n);
+  select x."id" as id, x."tenant_id" as tenant, x."number" as number, x."customer_id" as customer, x."status" as status, x."currency" as currency, x."total" as total, x."paid_total" as paid_total, x."refunded_total" as refunded_total, x."tax_total" as tax_total, x."tax_inclusive" as tax_inclusive, x."invoice_number" as invoice_number, x."placed_at" as placed_at into v_order from "better_supabase"."orders" x where x."id" = v_id;
+  null;
+  return "better_supabase"."order_json"(v_id) || jsonb_build_object('created', true);
+end;
+$$;
+revoke execute on function "better_supabase"."order_from_document"(uuid, jsonb, jsonb, uuid) from public, anon, authenticated;
+
+-- A confirmed order from lines staff enter, for sales that don't go through
+-- a cart: phone, B2B and wholesale orders. lines: [{ variantId?, title?,
+-- sku?, quantity, unitAmount?, discount?, tax? }]; a catalog line without a
+-- unitAmount takes the variant's price. attrs: { currency, customerId?,
+-- email?, shippingAddress?, billingAddress?, shippingTotal?, taxInclusive?,
+-- locationId?, origin? { type, id } }. Amounts are minor units as text.
+create or replace function "better_supabase"."order_from_lines"(tenant uuid, lines jsonb, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_attrs jsonb := coalesce(order_from_lines.attrs, '{}'::jsonb);
+  v_currency text := v_attrs ->> 'currency';
+  v_inclusive boolean := coalesce((v_attrs ->> 'taxInclusive')::boolean, false);
+  v_shipping bigint := coalesce(case when coalesce(v_attrs ->> 'shippingTotal', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'shippingTotal')::bigint end, 0);
+  v_item record;
+  v_lines jsonb := '[]';
+  v_unit bigint;
+  v_subtotal bigint := 0;
+  v_discount bigint := 0;
+  v_tax bigint := 0;
+begin
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', order_from_lines.tenant, 'orders.manage'), false)) then
+    raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
+  end if;
+  if v_currency is null or v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'attrs.currency is an ISO 4217 code' using errcode = '22023', hint = 'ORDERS_CURRENCY_INVALID';
+  end if;
+  if jsonb_typeof(order_from_lines.lines) is distinct from 'array' or jsonb_array_length(order_from_lines.lines) = 0 then
+    raise exception 'lines is a non-empty list' using errcode = '22023', hint = 'ORDERS_LINES_INVALID';
+  end if;
+  if (v_attrs ? 'shippingTotal' and case when coalesce(v_attrs ->> 'shippingTotal', '') ~ '^[0-9]{1,18}$' then (v_attrs ->> 'shippingTotal')::bigint end is null) then
+    raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+  end if;
+  for v_item in
+    select e as raw, nullif(e ->> 'variantId', '')::uuid as variant, e ->> 'quantity' as quantity,
+      cv."id" as found, cv."tenant_id" as variant_tenant, cv."sku" as sku, concat_ws(' / ', cp."title", nullif(cv."title", '')) as title, cp."id" as product, cp."kind" as kind
+    from jsonb_array_elements(order_from_lines.lines) e
+    left join "better_supabase"."product_variants" cv on cv."id" = nullif(e ->> 'variantId', '')::uuid
+    left join "better_supabase"."products" cp on cp."id" = cv."product_id"
+  loop
+    if coalesce(v_item.quantity, '') !~ '^[1-9][0-9]{0,8}$' then
+      raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
+    end if;
+    if v_item.variant is not null and (v_item.found is null or v_item.variant_tenant <> order_from_lines.tenant) then
+      raise exception 'a line''s variant isn''t in this organization' using errcode = 'P0002', hint = 'ORDERS_VARIANT_NOT_FOUND';
+    end if;
+    if v_item.variant is null and coalesce(v_item.raw ->> 'title', '') = '' then
+      raise exception 'a line without a variant needs a title' using errcode = '22023', hint = 'ORDERS_LINES_INVALID';
+    end if;
+    if (v_item.raw ? 'unitAmount' and case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end is null)
+      or (v_item.raw ? 'discount' and case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end is null)
+      or (v_item.raw ? 'tax' and case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end is null) then
+      raise exception 'amounts are minor units of zero or more' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+    end if;
+    v_unit := coalesce(case when coalesce(v_item.raw ->> 'unitAmount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'unitAmount')::bigint end,
+      case when v_item.variant is not null then ("better_supabase"."variant_price"(v_item.variant, v_currency, null, null) ->> 'amount')::bigint end);
+    if v_unit is null then
+      raise exception 'a line has no unitAmount and its variant no price in this currency' using errcode = '22023', hint = 'ORDERS_LINE_UNPRICED';
+    end if;
+    if coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0) > v_unit * v_item.quantity::bigint then
+      raise exception 'a line''s discount is more than its subtotal' using errcode = '22023', hint = 'ORDERS_AMOUNT_INVALID';
+    end if;
+    v_lines := v_lines || jsonb_build_array(jsonb_build_object(
+      'variantId', v_item.variant, 'productId', v_item.product,
+      'sku', coalesce(v_item.raw ->> 'sku', v_item.sku, ''), 'title', coalesce(nullif(v_item.raw ->> 'title', ''), v_item.title),
+      'quantity', v_item.quantity, 'unitAmount', v_unit::text, 'subtotal', (v_unit * v_item.quantity::bigint)::text,
+      'discount', coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0)::text, 'tax', coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0)::text,
+      'total', (v_unit * v_item.quantity::bigint - coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0))::text,
+      'requiresShipping', case when v_item.variant is null then coalesce((v_item.raw ->> 'requiresShipping')::boolean, false) else v_item.kind = 'physical' end));
+    v_subtotal := v_subtotal + v_unit * v_item.quantity::bigint;
+    v_discount := v_discount + coalesce(case when coalesce(v_item.raw ->> 'discount', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'discount')::bigint end, 0);
+    v_tax := v_tax + coalesce(case when coalesce(v_item.raw ->> 'tax', '') ~ '^[0-9]{1,18}$' then (v_item.raw ->> 'tax')::bigint end, 0);
+  end loop;
+  return "better_supabase"."order_from_document"(order_from_lines.tenant, v_attrs || jsonb_build_object(
+    'subtotal', v_subtotal::text, 'discountTotal', v_discount::text, 'shippingTotal', v_shipping::text, 'taxTotal', v_tax::text,
+    'total', (v_subtotal - v_discount + v_shipping + case when v_inclusive then 0 else v_tax end)::text),
+    v_lines, nullif(v_attrs ->> 'locationId', '')::uuid);
+end;
+$$;
+revoke execute on function "better_supabase"."order_from_lines"(uuid, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."order_from_lines"(uuid, jsonb, jsonb) to authenticated, service_role;
+
+create or replace function "better_supabase"."order_from_quote"(quote uuid, attrs jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  raise exception 'install the quotes block to order a quote' using errcode = '22023', hint = 'ORDERS_QUOTES_MISSING';
+end;
+$$;
+revoke execute on function "better_supabase"."order_from_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."order_from_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Fulfills lines of a paid or confirmed order from one location. lines is
+-- [{lineId, quantity, detail?}]; null fulfills everything not yet
+-- fulfilled. detail names the bin, lot or serial numbers a confirmed
+-- order's line ships from, as for inventory's move_stock.
 create or replace function "better_supabase"."create_fulfillment"(order_id uuid, lines jsonb default null, location uuid default null,
   carrier text default null, tracking_number text default null, tracking_url text default null)
 returns jsonb
@@ -1378,8 +1538,8 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_order.tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
-  if v_order.status <> 'paid' then
-    raise exception 'only a paid order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
+  if v_order.status::text not in ('paid', 'confirmed') then
+    raise exception 'only a paid or confirmed order can be fulfilled' using errcode = '55000', hint = 'ORDERS_NOT_PAID';
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_fulfillment_create"(uuid)');
@@ -1401,7 +1561,9 @@ begin
     create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
   returning "id" into v_id;
   for v_item in
-    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity from jsonb_array_elements(v_requested) e
+    select (e ->> 'lineId')::uuid as line, (e ->> 'quantity')::integer as quantity,
+      case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end as detail
+    from jsonb_array_elements(v_requested) e
   loop
     if v_item.quantity is null or v_item.quantity <= 0 then
       raise exception 'each quantity is a whole number above zero' using errcode = '22023', hint = 'ORDERS_QUANTITY_INVALID';
@@ -1411,9 +1573,10 @@ begin
     if not found then
       raise exception 'a line isn''t on this order or has less left to fulfill' using errcode = '22023', hint = 'ORDERS_FULFILLMENT_INVALID';
     end if;
-    insert into "better_supabase"."fulfillment_lines" as x ("tenant_id", "fulfillment_id", "order_line_id", "quantity")
-    values (v_order.tenant, v_id, v_item.line, v_item.quantity)
-    on conflict ("fulfillment_id", "order_line_id") do update set "quantity" = x."quantity" + excluded."quantity";
+    insert into "better_supabase"."fulfillment_lines" as x ("tenant_id", "fulfillment_id", "order_line_id", "quantity", "detail")
+    values (v_order.tenant, v_id, v_item.line, v_item.quantity, v_item.detail)
+    on conflict ("fulfillment_id", "order_line_id") do update set "quantity" = x."quantity" + excluded."quantity",
+      "detail" = coalesce(excluded."detail", x."detail");
   end loop;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_fulfillment_create"(uuid)');
@@ -1429,8 +1592,9 @@ $$;
 revoke execute on function "better_supabase"."create_fulfillment"(uuid, jsonb, uuid, text, text, text) from public, anon;
 grant execute on function "better_supabase"."create_fulfillment"(uuid, jsonb, uuid, text, text, text) to authenticated, service_role;
 
--- Marks a fulfillment shipped. Once every line has shipped, the order is
--- fulfilled.
+-- Marks a fulfillment shipped. A confirmed order's lines take their stock
+-- through their allocations here. Once every line has shipped, the order
+-- is fulfilled.
 create or replace function "better_supabase"."ship_fulfillment"(fulfillment uuid, carrier text default null, tracking_number text default null, tracking_url text default null)
 returns boolean
 language plpgsql
@@ -1440,6 +1604,8 @@ as $$
 declare
   v_fulfillment record;
   v_order record;
+  v_line record;
+  v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1468,7 +1634,7 @@ begin
     "tracking_url" = coalesce(ship_fulfillment.tracking_url, x."tracking_url")
   where x."id" = v_fulfillment.id;
   null;
-  if v_order.status = 'paid'
+  if v_order.status::text in ('paid', 'confirmed')
     and not exists (select 1 from "better_supabase"."order_lines" l where l."order_id" = v_order.id and l."quantity_fulfilled" < l."quantity")
     and not exists (select 1 from "better_supabase"."fulfillments" x where x."order_id" = v_order.id and x."status" = 'pending') then
     perform "better_supabase"."order_transition"(v_order.id, 'fulfilled');
@@ -2112,13 +2278,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:c9bc11c486e155d2bff54416c110f7ac493ce50a3e165d01e31dbe6e357e8814
+-- @bsb-hash sha256:acf7c31a2affd9b036e8c484b098a6db30922b6ecd1e11fb42eaf5d3c231b461
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 2, 'managed')
+values ('orders', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

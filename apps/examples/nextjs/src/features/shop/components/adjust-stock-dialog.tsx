@@ -59,6 +59,7 @@ export function AdjustStockDialog({
     adjustment: t("Correction"),
     damage: t("Damaged"),
     loss: t("Lost"),
+    scrap: t("Scrapped"),
     return: t("Returned"),
     receipt: t("Received"),
   };

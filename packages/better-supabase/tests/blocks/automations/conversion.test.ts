@@ -15,7 +15,7 @@ import { employeeFromApplicationAction } from "../../../src/blocks/employees/act
 import { orderFromQuoteAction } from "../../../src/blocks/orders/actions.ts";
 import { taskFromConversationAction } from "../../../src/blocks/tasks/actions.ts";
 import { dbError } from "../../../src/core/errors.ts";
-import { err, ok } from "../../../src/core/result.ts";
+import { AsyncResult, err, ok } from "../../../src/core/result.ts";
 
 function call(overrides: Partial<ActionCall> = {}): ActionCall {
   return {
@@ -386,5 +386,35 @@ describe("orderFromQuoteAction", () => {
       ok({ status: "created", target: { type: "order", id: "o1" } }),
     );
     expect(rel.link).toHaveBeenCalledOnce();
+  });
+
+  it("orders the quote through the orders client without a create", async () => {
+    const rel = relations();
+
+    const fromQuote = vi.fn(() =>
+      AsyncResult.ok({ order: { id: "o2" }, created: true }),
+    );
+
+    const action = orderFromQuoteAction({
+      clients: () => ({ relations: rel, orders: { fromQuote } }),
+    });
+
+    expect(await action.run(call())).toEqual(
+      ok({ status: "created", target: { type: "order", id: "o2" } }),
+    );
+    expect(fromQuote).toHaveBeenCalledWith("t1");
+  });
+
+  it("fails without an orders client or a create", async () => {
+    const action = orderFromQuoteAction({
+      clients: () => ({ relations: relations() }),
+    });
+
+    const result = await action.run(call());
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { hint: "ORDERS_CLIENT_MISSING" },
+    });
   });
 });

@@ -1531,3 +1531,130 @@ describe("order fields", () => {
     });
   });
 });
+
+describe("orders from documents", () => {
+  it("orders lines and a quote, once per origin", async () => {
+    const { orders: o, calls } = orders({
+      order_from_lines: () => ({
+        ...orderRow({ status: "confirmed", cartId: null }),
+        created: true,
+      }),
+      order_from_quote: () => ({
+        ...orderRow({ status: "confirmed", cartId: null }),
+        created: false,
+      }),
+    });
+
+    const fromLines = await o
+      .fromLines("org", {
+        currency: "EUR",
+        lines: [
+          { variantId: "v1", quantity: 2 },
+          {
+            title: "Setup",
+            sku: "SETUP",
+            quantity: 1,
+            unitAmount: money(5000n, "EUR"),
+            discount: money(500n, "EUR"),
+            tax: money(945n, "EUR"),
+            requiresShipping: false,
+          },
+        ],
+        email: "buyer@example.test",
+        shippingAddress: ADDRESS,
+        locationId: "l1",
+        shippingTotal: money(495n, "EUR"),
+        taxInclusive: false,
+        origin: { type: "work_order", id: "w1" },
+      })
+      .orThrow();
+
+    expect(fromLines.created).toBe(true);
+    expect(fromLines.order.status).toBe("confirmed");
+
+    const fromQuote = await o.fromQuote("q1").orThrow();
+    expect(fromQuote.created).toBe(false);
+    expect(calls).toEqual([
+      {
+        fn: "order_from_lines",
+        args: {
+          tenant: "org",
+          lines: [
+            {
+              variantId: "v1",
+              title: undefined,
+              sku: undefined,
+              quantity: 2,
+              unitAmount: undefined,
+              discount: undefined,
+              tax: undefined,
+              requiresShipping: undefined,
+            },
+            {
+              variantId: undefined,
+              title: "Setup",
+              sku: "SETUP",
+              quantity: 1,
+              unitAmount: "5000",
+              discount: "500",
+              tax: "945",
+              requiresShipping: false,
+            },
+          ],
+          attrs: {
+            customerId: undefined,
+            email: "buyer@example.test",
+            shippingAddress: ADDRESS,
+            billingAddress: undefined,
+            locationId: "l1",
+            currency: "EUR",
+            shippingTotal: "495",
+            taxInclusive: false,
+            origin: { type: "work_order", id: "w1" },
+          },
+        },
+      },
+      {
+        fn: "order_from_quote",
+        args: {
+          quote: "q1",
+          attrs: {
+            customerId: undefined,
+            email: undefined,
+            shippingAddress: undefined,
+            billingAddress: undefined,
+            locationId: undefined,
+          },
+        },
+      },
+    ]);
+  });
+
+  it("passes a fulfillment line's stock detail", async () => {
+    const { orders: o, calls } = orders({
+      create_fulfillment: () => ({
+        id: "f1",
+        orderId: "o1",
+        status: "pending",
+        carrier: null,
+        trackingNumber: null,
+        lines: [],
+        createdAt: "2026-10-28T10:00:00Z",
+        shippedAt: null,
+        deliveredAt: null,
+      }),
+    });
+
+    await o.createFulfillment("o1", {
+      lines: [
+        { lineId: "ol1", quantity: 1, detail: { serials: ["SN-1"] } },
+        { lineId: "ol2", quantity: 1 },
+      ],
+    });
+
+    expect(calls[0]?.args["lines"]).toEqual([
+      { lineId: "ol1", quantity: 1, detail: { serials: ["SN-1"] } },
+      { lineId: "ol2", quantity: 1 },
+    ]);
+  });
+});

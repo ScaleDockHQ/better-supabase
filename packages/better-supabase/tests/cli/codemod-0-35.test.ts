@@ -144,4 +144,21 @@ const icons = {} satisfies Record<WorkflowNodeKind, Icon>;
       expect.stringContaining("WorkflowBuiltinNodeKind"),
     ]);
   });
+
+  it("flags integer stock hooks, order status switches and orderFromQuoteAction", () => {
+    const source = `create function public.before_stock_adjust(variant uuid, location uuid, quantity integer, reason text)
+create function public.before_stock_adjust(variant uuid, location uuid, quantity numeric, reason text)
+if (order.status === "pending_payment") notify();
+export const toOrder = orderFromQuoteAction({ create: placeOrder });
+`;
+
+    const review = applyCodemod(v035, source, "src/orders.ts").review;
+
+    expect(review.map((line) => line.line)).toEqual([1, 3, 4]);
+    expect(review.map((line) => line.message)).toEqual([
+      expect.stringContaining("Stock quantities are `numeric`"),
+      expect.stringContaining("`confirmed` status"),
+      expect.stringContaining("no longer needs `create`"),
+    ]);
+  });
 });

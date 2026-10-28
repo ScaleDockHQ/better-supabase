@@ -20,6 +20,10 @@ export function OrderStatusBadge({
       return <Badge variant="warning-light">{t("Awaiting payment")}</Badge>;
     }
 
+    case "confirmed": {
+      return <Badge variant="info-light">{t("Confirmed")}</Badge>;
+    }
+
     case "paid": {
       return <Badge variant="info-light">{t("Paid")}</Badge>;
     }

@@ -51,6 +51,7 @@ export {
   type Checkout,
   type CheckoutInput,
   type FulfillmentInput,
+  type FulfillmentLine,
   type Invoice,
   type Orders,
   type OrdersOptions,
@@ -84,4 +85,18 @@ export { ordersEvents } from "./events.ts";
 
 export type { OrdersEvents } from "./events.ts";
 
-export { orderFromQuoteAction, type OrderFromQuoteOptions } from "./actions.ts";
+export {
+  orderFromQuoteAction,
+  type OrderFromQuoteClients,
+  type OrderFromQuoteOptions,
+} from "./actions.ts";
+
+export type {
+  OrderDocumentInput,
+  OrderDocuments,
+  OrderFromDocument,
+  OrderFromLinesInput,
+  OrderLineInput,
+} from "./documents.ts";
+
+export type { StockDetail } from "../../commerce/stock-detail.ts";

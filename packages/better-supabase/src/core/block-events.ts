@@ -530,6 +530,14 @@ export interface CommerceEventData {
   readonly status?: string;
   readonly available?: string;
   readonly reorderPoint?: string;
+  /**
+   * For allocation events: the document that holds the stock, such as `order`
+   * and its id.
+   */
+  readonly documentType?: string;
+  readonly documentId?: string;
+  /** For allocation events: the quantity the event allocated. */
+  readonly allocated?: string;
   readonly supplierType?: string | null;
   readonly supplierId?: string | null;
   readonly orderId?: string;

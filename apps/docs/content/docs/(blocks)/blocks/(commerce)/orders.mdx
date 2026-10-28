@@ -211,12 +211,54 @@ the whole total moves the order to `refunded`.
 | Status            | Next                                                      |
 | ----------------- | --------------------------------------------------------- |
 | `pending_payment` | `paid`, `cancelled`                                       |
+| `confirmed`       | `paid`, `fulfilled`, `cancelled`                          |
 | `paid`            | `fulfilled`, `refunded`                                   |
 | `fulfilled`       | `paid` (a cancelled fulfillment), `completed`, `refunded` |
 | `completed`       | `refunded`                                                |
 
 To change these rules, register a [state machine](/docs/blocks/state-machine)
 on the orders `status` column; the module then leaves the check to it.
+
+## Orders from documents
+
+Staff enter phone and wholesale orders, and other blocks turn their records
+into orders, without a cart:
+
+```ts
+const { order, created } = await orders
+  .fromLines(organizationId, {
+    currency: "EUR",
+    lines: [
+      { variantId, quantity: 2 },
+      { title: "Setup", quantity: 1, unitAmount: money(5000n, "EUR") },
+    ],
+    email: "buyer@example.com",
+    locationId: warehouse.id,
+    origin: { type: "work_order", id: workOrder.id },
+  })
+  .orThrow();
+// order.status === "confirmed"; created is false when the origin already had an order
+
+const fromQuote = await orders.fromQuote(quote.id).orThrow();
+```
+
+Both make a `confirmed` order: it is due, and it can be fulfilled before it
+is paid. A line with a `variantId` takes the variant's price, title and SKU
+unless you pass them, and with the [inventory block](/docs/blocks/inventory)
+each line that ships allocates its stock at `locationId` (the first location
+with stock by default), backordering what isn't there. A fulfillment ships
+from the allocation, and cancelling the order releases it. Line quantities
+are whole units.
+
+`fromQuote` needs the [quotes block](/docs/blocks/quotes) and an accepted
+quote (`ORDERS_QUOTE_NOT_ACCEPTED`). It copies the counted lines and the
+quote's totals, and orders a quote once. A quote line counts as a variant
+line when its `product` is a `product_variant`. A line with a fractional
+quantity can't be ordered (`ORDERS_QUANTITY_INVALID`).
+
+`orderFromQuoteAction` from `better-supabase/blocks/orders` is the quotes
+conversion action: without a `create`, it calls `orders.fromQuote` on the
+`orders` client in the action's clients.
 
 ## Kitchen
 

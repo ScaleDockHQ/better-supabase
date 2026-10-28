@@ -33,7 +33,19 @@ export {
 } from "./carrier.ts";
 
 export {
+  type ShipmentLine,
+  type ShipmentLineInput,
+  type ShipmentReturnInput,
+} from "./lines.ts";
+
+export type { StockDetail } from "../../commerce/stock-detail.ts";
+
+export {
   LABEL_FORMATS,
+  LINE_DIRECTIONS,
+  RETURN_DISPOSITIONS,
+  type LineDirection,
+  type ReturnDisposition,
   SHIPMENT_STATUSES,
   TRACKING_STATUSES,
   type LabelFormat,
@@ -79,6 +91,7 @@ export type {
   ShipmentCancelledEventData,
   ShipmentCreatedEventData,
   ShipmentLabeledEventData,
+  ShipmentReturnReceivedEventData,
   ShipmentsEvents,
   ShipmentStatusChangedEventData,
 } from "./events.ts";

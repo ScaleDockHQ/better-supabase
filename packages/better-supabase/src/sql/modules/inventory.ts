@@ -10,7 +10,13 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, fail, lockTable, schemaPreamble } from "../shared.ts";
+import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import {
+  ALLOCATION_TABLES,
+  allocationFunctions,
+  allocationTable,
+} from "./inventory-allocations.ts";
+import { counterCase, stockLedger } from "./inventory-ledger.ts";
 import {
   purchaseOrderFunctions,
   transferFunctions,
@@ -21,9 +27,13 @@ import {
   locationsOf,
   reservationFunctions,
   stockFunctions,
-  strict,
-  threshold,
 } from "./inventory-stock.ts";
+import {
+  QUANTITY,
+  TRACKING_TABLES,
+  trackingFunctions,
+  trackingTables,
+} from "./inventory-tracking.ts";
 import { ledgerRebalance, ledgerTables } from "./ledger.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
@@ -72,6 +82,29 @@ const EVENTS: BlockSqlEvents<InventoryEvents> = {
     "locationId",
     "quantity",
     "reason",
+  ]),
+  "allocation.created": stockEvent("stock-allocations", [
+    "variantId",
+    "locationId",
+    "documentType",
+    "documentId",
+    "quantity",
+    "allocated",
+  ]),
+  "allocation.filled": stockEvent("stock-allocations", [
+    "variantId",
+    "locationId",
+    "documentType",
+    "documentId",
+    "quantity",
+    "allocated",
+  ]),
+  "allocation.released": stockEvent("stock-allocations", [
+    "variantId",
+    "locationId",
+    "documentType",
+    "documentId",
+    "quantity",
   ]),
   "transfer.shipped": stockEvent("stock-transfers", ["from", "to", "status"]),
   "transfer.received": stockEvent("stock-transfers", ["from", "to", "status"]),
@@ -142,6 +175,7 @@ const NAMES: BlockSqlNames = {
         location: "location_id",
         onHand: "on_hand",
         reserved: "reserved",
+        held: "held",
         incoming: "incoming",
         available: "available",
         reorderPoint: "reorder_point",
@@ -195,6 +229,7 @@ const NAMES: BlockSqlNames = {
         transfer: "transfer_id",
         variant: "variant_id",
         quantity: "quantity",
+        detail: "detail",
       },
     },
     purchaseOrders: {
@@ -233,6 +268,8 @@ const NAMES: BlockSqlNames = {
         unitCost: "unit_cost",
       },
     },
+    ...TRACKING_TABLES,
+    ...ALLOCATION_TABLES,
   },
 };
 
@@ -283,6 +320,8 @@ function tables(ctx: BlockSqlContext, names: InventoryNames): string {
       { drop: true, target: t(table) },
     );
 
+  const lock = (table: string): string => lockTable(t(table), { read: true });
+
   const loc = locationsOf(ctx);
   const lv = columns(ctx, "levels");
   const r = columns(ctx, "reservations");
@@ -302,11 +341,12 @@ create table if not exists ${t("levels")} (
   ${lv("tenant")} ${ctx.idType} not null,
   ${lv("variant")} uuid not null references ${variants},
   ${lv("location")} uuid not null references ${location},
-  ${lv("onHand")} integer not null default 0,
-  ${lv("reserved")} integer not null default 0 check (${lv("reserved")} >= 0),
-  ${lv("incoming")} integer not null default 0 check (${lv("incoming")} >= 0),
-  ${lv("available")} integer generated always as (${lv("onHand")} - ${lv("reserved")}) stored,
-  ${lv("reorderPoint")} integer check (${lv("reorderPoint")} >= 0),
+  ${lv("onHand")} ${QUANTITY} not null default 0,
+  ${lv("reserved")} ${QUANTITY} not null default 0 check (${lv("reserved")} >= 0),
+  ${lv("held")} ${QUANTITY} not null default 0 check (${lv("held")} >= 0),
+  ${lv("incoming")} ${QUANTITY} not null default 0 check (${lv("incoming")} >= 0),
+  ${lv("available")} ${QUANTITY} generated always as (${lv("onHand")} - ${lv("reserved")} - ${lv("held")}) stored,
+  ${lv("reorderPoint")} ${QUANTITY} check (${lv("reorderPoint")} >= 0),
   ${lv("updatedAt")} timestamptz not null default now(),
   primary key (${lv("variant")}, ${lv("location")})
 );
@@ -319,7 +359,7 @@ create table if not exists ${t("reservations")} (
   ${r("tenant")} ${ctx.idType} not null,
   ${r("variant")} uuid not null references ${variants},
   ${r("location")} uuid not null references ${location},
-  ${r("quantity")} integer not null check (${r("quantity")} > 0),
+  ${r("quantity")} ${QUANTITY} not null check (${r("quantity")} > 0),
   ${r("status")} text not null default 'active' check (${r("status")} in ('active', 'committed', 'released', 'expired')),
   ${r("referenceType")} text,
   ${r("referenceId")} text,
@@ -356,7 +396,9 @@ create table if not exists ${t("transferLines")} (
   ${tl("tenant")} ${ctx.idType} not null,
   ${tl("transfer")} uuid not null references ${t("transfers")} (${tr("id")}) on delete cascade,
   ${tl("variant")} uuid not null references ${variants},
-  ${tl("quantity")} integer not null check (${tl("quantity")} > 0),
+  ${tl("quantity")} ${QUANTITY} not null check (${tl("quantity")} > 0),
+  -- The lots and serial numbers the transfer took out, so receiving puts the same ones in.
+  ${tl("detail")} jsonb,
   primary key (${tl("transfer")}, ${tl("variant")})
 );
 create index if not exists stock_transfer_lines_variant_idx on ${t("transferLines")} (${tl("variant")});
@@ -392,8 +434,8 @@ create table if not exists ${t("purchaseOrderLines")} (
   ${pl("tenant")} ${ctx.idType} not null,
   ${pl("order")} uuid not null references ${t("purchaseOrders")} (${po("id")}) on delete cascade,
   ${pl("variant")} uuid not null references ${variants},
-  ${pl("quantity")} integer not null check (${pl("quantity")} > 0),
-  ${pl("received")} integer not null default 0 check (${pl("received")} between 0 and ${pl("quantity")}),
+  ${pl("quantity")} ${QUANTITY} not null check (${pl("quantity")} > 0),
+  ${pl("received")} ${QUANTITY} not null default 0 check (${pl("received")} between 0 and ${pl("quantity")}),
   ${pl("unitCost")} bigint not null check (${pl("unitCost")} >= 0),
   unique (${pl("order")}, ${pl("variant")})
 );
@@ -402,103 +444,7 @@ ${lockTable(t("purchaseOrderLines"), { read: true })}
 ${read("purchaseOrderLines")}
 `
       : ""
-  }`;
-}
-
-/** The stock movement reasons and the counter account each posts against. */
-const STOCK_COUNTERS: Readonly<Record<string, readonly [string, string]>> = {
-  adjustment: ["stock:adjustments", "Adjustments"],
-  damage: ["stock:adjustments", "Adjustments"],
-  loss: ["stock:adjustments", "Adjustments"],
-  count: ["stock:adjustments", "Adjustments"],
-  receipt: ["stock:suppliers", "Suppliers"],
-  sale: ["stock:customers", "Customers"],
-  return: ["stock:customers", "Customers"],
-  transfer_out: ["stock:transit", "In transit"],
-  transfer_in: ["stock:transit", "In transit"],
-};
-
-const counterCase = (reason: string, index: 0 | 1): string =>
-  `case ${reason} ${Object.entries(STOCK_COUNTERS)
-    .map(([key, value]) => `when '${key}' then '${value[index]}'`)
-    .join(" ")} end`;
-
-/**
- * The stock ledger lives in the ledger block: a movement is a transaction
- * between the variant's stock account at the location and a counter account for
- * its reason (suppliers, customers, in transit, adjustments). Levels stay a
- * projection the movement updates in the same transaction.
- */
-function stockLedger(ctx: BlockSqlContext, names: InventoryNames): string {
-  const { fn } = names;
-  const ledger = ctx.of("ledger");
-  const levels = ctx.table("levels");
-  const lv = columns(ctx, "levels");
-
-  const reasons = Object.keys(STOCK_COUNTERS)
-    .map((reason) => `'${reason}'`)
-    .join(", ");
-
-  return `
--- Posts a stock movement to the ledger and applies it to its level. A
--- tracked variant without backorders can't go below zero on hand, and a
--- sale or a transfer out can't take available (on hand minus reserved)
--- below zero. Returns the ledger transaction, the movement's id.
-create or replace function ${fn("move_stock")}(tenant ${ctx.idType}, variant uuid, location uuid, quantity integer, reason text, reference_type text default null, reference_id text default null, note text default null)
-returns uuid
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_stock uuid;
-  v_counter uuid;
-  v_id uuid;
-  v_on_hand integer;
-  v_after integer;
-  v_point integer;
-begin
-  if move_stock.quantity is null or move_stock.quantity = 0 then
-    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must not be zero", "22023")}
-  end if;
-  if move_stock.reason is null or move_stock.reason not in (${reasons}) then
-    ${fail("INVENTORY_REASON_INVALID", "unknown stock movement reason", "22023")}
-  end if;
-  v_stock := ${ledger.fn("ledger_account_for")}(move_stock.tenant, 'stock', 'stock:' || move_stock.variant::text || ':' || move_stock.location::text,
-    'Stock', 'item', 0::smallint, 'product-variants', move_stock.variant::text, null, true, ${names.read}, 'inventory',
-    jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location));
-  v_counter := ${ledger.fn("ledger_account_for")}(move_stock.tenant, 'stock_counter', ${counterCase("move_stock.reason", 0)},
-    ${counterCase("move_stock.reason", 1)}, 'item', 0::smallint, null, null, null, true, ${names.read}, 'inventory', null);
-  v_id := ${ledger.fn("ledger_post")}(move_stock.tenant, 'stock.' || move_stock.reason,
-    jsonb_build_array(
-      jsonb_build_object('account', v_stock, 'amount', move_stock.quantity),
-      jsonb_build_object('account', v_counter, 'amount', -move_stock.quantity)),
-    move_stock.reference_type, move_stock.reference_id, move_stock.note, null, null,
-    jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'reason', move_stock.reason));
-  insert into ${levels} as x (${lv("tenant")}, ${lv("variant")}, ${lv("location")}, ${lv("onHand")})
-  values (move_stock.tenant, move_stock.variant, move_stock.location, move_stock.quantity)
-  on conflict (${lv("variant")}, ${lv("location")}) do update
-    set ${lv("onHand")} = x.${lv("onHand")} + excluded.${lv("onHand")}, ${lv("updatedAt")} = now()
-  returning x.${lv("onHand")}, x.${lv("available")}, x.${lv("reorderPoint")} into v_on_hand, v_after, v_point;
-  if move_stock.quantity < 0
-    and (v_on_hand < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')))
-    and ${strict(ctx, "move_stock.variant")} then
-    ${fail("INVENTORY_INSUFFICIENT", "not enough stock at this location", "23514")}
-  end if;
-  ${threshold(ctx, {
-    tenant: "move_stock.tenant",
-    variant: "move_stock.variant",
-    location: "move_stock.location",
-    before: "(v_after - move_stock.quantity)",
-    after: "v_after",
-    point: "v_point",
-  })}
-  return v_id;
-end;
-$$;
-revoke execute on function ${fn("move_stock")}(${ctx.idType}, uuid, uuid, integer, text, text, text, text) from public, anon, authenticated;
-`;
+  }${trackingTables(ctx, read, lock)}${allocationTable(ctx, read, lock)}`;
 }
 
 /** Copies `stock_movements` into the ledger, keeping each movement's id. */
@@ -568,9 +514,11 @@ function build(ctx: BlockSqlContext): string {
   };
 
   return `${schemaPreamble(ctx)}
--- Stock per catalog variant and location: movements posted to the ledger,
--- reservations with expiry, transfers and purchase orders with receiving.
-${tables(ctx, names)}${stockLedger(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}`;
+-- Stock per catalog variant and location in a unit with decimals: movements
+-- posted to the ledger in base units, lots, serial numbers, expiry, bins,
+-- weighted average cost, reservations with expiry, allocations with
+-- backorders, transfers and purchase orders with receiving.
+${tables(ctx, names)}${stockLedger(ctx, names)}${trackingFunctions(ctx, names)}${allocationFunctions(ctx, names)}${locationFunctions(ctx, names)}${stockFunctions(ctx, names)}${reservationFunctions(ctx, names)}${transferFunctions(ctx, names)}${purchaseOrderFunctions(ctx, names)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -593,27 +541,76 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "delete_location", args: ["uuid"], returns: "boolean" },
     {
       name: "adjust_stock",
-      args: ["uuid", "uuid", "integer", "text", "text"],
+      args: ["uuid", "uuid", "numeric", "text", "text", "jsonb"],
       returns: "jsonb",
     },
     {
       name: "count_stock",
-      args: ["uuid", "uuid", "integer", "text"],
+      args: ["uuid", "uuid", "numeric", "text", "jsonb"],
       returns: "jsonb",
     },
     {
       name: "set_reorder_point",
-      args: ["uuid", "uuid", "integer"],
+      args: ["uuid", "uuid", "numeric"],
       returns: "boolean",
     },
     {
       name: "reserve_stock",
-      args: ["uuid", "uuid", "integer", "text", "text", "timestamptz"],
+      args: ["uuid", "uuid", "numeric", "text", "text", "timestamptz"],
       returns: "jsonb",
     },
     { name: "commit_reservation", args: ["uuid"], returns: "jsonb" },
     { name: "release_reservation", args: ["uuid"], returns: "boolean" },
     { name: "expire_reservations", args: ["integer"], returns: "integer" },
+    {
+      name: "set_stock_item",
+      args: ["uuid", "text", "smallint", "text", "boolean", "text", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "save_bin",
+      args: ["uuid", "uuid", "text", "text", "boolean", "boolean"],
+      returns: "jsonb",
+    },
+    { name: "save_lot", args: ["uuid", "text", "date"], returns: "jsonb" },
+    { name: "stock_detail", args: ["uuid", "uuid"], returns: "jsonb" },
+    { name: "expiring_lots", args: ["{id}", "date"], returns: "jsonb" },
+    { name: "expire_lots", args: ["{id}", "date"], returns: "integer" },
+    { name: "stock_valuation", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "allocate_stock",
+      args: [
+        "{id}",
+        "uuid",
+        "uuid",
+        "numeric",
+        "text",
+        "text",
+        "text",
+        "boolean",
+      ],
+      returns: "jsonb",
+    },
+    {
+      name: "fulfill_allocation",
+      args: ["uuid", "numeric", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "restore_allocation",
+      args: ["uuid", "numeric", "jsonb"],
+      returns: "jsonb",
+    },
+    {
+      name: "release_allocations",
+      args: ["{id}", "text", "text"],
+      returns: "integer",
+    },
+    {
+      name: "list_allocations",
+      args: ["{id}", "text", "text"],
+      returns: "jsonb",
+    },
     ...(transfers
       ? [
           {
@@ -662,7 +659,7 @@ export const INVENTORY: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Inventory",
   description:
-    "Stock per catalog variant and location: movements posted to the ledger block, reservations with expiry, transfers and purchase orders with partial receiving.",
+    "Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.",
   requires: [...REQUIRES],
   dependencies: (layout) =>
     layout.modules?.["inventory"]?.tables?.["locations"] === null
@@ -671,13 +668,19 @@ export const INVENTORY: BlockSqlDefinition = {
   integrates: ["outbox", "assets"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,
       description:
         "Stock movements move onto the ledger block: each movement becomes a ledger transaction between the variant's stock account and a counter account, and stock_movements is dropped.",
       sql: stockMovementsUpgrade,
+    },
+    {
+      from: 2,
+      description:
+        "Quantities become numeric with a unit and scale per variant, posted to the ledger in base units. Adds lots, serial numbers, expiry, bins, weighted average cost and allocations with backorders; stock already on hand stays outside any bin or lot, so no data moves.",
+      sql: () => "",
     },
   ],
   names: NAMES,

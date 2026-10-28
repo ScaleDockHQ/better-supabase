@@ -57,6 +57,7 @@ describe("inventory block", () => {
           quantity: 10,
           reason: "receipt",
           note: null,
+          detail: null,
         },
       },
     ]);

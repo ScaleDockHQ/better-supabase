@@ -2,16 +2,18 @@ import type { BlockSqlContext } from "../context.ts";
 import type { InventoryNames } from "./inventory-stock.ts";
 
 import { fail, userGrant } from "../shared.ts";
+import { movementLots } from "./inventory-ledger.ts";
 import { columns, guard, locationsOf, moveStock } from "./inventory-stock.ts";
 
 const UUID =
   "'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'";
 
-const COUNT = "'^[1-9][0-9]{0,8}$'";
+const QUANTITY = "'^[0-9]{1,14}([.][0-9]{1,6})?$'";
 
 /**
  * Raises unless `lines` is a non-empty array of objects whose `key` is a uuid
- * (once each) and whose `quantity` is a positive whole number.
+ * (once each) and whose `quantity` is a positive number with up to six
+ * decimals. The variant's scale decides how many it may have (ADR 0127).
  */
 function linesCheck(lines: string, key: string, extra = ""): string {
   return `if jsonb_typeof(${lines}) is distinct from 'array' or jsonb_array_length(${lines}) = 0
@@ -19,10 +21,10 @@ function linesCheck(lines: string, key: string, extra = ""): string {
       select 1 from jsonb_array_elements(${lines}) e
       where jsonb_typeof(e) <> 'object'
         or coalesce(e ->> '${key}', '') !~ ${UUID}
-        or coalesce(e ->> 'quantity', '') !~ ${COUNT}${extra}
+        or case when coalesce(e ->> 'quantity', '') ~ ${QUANTITY} then (e ->> 'quantity')::numeric <= 0 else true end${extra}
     )
     or (select count(distinct e ->> '${key}') from jsonb_array_elements(${lines}) e) <> jsonb_array_length(${lines}) then
-    ${fail("INVENTORY_LINES_INVALID", `lines must be a non-empty list with a unique ${key} and a positive whole quantity each`, "22023")}
+    ${fail("INVENTORY_LINES_INVALID", `lines must be a non-empty list with a unique ${key} and a positive quantity each`, "22023")}
   end if;`;
 }
 
@@ -68,14 +70,43 @@ export function transferFunctions(
   end if;
   ${guard(names.scope, names.manage, "v_row.tenant")}`;
 
-  const move = (
-    name: string,
-    location: string,
-    sign: string,
-    reason: string,
-  ): string =>
-    `perform ${moveStock(ctx, { tenant: "v_row.tenant", variant: `x.${tl("variant")}`, location, quantity: `${sign}x.${tl("quantity")}`, reason: `'${reason}'`, referenceType: "'transfer'", referenceId: `${name}.transfer::text` })}
-  from ${lines} x where x.${tl("transfer")} = ${name}.transfer;`;
+  const s = columns(ctx, "serials");
+
+  // Takes each line out of the source and records the lots it took, so the
+  // stock arrives in the same lots with the same serial numbers.
+  const shipLines = (name: string): string => `for v_line in
+    select x.${tl("variant")} as variant, x.${tl("quantity")} as quantity, x.${tl("detail")} as detail
+    from ${lines} x where x.${tl("transfer")} = ${name}.transfer
+  loop
+    v_movement := ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_line.variant", location: "v_row.from_location", quantity: "-v_line.quantity", reason: "'transfer_out'", referenceType: "'transfer'", referenceId: `${name}.transfer::text`, detail: "v_line.detail" })};
+    update ${lines} x set ${tl("detail")} = jsonb_strip_nulls(jsonb_build_object('serials', v_line.detail -> 'serials',
+      'parts', ${movementLots(ctx, "v_movement")}))
+    where x.${tl("transfer")} = ${name}.transfer and x.${tl("variant")} = v_line.variant;
+  end loop;`;
+
+  // Puts the lots a shipped transfer took into a location.
+  const replayLines = (name: string, location: string): string => `for v_line in
+    select x.${tl("variant")} as variant, x.${tl("quantity")} as quantity, x.${tl("detail")} as detail
+    from ${lines} x where x.${tl("transfer")} = ${name}.transfer
+  loop
+    for v_part in
+      select nullif(p ->> 'lotId', '')::uuid as lot, (p ->> 'quantity')::numeric as quantity
+      from jsonb_array_elements(coalesce(v_line.detail -> 'parts', jsonb_build_array(jsonb_build_object('quantity', v_line.quantity)))) p
+    loop
+      perform ${moveStock(ctx, {
+        tenant: "v_row.tenant",
+        variant: "v_line.variant",
+        location,
+        quantity: "v_part.quantity",
+        reason: "'transfer_in'",
+        referenceType: "'transfer'",
+        referenceId: `${name}.transfer::text`,
+        detail: `jsonb_strip_nulls(jsonb_build_object('lotId', v_part.lot, 'serials', (select jsonb_agg(z.${s("serial")}) from ${ctx.table("serials")} z
+          where z.${s("variant")} = v_line.variant and z.${s("serial")} in (select jsonb_array_elements_text(v_line.detail -> 'serials'))
+            and z.${s("lot")} is not distinct from v_part.lot)))`,
+      })};
+    end loop;
+  end loop;`;
 
   const event = (type: string, name: string, status: string): string =>
     ctx.record({
@@ -94,7 +125,8 @@ export function transferFunctions(
 
   return `
 -- Drafts a transfer of stock between two locations of one organization.
--- lines: [{ "variantId": uuid, "quantity": n }].
+-- lines: [{ "variantId": uuid, "quantity": n, "detail"?: { binId, lotId,
+-- serials } }]; detail picks the stock to take, as for move_stock.
 create or replace function ${fn("create_transfer")}(tenant ${ctx.idType}, from_location uuid, to_location uuid, lines jsonb, note text)
 returns jsonb
 language plpgsql
@@ -116,8 +148,9 @@ begin
   insert into ${transfers} (${t("tenant")}, ${t("from")}, ${t("to")}, ${t("note")})
   values (create_transfer.tenant, create_transfer.from_location, create_transfer.to_location, create_transfer.note)
   returning ${t("id")} into v_id;
-  insert into ${lines} (${tl("tenant")}, ${tl("transfer")}, ${tl("variant")}, ${tl("quantity")})
-  select create_transfer.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::integer
+  insert into ${lines} (${tl("tenant")}, ${tl("transfer")}, ${tl("variant")}, ${tl("quantity")}, ${tl("detail")})
+  select create_transfer.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric,
+    case when jsonb_typeof(e -> 'detail') = 'object' then e -> 'detail' end
   from jsonb_array_elements(create_transfer.lines) e;
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
@@ -133,12 +166,14 @@ set search_path = ''
 as $$
 declare
   v_row record;
+  v_line record;
+  v_movement uuid;
 begin
   ${load("ship_transfer")}
   if v_row.status <> 'draft' then
     ${statusError}
   end if;
-  ${move("ship_transfer", "v_row.from_location", "-", "transfer_out")}
+  ${shipLines("ship_transfer")}
   update ${transfers} x set ${t("status")} = ${ctx.value("transfers", "status", "in_transit")}, ${t("shippedAt")} = now() where x.${t("id")} = ship_transfer.transfer;
   ${event("transfer.shipped", "ship_transfer", "'in_transit'")}
   return true;
@@ -155,12 +190,14 @@ set search_path = ''
 as $$
 declare
   v_row record;
+  v_line record;
+  v_part record;
 begin
   ${load("receive_transfer")}
   if v_row.status <> 'in_transit' then
     ${statusError}
   end if;
-  ${move("receive_transfer", "v_row.to_location", "", "transfer_in")}
+  ${replayLines("receive_transfer", "v_row.to_location")}
   update ${transfers} x set ${t("status")} = ${ctx.value("transfers", "status", "received")}, ${t("receivedAt")} = now() where x.${t("id")} = receive_transfer.transfer;
   ${event("transfer.received", "receive_transfer", "'received'")}
   return true;
@@ -177,13 +214,15 @@ set search_path = ''
 as $$
 declare
   v_row record;
+  v_line record;
+  v_part record;
 begin
   ${load("cancel_transfer")}
   if v_row.status not in ('draft', 'in_transit') then
     ${statusError}
   end if;
   if v_row.status = 'in_transit' then
-    ${move("cancel_transfer", "v_row.from_location", "", "transfer_in")}
+    ${replayLines("cancel_transfer", "v_row.from_location")}
   end if;
   update ${transfers} x set ${t("status")} = ${ctx.value("transfers", "status", "cancelled")} where x.${t("id")} = cancel_transfer.transfer;
   ${event("transfer.cancelled", "cancel_transfer", "'cancelled'")}
@@ -216,7 +255,7 @@ export function purchaseOrderFunctions(
   const load = (
     name: string,
   ): string => `select x.${po("tenant")} as tenant, x.${po("location")} as location, ${ctx.label("purchaseOrders", "status", `x.${po("status")}`)} as status,
-    x.${po("supplierType")} as supplier_type, x.${po("supplierId")} as supplier_id
+    x.${po("supplierType")} as supplier_type, x.${po("supplierId")} as supplier_id, x.${po("currency")} as currency
   into v_row from ${orders} x where x.${po("id")} = ${name}.purchase_order for update;
   if not found then
     ${fail("INVENTORY_PURCHASE_ORDER_NOT_FOUND", "purchase order not found", "P0002")}
@@ -283,7 +322,7 @@ begin
     delete from ${lines} x where x.${pl("order")} = v_id;
   end if;
   insert into ${lines} (${pl("tenant")}, ${pl("order")}, ${pl("variant")}, ${pl("quantity")}, ${pl("unitCost")})
-  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::integer, (e ->> 'unitCost')::bigint
+  select save_purchase_order.tenant, v_id, (e ->> 'variantId')::uuid, (e ->> 'quantity')::numeric, (e ->> 'unitCost')::bigint
   from jsonb_array_elements(save_purchase_order.lines) e;
   return jsonb_build_object('id', v_id, 'status', 'draft');
 end;
@@ -318,7 +357,9 @@ $$;
 ${userGrant(`${fn("place_purchase_order")}(uuid)`)}
 
 -- Receives some or all of a placed order's lines into stock.
--- lines: [{ "lineId": uuid, "quantity": n }]. Lines left short stay on
+-- lines: [{ "lineId": uuid, "quantity": n, "lot"?: { code, expiresOn },
+-- "lotId"?, "binId"?, "serials"? }]; the line's unit cost feeds the
+-- variant's weighted average cost. Lines left short stay on
 -- backorder until a later receipt or a cancel. Returns the new status and
 -- the quantity still on backorder.
 create or replace function ${fn("receive_purchase_order")}(purchase_order uuid, lines jsonb)
@@ -330,7 +371,7 @@ as $$
 declare
   v_row record;
   v_line record;
-  v_backordered bigint;
+  v_backordered numeric;
   v_status text;
 begin
   ${load("receive_purchase_order")}
@@ -340,7 +381,8 @@ begin
   ${linesCheck("receive_purchase_order.lines", "lineId")}
   for v_line in
     select y.${pl("id")} as id, y.${pl("variant")} as variant, y.${pl("quantity")} as ordered,
-      y.${pl("received")} as received, (e ->> 'quantity')::integer as quantity
+      y.${pl("received")} as received, (e ->> 'quantity')::numeric as quantity, y.${pl("unitCost")} as unit_cost,
+      jsonb_strip_nulls(jsonb_build_object('lot', e -> 'lot', 'lotId', e -> 'lotId', 'binId', e -> 'binId', 'serials', e -> 'serials')) as detail
     from jsonb_array_elements(receive_purchase_order.lines) e
     left join ${lines} y on y.${pl("id")} = (e ->> 'lineId')::uuid and y.${pl("order")} = receive_purchase_order.purchase_order
   loop
@@ -353,7 +395,7 @@ begin
     update ${lines} y set ${pl("received")} = y.${pl("received")} + v_line.quantity where y.${pl("id")} = v_line.id;
     update ${levels} x set ${lv("incoming")} = greatest(x.${lv("incoming")} - v_line.quantity, 0), ${lv("updatedAt")} = now()
     where x.${lv("variant")} = v_line.variant and x.${lv("location")} = v_row.location;
-    perform ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_line.variant", location: "v_row.location", quantity: "v_line.quantity", reason: "'receipt'", referenceType: "'purchase_order'", referenceId: "receive_purchase_order.purchase_order::text" })};
+    perform ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_line.variant", location: "v_row.location", quantity: "v_line.quantity", reason: "'receipt'", referenceType: "'purchase_order'", referenceId: "receive_purchase_order.purchase_order::text", detail: "v_line.detail || jsonb_build_object('unitCost', v_line.unit_cost::text, 'currency', v_row.currency::text)" })};
   end loop;
   select coalesce(sum(y.${pl("quantity")} - y.${pl("received")}), 0) into v_backordered
   from ${lines} y where y.${pl("order")} = receive_purchase_order.purchase_order;

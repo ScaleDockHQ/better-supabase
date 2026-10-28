@@ -258,7 +258,7 @@ describe.skipIf(!live)("commerce recipe", () => {
           "select on_hand, reserved from better_supabase.stock_levels where variant_id = $1",
           [tee.id],
         ),
-      ).toEqual([{ on_hand: 7, reserved: 0 }]);
+      ).toEqual([{ on_hand: "7.000000", reserved: "0.000000" }]);
       expect(
         await s.value<number>(
           "(select count(*)::int from better_supabase.promotion_redemptions where order_id = $1)",

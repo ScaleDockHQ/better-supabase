@@ -32,6 +32,7 @@ const ADJUST_REASONS = [
   "loss",
   "return",
   "receipt",
+  "scrap",
 ] as const;
 
 export function guard(
@@ -59,9 +60,14 @@ export function moveStock(
     readonly referenceType?: string;
     readonly referenceId?: string;
     readonly note?: string;
+    /**
+     * A `jsonb` expression with the bin, lot, serial numbers and unit cost of
+     * the movement (ADR 0127).
+     */
+    readonly detail?: string;
   },
 ): string {
-  return `${inventory.fn("move_stock")}(${values.tenant}, ${values.variant}, ${values.location}, ${values.quantity}, ${values.reason}, ${values.referenceType ?? "null"}, ${values.referenceId ?? "null"}, ${values.note ?? "null"})`;
+  return `${inventory.fn("move_stock")}(${values.tenant}, ${values.variant}, ${values.location}, ${values.quantity}, ${values.reason}, ${values.referenceType ?? "null"}, ${values.referenceId ?? "null"}, ${values.note ?? "null"}, ${values.detail ?? "null"})`;
 }
 
 /**
@@ -346,13 +352,17 @@ export function stockFunctions(
 ): string {
   const { fn } = names;
   const levels = ctx.table("levels");
+  const buckets = ctx.table("buckets");
   const lv = columns(ctx, "levels");
+  const k = columns(ctx, "buckets");
   const reasons = ADJUST_REASONS.map((reason) => `'${reason}'`).join(", ");
 
   return `
--- Adds or removes stock at a location through the ledger. Returns the
+-- Adds or removes stock at a location through the ledger. detail names the
+-- bin, lot, serial numbers or unit cost, as for move_stock. Returns the
 -- movement id and the level's on-hand and available quantities.
-create or replace function ${fn("adjust_stock")}(variant uuid, location uuid, quantity integer, reason text, note text)
+drop function if exists ${fn("adjust_stock")}(uuid, uuid, integer, text, text);
+create or replace function ${fn("adjust_stock")}(variant uuid, location uuid, quantity numeric, reason text, note text, detail jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -362,14 +372,14 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
   v_movement uuid;
-  v_on_hand integer;
-  v_available integer;
+  v_on_hand numeric;
+  v_available numeric;
 begin
   ${loadLocation(ctx, "adjust_stock.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
   ${variantCheck(ctx, "adjust_stock.variant", "v_tenant")}
   if adjust_stock.quantity is null or adjust_stock.quantity = 0 then
-    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be a non-zero whole number", "22023")}
+    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must not be zero", "22023")}
   end if;
   if adjust_stock.reason is null or adjust_stock.reason not in (${reasons}) then
     ${fail("INVENTORY_REASON_INVALID", `the reason must be one of ${ADJUST_REASONS.join(", ")}`, "22023")}
@@ -377,10 +387,10 @@ begin
   ${ctx.hook("before_stock_adjust", [
     ["uuid", "adjust_stock.variant"],
     ["uuid", "adjust_stock.location"],
-    ["integer", "adjust_stock.quantity"],
+    ["numeric", "adjust_stock.quantity"],
     ["text", "adjust_stock.reason"],
   ])}
-  v_movement := ${moveStock(ctx, { tenant: "v_tenant", variant: "adjust_stock.variant", location: "adjust_stock.location", quantity: "adjust_stock.quantity", reason: "adjust_stock.reason", note: "adjust_stock.note" })};
+  v_movement := ${moveStock(ctx, { tenant: "v_tenant", variant: "adjust_stock.variant", location: "adjust_stock.location", quantity: "adjust_stock.quantity", reason: "adjust_stock.reason", note: "adjust_stock.note", detail: "adjust_stock.detail" })};
   select x.${lv("onHand")}, x.${lv("available")} into v_on_hand, v_available from ${levels} x
   where x.${lv("variant")} = adjust_stock.variant and x.${lv("location")} = adjust_stock.location;
   ${ctx.record({
@@ -394,10 +404,13 @@ begin
   return jsonb_build_object('movementId', v_movement, 'onHand', v_on_hand, 'available', v_available);
 end;
 $$;
-${userGrant(`${fn("adjust_stock")}(uuid, uuid, integer, text, text)`)}
+${userGrant(`${fn("adjust_stock")}(uuid, uuid, numeric, text, text, jsonb)`)}
 
 -- Sets on-hand to a counted quantity, writing the difference to the ledger.
-create or replace function ${fn("count_stock")}(variant uuid, location uuid, counted integer, note text)
+-- With a binId or lotId in detail it counts that bin or lot only; without,
+-- the stock outside any bin or lot.
+drop function if exists ${fn("count_stock")}(uuid, uuid, integer, text);
+create or replace function ${fn("count_stock")}(variant uuid, location uuid, counted numeric, note text, detail jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -407,8 +420,10 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
   v_movement uuid;
-  v_delta integer;
-  v_available integer;
+  v_delta numeric;
+  v_available numeric;
+  v_bin uuid := nullif(count_stock.detail ->> 'binId', '')::uuid;
+  v_lot uuid := nullif(count_stock.detail ->> 'lotId', '')::uuid;
 begin
   ${loadLocation(ctx, "count_stock.location")}
   ${guard(names.scope, names.manage, "v_tenant")}
@@ -417,10 +432,18 @@ begin
     ${fail("INVENTORY_QUANTITY_INVALID", "the counted quantity must be zero or more", "22023")}
   end if;
   ${lockLevel(ctx, "count_stock.variant", "count_stock.location")}
-  select count_stock.counted - x.${lv("onHand")} into v_delta from ${levels} x
-  where x.${lv("variant")} = count_stock.variant and x.${lv("location")} = count_stock.location;
+  if v_bin is null and v_lot is null then
+    select count_stock.counted - x.${lv("onHand")} + coalesce((select sum(y.${k("onHand")}) from ${buckets} y
+      where y.${k("variant")} = count_stock.variant and y.${k("location")} = count_stock.location), 0)
+    into v_delta from ${levels} x
+    where x.${lv("variant")} = count_stock.variant and x.${lv("location")} = count_stock.location;
+  else
+    v_delta := count_stock.counted - coalesce((select y.${k("onHand")} from ${buckets} y
+      where y.${k("variant")} = count_stock.variant and y.${k("location")} = count_stock.location
+        and y.${k("bin")} is not distinct from v_bin and y.${k("lot")} is not distinct from v_lot), 0);
+  end if;
   if v_delta <> 0 then
-    v_movement := ${moveStock(ctx, { tenant: "v_tenant", variant: "count_stock.variant", location: "count_stock.location", quantity: "v_delta", reason: "'count'", note: "count_stock.note" })};
+    v_movement := ${moveStock(ctx, { tenant: "v_tenant", variant: "count_stock.variant", location: "count_stock.location", quantity: "v_delta", reason: "'count'", note: "count_stock.note", detail: "jsonb_strip_nulls(jsonb_build_object('binId', v_bin, 'lotId', v_lot, 'serials', count_stock.detail -> 'serials'))" })};
     select x.${lv("available")} into v_available from ${levels} x
     where x.${lv("variant")} = count_stock.variant and x.${lv("location")} = count_stock.location;
     ${ctx.record({
@@ -434,10 +457,11 @@ begin
   return jsonb_build_object('movementId', v_movement, 'delta', v_delta, 'onHand', count_stock.counted);
 end;
 $$;
-${userGrant(`${fn("count_stock")}(uuid, uuid, integer, text)`)}
+${userGrant(`${fn("count_stock")}(uuid, uuid, numeric, text, jsonb)`)}
 
 -- Sets the available quantity at or below which stock.reorder_point_reached fires.
-create or replace function ${fn("set_reorder_point")}(variant uuid, location uuid, reorder_point integer)
+drop function if exists ${fn("set_reorder_point")}(uuid, uuid, integer);
+create or replace function ${fn("set_reorder_point")}(variant uuid, location uuid, reorder_point numeric)
 returns boolean
 language plpgsql
 security definer
@@ -460,7 +484,7 @@ begin
   return true;
 end;
 $$;
-${userGrant(`${fn("set_reorder_point")}(uuid, uuid, integer)`)}
+${userGrant(`${fn("set_reorder_point")}(uuid, uuid, numeric)`)}
 `;
 }
 
@@ -495,7 +519,8 @@ export function reservationFunctions(
 -- Holds stock for a cart or an order until expires_at (15 minutes by default).
 -- Releases the level's expired reservations first. Returns the reservation id,
 -- its expiry and the level's available quantity.
-create or replace function ${fn("reserve_stock")}(variant uuid, location uuid, quantity integer, reference_type text, reference_id text, expires_at timestamptz)
+drop function if exists ${fn("reserve_stock")}(uuid, uuid, integer, text, text, timestamptz);
+create or replace function ${fn("reserve_stock")}(variant uuid, location uuid, quantity numeric, reference_type text, reference_id text, expires_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -505,9 +530,9 @@ declare
   v_tenant ${ctx.idType};
   v_active boolean;
   v_id uuid;
-  v_before integer;
-  v_after integer;
-  v_point integer;
+  v_before numeric;
+  v_after numeric;
+  v_point numeric;
   v_expires timestamptz := coalesce(reserve_stock.expires_at, now() + interval '15 minutes');
 begin
   ${loadLocation(ctx, "reserve_stock.location")}
@@ -517,7 +542,7 @@ begin
   end if;
   ${variantCheck(ctx, "reserve_stock.variant", "v_tenant")}
   if reserve_stock.quantity is null or reserve_stock.quantity <= 0 then
-    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be a positive whole number", "22023")}
+    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be greater than zero", "22023")}
   end if;
   if v_expires <= now() then
     ${fail("INVENTORY_EXPIRY_INVALID", "the reservation must expire in the future", "22023")}
@@ -525,7 +550,7 @@ begin
   ${ctx.hook("before_stock_reserve", [
     ["uuid", "reserve_stock.variant"],
     ["uuid", "reserve_stock.location"],
-    ["integer", "reserve_stock.quantity"],
+    ["numeric", "reserve_stock.quantity"],
     ["text", "reserve_stock.reference_type"],
     ["text", "reserve_stock.reference_id"],
   ])}
@@ -536,7 +561,7 @@ begin
       and ${ctx.is("reservations", "status", `x.${r("status")}`, ["active"])} and x.${r("expiresAt")} <= now()
     returning x.${r("quantity")} as quantity
   )
-  update ${levels} x set ${lv("reserved")} = greatest(x.${lv("reserved")} - (select coalesce(sum(e.quantity), 0)::integer from expired e), 0)
+  update ${levels} x set ${lv("reserved")} = greatest(x.${lv("reserved")} - (select coalesce(sum(e.quantity), 0) from expired e), 0)
   where x.${lv("variant")} = reserve_stock.variant and x.${lv("location")} = reserve_stock.location;
   select x.${lv("available")}, x.${lv("reorderPoint")} into v_before, v_point from ${levels} x
   where x.${lv("variant")} = reserve_stock.variant and x.${lv("location")} = reserve_stock.location;
@@ -568,7 +593,7 @@ begin
   return jsonb_build_object('id', v_id, 'expiresAt', v_expires, 'available', v_after);
 end;
 $$;
-${userGrant(`${fn("reserve_stock")}(uuid, uuid, integer, text, text, timestamptz)`)}
+${userGrant(`${fn("reserve_stock")}(uuid, uuid, numeric, text, text, timestamptz)`)}
 
 -- Turns an active reservation into a sale: the ledger takes the stock out.
 create or replace function ${fn("commit_reservation")}(reservation uuid)

@@ -12,6 +12,7 @@ import {
 } from "../shared.ts";
 import { variantTracked } from "./catalog-tracking.ts";
 import { locationsOf, moveStock } from "./inventory-stock.ts";
+import { releaseAllocations } from "./orders-documents.ts";
 import {
   amountOf,
   asService,
@@ -195,7 +196,7 @@ function reserveLines(ctx: BlockSqlContext, minutes: number): string {
     end if;
     ${asService(`v_reservation := ${inventory.fn("reserve_stock")}(v_line.variant, v_location, v_line.quantity, 'order', v_order.id::text, now() + interval '${String(minutes)} minutes');`)}
     update ${ctx.table("orderLines")} x set ${ol("location")} = v_location, ${ol("reservation")} = (v_reservation ->> 'id')::uuid,
-      ${ol("backordered")} = (v_reservation ->> 'available')::integer < 0
+      ${ol("backordered")} = (v_reservation ->> 'available')::numeric < 0
     where x.${ol("id")} = v_line.id;
   end loop;`;
 }
@@ -483,7 +484,7 @@ begin
   select coalesce(sum(x.${p("captured")}), 0) into v_paid from ${payments} x
   where x.${p("order")} = v_order.id and ${ctx.is("payments", "status", `x.${p("status")}`, ["succeeded"])};
   update ${orders} x set ${o("paidTotal")} = v_paid, ${o("updatedAt")} = now() where x.${o("id")} = v_order.id;
-  if v_order.status = 'pending_payment' and v_paid >= v_order.total then
+  if v_order.status::text in ('pending_payment', 'confirmed') and v_paid >= v_order.total then
     perform ${fn("order_transition")}(v_order.id, 'paid');${commitLines(ctx)}
     ${invoice ? invoice.create : assignNumber(ctx, "invoice", "v_order.tenant", { seq: "v_seq", number: "v_number" })}
     update ${orders} x set ${o("invoiceNumber")} = v_number, ${o("invoiceSequence")} = v_seq, ${o("invoicedAt")} = now()
@@ -533,8 +534,8 @@ end;
 $$;
 ${serviceGrant(`${fn("set_order_tax_transaction")}(uuid, jsonb)`)}
 
--- Cancels an order waiting for payment: releases its stock and its
--- promotion redemptions. Internal: cancel_order and expire_orders check first.
+-- Cancels an order waiting for payment or confirmed: releases its stock
+-- reservations and allocations and its promotion redemptions. Internal: cancel_order and expire_orders check first.
 create or replace function ${fn("order_cancel")}(p_order uuid, p_reason text)
 returns void
 language plpgsql
@@ -552,7 +553,7 @@ begin
       ? `
   update ${orders} x set ${o("cancelReason")} = p_reason where x.${o("id")} = v_order.id;`
       : ""
-  }${releaseLines(ctx)}${
+  }${releaseLines(ctx)}${releaseAllocations(ctx)}${
     promotions === undefined
       ? ""
       : `
@@ -563,8 +564,9 @@ end;
 $$;
 revoke execute on function ${fn("order_cancel")}(uuid, text) from public, anon, authenticated;
 
--- Cancels an order that is waiting for payment. Staff with orders.manage
--- and the customer who placed it can.
+-- Cancels an order that is waiting for payment, or a confirmed one before
+-- anything shipped. Staff with orders.manage and the customer who placed
+-- it can.
 create or replace function ${fn("cancel_order")}(order_id uuid, reason text default null)
 returns boolean
 language plpgsql
@@ -584,8 +586,9 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status <> 'pending_payment' then
-    ${fail("ORDERS_TRANSITION_INVALID", "only an order waiting for payment can be cancelled; refund a paid one", "55000")}
+  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from ${ctx.table("fulfillments")} y
+    where y.${ctx.col("fulfillments", "order")} = v_order.id and ${ctx.is("fulfillments", "status", `y.${ctx.col("fulfillments", "status")}`, ["shipped", "delivered"])}) then
+    ${fail("ORDERS_TRANSITION_INVALID", "only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one", "55000")}
   end if;
   perform ${fn("order_cancel")}(v_order.id, cancel_order.reason);
   return true;

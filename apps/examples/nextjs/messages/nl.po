@@ -10747,6 +10747,11 @@ msgid "Damaged"
 msgstr "Beschadigd"
 
 #: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.PvBlVy"
+msgid "Scrapped"
+msgstr "Afgeschreven"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
 msgctxt "shop.FL6lKX"
 msgid "Lost"
 msgstr "Kwijt"
@@ -11308,6 +11313,11 @@ msgstr "Geen bestellingen hier."
 msgctxt "shop.W6nwjo"
 msgid "Draft"
 msgstr "Concept"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.dX7-Rv"
+msgid "Confirmed"
+msgstr "Bevestigd"
 
 #: src/features/shop/components/order-status-badge.tsx
 msgctxt "shop.M1w9up"

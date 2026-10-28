@@ -182,11 +182,11 @@ const actions = createActionRegistry([
 
 A conversion action creates a record in its block from a record in another and links it `created_from` the source, once: a retried event finds the link and creates nothing. The target blocks ship them:
 
-| Action                          | Block       | Creates                                                |
-| ------------------------------- | ----------- | ------------------------------------------------------ |
-| `taskFromConversationAction`    | `tasks`     | a task from an inbox conversation                      |
-| `employeeFromApplicationAction` | `employees` | an employee from a hired candidate                     |
-| `orderFromQuoteAction`          | `orders`    | an order from an accepted quote, through your `create` |
+| Action                          | Block       | Creates                                                                      |
+| ------------------------------- | ----------- | ---------------------------------------------------------------------------- |
+| `taskFromConversationAction`    | `tasks`     | a task from an inbox conversation                                            |
+| `employeeFromApplicationAction` | `employees` | an employee from a hired candidate                                           |
+| `orderFromQuoteAction`          | `orders`    | an order from an accepted quote, through `orders.fromQuote` or your `create` |
 
 Each takes `clients`, which returns the block clients for one organization, such as `createBlocks` over a service connection with `tenant: () => tenant`. `defineConversionAction` builds your own from a `load`, a `map` into the target's input schema and a `create`.
 

@@ -159,11 +159,12 @@ export function OrderTransitions({
       );
     }
 
+    case "confirmed":
     case "paid":
     case "fulfilled": {
       return (
         <div className="flex flex-wrap gap-2">
-          {status === "paid" && !toShip && !toDeliver ? (
+          {status !== "fulfilled" && !toShip && !toDeliver ? (
             <Button
               disabled={pending}
               onClick={() => {
@@ -203,6 +204,17 @@ export function OrderTransitions({
               }}
             >
               {t("Mark as delivered")}
+            </Button>
+          ) : null}
+          {status === "confirmed" && !toShip && !toDeliver ? (
+            <Button
+              variant="outline"
+              disabled={pending}
+              onClick={() => {
+                void cancel.run({ orderId });
+              }}
+            >
+              {t("Cancel order")}
             </Button>
           ) : null}
         </div>

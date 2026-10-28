@@ -901,14 +901,20 @@ export interface BlockNameRegistry {
   readonly "inventory": {
     readonly tables: {
       readonly "locations": "id" | "tenant" | "code" | "name" | "kind" | "active" | "createdAt" | "updatedAt";
-      readonly "levels": "tenant" | "variant" | "location" | "onHand" | "reserved" | "incoming" | "available" | "reorderPoint" | "updatedAt";
+      readonly "levels": "tenant" | "variant" | "location" | "onHand" | "reserved" | "held" | "incoming" | "available" | "reorderPoint" | "updatedAt";
       readonly "reservations": "id" | "tenant" | "variant" | "location" | "quantity" | "status" | "referenceType" | "referenceId" | "expiresAt" | "createdAt" | "updatedAt";
       readonly "transfers": "id" | "tenant" | "from" | "to" | "status" | "note" | "createdAt" | "shippedAt" | "receivedAt";
-      readonly "transferLines": "tenant" | "transfer" | "variant" | "quantity";
+      readonly "transferLines": "tenant" | "transfer" | "variant" | "quantity" | "detail";
       readonly "purchaseOrders": "id" | "tenant" | "location" | "supplierType" | "supplierId" | "status" | "currency" | "expectedAt" | "note" | "createdAt" | "updatedAt" | "placedAt";
       readonly "purchaseOrderLines": "id" | "tenant" | "order" | "variant" | "quantity" | "received" | "unitCost";
+      readonly "items": "variant" | "tenant" | "unit" | "scale" | "tracking" | "expiry" | "costing" | "currency" | "averageCost" | "updatedAt";
+      readonly "bins": "id" | "tenant" | "location" | "code" | "name" | "hold" | "active" | "createdAt";
+      readonly "lots": "id" | "tenant" | "variant" | "code" | "expiresOn" | "createdAt";
+      readonly "serials": "id" | "tenant" | "variant" | "serial" | "lot" | "location" | "bin" | "status" | "movement" | "updatedAt";
+      readonly "buckets": "id" | "tenant" | "variant" | "location" | "bin" | "lot" | "onHand" | "updatedAt";
+      readonly "allocations": "id" | "tenant" | "variant" | "location" | "documentType" | "documentId" | "line" | "quantity" | "allocated" | "fulfilled" | "backordered" | "status" | "createdAt" | "updatedAt";
     };
-    readonly functions: "adjust_stock" | "cancel_purchase_order" | "cancel_transfer" | "commit_reservation" | "count_stock" | "create_transfer" | "delete_location" | "expire_reservations" | "move_stock" | "place_purchase_order" | "receive_purchase_order" | "receive_transfer" | "release_reservation" | "reserve_stock" | "save_location" | "save_purchase_order" | "set_location_active" | "set_reorder_point" | "ship_transfer";
+    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_transfer" | "commit_reservation" | "count_stock" | "create_transfer" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "list_allocations" | "move_stock" | "place_purchase_order" | "receive_purchase_order" | "receive_transfer" | "release_allocations" | "release_reservation" | "reserve_stock" | "restore_allocation" | "save_bin" | "save_location" | "save_lot" | "save_purchase_order" | "set_location_active" | "set_reorder_point" | "set_stock_item" | "ship_transfer" | "stock_detail" | "stock_lot_for" | "stock_valuation";
     readonly actions: "manage" | "read" | "reserve" | "purchase";
     readonly hooks: "before_stock_adjust" | "after_stock_adjust" | "before_stock_reserve" | "after_stock_reserve";
     readonly entities: {
@@ -1171,11 +1177,11 @@ export interface BlockNameRegistry {
       readonly "carts": "id" | "tenant" | "user" | "currency" | "priceList" | "status" | "email" | "shippingAddress" | "billingAddress" | "shippingRate" | "createdAt" | "updatedAt" | "convertedAt";
       readonly "cartLines": "id" | "tenant" | "cart" | "variant" | "quantity" | "unitAmount" | "createdAt" | "updatedAt";
       readonly "shippingRates": "id" | "tenant" | "name" | "countries" | "currency" | "kind" | "amount" | "perKg" | "freeOver" | "active" | "createdAt" | "updatedAt";
-      readonly "orders": "id" | "tenant" | "number" | "sequence" | "cart" | "customer" | "email" | "status" | "currency" | "subtotal" | "discountTotal" | "shippingTotal" | "taxTotal" | "total" | "paidTotal" | "refundedTotal" | "taxInclusive" | "shippingAddress" | "billingAddress" | "shipping" | "promotions" | "tax" | "taxTransaction" | "invoiceNumber" | "invoiceSequence" | "invoicedAt" | "placedAt" | "paidAt" | "fulfilledAt" | "completedAt" | "cancelledAt" | "cancelReason" | "updatedAt";
+      readonly "orders": "id" | "tenant" | "number" | "sequence" | "cart" | "customer" | "email" | "status" | "currency" | "subtotal" | "discountTotal" | "shippingTotal" | "taxTotal" | "total" | "paidTotal" | "refundedTotal" | "taxInclusive" | "shippingAddress" | "billingAddress" | "shipping" | "promotions" | "tax" | "taxTransaction" | "invoiceNumber" | "invoiceSequence" | "invoicedAt" | "placedAt" | "paidAt" | "fulfilledAt" | "completedAt" | "cancelledAt" | "cancelReason" | "originType" | "originId" | "updatedAt";
       readonly "orderLines": "id" | "tenant" | "order" | "position" | "variant" | "product" | "sku" | "title" | "quantity" | "unitAmount" | "subtotal" | "discount" | "tax" | "total" | "requiresShipping" | "location" | "reservation" | "fulfilled" | "returned" | "backordered";
       readonly "payments": "id" | "tenant" | "order" | "provider" | "reference" | "status" | "currency" | "amount" | "captured" | "refunded" | "createdAt" | "updatedAt";
       readonly "fulfillments": "id" | "tenant" | "order" | "location" | "status" | "carrier" | "trackingNumber" | "trackingUrl" | "createdAt" | "shippedAt" | "deliveredAt";
-      readonly "fulfillmentLines": "tenant" | "fulfillment" | "line" | "quantity";
+      readonly "fulfillmentLines": "tenant" | "fulfillment" | "line" | "quantity" | "detail";
       readonly "returns": "id" | "tenant" | "order" | "status" | "reason" | "requestedBy" | "createdAt" | "receivedAt";
       readonly "returnLines": "tenant" | "return" | "line" | "quantity";
       readonly "refunds": "id" | "tenant" | "order" | "payment" | "return" | "amount" | "currency" | "status" | "reason" | "providerReference" | "createdAt" | "completedAt";
@@ -1183,11 +1189,11 @@ export interface BlockNameRegistry {
       readonly "kitchenRoutes": "product" | "tenant" | "station";
       readonly "preparations": "line" | "tenant" | "order" | "station" | "state" | "note" | "queuedAt" | "startedAt" | "readyAt" | "servedAt" | "updatedAt" | "updatedBy";
     };
-    readonly functions: "add_to_cart" | "cancel_fulfillment" | "cancel_order" | "cart_totals" | "complete_refund" | "create_cart" | "create_fulfillment" | "create_refund" | "delete_shipping_rate" | "deliver_fulfillment" | "expire_orders" | "get_order" | "merge_carts" | "order_cancel" | "order_json" | "order_transition" | "place_order" | "price_cart" | "receive_return" | "record_payment" | "reject_return" | "request_return" | "save_shipping_rate" | "set_cart_details" | "set_cart_line" | "set_cart_shipping_rate" | "set_order_tax_transaction" | "ship_fulfillment" | "shipping_options";
+    readonly functions: "add_to_cart" | "cancel_fulfillment" | "cancel_order" | "cart_totals" | "complete_refund" | "create_cart" | "create_fulfillment" | "create_refund" | "delete_shipping_rate" | "deliver_fulfillment" | "expire_orders" | "get_order" | "merge_carts" | "order_cancel" | "order_from_document" | "order_from_lines" | "order_from_quote" | "order_json" | "order_transition" | "place_order" | "price_cart" | "receive_return" | "record_payment" | "reject_return" | "request_return" | "save_shipping_rate" | "set_cart_details" | "set_cart_line" | "set_cart_shipping_rate" | "set_order_tax_transaction" | "ship_fulfillment" | "shipping_options";
     readonly actions: "manage" | "read" | "prepare";
     readonly hooks: "before_order_place" | "after_order_place" | "before_fulfillment_create" | "after_fulfillment_create" | "before_refund_create" | "after_refund_create";
     readonly entities: {
-      readonly "order": "id" | "tenant_id" | "number" | "sequence" | "cart_id" | "customer_id" | "email" | "status" | "currency" | "subtotal" | "discount_total" | "shipping_total" | "tax_total" | "total" | "paid_total" | "refunded_total" | "tax_inclusive" | "shipping_address" | "billing_address" | "shipping" | "promotions" | "tax" | "tax_transaction" | "invoice_number" | "invoice_sequence" | "invoiced_at" | "placed_at" | "paid_at" | "fulfilled_at" | "completed_at" | "cancelled_at" | "cancel_reason" | "updated_at";
+      readonly "order": "id" | "tenant_id" | "number" | "sequence" | "cart_id" | "customer_id" | "email" | "status" | "currency" | "subtotal" | "discount_total" | "shipping_total" | "tax_total" | "total" | "paid_total" | "refunded_total" | "tax_inclusive" | "shipping_address" | "billing_address" | "shipping" | "promotions" | "tax" | "tax_transaction" | "invoice_number" | "invoice_sequence" | "invoiced_at" | "placed_at" | "paid_at" | "fulfilled_at" | "completed_at" | "cancelled_at" | "cancel_reason" | "origin_type" | "origin_id" | "updated_at";
       readonly "cart": "id" | "tenant_id" | "user_id" | "currency" | "price_list_id" | "status" | "email" | "shipping_address" | "billing_address" | "shipping_rate_id" | "created_at" | "updated_at" | "converted_at";
     };
     readonly primary: "order";
@@ -1572,14 +1578,16 @@ export interface BlockNameRegistry {
       readonly "shipments": "id" | "tenant" | "reference" | "status" | "fromAddress" | "toAddress" | "fromLocation" | "subjectType" | "subjectId" | "carrier" | "service" | "trackingNumber" | "trackingUrl" | "labelId" | "labelUrl" | "labelFormat" | "labelCost" | "currency" | "labeledAt" | "deliveredAt" | "cancelledAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "packages": "id" | "tenant" | "shipment" | "position" | "weight" | "length" | "width" | "height" | "reference";
       readonly "trackingEvents": "id" | "tenant" | "shipment" | "externalId" | "status" | "occurredAt" | "description" | "location" | "source" | "createdAt";
+      readonly "lines": "id" | "tenant" | "shipment" | "position" | "direction" | "variant" | "location" | "quantity" | "allocation" | "detail" | "disposition" | "movement" | "movedAt" | "createdAt";
     };
-    readonly functions: "cancel_shipment" | "create_shipment" | "get_shipment" | "ingest_tracking_events" | "list_shipments" | "list_tracking_events" | "record_tracking_events" | "set_shipment_label";
+    readonly functions: "cancel_shipment" | "create_shipment" | "get_shipment" | "ingest_tracking_events" | "list_shipments" | "list_tracking_events" | "receive_shipment_return" | "record_tracking_events" | "set_shipment_label" | "set_shipment_lines";
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
       readonly "shipment": "id" | "tenant_id" | "reference" | "status" | "from_address" | "to_address" | "from_location_id" | "subject_type" | "subject_id" | "carrier" | "service" | "tracking_number" | "tracking_url" | "label_id" | "label_url" | "label_format" | "label_cost" | "currency" | "labeled_at" | "delivered_at" | "cancelled_at" | "created_by" | "created_at" | "updated_at";
       readonly "shipment_package": "id" | "tenant_id" | "shipment_id" | "position" | "weight_grams" | "length_mm" | "width_mm" | "height_mm" | "reference";
       readonly "shipment_tracking_event": "id" | "tenant_id" | "shipment_id" | "external_id" | "status" | "occurred_at" | "description" | "location" | "source" | "created_at";
+      readonly "shipment_line": "id" | "tenant_id" | "shipment_id" | "position" | "direction" | "variant_id" | "location_id" | "quantity" | "allocation_id" | "detail" | "disposition" | "movement_id" | "moved_at" | "created_at";
     };
     readonly primary: "shipment";
   };

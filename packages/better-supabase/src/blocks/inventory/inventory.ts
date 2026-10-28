@@ -1,11 +1,14 @@
 import type { Money } from "../../commerce/money.ts";
+import type { StockDetail } from "../../commerce/stock-detail.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { JobHandler } from "../queue/types.ts";
 import type { BlockOptions } from "../shared.ts";
+import type { InventoryTracking } from "./tracking.ts";
 
+import { detailArg } from "../../commerce/stock-detail.ts";
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
@@ -21,6 +24,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { inventoryTracking } from "./tracking.ts";
 
 export const LOCATION_KINDS = ["warehouse", "store", "virtual"] as const;
 
@@ -36,6 +40,7 @@ export const ADJUST_REASONS = [
   "loss",
   "return",
   "receipt",
+  "scrap",
 ] as const;
 
 export type AdjustReason = (typeof ADJUST_REASONS)[number];
@@ -91,6 +96,10 @@ export interface SavedLocation<F extends object = Record<never, never>> {
   readonly fields?: Readonly<Record<string, unknown>> & F;
 }
 
+/**
+ * Quantities are numbers with up to the variant's `scale` decimals, such as
+ * `1.25` kilograms.
+ */
 export interface StockChange {
   readonly movementId: string;
   readonly onHand: number;
@@ -125,10 +134,15 @@ export interface StockLine {
   readonly quantity: number;
 }
 
+export interface TransferLine extends StockLine {
+  /** The bin, lot or serials to take from the source location. */
+  readonly detail?: StockDetail;
+}
+
 export interface TransferInput {
   readonly fromLocationId: string;
   readonly toLocationId: string;
-  readonly lines: readonly StockLine[];
+  readonly lines: readonly TransferLine[];
   readonly note?: string;
 }
 
@@ -149,7 +163,7 @@ export interface PurchaseOrderInput {
   readonly note?: string;
 }
 
-export interface ReceiptLine {
+export interface ReceiptLine extends StockDetail {
   readonly lineId: string;
   readonly quantity: number;
 }
@@ -161,7 +175,9 @@ export interface Receipt {
 }
 
 /** `F` types the locations' extra columns, from the `fields` schema. */
-export interface Inventory<F extends object = Record<never, never>> {
+export interface Inventory<
+  F extends object = Record<never, never>,
+> extends InventoryTracking {
   saveLocation(
     organizationId: string,
     input: LocationInput<F>,
@@ -180,16 +196,18 @@ export interface Inventory<F extends object = Record<never, never>> {
     quantity: number,
     reason: AdjustReason,
     note?: string,
+    detail?: StockDetail,
   ): AsyncResult<StockChange>;
   /**
    * Sets on-hand to a counted number and writes the difference as a `count`
-   * movement.
+   * movement. With a bin or lot in `detail`, counts that bucket only.
    */
   countStock(
     variantId: string,
     locationId: string,
     counted: number,
     note?: string,
+    detail?: StockDetail,
   ): AsyncResult<StockCount>;
   /** Emits `stock.reorder_point_reached` when available stock drops to it. */
   setReorderPoint(
@@ -350,7 +368,8 @@ export function createInventory<
       call("set_location_active", { location: locationId, active }, isTrue),
     deleteLocation: (locationId) =>
       call("delete_location", { location: locationId }, isTrue),
-    adjustStock: (variantId, locationId, quantity, reason, note) =>
+    ...inventoryTracking(call),
+    adjustStock: (variantId, locationId, quantity, reason, note, detail) =>
       call(
         "adjust_stock",
         {
@@ -359,10 +378,11 @@ export function createInventory<
           quantity,
           reason,
           note: note ?? null,
+          detail: detailArg(detail),
         },
         stockChangeOf,
       ),
-    countStock: (variantId, locationId, counted, note) =>
+    countStock: (variantId, locationId, counted, note, detail) =>
       call(
         "count_stock",
         {
@@ -370,6 +390,7 @@ export function createInventory<
           location: locationId,
           counted,
           note: note ?? null,
+          detail: detailArg(detail),
         },
         (value) => {
           const row = recordOf(value, "count_stock");
@@ -429,6 +450,7 @@ export function createInventory<
           lines: input.lines.map((line) => ({
             variantId: line.variantId,
             quantity: line.quantity,
+            detail: detailArg(line.detail),
           })),
           note: input.note ?? null,
         },
@@ -474,9 +496,10 @@ export function createInventory<
         "receive_purchase_order",
         {
           purchase_order: purchaseOrderId,
-          lines: lines.map((line) => ({
-            lineId: line.lineId,
-            quantity: line.quantity,
+          lines: lines.map(({ lineId, quantity, ...detail }) => ({
+            lineId,
+            quantity,
+            ...detailArg(detail),
           })),
         },
         (value) => {
