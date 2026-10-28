@@ -52,13 +52,13 @@ result, so a form can't tell whether an account exists.
 Each layer of a Next.js app does one auth job, so a request verifies its
 token once and refreshes it in one place.
 
-| Layer                      | What it does                                                                                                                                                                         |
-| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `proxy.ts`                 | Refreshes an expiring session through `@supabase/ssr`, verifies the token through `@supabase/server`, and forwards the refreshed cookies to the render with `AUTH_CACHE_HEADERS` set |
-| `protect`                  | Answers from the verified claims before rendering: sign-in redirects, and a 403 from the `permissions` claim                                                                         |
-| Layouts                    | Check nothing. A layout renders once per segment and is not re-run on navigation, so a check there can go stale                                                                      |
-| Pages, islands and actions | Read the one verified session from the request memo with `getClaims()` (ADR 0095) and never refresh                                                                                  |
-| Actions and route handlers | Check again with `permission:` or `authorize`, because they can be called without a page                                                                                             |
+| Layer                      | What it does                                                                                                                                                                                       |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `proxy.ts`                 | Refreshes an expiring session through `@supabase/ssr`, verifies the token through `@supabase/server`, and forwards the refreshed cookies to the render with `Cache-Control: private, no-store` set |
+| `protect`                  | Answers from the verified claims before rendering: sign-in redirects, and a 403 from the `permissions` claim                                                                                       |
+| Layouts                    | Check nothing. A layout renders once per segment and is not re-run on navigation, so a check there can go stale                                                                                    |
+| Pages, islands and actions | Read the one verified session from the request memo with `getClaims()` (ADR 0095) and never refresh                                                                                                |
+| Actions and route handlers | Check again with `permission:` or `authorize`, because they can be called without a page                                                                                                           |
 
 The proxy runs on [`@supabase/middleware`](https://supabase.com/docs/guides/auth/server-side/nextjs)
 (ADR 0008), so a refreshed session reaches the page in the same request

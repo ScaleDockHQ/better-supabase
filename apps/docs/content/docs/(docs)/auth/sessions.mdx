@@ -9,38 +9,42 @@ chunks when it is larger than 3180 characters. better-supabase uses the
 chunker and encoders from `@supabase/ssr` itself, so both read each other's
 cookies.
 
-The primitives in `better-supabase/ssr` are framework-agnostic; adapters for
-SvelteKit, Nuxt, TanStack Start and React Router build on them.
+`better-supabase/ssr` reads the cookie from any framework; `@supabase/ssr`
+writes it. Adapters for SvelteKit, Nuxt, TanStack Start and React Router build
+on these primitives.
 
 ```ts
 import {
   parseCookies,
   readSession,
   sessionCookieName,
-  writeSession,
 } from "better-supabase/ssr";
 
 const name = sessionCookieName(env.url);
 const cookies = parseCookies(request.headers.get("cookie"));
 const session = readSession(cookies, name); // null when absent or corrupted
-
-const writes = writeSession(cookies, name, nextSession); // or null to sign out
 ```
 
-`writeSession` returns every cookie to set, including expiries for chunks
-the new value no longer needs. When the chunks don't parse together, such
-as a leftover `.2` from a longer session next to a shorter rewrite,
-`readSession` uses the longest prefix of chunks that parses, and only reads
-no session when none does.
+When the chunks don't parse together, such as a leftover `.2` from a longer
+session next to a shorter rewrite, `readSession` uses the longest prefix of
+chunks that parses, and only reads no session when none does.
 
-`pruneSessionChunks(cookies, name)` returns the `Max-Age=0` writes for
-chunks the readable session doesn't use. `resolveAuth` with `refresh` sends
-them on every response that keeps the session, so stale chunks are gone
-before the next refresh; set `pruneChunks: false` (in `auth` on the server)
-to only prune when the session is rewritten.
+## Refreshing
 
-Whenever you send session cookies, send `AUTH_CACHE_HEADERS` too.
-`resolution.apply(response)` does both.
+`resolveAuth` with `refresh` (the proxy and every adapter's middleware) hands
+an expiring session to a `createServerClient` from `@supabase/ssr` made for
+that request. auth-js rotates the token and writes the cookies, and
+`@supabase/ssr` sends its `Cache-Control: private, no-store` headers with the
+writes, so no CDN caches a response that carries a session.
+`resolution.apply(response)` sets both.
+
+Parallel requests with the same refresh token share one call to Auth: the
+token request goes through a `fetch` that sends it once and answers the
+others from that response for 10 seconds. Prefetches, islands and a burst of
+navigations can all refresh without spending a single-use refresh token
+twice, so every request the proxy matches may refresh. When Auth can't be
+reached, the refresh fails within `timeoutMs` (5000 by default) without
+auth-js's retries, and the session cookies stay as they are.
 
 ## Encoding
 
@@ -54,15 +58,8 @@ Whenever you send session cookies, send `AUTH_CACHE_HEADERS` too.
 
 `tokens-only` keeps the cookie small, often under one chunk, and is the
 recommended setting for new apps. `readSession` reads both shapes, so you can
-switch at any time; a `tokens-only` session has no `user` field, and
-`sessionEncoding(session)` tells you which shape a cookie has. Pass the same
-value to `writeSession` and to the browser client:
-
-```ts
-const writes = writeSession(cookies, name, nextSession, cookieOptions, {
-  encode: "tokens-only",
-});
-```
+switch at any time; a `tokens-only` session has no `user` field. Set the same
+value on the server (`auth.cookie.encode`) and on the browser client:
 
 ```ts title="src/lib/supabase/client.ts"
 import { createClient } from "better-supabase/client";
@@ -93,28 +90,32 @@ an account.
 ## Moving the cookie to another domain or path
 
 When a deploy changes the cookie `domain` or `path`, the old cookies stay in
-the browser at the old scope, where the new code never overwrites them.
-`clearSessionAtScopes` returns `Max-Age=0` writes for every chunk of the
-session cookie at each old scope, like `clearAuthCookiesAtScopes` from
-`@supabase/ssr`:
+the browser at the old scope, where the new code never overwrites them. List
+the old scopes in `cookieScopes` (on `createNext`, or the session options of
+your adapter) and every response clears them through
+`clearAuthCookiesAtScopes` from `@supabase/ssr`. In your own middleware, call
+that function directly:
 
 ```ts
-import { clearSessionAtScopes, serializeCookie } from "better-supabase/ssr";
+import { clearAuthCookiesAtScopes } from "@supabase/ssr";
 
-for (const write of clearSessionAtScopes(cookies, name, [
-  { domain: ".old.example.com" },
-  { path: "/app" },
-])) {
-  response.headers.append("Set-Cookie", serializeCookie(write));
-}
+await clearAuthCookiesAtScopes({
+  getAll: () => cookies,
+  setAll: (writes) => {
+    for (const write of writes) {
+      response.headers.append("Set-Cookie", serializeCookie(write));
+    }
+  },
+  storageKey: name,
+  scopes: [{ domain: ".old.example.com" }, { path: "/app" }],
+});
 ```
 
 List only the scopes earlier deploys used: a scope equal to the current one
 clears the live session. Browsers ignore writes for a domain the host doesn't
 own, so listing extra domains is safe. Append these writes as raw `Set-Cookie`
 headers, since a cookie API keyed by name (such as `response.cookies.set` in
-Next.js) keeps only the last write for each name, and don't pass them to
-`applyCookieWrites`, which would drop the current session from the request.
+Next.js) keeps only the last write for each name.
 
 ## Ended sessions in your own proxy
 
@@ -132,7 +133,7 @@ if (status === "ended") {
   const response = NextResponse.redirect(
     new URL("/login?reason=session_not_found", request.url),
   );
-  return clearSessionCookies(request, response, { url });
+  return await clearSessionCookies(request, response, { url });
 }
 ```
 
@@ -152,17 +153,18 @@ page, and clear the cookies the same way as for `"ended"`. Auth reports
 `user_banned` only while the session still exists: `suspendAccount` keeps the
 sessions for that reason, and a ban whose sessions were deleted reads as
 `"ended"` ([Suspending an account](/docs/auth/account-deletion#suspending-an-account)). When a refresh
-fails because the user is banned, `refreshSession` returns
-`{ ok: false, reason: "rejected", code: "user_banned" }`, and `code` carries
-the Auth `error_code` of any rejected refresh. Treat `"unknown"` as active, so an Auth outage never signs anyone out. Each
+fails because the user is banned, `resolveAuth` signs the session out with
+`reason: "user_banned"`, and the `onRefresh` event carries the Auth
+`error_code` of any rejected refresh. Treat `"unknown"` as active, so an Auth outage never signs anyone out. Each
 call costs one Auth request, so run it on page loads only, not on prefetches
 or assets (`shouldCheckSession` from `better-supabase/next` makes that
 choice for Next.js). `fetch`, `timeoutMs` (5000 by default) and `now` are
 optional.
 
-`clearSessionCookies(request, response, { url, cookieName?, cookie? })`
+`await clearSessionCookies(request, response, { url, cookieName?, cookie? })`
 appends `Max-Age=0` writes for every chunk of the session cookie the request
-carries, plus `AUTH_CACHE_HEADERS`, and returns the same response. Its
+carries, through `clearAuthCookiesAtScopes` from `@supabase/ssr`, plus
+`Cache-Control: private, no-store`, and resolves to the same response. Its
 headers must be mutable: `NextResponse.redirect` and `NextResponse.next` are,
 `Response.redirect` is not. Pass `cookie` with the `domain` or `path` the
 session was written at when it is not the default.

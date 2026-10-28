@@ -69,5 +69,5 @@ const { db } = await bsb.contextFromSession(snapshot);
 A snapshot holds the access token: never return it in a response. A copy
 of it (a spread, `structuredClone`, a serialized loader result) gets the
 `invalid` context, so pass plain values such as the user id onward instead.
-Prefetches never refresh the session, so parallel prefetches never race on
-the refresh token.
+Prefetches refresh the session too. Parallel requests with the same refresh
+token share one call to Auth, so they never race on it.

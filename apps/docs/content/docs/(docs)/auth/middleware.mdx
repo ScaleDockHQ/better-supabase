@@ -232,8 +232,8 @@ export const proxy = (request: NextRequest) =>
 The order is:
 
 1. `before(request)` and the session check run in parallel. The session is
-   always resolved on the original request, and `shouldRefresh` decides
-   exactly as without `before`: prefetches never refresh.
+   always resolved on the original request, and refreshes exactly as without
+   `before`.
 2. `protect(auth, request)` runs. A response it returns wins over `before`'s.
 3. Refreshed or cleared cookies are added to the chosen response (`before`'s
    rewrite, `protect`'s redirect or a plain `NextResponse.next()`).
