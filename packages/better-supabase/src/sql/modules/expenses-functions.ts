@@ -13,6 +13,7 @@ import {
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import {
+  expenseKey,
   expenseStandaloneSql,
   expensesStandalone,
 } from "./expenses-standalone.ts";
@@ -347,7 +348,7 @@ as $$
 declare
   v_row ${categories}%rowtype;
 begin
-  if not ${can("save_expense_category.tenant", manage)} then
+  if not ${can("save_expense_category.tenant", expenseKey(ctx, "categories"))} then
     ${forbidden("not allowed to manage expense categories")}
   end if;
   if save_expense_category.key is null or save_expense_category.key !~ '^[a-z][a-z0-9_]{0,62}$' then
@@ -397,7 +398,7 @@ declare
   v_row ${categories}%rowtype;
 begin
   select * into v_row from ${categories} c where c.${k("id")} = archive_expense_category.category_id for update;
-  if not found or not ${can(`v_row.${k("tenant")}`, manage)} then
+  if not found or not ${can(`v_row.${k("tenant")}`, expenseKey(ctx, "categories"))} then
     ${fail("EXPENSE_CATEGORY_NOT_FOUND", "no such expense category you can manage", "P0002")}
   end if;
   update ${categories} c set ${k("archivedAt")} = coalesce(c.${k("archivedAt")}, now()), ${k("updatedAt")} = now()
@@ -692,7 +693,7 @@ declare
   v_row ${reports}%rowtype;${approvalVar}
   v_tx uuid;
 begin${loadReport("reimburse_expense_report.report_id", true)}
-  if not ${can(`v_row.${r("tenant")}`, manage)} then
+  if not ${can(`v_row.${r("tenant")}`, expenseKey(ctx, "reimburse"))} then
     ${forbidden("not allowed to reimburse expenses")}
   end if;
   if ${status("v_row", "v_approval")} <> 'approved' then

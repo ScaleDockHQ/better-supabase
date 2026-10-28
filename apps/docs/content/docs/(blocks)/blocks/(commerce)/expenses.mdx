@@ -209,6 +209,37 @@ Amounts are `Money` in minor units. Each change records `expense.created`, `expe
 
 With `options.companyExpenses: true`, `createExpense({ company: true, ... })` records an expense of the organization itself, without a member or employee. It needs `expenses.manage` (or the service role), and the owner column must allow null; the block's own table does. `listExpenses({ everyone: true })` returns them with the rest.
 
+### A key per action
+
+`expenses.manage` covers everything done for someone else. Name a key per action in `permissions` to split it; an action without its own key checks `manage`.
+
+| Key          | What it allows                                                                   |
+| ------------ | -------------------------------------------------------------------------------- |
+| `create`     | `createExpense` for another member or employee, and company expenses             |
+| `update`     | `updateExpense`, `submitExpense` and `withdrawExpense` on someone else's expense |
+| `delete`     | `deleteExpense` on someone else's expense                                        |
+| `reimburse`  | `reimburseExpense`, and `reimburse_expense_report` with reports                  |
+| `categories` | `save_expense_category` and `archive_expense_category`                           |
+
+A payroll role that may only mark expenses reimbursed:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  expenses: {
+    permissions: {
+      manage: "expense.manage",
+      create: "expense.create",
+      update: "expense.update",
+      delete: "expense.delete",
+      reimburse: "expense.reimburse",
+      categories: "expense.manage_policies",
+    },
+  },
+},
+```
+
+The owner and their manager keep their own access, whatever these keys say.
+
 ## Errors
 
 | Hint                         | Cause                                                                           |

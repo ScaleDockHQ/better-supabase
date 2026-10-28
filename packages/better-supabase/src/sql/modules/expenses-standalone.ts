@@ -15,11 +15,17 @@ import {
   pageSize,
   SERVICE_CALLER,
   userGrant,
-  writeExtraColumns,
+  updateExtraColumns,
 } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { ownerIsEmployee, recordOwner } from "./record-owner.ts";
+
+export const expenseKey = (ctx: BlockSqlContext, action: string): string =>
+  sqlString(
+    ctx.config.permissions[action] ??
+      ctx.permissionKey("manage", moduleOperations("expenses").manage),
+  );
 
 const EXPENSE_RESERVED = ["fields"] as const;
 
@@ -184,6 +190,10 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const submit = ctx.permission("submit", ops.submit);
   const manage = ctx.permission("manage", ops.manage);
   const approve = ctx.permission("approve", ops.approve);
+  const createOthers = expenseKey(ctx, "create");
+  const updateOthers = expenseKey(ctx, "update");
+  const deleteOthers = expenseKey(ctx, "delete");
+  const reimburse = expenseKey(ctx, "reimburse");
   const extras = ctx.extraColumns("expenses", EXPENSE_RESERVED);
   const extra = extraFieldsArg(extras);
   const statusColumn = has("status");
@@ -262,11 +272,11 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const mine = (row: string): string =>
     `(coalesce(${owner.requester(row)} = auth.uid(), false) and ${ctx.can("tenant", `${row}.${e("tenant")}`, submit)})`;
 
-  const managed = (row: string): string =>
-    `(${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${e("tenant")}`, manage)}${employee ? ` or ${owner.manages(`${row}.${e("tenant")}`, `${row}.${e("employee")}`)}` : ""})`;
+  const managed = (row: string, key: string): string =>
+    `(${SERVICE_CALLER} or ${ctx.can("tenant", `${row}.${e("tenant")}`, key)}${employee ? ` or ${owner.manages(`${row}.${e("tenant")}`, `${row}.${e("employee")}`)}` : ""})`;
 
-  const ownerOrManager = `
-  if not (${mine("v_row")} or ${managed("v_row")}) then
+  const ownerOrManager = (key: string): string => `
+  if not (${mine("v_row")} or ${managed("v_row", key)}) then
     ${forbidden("not allowed to change this expense")}
   end if;`;
 
@@ -364,7 +374,7 @@ ${
     if create_expense.user_id is not null${employee ? " or create_expense.employee_id is not null" : ""} then
       ${invalid("a company expense has no member or employee")}
     end if;
-    if not (${SERVICE_CALLER} or ${ctx.can("tenant", "create_expense.tenant", manage)}) then
+    if not (${SERVICE_CALLER} or ${ctx.can("tenant", "create_expense.tenant", createOthers)}) then
       ${forbidden("not allowed to record company expenses")}
     end if;
   else
@@ -377,7 +387,7 @@ ${
     ${fail("EXPENSE_EMPLOYEE_INVALID", "no employee record for that member in this organization", "22023")}
   end if;
   if not ((coalesce(v_user = auth.uid(), false) and ${ctx.can("tenant", "create_expense.tenant", submit)})
-    or ${SERVICE_CALLER} or ${ctx.can("tenant", "create_expense.tenant", manage)} or ${owner.manages("create_expense.tenant", "v_owner")}) then
+    or ${SERVICE_CALLER} or ${ctx.can("tenant", "create_expense.tenant", createOthers)} or ${owner.manages("create_expense.tenant", "v_owner")}) then
     ${forbidden("not allowed to record expenses for this employee")}
   end if;`
       : `  v_owner := coalesce(create_expense.user_id, auth.uid());
@@ -386,7 +396,7 @@ ${
     ${forbidden("sign in to record expenses")}
   end if;
   if not ((v_owner = auth.uid() and ${ctx.can("tenant", "create_expense.tenant", submit)})
-    or ${SERVICE_CALLER} or ${ctx.can("tenant", "create_expense.tenant", manage)}) then
+    or ${SERVICE_CALLER} or ${ctx.can("tenant", "create_expense.tenant", createOthers)}) then
     ${forbidden("not allowed to record expenses for this member")}
   end if;
   if not ${owner.exists("create_expense.tenant", "v_owner")} then
@@ -422,7 +432,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${table}%rowtype;
-begin${load("update_expense.expense_id")}${ownerOrManager}${editable}
+begin${load("update_expense.expense_id")}${ownerOrManager(updateOthers)}${editable}
   if update_expense.amount is not null and update_expense.amount < 0 then
     ${invalid("an amount is zero or more minor units")}
   end if;
@@ -436,9 +446,9 @@ begin${load("update_expense.expense_id")}${ownerOrManager}${editable}
     ${e("spentOn")} = coalesce(update_expense.spent_on, x.${e("spentOn")}),
     ${e("amount")} = coalesce(update_expense.amount, x.${e("amount")}),
     ${e("currency")} = coalesce(update_expense.currency, x.${e("currency")})${has("category") ? `,\n    ${e("category")} = case when ${clears("category")} then null else coalesce(update_expense.category_id, x.${e("category")}) end` : ""}${has("description") ? `,\n    ${e("description")} = case when ${clears("description")} then null else coalesce(nullif(trim(update_expense.description), ''), x.${e("description")}) end` : ""}${has("merchant") ? `,\n    ${e("merchant")} = case when ${clears("merchant")} then null else coalesce(nullif(trim(update_expense.merchant), ''), x.${e("merchant")}) end` : ""},
-    ${e("updatedAt")} = now()
+    ${e("updatedAt")} = now()${updateExtraColumns(table, extras, "update_expense.fields")}
     where x.${e("id")} = v_row.${e("id")}
-    returning * into v_row;${writeExtraColumns(table, extras, "update_expense.fields", `x.${e("id")} = v_row.${e("id")}`, "v_row")}
+    returning * into v_row;
   return ${json("v_row")};
 end;
 $$;
@@ -452,7 +462,7 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
-begin${load("submit_expense.expense_id")}${ownerOrManager}${editable}
+begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}${editable}
   update ${table} x set ${e("submittedAt")} = now()${setStatus("submitted")}${set("rejectedAt", "null")}${set("approvedAt", "null")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;
@@ -470,7 +480,7 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
-begin${load("withdraw_expense.expense_id")}${ownerOrManager}
+begin${load("withdraw_expense.expense_id")}${ownerOrManager(updateOthers)}
   if ${status("v_row")} <> 'submitted' then
     ${fail("EXPENSE_LOCKED", "only a submitted expense is withdrawn", "55000")}
   end if;
@@ -491,7 +501,7 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
-begin${load("delete_expense.expense_id")}${ownerOrManager}
+begin${load("delete_expense.expense_id")}${ownerOrManager(deleteOthers)}
   if ${status("v_row")} <> 'draft' then
     ${fail("EXPENSE_LOCKED", "only a draft expense is deleted", "55000")}
   end if;
@@ -545,7 +555,7 @@ as $$
 declare
   v_row ${table}%rowtype;
 begin${load("reimburse_expense.expense_id")}
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${e("tenant")}`, manage)}) then
+  if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${e("tenant")}`, reimburse)}) then
     ${forbidden("not allowed to reimburse expenses")}
   end if;
   if ${status("v_row")} <> 'approved' then
@@ -571,7 +581,7 @@ declare
   v_row ${table}%rowtype;
 begin
   select * into v_row from ${table} x where x.${e("id")} = get_expense.expense_id;
-  if not found or not (coalesce(${owner.requester("v_row")} = auth.uid(), false) or ${managed("v_row")} or ${ctx.can("tenant", `v_row.${e("tenant")}`, read)}) then
+  if not found or not (coalesce(${owner.requester("v_row")} = auth.uid(), false) or ${managed("v_row", manage)} or ${ctx.can("tenant", `v_row.${e("tenant")}`, read)}) then
     ${fail("EXPENSE_NOT_FOUND", "no such expense", "P0002")}
   end if;
   return ${json("v_row")};

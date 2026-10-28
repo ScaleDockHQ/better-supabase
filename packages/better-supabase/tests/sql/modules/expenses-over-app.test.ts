@@ -515,6 +515,94 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("checks finer keys for others' expenses, reimbursing and categories", async () => {
+    const payroll = "88888888-8888-4888-8888-888888888888";
+
+    const refused = (call: string): string => `begin
+    perform ${call};
+    raise exception 'allowed: ${call.replaceAll("'", "''")}';
+  exception when others then
+    if sqlerrm like 'allowed: %' then
+      raise;
+    end if;
+  end;`;
+
+    await expect(
+      runStandalone(
+        `create table public.denied (user_id uuid, permission text);
+insert into public.denied values ('${payroll}', 'expense.create'), ('${payroll}', 'expense.update'),
+  ('${payroll}', 'expense.delete'), ('${payroll}', 'expense.policies'), ('${payroll}', 'expense.manage');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.user_id = auth.uid() and d.permission = can.permission) $$;
+insert into auth.users (id) values ('${payroll}');
+insert into better_supabase.memberships (organization_id, user_id, role) values ('${TENANT}', '${payroll}', 'member');
+do $$
+declare
+  v_category uuid;
+  v_id uuid;
+  v_draft uuid;
+begin
+  ${SERVICE}
+  v_category := (better_supabase.save_expense_category('${TENANT}', 'travel', 'Travel') ->> 'id')::uuid;
+  ${AS(ALICE)}
+  v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 900, 'EUR', v_category, 'Taxi') ->> 'id')::uuid;
+  v_draft := (better_supabase.create_expense('${TENANT}', '2099-03-03', 400, 'EUR', v_category, 'Lunch') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_id);
+  ${AS(BOB)}
+  perform better_supabase.decide_expense(v_id, true);
+  ${AS(payroll)}
+  ${refused(`better_supabase.create_expense('${TENANT}', '2099-03-04', 100, 'EUR', user_id => '${ALICE}')`)}
+  ${refused("better_supabase.update_expense(v_draft, amount => 500)")}
+  ${refused("better_supabase.submit_expense(v_draft)")}
+  ${refused("better_supabase.delete_expense(v_draft)")}
+  ${refused(`better_supabase.save_expense_category('${TENANT}', 'meals', 'Meals')`)}
+  perform better_supabase.reimburse_expense(v_id, 'batch-1');
+  if better_supabase.get_expense(v_id) ->> 'status' <> 'reimbursed' then
+    raise exception 'reimbursed %', better_supabase.get_expense(v_id);
+  end if;
+end;
+$$;`,
+        {
+          expenses: {
+            tables: { reports: null, lines: null },
+            permissions: {
+              manage: "expense.manage",
+              create: "expense.create",
+              update: "expense.update",
+              delete: "expense.delete",
+              reimburse: "expense.reimburse",
+              categories: "expense.policies",
+            },
+          },
+        },
+        {},
+        "",
+      ),
+    ).resolves.toBeUndefined();
+
+    const sql = renderBlocks(["employees", "expenses"], {
+      modules: { expenses: { tables: { reports: null, lines: null } } },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    const body = (name: string): string => {
+      const start = sql.indexOf(`function "better_supabase"."${name}"(`);
+
+      return sql.slice(start, sql.indexOf("$$;", start));
+    };
+
+    for (const name of [
+      "create_expense",
+      "update_expense",
+      "delete_expense",
+      "reimburse_expense",
+      "save_expense_category",
+    ]) {
+      expect(body(name)).toContain("'expenses.manage'");
+    }
+  });
+
   it("keeps a member's expenses in the block's own table with categories", async () => {
     await expect(
       runStandalone(
