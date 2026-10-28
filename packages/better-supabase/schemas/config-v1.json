@@ -1568,6 +1568,7 @@
               "bookings",
               "bulk",
               "calendar",
+              "cases",
               "catalog",
               "channels",
               "chat-sdk-state",
@@ -1724,6 +1725,7 @@
                   "bookings",
                   "bulk",
                   "calendar",
+                  "cases",
                   "catalog",
                   "channels",
                   "chat-sdk-state",
@@ -1916,6 +1918,9 @@
             },
             "calendar": {
               "$ref": "#/$defs/blocks/calendar"
+            },
+            "cases": {
+              "$ref": "#/$defs/blocks/cases"
             },
             "catalog": {
               "$ref": "#/$defs/blocks/catalog"
@@ -4132,6 +4137,42 @@
               },
               "ruleDialect": {},
               "readOnly": {}
+            }
+          }
+        }
+      },
+      "cases": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "severities": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "kinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
             }
           }
         }

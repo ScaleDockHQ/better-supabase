@@ -2096,75 +2096,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "acknowledgements",
-      "title": "Acknowledgements",
-      "category": "collaboration",
-      "requires": [
-        "memberships",
-        "permissions",
-        "subjects",
-        "versions"
-      ],
-      "integrates": [
-        "teams",
-        "notifications",
-        "signatures",
-        "outbox",
-        "audit"
-      ],
-      "manifest": "acknowledgements",
-      "scopes": [
-        "tenant"
-      ],
-      "entities": {
-        "specs": {
-          "acknowledgement": {
-            "table": "acknowledgements",
-            "singular": "acknowledgement"
-          },
-          "acknowledgement_assignment": {
-            "table": "assignments",
-            "singular": "acknowledgement_assignment"
-          }
-        },
-        "tables": {
-          "acknowledgements": {
-            "name": "acknowledgements",
-            "columns": {
-              "id": "id",
-              "tenant": "tenant_id",
-              "subjectType": "subject_type",
-              "subjectId": "subject_id",
-              "version": "version_id",
-              "user": "user_id",
-              "method": "method",
-              "signature": "signature_id",
-              "acknowledgedAt": "acknowledged_at"
-            }
-          },
-          "assignments": {
-            "name": "acknowledgement_assignments",
-            "columns": {
-              "id": "id",
-              "tenant": "tenant_id",
-              "subjectType": "subject_type",
-              "subjectId": "subject_id",
-              "principalType": "principal_type",
-              "principalId": "principal_id",
-              "dueInDays": "due_in_days",
-              "createdBy": "created_by",
-              "createdAt": "created_at"
-            }
-          }
-        },
-        "keys": {
-          "read": "acknowledgements.read",
-          "manage": "acknowledgements.manage",
-          "acknowledge": "acknowledgements.acknowledge"
-        }
-      }
-    },
-    {
       "name": "trash",
       "title": "Trash",
       "category": "content",
@@ -6879,6 +6810,196 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "cases",
+      "title": "Cases",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "cases",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "cases",
+      "entities": {
+        "specs": {
+          "case": {
+            "table": "cases",
+            "singular": "case",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "number",
+                  "description",
+                  "rootCause"
+                ]
+              },
+              "deletedAt": "archivedAt"
+            }
+          },
+          "case_kind": {
+            "table": "kinds",
+            "singular": "case_kind"
+          },
+          "case_action": {
+            "table": "actions",
+            "singular": "case_action"
+          }
+        },
+        "tables": {
+          "cases": {
+            "name": "cases",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "kind": "kind_id",
+              "number": "number",
+              "title": "title",
+              "description": "description",
+              "severity": "severity",
+              "source": "source",
+              "reporter": "reporter_id",
+              "owner": "owner_id",
+              "occurredAt": "occurred_at",
+              "detectedAt": "detected_at",
+              "dueOn": "due_on",
+              "status": "status",
+              "rootCause": "root_cause",
+              "effective": "effective",
+              "effectivenessDueOn": "effectiveness_due_on",
+              "closedAt": "closed_at",
+              "closedBy": "closed_by",
+              "closeNote": "close_note",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "kinds": {
+            "name": "case_kinds",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "prefix": "prefix",
+              "requiresRootCause": "requires_root_cause",
+              "requiresActions": "requires_actions",
+              "requiresEffectiveness": "requires_effectiveness",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "actions": {
+            "name": "case_actions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "case": "case_id",
+              "type": "type",
+              "title": "title",
+              "assignee": "assignee_id",
+              "dueAt": "due_at",
+              "required": "required",
+              "completedAt": "completed_at",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "cases.read",
+          "create": "cases.create",
+          "write": "cases.write",
+          "close": "cases.close",
+          "manage": "cases.manage"
+        }
+      }
+    },
+    {
+      "name": "acknowledgements",
+      "title": "Acknowledgements",
+      "category": "collaboration",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "versions"
+      ],
+      "integrates": [
+        "teams",
+        "notifications",
+        "signatures",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "acknowledgements",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "assignments",
+      "entities": {
+        "specs": {
+          "acknowledgement": {
+            "table": "acknowledgements",
+            "singular": "acknowledgement"
+          },
+          "acknowledgement_assignment": {
+            "table": "assignments",
+            "singular": "acknowledgement_assignment"
+          }
+        },
+        "tables": {
+          "acknowledgements": {
+            "name": "acknowledgements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "version": "version_id",
+              "user": "user_id",
+              "method": "method",
+              "signature": "signature_id",
+              "acknowledgedAt": "acknowledged_at"
+            }
+          },
+          "assignments": {
+            "name": "acknowledgement_assignments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "principalType": "principal_type",
+              "principalId": "principal_id",
+              "dueInDays": "due_in_days",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "acknowledgements.read",
+          "manage": "acknowledgements.manage",
+          "acknowledge": "acknowledgements.acknowledge"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -6958,6 +7079,56 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Acknowledgement"
+        },
+        {
+          "name": "AcknowledgementAssignment"
+        },
+        {
+          "name": "AcknowledgementAssignmentCreatedEventData"
+        },
+        {
+          "name": "AcknowledgementAssignmentDeletedEventData"
+        },
+        {
+          "name": "AcknowledgementAssignmentInput"
+        },
+        {
+          "name": "AcknowledgementCreatedEventData"
+        },
+        {
+          "name": "AcknowledgementExpiredEventData"
+        },
+        {
+          "name": "AcknowledgementPrincipal"
+        },
+        {
+          "name": "AcknowledgementRecord"
+        },
+        {
+          "name": "Acknowledgements"
+        },
+        {
+          "name": "AcknowledgementsEvents"
+        },
+        {
+          "name": "AcknowledgementsOptions"
+        },
+        {
+          "name": "AcknowledgementStatus"
+        },
+        {
+          "name": "AssignAcknowledgementOptions"
+        },
+        {
+          "name": "MyAcknowledgement"
+        },
+        {
+          "name": "MyAcknowledgementsOptions"
+        }
+      ],
       "entitySchemas": {
         "acknowledgement_assignment": {
           "input": {
@@ -6987,6 +7158,184 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "AcknowledgementsEvents",
+        "types": [
+          "acknowledgement_assignment.created",
+          "acknowledgement_assignment.deleted",
+          "acknowledgement.created",
+          "acknowledgement.expired"
+        ]
+      }
+    },
+    {
+      "name": "cases",
+      "sql": [
+        "cases"
+      ],
+      "category": "work",
+      "client": {
+        "export": "casesBlock",
+        "subpath": "better-supabase/blocks/cases"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Case"
+        },
+        {
+          "name": "CaseAction"
+        },
+        {
+          "name": "CaseActionAddedEventData"
+        },
+        {
+          "name": "CaseActionCompletedEventData"
+        },
+        {
+          "name": "CaseActionInput"
+        },
+        {
+          "name": "CaseChange"
+        },
+        {
+          "name": "CaseClosedEventData"
+        },
+        {
+          "name": "CaseCreatedEventData"
+        },
+        {
+          "name": "CaseEffectivenessRecordedEventData"
+        },
+        {
+          "name": "CaseInput"
+        },
+        {
+          "name": "CaseInputSchema"
+        },
+        {
+          "name": "CaseKind"
+        },
+        {
+          "name": "CaseKindInput"
+        },
+        {
+          "name": "CaseKindSavedEventData"
+        },
+        {
+          "name": "CaseListOptions"
+        },
+        {
+          "name": "CaseRootCauseRecordedEventData"
+        },
+        {
+          "name": "Cases"
+        },
+        {
+          "name": "CasesEvents"
+        },
+        {
+          "name": "CasesOptions"
+        },
+        {
+          "name": "CaseStat"
+        },
+        {
+          "name": "CaseUpdatedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "case": {
+          "input": {
+            "title": "CaseInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true
+              },
+              "severity": {
+                "kind": "string",
+                "optional": true
+              },
+              "source": {
+                "kind": "string",
+                "optional": true
+              },
+              "occurredAt": {
+                "kind": "instant",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "dueOn": {
+                "kind": "plainDate",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CaseInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string"
+                },
+                "severity": {
+                  "type": "string"
+                },
+                "source": {
+                  "type": "string"
+                },
+                "occurredAt": {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "dueOn": {
+                  "type": "string",
+                  "format": "date"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "CasesEvents",
+        "types": [
+          "case.created",
+          "case.updated",
+          "case.root_cause_recorded",
+          "case.action_added",
+          "case.action_completed",
+          "case.effectiveness_recorded",
+          "case.closed",
+          "case.reopened",
+          "case.cancelled",
+          "case_kind.created",
+          "case_kind.updated"
+        ]
       }
     },
     {

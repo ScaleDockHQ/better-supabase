@@ -62,4 +62,5 @@ incidents
 courses
 messaging
 posts
+cases
 acknowledgements

@@ -156,6 +156,10 @@ may be your own enum or domain.
   - `better_supabase.calendar_grants`, once mapped: `id`, `tenant_id`, `calendar_id`, `user_id`, `role`; typed: `role`
   - `better_supabase.calendar_event_rules`, once mapped: `event_id`; typed: `freq`, `by_day`, `by_month_day`, `by_month`, `by_set_pos`
   - `better_supabase.calendar_event_dates`, once mapped: `id`, `event_id`, `kind`, `starts_at`; typed: `kind`
+- `cases`
+  - `better_supabase.case_kinds`: `id`, `tenant_id`, `key`, `name`, `prefix`, `requires_root_cause`, `requires_actions`, `requires_effectiveness`
+  - `better_supabase.cases`: `id`, `tenant_id`, `kind_id`, `number`, `title`, `description`, `severity`, `source`, `detected_at`, `status`
+  - `better_supabase.case_actions`: `id`, `tenant_id`, `case_id`, `type`, `title`, `required`
 - `catalog`
   - `better_supabase.products`: `id`, `tenant_id`, `slug`, `title`, `status`, `created_at`, `updated_at`; typed: `status`, `kind`
   - `better_supabase.product_options`: `id`, `tenant_id`, `product_id`, `name`, `rank`

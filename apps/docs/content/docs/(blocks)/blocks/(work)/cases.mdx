@@ -1,0 +1,104 @@
+---
+title: Cases
+description: Nonconformities, complaints, safety incidents, observations, improvements, change requests and audit findings, with actions, a root cause and a closure guard.
+---
+
+`cases` is one record type for everything a quality system has to investigate:
+nonconformities, complaints, safety incidents, near misses, observations,
+improvements, change requests and audit findings. A kind decides which steps
+a case needs before it can close.
+
+```bash
+better-supabase add cases
+```
+
+```ts
+import { createCases } from "better-supabase/blocks/cases";
+```
+
+## Tables
+
+| Table          | Holds                                                        |
+| -------------- | ------------------------------------------------------------ |
+| `case_kinds`   | The kinds, their number prefix and the closure requirements   |
+| `cases`        | One case, its severity, owner, status and root cause          |
+| `case_actions` | Containment, correction, corrective, preventive and improvement actions |
+
+## Kinds
+
+```ts
+await client.saveKind(organizationId, {
+  key: "nonconformity",
+  name: "Nonconformity",
+  prefix: "NC",
+  requiresRootCause: true,
+  requiresActions: true,
+});
+```
+
+A kind can require a root cause, at least one action, and an effectiveness
+check. `archiveKind` keeps existing cases and refuses new ones.
+
+## Opening and changing
+
+`open(organizationId, kind, input)` numbers the case from the kind's prefix,
+the year and a counter. `update` changes the title, description, severity,
+owner, due date and occurrence time while the case is open. `recordRootCause`
+stores the investigation result.
+
+## Actions
+
+`createAction` adds an action with a type, an owner and a due date.
+`completeAction` marks it done; `removeAction` deletes it. A required action
+that is open blocks closing.
+
+## Closing
+
+`closeBlockers(caseId)` returns the hint codes that block closing, in order:
+`CASE_ROOT_CAUSE_REQUIRED`, `CASE_ACTIONS_REQUIRED`, `CASE_ACTIONS_OPEN`,
+`CASE_EFFECTIVENESS_REQUIRED`. `close` refuses while any remain.
+`recordEffectiveness` sets the effectiveness result; `reopen` and `cancel`
+move a case out of its closed state.
+
+## Reports
+
+`list` filters by status, severity, owner and search. `stats` counts cases by
+severity for a period, sorted descending, as a Pareto table.
+
+## Errors
+
+| Hint code                     | Meaning                                        |
+| ----------------------------- | ---------------------------------------------- |
+| `CASE_FORBIDDEN`              | The caller lacks the permission                |
+| `CASE_NOT_FOUND`              | The case does not exist                        |
+| `CASE_INVALID`                | An input is invalid                            |
+| `CASE_CLOSED`                 | A closed case cannot change                    |
+| `CASE_KIND_INVALID`           | The kind key or prefix is invalid              |
+| `CASE_KIND_NOT_FOUND`         | The kind does not exist                        |
+| `CASE_KIND_ARCHIVED`          | The kind is archived                           |
+| `CASE_ACTION_NOT_FOUND`       | The action does not exist                      |
+| `CASE_ROOT_CAUSE_REQUIRED`    | The kind requires a root cause                 |
+| `CASE_ACTIONS_REQUIRED`       | The kind requires at least one action          |
+| `CASE_ACTIONS_OPEN`           | A required action is open                      |
+| `CASE_EFFECTIVENESS_REQUIRED` | The kind requires an effectiveness check       |
+
+## Events
+
+| Type                        | Payload                                              |
+| --------------------------- | ---------------------------------------------------- |
+| `case.created`              | `organizationId`, `caseId`, `kind`, `number`         |
+| `case.updated`              | the same and `changed`                               |
+| `case.root_cause_recorded`  | `organizationId`, `caseId`, `kind`, `number`         |
+| `case.action_added`         | `organizationId`, `caseId`, `actionId`, `type`       |
+| `case.action_completed`     | `organizationId`, `caseId`, `actionId`               |
+| `case.effectiveness_recorded` | the case fields and `effective`                    |
+| `case.closed`, `case.reopened`, `case.cancelled` | the case fields             |
+| `case_kind.created`, `case_kind.updated` | `organizationId`, `kindId`, `key`        |
+
+## Without the client
+
+`save_case_kind`, `archive_case_kind`, `list_case_kinds`, `open_case`,
+`update_case`, `record_case_root_cause`, `create_case_action`,
+`complete_case_action`, `remove_case_action`, `record_case_effectiveness`,
+`case_close_blockers`, `close_case`, `reopen_case`, `cancel_case`, `get_case`,
+`list_cases`, `case_stats` and `notify_due_case_effectiveness`.

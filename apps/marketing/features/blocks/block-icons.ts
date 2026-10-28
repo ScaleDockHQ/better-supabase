@@ -160,6 +160,7 @@ export const BLOCK_ICONS = {
   subjects: BoxesIcon,
   "access-requests": DoorOpenIcon,
   acknowledgements: BadgeCheckIcon,
+  cases: ClipboardCheckIcon,
   identities: FingerprintIcon,
   // Tenancy & accounts
   memberships: BuildingIcon,

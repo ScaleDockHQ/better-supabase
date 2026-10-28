@@ -321,6 +321,22 @@ export interface BlockNameRegistry {
     };
     readonly primary: "calendar_event";
   };
+  readonly "cases": {
+    readonly tables: {
+      readonly "kinds": "id" | "tenant" | "key" | "name" | "prefix" | "requiresRootCause" | "requiresActions" | "requiresEffectiveness" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "cases": "id" | "tenant" | "kind" | "number" | "title" | "description" | "severity" | "source" | "reporter" | "owner" | "occurredAt" | "detectedAt" | "dueOn" | "status" | "rootCause" | "effective" | "effectivenessDueOn" | "closedAt" | "closedBy" | "closeNote" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "actions": "id" | "tenant" | "case" | "type" | "title" | "assignee" | "dueAt" | "required" | "completedAt" | "createdAt";
+    };
+    readonly functions: "archive_case_kind" | "cancel_case" | "case_close_blockers" | "case_stats" | "close_case" | "complete_case_action" | "create_case_action" | "get_case" | "list_case_kinds" | "list_cases" | "notify_due_case_effectiveness" | "open_case" | "record_case_effectiveness" | "record_case_root_cause" | "remove_case_action" | "reopen_case" | "save_case_kind" | "update_case";
+    readonly actions: "read" | "create" | "write" | "close" | "manage";
+    readonly hooks: "before_case_open" | "after_case_open" | "before_case_update" | "after_case_update" | "before_case_close" | "after_case_close";
+    readonly entities: {
+      readonly "case": "id" | "tenant_id" | "kind_id" | "number" | "title" | "description" | "severity" | "source" | "reporter_id" | "owner_id" | "occurred_at" | "detected_at" | "due_on" | "status" | "root_cause" | "effective" | "effectiveness_due_on" | "closed_at" | "closed_by" | "close_note" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "case_kind": "id" | "tenant_id" | "key" | "name" | "prefix" | "requires_root_cause" | "requires_actions" | "requires_effectiveness" | "archived_at" | "created_at" | "updated_at";
+      readonly "case_action": "id" | "tenant_id" | "case_id" | "type" | "title" | "assignee_id" | "due_at" | "required" | "completed_at" | "created_at";
+    };
+    readonly primary: "case";
+  };
   readonly "catalog": {
     readonly tables: {
       readonly "products": "id" | "tenant" | "slug" | "title" | "description" | "kind" | "status" | "createdAt" | "updatedAt" | "price" | "currency" | "trackInventory";

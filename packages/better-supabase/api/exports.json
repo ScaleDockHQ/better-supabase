@@ -6926,6 +6926,47 @@
       "RpcClient"
     ]
   },
+  "./blocks/cases": {
+    "values": [
+      "caseInputSchema",
+      "casesBlock",
+      "casesEvents",
+      "createCases",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Case",
+      "CaseAction",
+      "CaseActionAddedEventData",
+      "CaseActionCompletedEventData",
+      "CaseActionInput",
+      "CaseChange",
+      "CaseClosedEventData",
+      "CaseCreatedEventData",
+      "CaseEffectivenessRecordedEventData",
+      "CaseInput",
+      "CaseInputSchema",
+      "CaseKind",
+      "CaseKindInput",
+      "CaseKindSavedEventData",
+      "CaseListOptions",
+      "CaseRootCauseRecordedEventData",
+      "Cases",
+      "CasesEvents",
+      "CasesOptions",
+      "CaseStat",
+      "CaseUpdatedEventData",
+      "RpcClient"
+    ]
+  },
   "./blocks/documents": {
     "values": [
       "createDocuments",
