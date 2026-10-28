@@ -146,7 +146,7 @@ may be your own enum or domain.
   - `better_supabase.calendars`: `id`, `tenant_id`, `name`, `tz`, `created_at`; typed: `visibility`, `rank`; typed with values: `owner_id`
   - `better_supabase.calendar_events`: `id`, `tenant_id`, `calendar_id`, `uid`, `title`, `starts_at`, `ends_at`, `all_day`, `tz`, `status`, `recurrence_id`, `original_start`, `created_at`, `updated_at`; typed: `status`, `visibility`, `kind`, `transparency`
   - `better_supabase.calendar_attendees`: `id`, `tenant_id`, `event_id`, `user_id`, `response`; typed: `role`, `response`
-  - `better_supabase.calendar_event_alarms`: `id`, `tenant_id`, `event_id`, `action`, `trigger_minutes`; typed: `action`
+  - `better_supabase.calendar_event_alarms`: `id`, `tenant_id`, `event_id`, `offset_minutes`; typed: `method`
   - `better_supabase.calendar_working_hours`: `id`, `tenant_id`, `user_id`, `weekday`, `starts_at`, `ends_at`, `tz`
   - `better_supabase.calendar_grants`, once mapped: `id`, `tenant_id`, `calendar_id`, `user_id`, `role`; typed: `role`
   - `better_supabase.calendar_event_rules`, once mapped: `event_id`; typed: `freq`, `by_day`, `by_month_day`, `by_month`, `by_set_pos`

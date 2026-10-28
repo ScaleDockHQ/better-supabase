@@ -31,7 +31,7 @@ can attach to, with `leave` approved leave counts as out of office, and with
 | `calendars`              | A named calendar in an organization, with an IANA `tz` and an optional owner subject (`owner_type`, `owner_id`)              |
 | `calendar_events`        | `starts_at`, `ends_at` (exclusive), `all_day`, `tz`, `status`, `rrule`, `exdates`, an optional subject, and override columns |
 | `calendar_attendees`     | An email per event, with an optional user id, a `role` and a `response`                                                      |
-| `calendar_event_alarms`  | An event's alarms: an `action`, a `trigger_minutes` offset or a `trigger_at` time, and a repeat count with its interval      |
+| `calendar_event_alarms`  | An event's alarms: a `method`, an `offset_minutes` offset or a `trigger_at` time, a repeat count, and an optional `user_id`  |
 | `calendar_working_hours` | A member's weekly hours in an organization: a `weekday` with a `starts_at` and `ends_at` time in their `tz`                  |
 
 An override has `recurrence_id` (the series row) and `original_start` (the
@@ -224,10 +224,11 @@ await calendar
     startsAt: Temporal.Instant.from("2030-03-06T09:00:00Z"),
     endsAt: Temporal.Instant.from("2030-03-06T10:00:00Z"),
     alarms: [
-      { action: "display", triggerMinutes: -15 },
+      { method: "display", offsetMinutes: 15 },
       {
-        action: "email",
-        triggerAt: Temporal.Instant.from("2030-03-05T18:00:00Z"),
+        method: "email",
+        offsetMinutes: 0,
+        at: Temporal.Instant.from("2030-03-05T18:00:00Z"),
         summary: "Prepare the review",
         repeat: 2,
         repeatMinutes: 5,
@@ -237,19 +238,46 @@ await calendar
   .orThrow();
 ```
 
-Each alarm has an `action` (`display`, `email` or `audio`) and one trigger:
-`triggerMinutes` counts from the event's start, or from its end with
-`related: "end"`, and is negative before it; `triggerAt` is an absolute
-time. `repeat` fires it again that many times, `repeatMinutes` apart.
-Passing `alarms` replaces the event's alarms, and leaving it out keeps them.
-An event holds at most 20, and `calendarAlarmSchema` validates one. An
-override is its own row with its own alarms. On import, the seconds of a
-trigger are dropped, since alarms count in whole minutes.
+An alarm has the same shape as a feed reminder (`CalendarReminder`), with a
+`method` of `display`, `email` or `audio`. `offsetMinutes` counts back from
+the event's start, or from its end with `related: "end"`, so 15 fires a
+quarter of an hour before and a negative number fires after; `at` is an
+absolute time and replaces the offset. `repeat` fires it again that many
+times, `repeatMinutes` apart. Passing `alarms` replaces the event's alarms,
+and leaving it out keeps them. An event holds at most 20, and
+`calendarAlarmSchema` validates one. An override is its own row with its own
+alarms. On import, the seconds of a trigger are dropped, since alarms count in
+whole minutes.
 
-The alarms live in `tables.alarms` (`calendar_event_alarms`). Map it to your
-own table, or set it to `null` to leave alarms out; `columns.alarms.related`,
-`triggerAt`, `repeat`, `repeatMinutes`, `description` and `summary` can each
-be `null` when your table lacks them.
+The alarms live in `tables.alarms` (`calendar_event_alarms`). Set it to
+`null` to leave alarms out, or map it to a table your app already has, with
+its columns under `columns.alarms`:
+
+```ts title="better-supabase.config.ts"
+calendar: {
+  tables: { alarms: "public.event_alarms" },
+  columns: {
+    alarms: {
+      offsetMinutes: "minutes_before",
+      method: "action",
+      user: "user_id",
+      related: null,
+      at: null,
+      repeat: null,
+      repeatMinutes: null,
+      description: null,
+      summary: null,
+      createdAt: null,
+    },
+  },
+},
+```
+
+The table needs `tenant` and `event` columns and an offset; `user`,
+`method`, `related`, `at`, `repeat`, `repeatMinutes`, `description`,
+`summary` and `createdAt` can each be `null` when your table lacks them. A
+row with a user is that member's own alarm: only they read it, and saving the
+event's `alarms` leaves it alone.
 
 ## iCal feed
 
@@ -279,26 +307,11 @@ export async function GET(
 ```
 
 The feed carries the link's creator as `createdBy`, and each event's
-reminders become `VALARM`s: the creator's reminders from the reminders block,
-or, with `options.feed.reminders`, the alarms your own table keeps per event.
-
-```ts title="better-supabase.config.ts"
-calendar: {
-  options: {
-    feed: {
-      reminders: {
-        table: "public.event_alarms",
-        event: "event_id",
-        offsetMinutes: "minutes_before",
-        method: "action",
-      },
-    },
-  },
-},
-```
-
-`method` and `user` are optional; with `user`, a row with a user counts only
-in the feeds of that user's links.
+`reminders` become `VALARM`s: the event's alarms (with the creator's own
+alarm rows) and, with the [reminders block](/docs/blocks/reminders)
+installed, the creator's reminders for the event. A reminder whose method is
+not an iCalendar action, such as `notification`, is written as a display
+alarm with an `X-BSB-METHOD` property, and `importIcs` skips it.
 
 ## Event keys and read-only events
 
