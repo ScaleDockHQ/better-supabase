@@ -265,6 +265,7 @@ may be your own enum or domain.
   - `better_supabase.expense_categories`: `id`, `tenant_id`, `key`, `name`, `currency`, `archived_at`, `created_at`, `updated_at`
   - `better_supabase.expense_reports`: `id`, `tenant_id`, `user_id`, `title`, `currency`, `submitted_at`, `approved_at`, `reimbursed_at`, `cancelled_at`, `created_at`, `updated_at`
   - `better_supabase.expense_lines`: `id`, `tenant_id`, `report_id`, `category_id`, `spent_on`, `description`, `amount`, `created_at`, `updated_at`
+  - `better_supabase.expenses`: `id`, `tenant_id`, `spent_on`, `amount`, `currency`, `submitted_at`, `reimbursed_at`, `created_at`, `updated_at`; typed: `status`
 - `field-history`
   - `better_supabase.field_changes`: `id`, `tenant_id`, `subject_type`, `subject_id`, `field`, `old_value`, `new_value`
 - `flags`

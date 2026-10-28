@@ -4993,6 +4993,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "attachments",
+        "employees",
         "approvals"
       ],
       "manifest": "expenses",
@@ -10441,7 +10442,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "expense_report.approved",
           "expense_report.reimbursed",
           "expense_report.cancelled",
-          "expense_report.rejected"
+          "expense_report.rejected",
+          "expense.created",
+          "expense.submitted",
+          "expense.approved",
+          "expense.rejected",
+          "expense.reimbursed"
         ]
       }
     },

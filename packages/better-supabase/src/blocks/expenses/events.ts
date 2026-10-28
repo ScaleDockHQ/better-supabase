@@ -31,6 +31,21 @@ export interface ExpenseReportPostedEventData extends ExpenseReportEventData {
   readonly transactionId: string;
 }
 
+export interface ExpenseEventData {
+  readonly organizationId: string;
+  readonly id: string;
+  readonly userId: string | null;
+  readonly employeeId?: string;
+  readonly status:
+    | "draft"
+    | "submitted"
+    | "approved"
+    | "rejected"
+    | "reimbursed";
+  readonly amount: string;
+  readonly currency: string;
+}
+
 /** The events of the `expenses` block: type to data. */
 export type ExpensesEvents = {
   readonly "expense_report.created": ExpenseReportEventData;
@@ -39,6 +54,11 @@ export type ExpensesEvents = {
   readonly "expense_report.reimbursed": ExpenseReportPostedEventData;
   readonly "expense_report.cancelled": ExpenseReportEventData;
   readonly "expense_report.rejected": ExpenseReportEventData;
+  readonly "expense.created": ExpenseEventData;
+  readonly "expense.submitted": ExpenseEventData;
+  readonly "expense.approved": ExpenseEventData;
+  readonly "expense.rejected": ExpenseEventData;
+  readonly "expense.reimbursed": ExpenseEventData;
 };
 
 /** The `expenses` block's event types, for its manifest and `onBlockEvent`. */
@@ -49,4 +69,9 @@ export const expensesEvents: Events<ExpensesEvents> = defineEvents({
   "expense_report.reimbursed": event<ExpenseReportPostedEventData>(),
   "expense_report.cancelled": event<ExpenseReportEventData>(),
   "expense_report.rejected": event<ExpenseReportEventData>(),
+  "expense.created": event<ExpenseEventData>(),
+  "expense.submitted": event<ExpenseEventData>(),
+  "expense.approved": event<ExpenseEventData>(),
+  "expense.rejected": event<ExpenseEventData>(),
+  "expense.reimbursed": event<ExpenseEventData>(),
 });

@@ -680,6 +680,7 @@ export interface BlockNameRegistry {
       readonly "categories": "id" | "tenant" | "key" | "name" | "currency" | "limitAmount" | "receiptOver" | "archivedAt" | "createdAt" | "updatedAt";
       readonly "reports": "id" | "tenant" | "user" | "title" | "currency" | "note" | "approval" | "submittedAt" | "approvedAt" | "approvalTransaction" | "reimbursedAt" | "reimbursement" | "cancelledAt" | "createdAt" | "updatedAt" | "rejectedAt" | "decidedBy" | "decisionNote";
       readonly "lines": "id" | "tenant" | "report" | "category" | "spentOn" | "description" | "merchant" | "amount" | "createdAt" | "updatedAt";
+      readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
     readonly actions: "read" | "submit" | "approve" | "manage";
