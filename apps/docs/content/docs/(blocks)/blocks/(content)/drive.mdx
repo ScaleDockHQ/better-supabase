@@ -67,6 +67,8 @@ Each node has a role for the caller: the highest role granted on the node or any
 
 The creator of a node gets the top role on it. Grants with an `expiresAt` stop applying after that time. `drive_role(node)` and `drive_can(node, role)` are SQL functions, so your own policies can use them too. The block's own read policy uses `id in (select drive_readable_ids())` instead, which returns every node `drive_can(node, read)` is true for in one call, so Postgres runs it once per statement rather than once per row; prefer it in your policies on large drives.
 
+With `roleFunctions.node` or `roleFunctions.drive`, the block calls a schema-qualified function you name with the node or drive id and the caller's user id, and uses the role it returns. The function returns one of `roles`, or null. It replaces the block's own grants at that level, while the tenant `drive.read` check still applies. Use it when your own rules already decide who may read a node or a drive, such as an AuthorizationProvider.
+
 ## Configure
 
 ```ts title="better-supabase.config.ts"
@@ -82,18 +84,20 @@ blocks: {
 },
 ```
 
-| Option         | Default                         | What it does                                                                           |
-| -------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
-| `roles`        | `["viewer", "editor", "owner"]` | The roles, lowest first; the first one reads and the last one is the top role          |
-| `writeRole`    | `editor`, else the top role     | The role that may create, rename, move and trash                                       |
-| `shareRole`    | the top role                    | The role that may share and unshare                                                    |
-| `memberRole`   | none                            | A role every member of the organization has on every node                              |
-| `conflict`     | `fail`                          | What a duplicate name in a folder does: `fail`, `rename` (`plan (2).pdf`) or `replace` |
-| `subjectType`  | `drive_node`                    | The subject type of nodes in events, audit entries, attachments, versions and trash    |
-| `drives`       | `false`                         | Several drives per organization, with drive-level grants and connected drives          |
-| `driveKinds`   | `["shared"]`                    | The kinds a drive can have; the first is the default                                   |
-| `sources`      | `["google-drive", "onedrive"]`  | The providers a connection can mirror                                                  |
-| `extraColumns` | none                            | Columns on the node table that `fields` reads and writes                               |
+| Option          | Default                         | What it does                                                                           |
+| --------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
+| `roles`         | `["viewer", "editor", "owner"]` | The roles, lowest first; the first one reads and the last one is the top role          |
+| `writeRole`     | `editor`, else the top role     | The role that may create, rename, move and trash                                       |
+| `shareRole`     | the top role                    | The role that may share and unshare                                                    |
+| `memberRole`    | none                            | A role every member of the organization has on every node                              |
+| `conflict`      | `fail`                          | What a duplicate name in a folder does: `fail`, `rename` (`plan (2).pdf`) or `replace` |
+| `subjectType`   | `drive_node`                    | The subject type of nodes in events, audit entries, attachments, versions and trash    |
+| `drives`        | `false`                         | Several drives per organization, with drive-level grants and connected drives          |
+| `driveKinds`    | `["shared"]`                    | The kinds a drive can have; the first is the default                                   |
+| `sources`       | `["google-drive", "onedrive"]`  | The providers a connection can mirror                                                  |
+| `roleFunctions` | none                            | App functions that return the caller's role on a node or a drive                       |
+| `readPolicy`    | `true`                          | The block's read policies; `false` leaves them to the app                              |
+| `extraColumns`  | none                            | Columns on the node table that `fields` reads and writes                               |
 
 Each call that creates, renames or moves a node can pass its own `conflict`. Names compare case-insensitively within one folder.
 
@@ -208,7 +212,9 @@ export default defineConfig({ records: { drive_node: driveSubject() } });
 
 ## Over your own tables
 
-Map `tables.nodes` and `tables.grants` to run the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
+Map `tables.nodes` and `tables.grants` to run the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). With `drives` on, map `tables.drives`, `tables.driveGrants` and `tables.connections` too; a drive grant table takes the same principal columns as a node grant table. Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
+
+When your schema already has its own read policies, set `readPolicy` to `false` so the block leaves reads to them. Name `roleFunctions.node` or `roleFunctions.drive` to let your own functions decide the caller's role at that level, as the Access section describes.
 
 ```ts title="better-supabase.config.ts"
 drive: {

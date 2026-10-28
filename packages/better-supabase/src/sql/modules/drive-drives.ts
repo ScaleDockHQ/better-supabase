@@ -22,8 +22,11 @@ export function driveDrivesSql(kit: DriveKit): string {
     create,
     manage,
     roles,
-    typed,
-    teamColumn,
+    driveTyped,
+    driveTeamColumn,
+    drivePrincipalTypes,
+    drivePrincipalType,
+    drivePrincipalId,
     drives,
     driveKinds,
     driveKindsArray,
@@ -57,16 +60,37 @@ export function driveDrivesSql(kit: DriveKit): string {
     touch,
   } = kit;
 
-  const principalTypes = typed
-    ? "('user', 'team', 'role')"
-    : teamColumn
-      ? "('user', 'team')"
-      : "('user')";
-
   const teamExistsDrive =
-    teams === undefined
+    !drives || teams === undefined
       ? "false"
       : `exists (select 1 from ${teams.table("teams")} t where t.${teams.col("teams", "id")}::text = drive_share_drive.principal_id and t.${teams.col("teams", "tenant")} = v_drive.${d("tenant")})`;
+
+  const driveTeamValue =
+    drives && driveTeamColumn
+      ? teams === undefined
+        ? "null"
+        : `case when v_type = 'team' then (select t.${teams.col("teams", "id")} from ${teams.table("teams")} t where t.${teams.col("teams", "id")}::text = drive_share_drive.principal_id and t.${teams.col("teams", "tenant")} = v_drive.${d("tenant")}) end`
+      : undefined;
+
+  const driveGrantColumns = drives
+    ? driveTyped
+      ? `${dg("tenant")}, ${dg("drive")}, ${dg("principalType")}, ${dg("principalId")}, ${dg("role")}${driveExpiring ? `, ${dg("expiresAt")}` : ""}${ctx.has("driveGrants", "createdBy") ? `, ${dg("createdBy")}` : ""}`
+      : `${dg("tenant")}, ${dg("drive")}, ${dg("user")}${driveTeamColumn ? `, ${dg("team")}` : ""}, ${dg("role")}${driveExpiring ? `, ${dg("expiresAt")}` : ""}${ctx.has("driveGrants", "createdBy") ? `, ${dg("createdBy")}` : ""}`
+    : "";
+
+  const driveGrantValues = drives
+    ? driveTyped
+      ? `v_drive.${d("tenant")}, v_drive.${d("id")}, v_type, drive_share_drive.principal_id, drive_share_drive.role${driveExpiring ? ", drive_share_drive.expires_at" : ""}${ctx.has("driveGrants", "createdBy") ? ", auth.uid()" : ""}`
+      : `v_drive.${d("tenant")}, v_drive.${d("id")}, case when v_type = 'user' then drive_share_drive.principal_id::uuid end${driveTeamColumn ? `, ${driveTeamValue}` : ""}, drive_share_drive.role${driveExpiring ? ", drive_share_drive.expires_at" : ""}${ctx.has("driveGrants", "createdBy") ? ", auth.uid()" : ""}`
+    : "";
+
+  const principalError = drives
+    ? driveTyped
+      ? "principal_type must be user, team or role"
+      : driveTeamColumn
+        ? "principal_type must be user or team"
+        : "principal_type must be user"
+    : "";
 
   return drives
     ? `
@@ -267,8 +291,8 @@ begin
   if ${rank("drive_share_drive.role")} = 0 then
     ${fail("DRIVE_ROLE_UNKNOWN", `role must be one of ${roles.all.join(", ")}`, "22023")}
   end if;
-  if v_type not in ${principalTypes} or drive_share_drive.principal_id is null then
-    ${fail("DRIVE_PRINCIPAL_INVALID", "principal_type must be user, team or role", "22023")}
+  if v_type not in ${drivePrincipalTypes} or drive_share_drive.principal_id is null then
+    ${fail("DRIVE_PRINCIPAL_INVALID", principalError, "22023")}
   end if;
   if (v_type = 'user' and (drive_share_drive.principal_id !~ ${UUID_TEXT} or not exists (
       select 1 from ${tenant.table("memberships")} mu
@@ -278,9 +302,9 @@ begin
     ${fail("DRIVE_PRINCIPAL_NOT_FOUND", "no member or team of this organization has that id", "P0002")}
   end if;
   delete from ${DG} dg where dg.${dg("drive")} = v_drive.${d("id")}
-    and dg.${dg("principalType")} = v_type and dg.${dg("principalId")} = drive_share_drive.principal_id;
-  insert into ${DG} (${dg("tenant")}, ${dg("drive")}, ${dg("principalType")}, ${dg("principalId")}, ${dg("role")}${driveExpiring ? `, ${dg("expiresAt")}` : ""}${ctx.has("driveGrants", "createdBy") ? `, ${dg("createdBy")}` : ""})
-  values (v_drive.${d("tenant")}, v_drive.${d("id")}, v_type, drive_share_drive.principal_id, drive_share_drive.role${driveExpiring ? ", drive_share_drive.expires_at" : ""}${ctx.has("driveGrants", "createdBy") ? ", auth.uid()" : ""})
+    and ${drivePrincipalType("dg")} = v_type and ${drivePrincipalId("dg")} = drive_share_drive.principal_id;
+  insert into ${DG} (${driveGrantColumns})
+  values (${driveGrantValues})
   returning ${dg("id")} into v_id;
   ${recordDrive("drive.shared", "v_drive", ", 'principalType', v_type, 'principalId', drive_share_drive.principal_id, 'role', drive_share_drive.role", driveAudit("v_drive", "shared"))}
   return jsonb_build_object('id', v_id, 'driveId', v_drive.${d("id")}, 'principalType', v_type, 'principalId', drive_share_drive.principal_id, 'role', drive_share_drive.role, 'expiresAt', drive_share_drive.expires_at);
@@ -308,7 +332,7 @@ begin
   end if;
   ${READ_ONLY_GUARD}
   delete from ${DG} dg where dg.${dg("drive")} = v_drive.${d("id")}
-    and dg.${dg("principalType")} = v_type and dg.${dg("principalId")} = drive_unshare_drive.principal_id;
+    and ${drivePrincipalType("dg")} = v_type and ${drivePrincipalId("dg")} = drive_unshare_drive.principal_id;
   if not found then
     return false;
   end if;
@@ -331,7 +355,7 @@ begin
     ${fail("DRIVE_NOT_FOUND", "drive not found", "P0002")}
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', dg.${dg("id")}, 'driveId', dg.${dg("drive")}, 'principalType', dg.${dg("principalType")}, 'principalId', dg.${dg("principalId")}, 'role', dg.${dg("role")}, 'expiresAt', ${driveExpiring ? `dg.${dg("expiresAt")}` : "null"}) order by ${rank(`dg.${dg("role")}`)} desc, dg.${dg("id")}), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', dg.${dg("id")}, 'driveId', dg.${dg("drive")}, 'principalType', ${drivePrincipalType("dg")}, 'principalId', ${drivePrincipalId("dg")}, 'role', dg.${dg("role")}, 'expiresAt', ${driveExpiring ? `dg.${dg("expiresAt")}` : "null"}) order by ${rank(`dg.${dg("role")}`)} desc, dg.${dg("id")}), '[]'::jsonb)
     from ${DG} dg
     where dg.${dg("drive")} = drive_grants_for_drive.drive${driveGrantLive("dg")}
   );

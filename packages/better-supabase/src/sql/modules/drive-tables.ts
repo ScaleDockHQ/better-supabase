@@ -31,6 +31,11 @@ export function driveTablesSql(kit: DriveKit): string {
     holdColumn,
     binColumn,
     rolesArray,
+    typed,
+    teamColumn,
+    driveColumn,
+    driveTyped,
+    driveTeamColumn,
   } = kit;
 
   const connectionTable =
@@ -80,22 +85,54 @@ ${lockTable(D, { read: true })}
 `
       : "";
 
+  const driveGrantIdentity =
+    drives && DG !== undefined
+      ? driveTyped
+        ? `  ${dg("principalType")} text not null check (${dg("principalType")} in ('user', 'team', 'role')),
+  ${dg("principalId")} text not null,`
+        : `  ${dg("user")} uuid${driveTeamColumn ? "" : " not null"},${
+            driveTeamColumn
+              ? `
+  ${dg("team")} uuid,
+  check ((${dg("user")} is not null)::int + (${dg("team")} is not null)::int = 1),`
+              : ""
+          }`
+      : "";
+
+  const driveGrantUnique =
+    drives && DG !== undefined && driveTyped
+      ? `  unique (${dg("drive")}, ${dg("principalType")}, ${dg("principalId")}),
+`
+      : "";
+
+  const driveGrantIndexes =
+    drives && DG !== undefined
+      ? driveTyped
+        ? `create index if not exists ${sqlIdent(`${ctx.tableName("driveGrants").name}_principal_idx`)} on ${DG} (${dg("principalType")}, ${dg("principalId")});`
+        : `create unique index if not exists ${sqlIdent(`${ctx.tableName("driveGrants").name}_user_idx`)} on ${DG} (${dg("drive")}, ${dg("user")}) where ${dg("user")} is not null;
+create index if not exists ${sqlIdent(`${ctx.tableName("driveGrants").name}_user_principal_idx`)} on ${DG} (${dg("user")}) where ${dg("user")} is not null;${
+            driveTeamColumn
+              ? `
+create unique index if not exists ${sqlIdent(`${ctx.tableName("driveGrants").name}_team_idx`)} on ${DG} (${dg("drive")}, ${dg("team")}) where ${dg("team")} is not null;
+create index if not exists ${sqlIdent(`${ctx.tableName("driveGrants").name}_team_principal_idx`)} on ${DG} (${dg("team")}) where ${dg("team")} is not null;`
+              : ""
+          }`
+      : "";
+
   const driveGrantTable =
     drives && ctx.owns("driveGrants") && DG !== undefined && D !== undefined
       ? `create table if not exists ${DG} (
   ${dg("id")} uuid primary key default gen_random_uuid(),
   ${dg("tenant")} ${ctx.idType} not null,
   ${dg("drive")} uuid not null,
-  ${dg("principalType")} text not null check (${dg("principalType")} in ('user', 'team', 'role')),
-  ${dg("principalId")} text not null,
+${driveGrantIdentity}
   ${dg("role")} text not null,
   ${dg("expiresAt")} timestamptz,
   ${dg("createdBy")} uuid default auth.uid(),
   ${dg("createdAt")} timestamptz not null default now(),
-  unique (${dg("drive")}, ${dg("principalType")}, ${dg("principalId")}),
-  foreign key (${dg("drive")}, ${dg("tenant")}) references ${D} (${d("id")}, ${d("tenant")}) on delete cascade
+${driveGrantUnique}  foreign key (${dg("drive")}, ${dg("tenant")}) references ${D} (${d("id")}, ${d("tenant")}) on delete cascade
 );
-create index if not exists ${sqlIdent(`${ctx.tableName("driveGrants").name}_principal_idx`)} on ${DG} (${dg("principalType")}, ${dg("principalId")});
+${driveGrantIndexes}
 ${ensureCheck(DG, "bsb_drive_drive_grants_role", `${dg("role")} = any (${rolesArray})`)}
 ${lockTable(DG, { read: true })}
 `
@@ -105,7 +142,7 @@ ${lockTable(DG, { read: true })}
     ? `create table if not exists ${T} (
   ${n("id")} uuid primary key default gen_random_uuid(),
   ${n("tenant")} ${ctx.idType} not null,
-  ${drives ? `${n("drive")} uuid not null,` : ""}
+  ${driveColumn ? `${n("drive")} uuid not null,` : ""}
   ${n("parent")} uuid references ${T} (${n("id")}) on delete cascade,
   ${n("kind")} text not null check (${n("kind")} in ('folder', 'file')),
   ${n("name")} text not null check (length(btrim(${n("name")})) between 1 and 255 and ${n("name")} !~ '[/[:cntrl:]]'),
@@ -131,23 +168,54 @@ ${lockTable(DG, { read: true })}
       : ""
   }
 );${addExtraColumns(T, extras)}
-create unique index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_sibling_name_idx`)} on ${T} (${n("tenant")}${drives ? `, ${n("drive")}` : ""}, coalesce(${n("parent")}, '00000000-0000-0000-0000-000000000000'::uuid), lower(${n("name")})) where ${n("deletedAt")} is null${sourceColumn ? ` and ${n("source")} = 'internal'` : ""};
-create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_parent_idx`)} on ${T} (${n("tenant")}${drives ? `, ${n("drive")}` : ""}, ${n("parent")}, ${n("rank")});
+create unique index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_sibling_name_idx`)} on ${T} (${n("tenant")}${driveColumn ? `, ${n("drive")}` : ""}, coalesce(${n("parent")}, '00000000-0000-0000-0000-000000000000'::uuid), lower(${n("name")})) where ${n("deletedAt")} is null${sourceColumn ? ` and ${n("source")} = 'internal'` : ""};
+create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_parent_idx`)} on ${T} (${n("tenant")}${driveColumn ? `, ${n("drive")}` : ""}, ${n("parent")}, ${n("rank")});
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_parent_fk_idx`)} on ${T} (${n("parent")}) where ${n("parent")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_path_idx`)} on ${T} (${n("path")} text_pattern_ops);
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_attachment_idx`)} on ${T} (${n("attachment")});${
-        drives
+        driveColumn
           ? `
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_drive_idx`)} on ${T} (${n("tenant")}, ${n("drive")}, ${n("parent")}, ${n("rank")});`
           : ""
       }${
         externalColumn
           ? `
-create unique index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_external_idx`)} on ${T} (${drives ? `${n("drive")}, ` : `${n("tenant")}, `}${n("source")}, ${n("externalId")}) where ${n("externalId")} is not null${binColumn ? ` and ${n("deletedAt")} is null` : ""};`
+create unique index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_external_idx`)} on ${T} (${driveColumn ? `${n("drive")}, ` : `${n("tenant")}, `}${n("source")}, ${n("externalId")}) where ${n("externalId")} is not null${binColumn ? ` and ${n("deletedAt")} is null` : ""};`
           : ""
       }
 ${lockTable(T, { read: true })}
 `
+    : "";
+
+  const grantIdentity = ctx.owns("grants")
+    ? typed
+      ? `  ${g("principalType")} text not null check (${g("principalType")} in ('user', 'team', 'role')),
+  ${g("principalId")} text not null,`
+      : `  ${g("user")} uuid${teamColumn ? "" : " not null"},${
+          teamColumn
+            ? `
+  ${g("team")} uuid,
+  check ((${g("user")} is not null)::int + (${g("team")} is not null)::int = 1),`
+            : ""
+        }`
+    : "";
+
+  const grantUnique =
+    ctx.owns("grants") && typed
+      ? `  unique (${g("node")}, ${g("principalType")}, ${g("principalId")})`
+      : "";
+
+  const grantIndexes = ctx.owns("grants")
+    ? typed
+      ? `create index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_principal_idx`)} on ${G} (${g("principalType")}, ${g("principalId")});`
+      : `create unique index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_user_idx`)} on ${G} (${g("node")}, ${g("user")}) where ${g("user")} is not null;
+create index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_user_principal_idx`)} on ${G} (${g("user")}) where ${g("user")} is not null;${
+          teamColumn
+            ? `
+create unique index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_team_idx`)} on ${G} (${g("node")}, ${g("team")}) where ${g("team")} is not null;
+create index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_team_principal_idx`)} on ${G} (${g("team")}) where ${g("team")} is not null;`
+            : ""
+        }`
     : "";
 
   const grantTable = ctx.owns("grants")
@@ -155,15 +223,13 @@ ${lockTable(T, { read: true })}
   ${g("id")} uuid primary key default gen_random_uuid(),
   ${g("tenant")} ${ctx.idType} not null,
   ${g("node")} uuid not null references ${T} (${n("id")}) on delete cascade,
-  ${g("principalType")} text not null check (${g("principalType")} in ('user', 'team', 'role')),
-  ${g("principalId")} text not null,
+${grantIdentity}
   ${g("role")} text not null,
   ${g("expiresAt")} timestamptz,
   ${g("createdBy")} uuid default auth.uid(),
-  ${g("createdAt")} timestamptz not null default now(),
-  unique (${g("node")}, ${g("principalType")}, ${g("principalId")})
-);
-create index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_principal_idx`)} on ${G} (${g("principalType")}, ${g("principalId")});
+  ${g("createdAt")} timestamptz not null default now()${grantUnique ? "," : ""}
+${grantUnique ? `${grantUnique}\n` : ""});
+${grantIndexes}
 ${ensureCheck(G, "bsb_drive_grants_role", `${g("role")} = any (${rolesArray})`)}
 ${lockTable(G, { read: false })}
 `

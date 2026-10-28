@@ -29,7 +29,7 @@ export function driveFilesSql(kit: DriveKit): string {
     g,
     fn,
     read,
-    drives,
+    driveColumn,
     readOnly,
     typeLit,
     attachments,
@@ -143,7 +143,7 @@ declare
 begin
   ${READ_ONLY_GUARD}
   perform ${fn("drive_check_parent")}(drive_create_file.tenant, drive_create_file.parent, drive_create_file.drive);${
-    drives
+    driveColumn
       ? `
   if drive_create_file.parent is not null then
     select x.${n("drive")} into v_drive from ${T} x where x.${n("id")} = drive_create_file.parent;
@@ -490,7 +490,7 @@ begin
   ) then
     ${fail("DRIVE_PARENT_TRASHED", "restore the folder this item was in first", "22023")}
   end if;
-  v_name := ${fn("drive_free_name")}(v_node.${n("tenant")}, ${drives ? `v_node.${n("drive")}` : "null"}, v_node.${n("parent")}, v_node.${n("name")}, v_node.${n("id")}, ${fn("drive_conflict")}(drive_restore.conflict));
+  v_name := ${fn("drive_free_name")}(v_node.${n("tenant")}, ${driveColumn ? `v_node.${n("drive")}` : "null"}, v_node.${n("parent")}, v_node.${n("name")}, v_node.${n("id")}, ${fn("drive_conflict")}(drive_restore.conflict));
   if v_name <> v_node.${n("name")} then
     update ${T} x set ${n("name")} = v_name where x.${n("id")} = v_node.${n("id")};
   end if;

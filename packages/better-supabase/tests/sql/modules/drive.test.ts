@@ -33,12 +33,17 @@ const withOptions = (options: Record<string, unknown>): Layout => ({
   modules: { drive: { options } },
 });
 
+const managed = (config: Record<string, unknown>): Layout => ({
+  modules: { drive: config },
+});
+
 const APP_MODULES = {
   drive: {
     tables: { nodes: "public.file_node", grants: "public.file_node_grant" },
     columns: {
       nodes: {
         tenant: "organization_id",
+        drive: null,
         attachment: null,
         path: null,
         rank: null,
@@ -62,6 +67,75 @@ const APP_MODULES = {
 const APP_DRIVE: Layout = {
   modules: APP_MODULES,
   ownTables: ownTablesOf(APP_MODULES),
+};
+
+const DRIVE_APP_MODULES = {
+  drive: {
+    tables: {
+      nodes: "public.file_nodes",
+      grants: "public.file_node_grants",
+      drives: "public.file_drives",
+      driveGrants: "public.file_drive_grants",
+      connections: "public.file_drive_connections",
+    },
+    columns: {
+      nodes: {
+        tenant: "organization_id",
+        drive: "drive_id",
+        attachment: null,
+        path: null,
+        rank: null,
+        deletedAt: "deleted_at",
+        legalHoldUntil: null,
+      },
+      grants: {
+        tenant: "organization_id",
+        node: "node_id",
+        principalType: null,
+        principalId: null,
+        user: "user_id",
+        team: "team_id",
+        expiresAt: "expires_at",
+        createdBy: "created_by",
+      },
+      driveGrants: {
+        tenant: "organization_id",
+        drive: "drive_id",
+        principalType: null,
+        principalId: null,
+        user: "user_id",
+        team: "team_id",
+        expiresAt: "expires_at",
+        createdBy: "created_by",
+      },
+      drives: {
+        tenant: "organization_id",
+        kind: "drive_type",
+        owner: "owner_user_id",
+        connection: "connection_id",
+        createdBy: "created_by",
+        updatedAt: "updated_at",
+      },
+      connections: {
+        tenant: "organization_id",
+        user: "user_id",
+        provider: "provider",
+        name: "name",
+        status: "status",
+        syncCursor: "sync_cursor",
+        lastSyncedAt: "last_synced_at",
+        lastSyncError: "last_sync_error",
+        createdBy: "created_by",
+        updatedAt: "updated_at",
+      },
+    },
+    options: { drives: true, roles: ["viewer", "commenter", "editor"] },
+  },
+};
+
+const DRIVE_APP: Layout = {
+  modules: DRIVE_APP_MODULES,
+  ownTables: ownTablesOf(DRIVE_APP_MODULES),
 };
 
 describe("drive module", () => {
@@ -154,6 +228,177 @@ describe("drive module", () => {
     expect(files).not.toContain("storage.objects");
   });
 
+  it("keeps a mapped drive column when drives are off", () => {
+    const mapped = {
+      drive: {
+        tables: {
+          nodes: "public.file_nodes",
+          grants: "public.file_node_grants",
+        },
+        columns: {
+          nodes: {
+            tenant: "organization_id",
+            drive: "drive_id",
+            attachment: null,
+            path: null,
+            rank: null,
+            deletedAt: null,
+            legalHoldUntil: null,
+          },
+          grants: {
+            tenant: "organization_id",
+            node: "node_id",
+            principalType: null,
+            principalId: null,
+            user: "user_id",
+            team: "team_id",
+            expiresAt: null,
+            createdBy: null,
+          },
+        },
+      },
+    };
+
+    const core = sqlOf(["drive"], "drive", overApp(mapped));
+
+    expect(core).toContain(
+      `insert into "public"."file_nodes" ("organization_id", "drive_id"`,
+    );
+    expect(core).toContain(`'driveId', ($1)."drive_id"`);
+    expect(core).toContain(`v_drive := v_parent."drive_id"`);
+    expect(core).toContain(`and x."drive_id" = drive_free_name.drive`);
+  });
+
+  it("shares drives through user and team columns", () => {
+    const core = sqlOf(["drive"], "drive", DRIVE_APP);
+
+    expect(core).toContain(
+      `insert into "public"."file_drive_grants" ("organization_id", "drive_id", "user_id", "team_id", "role"`,
+    );
+    expect(core).toContain(
+      `case when dg."user_id" is not null then 'user' else 'team' end = v_type`,
+    );
+    expect(core).toContain(
+      `coalesce(dg."user_id"::text, dg."team_id"::text) = drive_share_drive.principal_id`,
+    );
+    expect(core).toContain(
+      `jsonb_build_object('id', dg."id", 'driveId', dg."drive_id", 'principalType', case when dg."user_id" is not null then 'user' else 'team' end`,
+    );
+    expect(core).toContain(`dg."user_id" = v_uid or (dg."team_id" is not null`);
+    expect(core).not.toContain(`"principal_type" text not null`);
+  });
+
+  it("matches drive grants through their own columns", () => {
+    const modules = {
+      drive: {
+        ...DRIVE_APP_MODULES.drive,
+        columns: {
+          ...DRIVE_APP_MODULES.drive.columns,
+          grants: {
+            ...DRIVE_APP_MODULES.drive.columns.grants,
+            user: "node_user_id",
+            team: "node_team_id",
+          },
+          driveGrants: {
+            ...DRIVE_APP_MODULES.drive.columns.driveGrants,
+            user: "drive_user_id",
+            team: "drive_team_id",
+          },
+        },
+      },
+    };
+
+    const core = sqlOf(["drive"], "drive", overApp(modules));
+
+    const functionSql = (name: string): string => {
+      const at = core.indexOf(
+        `create or replace function "better_supabase"."${name}"`,
+      );
+
+      return core.slice(at, core.indexOf("$$;", at));
+    };
+
+    const driveRole = functionSql("drive_drive_role");
+    const nodeRole = functionSql("drive_role");
+    const driveReadable = functionSql("drive_drive_readable_ids");
+    const nodeReadable = functionSql("drive_readable_ids");
+
+    expect(driveRole).toContain(`dg."drive_user_id" = v_uid`);
+    expect(driveRole).toContain(`dg."drive_team_id" is not null`);
+    expect(driveRole).not.toContain(`dg."node_user_id"`);
+    expect(nodeRole).toContain(`dg."node_user_id" = v_uid`);
+    expect(nodeRole).not.toContain(`dg."drive_user_id"`);
+    expect(driveReadable).toContain(`dg."drive_user_id" = auth.uid()`);
+    expect(driveReadable).not.toContain(`dg."node_user_id"`);
+    expect(nodeReadable).toContain(`dg."node_user_id" = auth.uid()`);
+    expect(nodeReadable).toContain(`dg."drive_user_id" = auth.uid()`);
+  });
+
+  it("creates drive grants with user and team columns when the app has none", () => {
+    const core = sqlOf(
+      ["drive"],
+      "drive",
+      managed({
+        options: { drives: true },
+        columns: {
+          driveGrants: {
+            principalType: null,
+            principalId: null,
+            user: "user_id",
+            team: "team_id",
+          },
+        },
+      }),
+    );
+
+    expect(core).toContain(
+      `create table if not exists "better_supabase"."drive_drive_grants"`,
+    );
+    expect(core).toContain(`"user_id" uuid`);
+    expect(core).toContain(`"team_id" uuid`);
+    expect(core).toContain(
+      `check (("user_id" is not null)::int + ("team_id" is not null)::int = 1)`,
+    );
+  });
+
+  it("asks the app's role functions for a node or drive role", () => {
+    const core = sqlOf(
+      ["drive"],
+      "drive",
+      withOptions({
+        drives: true,
+        roleFunctions: {
+          node: "public.file_node_role",
+          drive: "public.file_drive_role",
+        },
+      }),
+    );
+
+    expect(core).toContain(`"public"."file_node_role"(drive_role.node, v_uid)`);
+    expect(core).toContain(
+      `"public"."file_drive_role"(drive_drive_role.drive, v_uid)`,
+    );
+    expect(core).toContain(`"public"."file_node_role"(x."id", auth.uid())`);
+    expect(core).toContain(`"public"."file_drive_role"(d."id", auth.uid())`);
+  });
+
+  it("can leave read policies to the app", () => {
+    const core = sqlOf(["drive"], "drive", withOptions({ readPolicy: false }));
+
+    const full = sqlOf(
+      ["drive"],
+      "drive",
+      withOptions({ drives: true, readPolicy: false }),
+    );
+
+    expect(core).not.toContain("drive_nodes_read");
+    expect(core).not.toContain("drive_drives_read");
+    expect(core).not.toContain("drive_drive_grants_read");
+    expect(full).not.toContain("drive_nodes_read");
+    expect(full).not.toContain("drive_drives_read");
+    expect(full).not.toContain("drive_drive_grants_read");
+  });
+
   it("needs a principal or a user column on grants", () => {
     expect(() =>
       sqlOf(
@@ -195,6 +440,30 @@ describe("drive module", () => {
     expect(fails({ drives: true, sources: ["Google Drive"] })).toThrow(
       /sources/,
     );
+    expect(fails({ roleFunctions: "public.fn" })).toThrow(/roleFunctions/);
+    expect(fails({ roleFunctions: { node: "file_node_role" } })).toThrow(
+      /roleFunctions/,
+    );
+    expect(fails({ roleFunctions: { drive: "public.fn" } })).toThrow(
+      /roleFunctions\.drive/,
+    );
+    expect(() =>
+      sqlOf(
+        ["drive"],
+        "drive",
+        managed({
+          options: { drives: true },
+          columns: {
+            driveGrants: {
+              principalType: null,
+              principalId: null,
+              user: null,
+              team: null,
+            },
+          },
+        }),
+      ),
+    ).toThrow(/driveGrants/);
     expect(
       sqlOf(
         ["drive", "outbox"],

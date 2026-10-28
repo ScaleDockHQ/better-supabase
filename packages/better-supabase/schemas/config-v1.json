@@ -4519,6 +4519,11 @@
                 },
                 "default": ["google-drive", "onedrive"]
               },
+              "roleFunctions": {},
+              "readPolicy": {
+                "type": "boolean",
+                "default": true
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {
