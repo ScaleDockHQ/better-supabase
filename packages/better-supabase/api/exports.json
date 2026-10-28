@@ -6246,6 +6246,7 @@
       "expandRule",
       "planReminderDeliveries",
       "REMINDER_DELIVERY_QUEUE",
+      "reminderJobSchema",
       "remindersBlock",
       "remindersEvents",
       "weekdayName"
@@ -6255,10 +6256,15 @@
       "ExpandInput",
       "PlannedDelivery",
       "ReminderEntry",
+      "ReminderJobPayload",
+      "ReminderJobs",
       "ReminderPlanInput",
       "Reminders",
+      "ReminderScheduleOptions",
+      "ReminderScheduleResult",
       "RemindersEvents",
       "RemindersOptions",
+      "ReminderWhen",
       "SavedReminder"
     ]
   },
@@ -6562,6 +6568,7 @@
   },
   "./blocks/calendar": {
     "values": [
+      "calendarAlarmSchema",
       "calendarBlock",
       "calendarEventInputSchema",
       "calendarEventOf",
@@ -6586,6 +6593,8 @@
       "BusyRange",
       "Calendar",
       "CalendarActions",
+      "CalendarAlarm",
+      "CalendarAlarmAction",
       "CalendarAttendee",
       "CalendarAttendeeInput",
       "CalendarAttributes",

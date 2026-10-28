@@ -7694,6 +7694,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarActions"
         },
         {
+          "name": "CalendarAlarm"
+        },
+        {
+          "name": "CalendarAlarmAction"
+        },
+        {
           "name": "CalendarAttendee"
         },
         {
@@ -17131,6 +17137,12 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ReminderEntry"
         },
         {
+          "name": "ReminderJobPayload"
+        },
+        {
+          "name": "ReminderJobs"
+        },
+        {
           "name": "ReminderPlanInput"
         },
         {
@@ -17138,10 +17150,19 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "ReminderScheduleOptions"
+        },
+        {
+          "name": "ReminderScheduleResult"
+        },
+        {
           "name": "RemindersEvents"
         },
         {
           "name": "RemindersOptions"
+        },
+        {
+          "name": "ReminderWhen"
         },
         {
           "name": "SavedReminder",
