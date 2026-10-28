@@ -138,3 +138,19 @@ export type {
 export { supportSessions } from "../server/support.ts";
 
 export type { MembershipClaim } from "../auth/entitlements.ts";
+
+export { toNextAction } from "./bridge.ts";
+
+export {
+  NextActionRejected,
+  parseSetCookie,
+  toNextRoute,
+} from "../bridges/next.ts";
+
+export type {
+  NextCookieWrite,
+  NextRouteContext,
+  NextRouteHandler,
+  ToNextActionOptions,
+  ToNextRouteOptions,
+} from "../bridges/next.ts";

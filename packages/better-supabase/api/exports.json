@@ -1666,7 +1666,9 @@
       "invalidateBinding",
       "isSessionSnapshot",
       "issuedAtOf",
+      "NextActionRejected",
       "nextCache",
+      "parseSetCookie",
       "permissionsOf",
       "recordListServer",
       "recordTag",
@@ -1684,6 +1686,8 @@
       "supportTag",
       "tagFor",
       "tenantOf",
+      "toNextAction",
+      "toNextRoute",
       "toSession"
     ],
     "types": [
@@ -1714,11 +1718,14 @@
       "MembershipClaim",
       "MfaVerification",
       "NextCacheOptions",
+      "NextCookieWrite",
       "NextDebugOptions",
       "NextOptions",
       "NextResourceHandler",
       "NextResourceRoutes",
       "NextResourcesOptions",
+      "NextRouteContext",
+      "NextRouteHandler",
       "PermissionsOfOptions",
       "ProxyOptions",
       "RecordListServer",
@@ -1759,6 +1766,8 @@
       "SupportStartRequest",
       "SupportView",
       "TagOptions",
+      "ToNextActionOptions",
+      "ToNextRouteOptions",
       "VerifyOtpParams",
       "VerifySessionOptions"
     ]

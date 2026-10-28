@@ -80,19 +80,21 @@ A bridge runs an entry array in a framework's middleware slot, so the
 framework's response passes back through the entries and refreshed cookies
 reach it.
 
-| Framework               | Bridge                                        | Docs                                              |
-| ----------------------- | --------------------------------------------- | ------------------------------------------------- |
-| Hono                    | `toHono(entries)` from `better-supabase/hono` | [Hono](/docs/frameworks/hono)                     |
-| Edge Functions, Workers | `toEdge(entries, handler)` from `/edge`       | [Edge](/docs/frameworks/edge)                     |
-| oRPC                    | `toOrpc(entries, handler)` from `/orpc`       | [oRPC](/docs/frameworks/orpc)                     |
-| Expo Router API routes  | `toExpo(entries, handler)` from `/expo`       | [Expo](/docs/frameworks/expo)                     |
-| TanStack Start          | `toTanStackStart(entries)`                    | [TanStack Start](/docs/frameworks/tanstack-start) |
-| SvelteKit               | `toSvelteKit(entries)`                        | [SvelteKit](/docs/frameworks/sveltekit)           |
-| React Router            | `toReactRouter(entries, key)`                 | [React Router](/docs/frameworks/react-router)     |
-| H3 2, Nitro 3           | `toH3(entries)`                               | [H3](/docs/frameworks/h3)                         |
-| Nitro 2, Nuxt           | `toH3V1(entries)` from `/h3/v1`               | [Nuxt](/docs/frameworks/nuxt)                     |
-| Node, Express, Fastify  | `toNodeHandler`, `toExpress`, `toFastify`     | [Node](/docs/frameworks/node)                     |
-| Elysia                  | `toElysia(entries)`                           | [Elysia](/docs/frameworks/elysia)                 |
+| Framework               | Bridge                                        | Docs                                                |
+| ----------------------- | --------------------------------------------- | --------------------------------------------------- |
+| Hono                    | `toHono(entries)` from `better-supabase/hono` | [Hono](/docs/frameworks/hono)                       |
+| Next.js route handlers  | `toNextRoute(entries, handler)` from `/next`  | [Next.js](/docs/frameworks/next#middleware-entries) |
+| Next.js Server Actions  | `toNextAction(entries, action)` from `/next`  | [Next.js](/docs/frameworks/next#middleware-entries) |
+| Edge Functions, Workers | `toEdge(entries, handler)` from `/edge`       | [Edge](/docs/frameworks/edge)                       |
+| oRPC                    | `toOrpc(entries, handler)` from `/orpc`       | [oRPC](/docs/frameworks/orpc)                       |
+| Expo Router API routes  | `toExpo(entries, handler)` from `/expo`       | [Expo](/docs/frameworks/expo)                       |
+| TanStack Start          | `toTanStackStart(entries)`                    | [TanStack Start](/docs/frameworks/tanstack-start)   |
+| SvelteKit               | `toSvelteKit(entries)`                        | [SvelteKit](/docs/frameworks/sveltekit)             |
+| React Router            | `toReactRouter(entries, key)`                 | [React Router](/docs/frameworks/react-router)       |
+| H3 2, Nitro 3           | `toH3(entries)`                               | [H3](/docs/frameworks/h3)                           |
+| Nitro 2, Nuxt           | `toH3V1(entries)` from `/h3/v1`               | [Nuxt](/docs/frameworks/nuxt)                       |
+| Node, Express, Fastify  | `toNodeHandler`, `toExpress`, `toFastify`     | [Node](/docs/frameworks/node)                       |
+| Elysia                  | `toElysia(entries)`                           | [Elysia](/docs/frameworks/elysia)                   |
 
 ### Blocks on the context
 
