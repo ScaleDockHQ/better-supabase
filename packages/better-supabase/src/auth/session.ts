@@ -33,7 +33,7 @@ export interface StoredSession {
  */
 export type SessionEncoding = "user-and-tokens" | "tokens-only";
 
-export const DEFAULT_SESSION_ENCODING: SessionEncoding = "user-and-tokens";
+const DEFAULT_SESSION_ENCODING: SessionEncoding = "user-and-tokens";
 
 export interface WriteSessionOptions {
   /** Defaults to `user-and-tokens`, the `@supabase/ssr` default. */
@@ -58,13 +58,6 @@ export interface CookieWrite {
 }
 
 const BASE64_PREFIX = "base64-";
-
-/** Headers that keep responses carrying session cookies out of shared caches. */
-export const AUTH_CACHE_HEADERS: Readonly<Record<string, string>> = {
-  "Cache-Control": "private, no-cache, no-store, must-revalidate, max-age=0",
-  Expires: "0",
-  Pragma: "no-cache",
-};
 
 /** `sb-<first label of the hostname>-auth-token`, the supabase-js default. */
 export function sessionCookieName(url: string): string {
@@ -226,46 +219,6 @@ export function readSession(
   return readSessionParts(cookies, name).session;
 }
 
-/**
- * `Max-Age=0` writes for the session's chunk-like cookies that the readable
- * session doesn't use: a leftover `.2` after a shorter rewrite, chunks next to
- * a whole cookie, or chunks past a gap. Empty when no session reads.
- */
-export function pruneSessionChunks(
-  cookies: readonly CookieRecord[],
-  name: string,
-  options: CookieOptions = {},
-): CookieWrite[] {
-  const { session, used } = readSessionParts(cookies, name);
-
-  if (!session) {
-    return [];
-  }
-
-  const kept = new Set(used);
-  const base: CookieOptions = { ...DEFAULT_COOKIE_OPTIONS, ...options };
-
-  return cookies
-    .filter(
-      (cookie) => isChunkLike(cookie.name, name) && !kept.has(cookie.name),
-    )
-    .map((cookie) => ({
-      name: cookie.name,
-      value: "",
-      options: { ...base, maxAge: 0 },
-    }));
-}
-
-/**
- * The encoding a stored session was written with: `tokens-only` without a
- * `user`.
- */
-export function sessionEncoding(session: StoredSession): SessionEncoding {
-  return session.user === undefined || session.user === null
-    ? "tokens-only"
-    : "user-and-tokens";
-}
-
 function encoded(session: StoredSession, encode: SessionEncoding): string {
   switch (encode) {
     case "user-and-tokens": {
@@ -287,9 +240,10 @@ function encoded(session: StoredSession, encode: SessionEncoding): string {
 }
 
 /**
- * Cookie writes that store `session` (or clear it with `null`) exactly like
+ * Cookie writes that store a session a sign-in flow received, exactly like
  * `@supabase/ssr` with the same `encode`, and expire chunks the new value no
- * longer uses.
+ * longer uses. Refreshes and sign-outs write through `@supabase/ssr` itself
+ * (`ssr-client.ts`).
  */
 export function writeSession(
   existing: readonly CookieRecord[],
@@ -327,38 +281,6 @@ export function writeSession(
       options: base,
     })),
   ];
-}
-
-/**
- * `Max-Age=0` writes for every chunk of the session cookie at each of `scopes`,
- * like `clearAuthCookiesAtScopes` from `@supabase/ssr`. Use it once the cookie
- * `domain` or `path` changed, for the scopes earlier deploys wrote: browsers
- * ignore writes for scopes the host doesn't own, but a scope equal to the
- * current one clears the live session.
- */
-export function clearSessionAtScopes(
-  existing: readonly CookieRecord[],
-  name: string,
-  scopes: readonly CookieScope[],
-): CookieWrite[] {
-  if (scopes.length === 0) {
-    return [];
-  }
-
-  const chunks = existing
-    .map((cookie) => cookie.name)
-    .filter((cookie) => isChunkLike(cookie, name));
-
-  return scopes.flatMap((scope) => {
-    const options: CookieOptions = {
-      ...DEFAULT_COOKIE_OPTIONS,
-      ...(scope.domain === undefined ? {} : { domain: scope.domain }),
-      ...(scope.path === undefined ? {} : { path: scope.path }),
-      maxAge: 0,
-    };
-
-    return chunks.map((chunk) => ({ name: chunk, value: "", options }));
-  });
 }
 
 /** Applies cookie writes to a cookie list, as the next request would see it. */

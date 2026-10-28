@@ -100,7 +100,7 @@ describe("createTanStackStart", () => {
     resolutions.stop();
   });
 
-  it("never refreshes an expired cookie on a prefetch", async () => {
+  it("refreshes an expired cookie on a prefetch too", async () => {
     const refresh = vi.fn<typeof fetch>(
       async () => new Response(null, { status: 500 }),
     );
@@ -118,8 +118,6 @@ describe("createTanStackStart", () => {
       });
 
     await load(true);
-    expect(refresh).not.toHaveBeenCalled();
-    await load(false);
     expect(refresh).toHaveBeenCalledOnce();
   });
 });

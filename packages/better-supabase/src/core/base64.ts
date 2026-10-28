@@ -51,7 +51,21 @@ export function base64ToText(text: string): string {
 export function decodeJwtPayload(
   token: string,
 ): Record<string, unknown> | undefined {
-  const part = token.split(".")[1];
+  return decodeJwtPart(token, 1);
+}
+
+/** The protected header of a JWT (`alg`, `kid`), decoded without verifying it. */
+export function decodeJwtHeader(
+  token: string,
+): Record<string, unknown> | undefined {
+  return decodeJwtPart(token, 0);
+}
+
+function decodeJwtPart(
+  token: string,
+  index: number,
+): Record<string, unknown> | undefined {
+  const part = token.split(".")[index];
 
   if (!part) {
     return undefined;

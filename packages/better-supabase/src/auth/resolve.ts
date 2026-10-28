@@ -5,6 +5,7 @@ import type {
   UserClaims,
 } from "@supabase/server";
 
+import { fromSupabaseUrl } from "@supabase/server";
 import { extractCredentials, verifyCredentials } from "@supabase/server/core";
 
 import type { DbError } from "../core/errors.ts";
@@ -18,26 +19,28 @@ import type {
   CookieWrite,
   SessionEncoding,
   StoredSession,
-  WriteSessionOptions,
 } from "./session.ts";
+import type { CookieRefresh } from "./ssr-client.ts";
 
-import { decodeJwtPayload } from "../core/base64.ts";
+import { decodeJwtHeader, decodeJwtPayload } from "../core/base64.ts";
 import { dbError } from "../core/errors.ts";
+import { clearJwksCache, sharedJwks } from "../core/jwks-cache.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf, invalidActorError } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
 import { clearHs256Keys, isSharedSecretToken, verifyHs256 } from "./hs256.ts";
-import { refreshSession } from "./refresh.ts";
 import {
   applyCookieWrites,
-  AUTH_CACHE_HEADERS,
   parseCookies,
-  pruneSessionChunks,
   readSession,
   serializeCookie,
   sessionCookieName,
-  writeSession,
 } from "./session.ts";
+import {
+  clearCookieSession,
+  NO_STORE,
+  refreshCookieSession,
+} from "./ssr-client.ts";
 
 /**
  * Who is calling. `C` is the claims type from `betterSupabase.claims(schema)`;
@@ -157,7 +160,14 @@ export interface ResolveAuthOptions {
    */
   readonly secret?: boolean | readonly string[];
   readonly audience?: string | string[];
-  readonly issuer?: string | string[];
+  /**
+   * The `iss` a token must carry. By default a token whose `iss` is not the
+   * project's Auth URL (`<url>/auth/v1`) is rejected, so a token another
+   * project signed with a shared key never verifies here; a token without `iss`
+   * (only a holder of the keys can sign one) still does. Set it to require the
+   * claim, or `false` to skip the check.
+   */
+  readonly issuer?: string | string[] | false;
   readonly cookie?: {
     readonly name?: string;
     readonly options?: CookieOptions;
@@ -216,12 +226,7 @@ export interface ResolveAuthOptions {
    * Auth whether the session ended (`ended`). For `Server-Timing`.
    */
   readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
-  /**
-   * With `refresh`, expire session chunks the readable session doesn't use (a
-   * leftover `.2` after a shorter rewrite) on every request, not only when the
-   * session is rewritten. Defaults to true.
-   */
-  readonly pruneChunks?: boolean;
+  /** The `fetch` for Auth calls and the JWKS. Defaults to the global one. */
   readonly fetch?: typeof fetch;
   /** Epoch milliseconds, the unit JWT `exp` and `iat` math needs. */
   readonly now?: () => number;
@@ -269,8 +274,10 @@ function expiryOf(session: StoredSession): number | undefined {
 
 type JwksSource = NonNullable<SupabaseEnv["jwks"]>;
 
+type InlineJwks = Exclude<JwksSource, URL>;
+
 /** An empty key set: `auth.jwks: false` verifies against it and fetches nothing. */
-const NO_KEYS: JwksSource = { keys: [] };
+const NO_KEYS: InlineJwks = { keys: [] };
 
 /** `auth.jwks`, then `env.jwks` (`SUPABASE_JWKS`), then `env.jwksUrl`. */
 function jwksOf(options: ResolveAuthOptions): JwksSource {
@@ -281,7 +288,74 @@ function jwksOf(options: ResolveAuthOptions): JwksSource {
   return options.jwks ?? options.env.jwks ?? options.env.jwksUrl;
 }
 
-function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
+/** The `iss` the verifier requires: only one the app set. */
+function issuerOf(options: ResolveAuthOptions): string | string[] | undefined {
+  return options.issuer === false ? undefined : options.issuer;
+}
+
+/** A verified token whose `iss` names another issuer than the project's Auth. */
+function foreignIssuer(
+  options: ResolveAuthOptions,
+  claims: { readonly iss?: unknown },
+): AuthState | undefined {
+  if (options.issuer !== undefined || typeof claims.iss !== "string") {
+    return undefined;
+  }
+
+  return claims.iss === fromSupabaseUrl(options.env.url)
+    ? undefined
+    : {
+        kind: "invalid",
+        reason: "token",
+        error: dbError(
+          "unauthorized",
+          "The token was issued by another project",
+          { code: "INVALID_ISSUER" },
+        ),
+      };
+}
+
+/**
+ * The keys to verify `token` with. A JWKS URL goes through the process-wide
+ * cache (`sharedJwks`) and is passed inline, so `@supabase/server` never keeps
+ * a resolver of its own; a `kid` the cached set lacks refetches it once per
+ * cooldown, for key rotations.
+ */
+async function keysFor(
+  options: ResolveAuthOptions,
+  token: string | null,
+): Promise<InlineJwks | DbError> {
+  const source = jwksOf(options);
+
+  if (!(source instanceof URL)) {
+    return source;
+  }
+
+  if (!token) {
+    return NO_KEYS;
+  }
+
+  const shared = {
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    ...(options.now ? { now: options.now } : {}),
+  };
+
+  let result = await sharedJwks(source, false, shared);
+  const kid = decodeJwtHeader(token)?.["kid"];
+
+  if (
+    result.ok &&
+    typeof kid === "string" &&
+    !result.data.keys.some((key) => key["kid"] === kid)
+  ) {
+    result = await sharedJwks(source, true, shared);
+  }
+
+  // SAFETY: the issuer's JWK Set as served; jose validates each key it imports.
+  return result.ok ? (result.data as InlineJwks) : result.error;
+}
+
+function serverEnv(options: ResolveAuthOptions, jwks: InlineJwks): SupabaseEnv {
   const { env } = options;
 
   return {
@@ -289,7 +363,7 @@ function serverEnv(options: ResolveAuthOptions): SupabaseEnv {
     publishableKeys: { default: env.publishableKey },
     secretKeys:
       env.secretKeys ?? (env.secretKey ? { default: env.secretKey } : {}),
-    jwks: jwksOf(options),
+    jwks,
   };
 }
 
@@ -381,12 +455,16 @@ function memoFor(options: ResolveAuthOptions): Map<string, VerifiedUser> {
   return memo;
 }
 
-/** Forgets every verified token. For benchmarks and tests. */
+/**
+ * Forgets every verified token and every cached key set. For benchmarks and
+ * tests.
+ */
 export function clearVerifiedTokens(): void {
   memoByUrl.clear();
   memoByJwks = new WeakMap();
   secretIds.clear();
   clearHs256Keys();
+  clearJwksCache();
 }
 
 function remembered(
@@ -648,35 +726,22 @@ async function checkUser(
   return user;
 }
 
-/** A token whose `kid` matches no key: verifying it loads the JWKS and fails. */
-const PREFETCH_TOKEN = `${base64url(
-  JSON.stringify({ alg: "ES256", kid: "better-supabase-prefetch", typ: "JWT" }),
-)}.e30.AA`;
-
-function base64url(text: string): string {
-  return btoa(text)
-    .replaceAll("+", "-")
-    .replaceAll("/", "_")
-    .replace(/[=]+$/, "");
-}
-
 /**
- * Loads the remote JWKS into the verifier's cache so the first request doesn't
- * wait for it. Never throws; a failure leaves the first request to fetch it as
- * before.
+ * Loads the remote JWKS into the process-wide cache so the first request
+ * doesn't wait for it. Never throws; a failure leaves the first request to
+ * fetch it.
  */
-export function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
-  if (!(jwksOf(options) instanceof URL)) {
-    return Promise.resolve();
+export async function prefetchJwks(options: ResolveAuthOptions): Promise<void> {
+  const source = jwksOf(options);
+
+  if (!(source instanceof URL)) {
+    return;
   }
 
-  return verifyCredentials(
-    { token: PREFETCH_TOKEN, apikey: null },
-    { auth: ["user"], env: serverEnv(options) },
-  ).then(
-    () => void 0,
-    () => void 0,
-  );
+  await sharedJwks(source, false, {
+    ...(options.fetch ? { fetch: options.fetch } : {}),
+    ...(options.now ? { now: options.now } : {}),
+  }).catch(() => undefined);
 }
 
 async function verifyOnce(
@@ -686,6 +751,7 @@ async function verifyOnce(
   source: "bearer" | "cookie",
 ): Promise<AuthState> {
   const token = credentials.token;
+  const issuer = issuerOf(options);
 
   if (
     options.jwtSecret !== undefined &&
@@ -697,7 +763,7 @@ async function verifyOnce(
     const verified = await verifyHs256(token, options.jwtSecret, {
       now: Math.floor((options.now ?? Date.now)() / 1000),
       ...(options.audience === undefined ? {} : { audience: options.audience }),
-      ...(options.issuer === undefined ? {} : { issuer: options.issuer }),
+      ...(issuer === undefined ? {} : { issuer }),
     });
 
     if (!verified.ok) {
@@ -710,22 +776,30 @@ async function verifyOnce(
       };
     }
 
-    return {
-      kind: "user",
-      token,
-      claims: verified.claims,
-      user: verified.user,
-      source,
-      expiresAt:
-        typeof verified.claims.exp === "number" ? verified.claims.exp : null,
-    };
+    return (
+      foreignIssuer(options, verified.claims) ?? {
+        kind: "user",
+        token,
+        claims: verified.claims,
+        user: verified.user,
+        source,
+        expiresAt:
+          typeof verified.claims.exp === "number" ? verified.claims.exp : null,
+      }
+    );
+  }
+
+  const keys = await keysFor(options, token);
+
+  if (!("keys" in keys)) {
+    return { kind: "invalid", reason: "token", error: keys };
   }
 
   const { data, error } = await verifyCredentials(credentials, {
     auth: modes,
-    env: serverEnv(options),
+    env: serverEnv(options, keys),
     ...(options.audience === undefined ? {} : { audience: options.audience }),
-    ...(options.issuer === undefined ? {} : { issuer: options.issuer }),
+    ...(issuer === undefined ? {} : { issuer }),
   });
 
   if (error) {
@@ -753,28 +827,45 @@ async function verifyOnce(
     data.jwtClaims &&
     data.userClaims
   ) {
-    return {
-      kind: "user",
-      token: data.token,
-      claims: data.jwtClaims,
-      user: data.userClaims,
-      source,
-      expiresAt:
-        typeof data.jwtClaims.exp === "number" ? data.jwtClaims.exp : null,
-    };
+    return (
+      foreignIssuer(options, data.jwtClaims) ?? {
+        kind: "user",
+        token: data.token,
+        claims: data.jwtClaims,
+        user: data.userClaims,
+        source,
+        expiresAt:
+          typeof data.jwtClaims.exp === "number" ? data.jwtClaims.exp : null,
+      }
+    );
   }
 
   return { kind: "none", reason: "none" };
 }
 
+interface CookieChange {
+  readonly writes: readonly CookieWrite[];
+  readonly headers: Readonly<Record<string, string>>;
+}
+
+const NO_CHANGE: CookieChange = { writes: [], headers: {} };
+
 function resolution(
   auth: AuthState,
   cookies: () => readonly CookieRecord[],
-  writes: readonly CookieWrite[] = [],
+  change: CookieChange = NO_CHANGE,
   rejected?: SessionRejection,
   outage?: AuthOutageEvent,
 ): AuthResolution {
-  const headers = writes.length > 0 ? AUTH_CACHE_HEADERS : {};
+  const { writes } = change;
+
+  const headers =
+    writes.length === 0
+      ? {}
+      : Object.keys(change.headers).length > 0
+        ? change.headers
+        : NO_STORE;
+
   let requestCookies: readonly CookieRecord[] | undefined;
 
   return {
@@ -907,11 +998,6 @@ export async function resolveAuth(
   ): ReturnType<typeof sessionStatus> =>
     timed(options, "ended", () => sessionStatus(...args));
 
-  const refreshTimed = (
-    ...args: Parameters<typeof refreshSession>
-  ): ReturnType<typeof refreshSession> =>
-    timed(options, "refresh", () => refreshSession(...args));
-
   for (const resolver of options.resolvers ?? []) {
     const state = await resolver.resolve(request);
 
@@ -965,38 +1051,30 @@ export async function resolveAuth(
 
   const name = options.cookie?.name ?? sessionCookieName(options.env.url);
 
-  const encoding: WriteSessionOptions =
-    options.cookie?.encode === undefined
-      ? {}
-      : { encode: options.cookie.encode };
-
   const parseStarted = options.onTiming ? performance.now() : 0;
   const session = readSession(cookies(), name);
   options.onTiming?.("parse", performance.now() - parseStarted);
+
+  const cleared = (): Promise<CookieChange> =>
+    clearCookieSession({
+      cookieName: name,
+      cookies: cookies(),
+      ...(options.cookie?.options
+        ? { cookieOptions: options.cookie.options }
+        : {}),
+    });
 
   if (!session) {
     const stale = cookies().some(
       (cookie) => cookie.name === name || cookie.name.startsWith(`${name}.`),
     );
 
-    const writes =
-      stale && options.refresh
-        ? writeSession(cookies(), name, null, options.cookie?.options, encoding)
-        : [];
-
     return resolution(
       { kind: "none", reason: stale ? "signed_out" : "none" },
       cookies,
-      writes,
+      stale && options.refresh ? await cleared() : NO_CHANGE,
     );
   }
-
-  // Leftover chunks are expired wherever cookies can be written, so they
-  // don't wait for the next refresh.
-  const pruned =
-    options.refresh && options.pruneChunks !== false
-      ? pruneSessionChunks(cookies(), name, options.cookie?.options)
-      : [];
 
   const now = Math.floor((options.now ?? Date.now)() / 1000);
   const expiry = expiryOf(session);
@@ -1030,15 +1108,7 @@ export async function resolveAuth(
       return resolution(
         { kind: "none", reason: "signed_out" },
         cookies,
-        options.refresh
-          ? writeSession(
-              cookies(),
-              name,
-              null,
-              options.cookie?.options,
-              encoding,
-            )
-          : [],
+        options.refresh ? await cleared() : NO_CHANGE,
         status === "banned" ? "user_banned" : "session_not_found",
       );
     }
@@ -1049,7 +1119,7 @@ export async function resolveAuth(
       state.reason !== "token" ||
       state.error.kind === "network"
     ) {
-      return resolution(state, cookies, pruned);
+      return resolution(state, cookies);
     }
 
     if (!options.refresh) {
@@ -1068,102 +1138,108 @@ export async function resolveAuth(
 
   const started = performance.now();
 
-  const outcome = await refreshTimed(session.refresh_token, {
-    url: options.env.url,
-    publishableKey: options.env.publishableKey,
-    ...(secretKey && ip ? { forwardedFor: { ip, secretKey } } : {}),
-    ...(options.fetch ? { fetch: options.fetch } : {}),
-    ...(options.now ? { now: options.now } : {}),
-    ...(options.refreshTimeoutMs === undefined
-      ? {}
-      : { timeoutMs: options.refreshTimeoutMs }),
-  });
+  const refreshed: CookieRefresh = await timed(options, "refresh", () =>
+    refreshCookieSession({
+      url: options.env.url,
+      publishableKey: options.env.publishableKey,
+      cookieName: name,
+      cookies: cookies(),
+      refreshToken: session.refresh_token,
+      ...(options.cookie?.options
+        ? { cookieOptions: options.cookie.options }
+        : {}),
+      ...(options.cookie?.encode === undefined
+        ? {}
+        : { encode: options.cookie.encode }),
+      ...(secretKey && ip ? { forwardedFor: { ip, secretKey } } : {}),
+      ...(options.fetch ? { fetch: options.fetch } : {}),
+      ...(options.now ? { now: options.now } : {}),
+      ...(options.refreshTimeoutMs === undefined
+        ? {}
+        : { timeoutMs: options.refreshTimeoutMs }),
+    }),
+  );
 
+  const { outcome } = refreshed;
   const durationMs = performance.now() - started;
+
   options.onRefresh?.({
     ok: outcome.ok,
-    shared: outcome.ok && outcome.shared === true,
+    shared: outcome.ok && outcome.shared,
     durationMs,
     ...(outcome.ok
       ? {}
       : {
           reason: outcome.reason,
           ...(outcome.status === undefined ? {} : { status: outcome.status }),
-          ...(outcome.code === undefined ? {} : { code: outcome.code }),
+          ...("code" in outcome ? { code: outcome.code } : {}),
         }),
   });
 
   if (!outcome.ok) {
-    if (outcome.reason === "network") {
-      const outage = (kept: boolean): AuthOutageEvent => ({
-        cause:
-          outcome.cause === "timeout"
-            ? "timeout"
-            : outcome.cause === "status"
-              ? "status"
-              : "network",
-        ...(outcome.status === undefined ? {} : { status: outcome.status }),
-        kept,
-        durationMs,
-      });
-
-      // A token refreshed early, in its leeway, is still good until it expires.
-      if (!fresh && expiry !== undefined && expiry > now) {
-        const state = await verifyTimed(
-          { token: session.access_token, apikey: null },
-          ["user"],
-          options,
-          "cookie",
-        );
-
-        if (state.kind !== "invalid") {
-          return resolution(state, cookies, pruned, undefined, outage(true));
-        }
+    // An early refresh, in the leeway, leaves a token that is good until it expires.
+    const stillValid = async (): Promise<AuthState | undefined> => {
+      if (fresh || expiry === undefined || expiry <= now) {
+        return undefined;
       }
 
-      return resolution(
-        { kind: "none", reason: "refresh_failed" },
-        cookies,
-        pruned,
-        undefined,
-        outage(false),
+      const state = await verifyTimed(
+        { token: session.access_token, apikey: null },
+        ["user"],
+        options,
+        "cookie",
       );
-    }
 
-    if (outcome.reason === "raced") {
-      // The request that won the rotation sets the new cookies; clearing them
-      // here would sign the user out. A token refreshed early still works.
-      if (!fresh && expiry !== undefined && expiry > now) {
-        const state = await verifyTimed(
-          { token: session.access_token, apikey: null },
-          ["user"],
-          options,
-          "cookie",
+      return state.kind === "invalid" ? undefined : state;
+    };
+
+    switch (outcome.reason) {
+      case "network": {
+        const kept = await stillValid();
+
+        const outage: AuthOutageEvent = {
+          cause: outcome.cause,
+          ...(outcome.status === undefined ? {} : { status: outcome.status }),
+          kept: kept !== undefined,
+          durationMs,
+        };
+
+        // auth-js clears the session when the token request fails; an
+        // unreachable Auth server must not sign anyone out.
+        return resolution(
+          kept ?? { kind: "none", reason: "refresh_failed" },
+          cookies,
+          NO_CHANGE,
+          undefined,
+          outage,
         );
-
-        if (state.kind !== "invalid") {
-          return resolution(state, cookies, pruned);
-        }
       }
 
-      return resolution({ kind: "none", reason: "expired" }, cookies, pruned);
+      case "raced": {
+        // The request that won the rotation sets the new cookies; clearing
+        // them here would sign the user out.
+        return resolution(
+          (await stillValid()) ?? { kind: "none", reason: "expired" },
+          cookies,
+        );
+      }
+
+      case "rejected": {
+        return resolution(
+          { kind: "none", reason: "signed_out" },
+          cookies,
+          refreshed.writes.length > 0 ? refreshed : await cleared(),
+          outcome.code === "user_banned" ? "user_banned" : undefined,
+        );
+      }
+
+      default: {
+        const unhandled: never = outcome;
+
+        return unhandled;
+      }
     }
-
-    return resolution(
-      { kind: "none", reason: "signed_out" },
-      cookies,
-      writeSession(cookies(), name, null, options.cookie?.options, encoding),
-      outcome.code === "user_banned" ? "user_banned" : undefined,
-    );
   }
-
-  const writes = writeSession(
-    cookies(),
-    name,
-    outcome.session,
-    options.cookie?.options,
-    encoding,
-  );
 
   const state = await verifyTimed(
     { token: outcome.session.access_token, apikey: null },
@@ -1172,5 +1248,5 @@ export async function resolveAuth(
     "cookie",
   );
 
-  return resolution(state, cookies, writes);
+  return resolution(state, cookies, refreshed);
 }

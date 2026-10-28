@@ -20,7 +20,7 @@ import { DbException } from "../core/db-exception.ts";
 import { toProblem } from "../core/problem.ts";
 import { unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
-import { isPrefetch, refreshFor } from "../server/refresh.ts";
+import { refreshFor } from "../server/request-kind.ts";
 import { defaultExpose, guard, respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
@@ -266,7 +266,7 @@ export function createExpo<
 
     const ctx = await server.context(
       handoff ? withCookie(resolved, handoff.cookie) : resolved,
-      { ...rest, refresh: !handoff && refresh && !isPrefetch(resolved) },
+      { ...rest, refresh: !handoff && refresh },
     );
 
     writeHeaders(ctx);
@@ -339,9 +339,7 @@ export function createExpo<
         const resolved = toRequest(incoming);
 
         const ctx = await server.context(resolved, {
-          refresh:
-            refreshFor(middlewareOptions.refresh, resolved) ??
-            !isPrefetch(resolved),
+          refresh: refreshFor(middlewareOptions.refresh, resolved) ?? true,
         });
 
         const url = new URL(incoming.url);

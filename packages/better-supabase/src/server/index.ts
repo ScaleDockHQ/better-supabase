@@ -220,7 +220,6 @@ export {
   actorOf,
   agentClaims,
   amrOf,
-  AUTH_CACHE_HEADERS,
   authContext,
   checkAal,
   verifySession,
@@ -232,12 +231,10 @@ export {
   impersonatorOf,
   permissionsOf,
   readSession,
-  refreshSession,
   resolveAuth,
   sessionCookieName,
   sessionStatus,
   toSession,
-  writeSession,
 } from "../auth/index.ts";
 
 export type {
@@ -260,7 +257,6 @@ export type {
   Impersonator,
   InvalidReason,
   PermissionsOfOptions,
-  RefreshOutcome,
   ResolveAuthOptions,
   ResolvedState,
   SessionActor,
@@ -374,14 +370,9 @@ export type {
 
 export type { ResourcePagination } from "../spec/resource.ts";
 
-export {
-  isPrefetch,
-  refreshFor,
-  shouldCheckSession,
-  shouldRefresh,
-} from "./refresh.ts";
+export { isDocumentLoad, isPrefetch, refreshFor } from "./request-kind.ts";
 
-export type { RefreshPolicy } from "./refresh.ts";
+export type { RefreshPolicy } from "./request-kind.ts";
 
 export {
   DB_CALLS_HEADER,

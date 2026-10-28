@@ -1,7 +1,7 @@
 import type { DbStats } from "../core/stats.ts";
 
 import { DB_CALLS_HEADER, parseDbStats } from "../server/entries/timing.ts";
-import { isPrefetch } from "../server/refresh.ts";
+import { isPrefetch } from "../server/request-kind.ts";
 
 /** The part of a Playwright `Request` the budget check reads. */
 export interface BudgetRequest {

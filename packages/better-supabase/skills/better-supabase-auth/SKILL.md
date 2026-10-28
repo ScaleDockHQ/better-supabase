@@ -117,7 +117,7 @@ document loads (and on `paths`), clears the cookies and redirects with
 A proxy or middleware with its own Supabase client calls
 `sessionStatus(request, { url, publishableKey })` from `better-supabase/ssr`
 (`"ended"` on a 401 or 403 from Auth; treat `"unknown"` as active) and
-`clearSessionCookies(request, response, { url })` before redirecting.
+`await clearSessionCookies(request, response, { url })` before redirecting.
 An app with httpOnly session cookies and no browser Supabase client watches
 an open page with `export const GET = sessionStatusRoute(bsb)` (from
 `better-supabase/server`) and `useSessionWatch({ redirect: "/login" })` (from
@@ -185,10 +185,9 @@ membership lasts until the next refresh. When that window matters:
 - For a tenant from the route params, call `bsb.cached({ tenant })` and take
   the tenant as an argument of the `'use cache: private'` function, so it is
   part of the cache key. Outside a cache, use `bsb.context({ tenant })`.
-- In the proxy, set `bsb.proxy(request, { protect, onExpiredPrefetch: "render" })`
-  instead of returning early for `{ kind: "none", reason: "expired" }` in
-  `protect`. A prefetch never refreshes, so without it the prefetch caches a
-  redirect to sign-in.
+- The proxy refreshes every request it matches, prefetches included, and
+  parallel requests share one refresh, so `protect` doesn't need a special
+  case for `{ kind: "none", reason: "expired" }`.
 - Keep layouts synchronous: pass the `bsb.claims()` promise to
   `<SessionProvider>` and read it with `useSession()`.
 

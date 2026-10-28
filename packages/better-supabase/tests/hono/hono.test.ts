@@ -412,7 +412,7 @@ describe("instant sessions", () => {
     resolutions.stop();
   });
 
-  it("never refreshes an expired cookie on a prefetch", async () => {
+  it("leaves an expired cookie alone unless the middleware sets refresh", async () => {
     const response = await app.request(
       await expiredRequest("https://app.test/notes", true),
     );

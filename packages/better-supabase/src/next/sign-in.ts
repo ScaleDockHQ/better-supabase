@@ -31,7 +31,6 @@ import type {
 import { clientIp } from "../auth/resolve.ts";
 import {
   applyCookieWrites,
-  clearSessionAtScopes,
   sessionCookieName,
   writeSession,
 } from "../auth/session.ts";
@@ -49,6 +48,7 @@ import {
   safeRedirectPath,
 } from "../auth/sign-in.ts";
 import { authOfSnapshot, snapshotOf } from "../auth/snapshot.ts";
+import { clearCookieSession } from "../auth/ssr-client.ts";
 import { dbError } from "../core/errors.ts";
 import { ok } from "../core/result.ts";
 
@@ -243,24 +243,26 @@ export function authFlows<C, P>(deps: AuthFlowDeps<C, P>): AuthFlows {
     const jar = await deps.jar();
     const existing = jar.getAll();
 
-    const writes = [
-      ...writeSession(
-        existing,
-        cookieName(),
-        stored,
-        auth?.cookie?.options,
-        auth?.cookie?.encode === undefined
-          ? {}
-          : { encode: auth.cookie.encode },
-      ),
-      ...(stored
-        ? []
-        : clearSessionAtScopes(
-            existing,
-            cookieName(),
-            deps.cookieScopes ?? [],
-          )),
-    ];
+    const writes = stored
+      ? writeSession(
+          existing,
+          cookieName(),
+          stored,
+          auth?.cookie?.options,
+          auth?.cookie?.encode === undefined
+            ? {}
+            : { encode: auth.cookie.encode },
+        )
+      : (
+          await clearCookieSession({
+            cookieName: cookieName(),
+            cookies: existing,
+            ...(auth?.cookie?.options
+              ? { cookieOptions: auth.cookie.options }
+              : {}),
+            scopes: deps.cookieScopes ?? [],
+          })
+        ).writes;
 
     for (const write of writes) {
       jar.set(write.name, write.value, write.options);

@@ -1,6 +1,5 @@
 import type { DbError } from "../core/errors.ts";
 import type { Result } from "../core/result.ts";
-import type { RefreshOptions } from "./refresh.ts";
 import type { StoredSession } from "./session.ts";
 
 import { dbError } from "../core/errors.ts";
@@ -64,9 +63,19 @@ export function needsMfa(session: StoredSession): boolean {
   );
 }
 
-export type PasswordGrantOptions = Omit<RefreshOptions, "now"> & {
+export interface PasswordGrantOptions {
+  readonly url: string;
+  readonly publishableKey: string;
+  /**
+   * Sends `Sb-Forwarded-For` with the secret key as `apikey`, so Auth's per-IP
+   * rate limit counts the user, not the server.
+   */
+  readonly forwardedFor?: { readonly ip: string; readonly secretKey: string };
+  readonly fetch?: typeof fetch;
+  /** Milliseconds before the request counts as a network failure. Defaults to 5000. */
+  readonly timeoutMs?: number;
   readonly now?: () => number;
-};
+}
 
 /** The email link and code types `/auth/v1/verify` accepts. */
 export type EmailOtpType =

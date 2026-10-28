@@ -4,13 +4,12 @@ import type { CookieOptions } from "./session.ts";
 
 import { decodeJwtPayload } from "../core/base64.ts";
 import {
-  AUTH_CACHE_HEADERS,
   parseCookies,
   readSession,
   serializeCookie,
   sessionCookieName,
-  writeSession,
 } from "./session.ts";
+import { clearCookieSession } from "./ssr-client.ts";
 
 /** `banned`: Auth rejected the token with `error_code: "user_banned"`. */
 export type SessionStatus = "active" | "ended" | "banned" | "unknown";
@@ -96,17 +95,21 @@ export async function sessionStatus(
   }
 }
 
-export function clearSessionCookies<R extends Response>(
+/**
+ * Clears the session cookie and its chunks on `response`, with the no-store
+ * headers, through `@supabase/ssr`. Resolves to `response` unchanged when the
+ * request carries no session cookie.
+ */
+export async function clearSessionCookies<R extends Response>(
   request: Request,
   response: R,
   options: ClearSessionCookiesOptions,
-): R {
-  const writes = writeSession(
-    parseCookies(request.headers.get("cookie")),
-    options.cookieName ?? sessionCookieName(options.url),
-    null,
-    options.cookie,
-  );
+): Promise<R> {
+  const { writes, headers } = await clearCookieSession({
+    cookieName: options.cookieName ?? sessionCookieName(options.url),
+    cookies: parseCookies(request.headers.get("cookie")),
+    ...(options.cookie ? { cookieOptions: options.cookie } : {}),
+  });
 
   if (writes.length === 0) {
     return response;
@@ -116,7 +119,7 @@ export function clearSessionCookies<R extends Response>(
     response.headers.append("set-cookie", serializeCookie(write));
   }
 
-  for (const [key, value] of Object.entries(AUTH_CACHE_HEADERS)) {
+  for (const [key, value] of Object.entries(headers)) {
     response.headers.set(key, value);
   }
 

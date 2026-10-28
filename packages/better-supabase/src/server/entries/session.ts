@@ -7,16 +7,12 @@ import type { CookieScope, SessionEncoding } from "../../auth/session.ts";
 import type { AuthOutageEvent } from "../../core/events.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AnyFunctions, AnyModels } from "../../schema/types.ts";
-import type { RefreshPolicy } from "../refresh.ts";
+import type { RefreshPolicy } from "../request-kind.ts";
 import type { ServerCore } from "./core.ts";
 
-import {
-  AUTH_CACHE_HEADERS,
-  clearSessionAtScopes,
-  parseCookies,
-  serializeCookie,
-} from "../../auth/session.ts";
-import { refreshFor, shouldCheckSession } from "../refresh.ts";
+import { parseCookies, serializeCookie } from "../../auth/session.ts";
+import { clearCookieSession } from "../../auth/ssr-client.ts";
+import { isDocumentLoad, refreshFor } from "../request-kind.ts";
 import { callOf } from "./core.ts";
 
 function checkFor(
@@ -27,30 +23,27 @@ function checkFor(
     return policy ?? false;
   }
 
-  return policy === "navigation"
-    ? shouldCheckSession(request)
-    : policy(request);
+  return policy === "document" ? isDocumentLoad(request) : policy(request);
 }
 
 export interface SessionEntryConfig {
   /**
    * Refresh an expired cookie session and send the new cookies on the response.
    * Only where cookies can be written once per request (a proxy, a framework
-   * middleware); never in Server Components. `'navigation'` refreshes page
-   * loads, navigations and form posts (`shouldRefresh`), so parallel `fetch`
-   * calls never race on the refresh token. Defaults to false.
+   * middleware); never in Server Components. Parallel requests share one token
+   * refresh, so every request may refresh. Defaults to false.
    */
   readonly refresh?: RefreshPolicy;
   /**
    * Ask the Auth server whether the session still exists, so a session ended
    * elsewhere (sign-out on another device, an admin revoke) is anon here too.
    * One Auth call per matching request: `true` checks every request,
-   * `'navigation'` full page loads (`shouldCheckSession`). Off by default,
-   * because a valid token otherwise never calls the Auth server.
+   * `'document'` full page loads (`isDocumentLoad`). Off by default, because a
+   * valid token otherwise never calls the Auth server.
    */
   readonly verifySession?:
     | boolean
-    | "navigation"
+    | "document"
     | ((request: Request) => boolean);
   /**
    * Read the session cookie. Defaults to true; `false` resolves bearer tokens
@@ -125,17 +118,18 @@ export async function outageResponse(
  * Appends `Max-Age=0` writes for the session cookie at the old scopes, and the
  * no-store headers.
  */
-function clearOldScopes(
+async function clearOldScopes(
   response: Response,
   request: Request,
   name: string,
   scopes: readonly CookieScope[],
-): Response {
-  const writes = clearSessionAtScopes(
-    parseCookies(request.headers.get("cookie")),
-    name,
+): Promise<Response> {
+  const { writes, headers: noStore } = await clearCookieSession({
+    cookieName: name,
+    cookies: parseCookies(request.headers.get("cookie")),
     scopes,
-  );
+    current: false,
+  });
 
   if (writes.length === 0) {
     return response;
@@ -147,7 +141,7 @@ function clearOldScopes(
     headers.append("set-cookie", serializeCookie(write));
   }
 
-  for (const [key, value] of Object.entries(AUTH_CACHE_HEADERS)) {
+  for (const [key, value] of Object.entries(noStore)) {
     headers.set(key, value);
   }
 
@@ -216,7 +210,7 @@ export function withSession<
           const applied = session.apply(response);
 
           return config.cookieScopes?.length
-            ? clearOldScopes(
+            ? await clearOldScopes(
                 applied,
                 request,
                 core.sessionCookie(),

@@ -150,13 +150,13 @@ describe("sessionStatus", () => {
 });
 
 describe("clearSessionCookies", () => {
-  it("expires every chunk of the session cookie and adds no-store headers", () => {
+  it("expires every chunk of the session cookie and adds no-store headers", async () => {
     const request = new Request("https://app.test/", {
       headers: { cookie: `${cookieHeader(live, 5000)}; other=1` },
     });
 
     const response = new Response(null, { status: 200 });
-    expect(clearSessionCookies(request, response, { url: PROJECT })).toBe(
+    expect(await clearSessionCookies(request, response, { url: PROJECT })).toBe(
       response,
     );
     const cleared = response.headers.getSetCookie();
@@ -166,12 +166,12 @@ describe("clearSessionCookies", () => {
     expect(response.headers.get("cache-control")).toContain("no-store");
   });
 
-  it("uses the cookie name and options it is given", () => {
+  it("uses the cookie name and options it is given", async () => {
     const request = new Request("https://app.test/", {
       headers: { cookie: cookieHeader(live).replaceAll(NAME, "custom") },
     });
 
-    const response = clearSessionCookies(request, new Response(null), {
+    const response = await clearSessionCookies(request, new Response(null), {
       url: PROJECT,
       cookieName: "custom",
       cookie: { domain: ".app.test" },
@@ -182,8 +182,8 @@ describe("clearSessionCookies", () => {
     expect(cleared).toContain("Domain=.app.test");
   });
 
-  it("leaves a response without session cookies alone", () => {
-    const response = clearSessionCookies(
+  it("leaves a response without session cookies alone", async () => {
+    const response = await clearSessionCookies(
       new Request("https://app.test/", { headers: { cookie: "other=1" } }),
       new Response(null),
       { url: PROJECT },
