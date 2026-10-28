@@ -2,6 +2,8 @@ import type { JWTClaims } from "@supabase/server";
 
 import type { AuthState } from "./resolve.ts";
 
+import { AUTHZ_VERSION_CLAIM } from "../core/claim-names.ts";
+
 /**
  * A verified user session, frozen and serializable. Times are epoch seconds,
  * like `AuthSession.expiresAt`, because the snapshot crosses `use cache`
@@ -33,7 +35,7 @@ export function issuedAtOf(claims: Claims): number | null {
 
 /** The `authz_ver` claim as a number, or `null` when absent or malformed. */
 export function authzVersionOf(claims: Claims): number | null {
-  const value = claims["authz_ver"];
+  const value = claims[AUTHZ_VERSION_CLAIM];
 
   if (typeof value === "number" && Number.isFinite(value)) {
     return value;

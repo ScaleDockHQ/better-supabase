@@ -1,6 +1,6 @@
 {
   "name": "better-supabase",
-  "version": "0.31.0",
+  "version": "0.33.0",
   "description": "Strongly typed Supabase: generated schema, typed repositories, plugins, auth glue, framework integrations and the better-supabase CLI.",
   "keywords": [
     "cli",
@@ -33,6 +33,7 @@
   },
   "files": [
     "bin",
+    "codemods",
     "dist",
     "schemas",
     "skills",
@@ -113,6 +114,16 @@
       "@better-supabase/source": "./src/records/index.ts",
       "types": "./dist/records/index.d.ts",
       "default": "./dist/records/index.js"
+    },
+    "./claims": {
+      "@better-supabase/source": "./src/claims/index.ts",
+      "types": "./dist/claims/index.d.ts",
+      "default": "./dist/claims/index.js"
+    },
+    "./contract": {
+      "@better-supabase/source": "./src/contract/index.ts",
+      "types": "./dist/contract/index.d.ts",
+      "default": "./dist/contract/index.js"
     },
     "./server": {
       "@better-supabase/source": "./src/server/index.ts",
@@ -977,6 +988,7 @@
       "default": "./dist/testing/index.js"
     },
     "./schemas/*.json": "./schemas/*.json",
+    "./codemods/*.json": "./codemods/*.json",
     "./testing/act-cases.json": "./testing/act-cases.json",
     "./sqlite": {
       "@better-supabase/source": "./src/sqlite/index.ts",
@@ -1133,6 +1145,14 @@
       "./records": {
         "types": "./dist/records/index.d.ts",
         "default": "./dist/records/index.js"
+      },
+      "./claims": {
+        "types": "./dist/claims/index.d.ts",
+        "default": "./dist/claims/index.js"
+      },
+      "./contract": {
+        "types": "./dist/contract/index.d.ts",
+        "default": "./dist/contract/index.js"
       },
       "./server": {
         "types": "./dist/server/index.d.ts",
@@ -1825,6 +1845,7 @@
         "default": "./dist/testing/index.js"
       },
       "./schemas/*.json": "./schemas/*.json",
+      "./codemods/*.json": "./codemods/*.json",
       "./testing/act-cases.json": "./testing/act-cases.json",
       "./sqlite": {
         "types": "./dist/sqlite/index.d.ts",
@@ -1912,6 +1933,7 @@
     "build": "tsdown",
     "check:publish": "publint && pnpm pack --out pack.tgz && attw --profile esm-only pack.tgz && rm -f pack.tgz",
     "gen:check": "node scripts/gen-fixtures.ts --check",
+    "gen:codemods": "node scripts/gen-codemods.ts",
     "gen:config-schema": "node scripts/gen-config-schema.ts",
     "gen:fixtures": "node scripts/gen-fixtures.ts",
     "lint": "oxlint",

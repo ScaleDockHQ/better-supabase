@@ -220,8 +220,19 @@ export interface AuthorizationTokenHook {
    * somewhere else (`blocks.permissions.activeTenant`).
    */
   readonly activeOrganizationFrom?: ActiveTenantSource;
-  /** Claims it writes itself, which a second writer would contradict. */
+  /**
+   * Claims it writes itself, which a second writer would contradict. With
+   * `permissions` here, better-supabase's hook template leaves the claim to
+   * it.
+   */
   readonly ownedClaims: readonly string[];
+  /**
+   * The claim it sets to `true` when it left permission keys out of the
+   * `permissions` claim. Readers (`permissionsOf`, `isTruncated`,
+   * `permissionsAuthorizer`) then ask the database. Defaults to
+   * `budget.truncatedClaim`, then `<permissions claim>_truncated`.
+   */
+  readonly truncatedClaim?: string;
   /**
    * Claims it fills from other functions, such as `features` from
    * `better_supabase.feature_claims`.

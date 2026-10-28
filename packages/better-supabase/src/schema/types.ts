@@ -207,6 +207,12 @@ export interface ClaimsMeta {
    * Defaults to `permissions`.
    */
   readonly permissions: string;
+  /**
+   * Claim the hook sets to `true` when it left permission keys out, from the
+   * provider's `tokenHook.truncatedClaim`. Defaults to
+   * `<permissions>_truncated`.
+   */
+  readonly permissionsTruncated?: string;
 }
 
 export interface RealtimeTableMeta {

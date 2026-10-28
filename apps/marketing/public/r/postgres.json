@@ -4,7 +4,7 @@
   "title": "Server Postgres pool",
   "description": "lib/postgres.ts: one Postgres pool for the server-side blocks (outbox, jobs, webhook inbox, billing).",
   "dependencies": [
-    "better-supabase@^0.31.0",
+    "better-supabase@^0.33.0",
     "pg"
   ],
   "files": [

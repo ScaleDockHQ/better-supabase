@@ -2,7 +2,11 @@ import { withCors } from "@supabase/middleware/cors";
 
 import type { AuthSession } from "../auth/view.ts";
 import type { EdgeHandler } from "../bridges/edge.ts";
-import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
+import type {
+  AnyAuthorizer,
+  AuthzVersionCache,
+  PermissionRef,
+} from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { CorsOptions } from "../server/cors.ts";
@@ -171,7 +175,8 @@ export interface BetterEdge<
   P = unknown,
   Ref = string,
   B = unknown,
-> extends BetterServer<M, F, E, C, P, B> {
+  V extends AuthzVersionCache = AuthzVersionCache,
+> extends BetterServer<M, F, E, C, P, B, V> {
   /**
    * A fetch handler (`Deno.serve`, Workers `fetch`) running as the caller.
    * `Result`s become JSON or Problem Details; `undefined` becomes 204.
@@ -230,12 +235,16 @@ export function createEdge<
   E,
   C = unknown,
   P = unknown,
-  A extends AnyAuthorizer | undefined = undefined,
+  A extends AnyAuthorizer<V> | undefined = undefined,
   B = unknown,
+  V extends AuthzVersionCache = AuthzVersionCache,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: EdgeOptions & { readonly authorizer?: A } = {},
-): BetterEdge<M, F, E, C, P, PermissionRef<A>, B> {
+  options: EdgeOptions & {
+    readonly authorizer?: A;
+    readonly versions?: V;
+  } = {},
+): BetterEdge<M, F, E, C, P, PermissionRef<A>, B, V> {
   const server = createServer(betterSupabase, options);
   const expose = options.exposeErrors ?? defaultExpose();
 
@@ -295,145 +304,149 @@ export function createEdge<
       );
   };
 
-  return extendServer<BetterEdge<M, F, E, C, P, PermissionRef<A>, B>>(server, {
-    handler(fn, handlerOptions = {}) {
-      return serve(fn, handlerOptions);
-    },
+  return extendServer<BetterEdge<M, F, E, C, P, PermissionRef<A>, B, V>>(
+    server,
+    {
+      handler(fn, handlerOptions = {}) {
+        return serve(fn, handlerOptions);
+      },
 
-    routes(routes, routesOptions = {}) {
-      const base = (routesOptions.basePath ?? "").replace(/\/$/, "");
-      const compiled = compileRoutes<M, F, E, C, P, B>(routes);
-      const { allow, aal, scopes, ...middlewareOptions } = routesOptions;
+      routes(routes, routesOptions = {}) {
+        const base = (routesOptions.basePath ?? "").replace(/\/$/, "");
+        const compiled = compileRoutes<M, F, E, C, P, B>(routes);
+        const { allow, aal, scopes, ...middlewareOptions } = routesOptions;
 
-      const shared = {
-        ...(allow === undefined ? {} : { allow }),
-        ...(aal === undefined ? {} : { aal }),
-        ...(scopes === undefined ? {} : { scopes }),
-      };
+        const shared = {
+          ...(allow === undefined ? {} : { allow }),
+          ...(aal === undefined ? {} : { aal }),
+          ...(scopes === undefined ? {} : { scopes }),
+        };
 
-      const find = (
-        request: Request,
-      ): RouteMatch<M, F, E, C, P, B> | Response => {
-        const { pathname } = new URL(request.url);
+        const find = (
+          request: Request,
+        ): RouteMatch<M, F, E, C, P, B> | Response => {
+          const { pathname } = new URL(request.url);
 
-        const path =
-          base === ""
-            ? pathname
-            : pathname === base || pathname.startsWith(`${base}/`)
-              ? pathname.slice(base.length) || "/"
-              : undefined;
+          const path =
+            base === ""
+              ? pathname
+              : pathname === base || pathname.startsWith(`${base}/`)
+                ? pathname.slice(base.length) || "/"
+                : undefined;
 
-        const found =
-          path === undefined
-            ? undefined
-            : matchRoute(compiled, request.method, path);
+          const found =
+            path === undefined
+              ? undefined
+              : matchRoute(compiled, request.method, path);
 
-        if (found === undefined || found === "none") {
-          return problemResponse(
-            dbError("not_found", `No route for ${pathname}`),
-            { instance: pathname },
-          );
-        }
+          if (found === undefined || found === "none") {
+            return problemResponse(
+              dbError("not_found", `No route for ${pathname}`),
+              { instance: pathname },
+            );
+          }
 
-        if (!("route" in found)) {
-          return Response.json(
-            {
-              type: "about:blank",
-              title: "Method Not Allowed",
-              status: 405,
-              detail: `${request.method} is not allowed on ${pathname}`,
-              instance: pathname,
-            },
-            {
-              status: 405,
-              headers: {
-                allow: found.join(", "),
-                "content-type": "application/problem+json",
+          if (!("route" in found)) {
+            return Response.json(
+              {
+                type: "about:blank",
+                title: "Method Not Allowed",
+                status: 405,
+                detail: `${request.method} is not allowed on ${pathname}`,
+                instance: pathname,
               },
-            },
-          );
-        }
-
-        return found;
-      };
-
-      return serve(
-        async (request, ctx, tenant) => {
-          const found = find(request);
-
-          if (found instanceof Response) {
-            return found;
+              {
+                status: 405,
+                headers: {
+                  allow: found.join(", "),
+                  "content-type": "application/problem+json",
+                },
+              },
+            );
           }
 
-          const { route, params } = found;
+          return found;
+        };
 
-          const caller = await requireCaller(
-            ctx.auth,
-            { ...shared, ...route.options },
-            tenant,
-            options.authorizer,
-            ctx,
-          );
+        return serve(
+          async (request, ctx, tenant) => {
+            const found = find(request);
 
-          if ("kind" in caller) {
-            return err(caller);
-          }
+            if (found instanceof Response) {
+              return found;
+            }
 
-          return route.handler(
-            request,
-            withExtra(ctx, {
-              // SAFETY: matchRoute sets every `:name` segment of the route's
-              // key, and `*` for a final wildcard: the params its handler names.
-              params: params as never,
-              session: caller.session,
+            const { route, params } = found;
+
+            const caller = await requireCaller(
+              ctx.auth,
+              { ...shared, ...route.options },
               tenant,
-            }),
-          );
-        },
-        { ...middlewareOptions, allow: EVERY_CALLER },
-        (request) => {
-          const found = find(request);
+              server.authorizer,
+              ctx,
+              request.method,
+            );
 
-          return found instanceof Response ? found : undefined;
-        },
-      );
+            if ("kind" in caller) {
+              return err(caller);
+            }
+
+            return route.handler(
+              request,
+              withExtra(ctx, {
+                // SAFETY: matchRoute sets every `:name` segment of the route's
+                // key, and `*` for a final wildcard: the params its handler names.
+                params: params as never,
+                session: caller.session,
+                tenant,
+              }),
+            );
+          },
+          { ...middlewareOptions, allow: EVERY_CALLER },
+          (request) => {
+            const found = find(request);
+
+            return found instanceof Response ? found : undefined;
+          },
+        );
+      },
+
+      resources(map, resourcesOptions = {}) {
+        const { basePath, ...middlewareOptions } = resourcesOptions;
+
+        const router = resourceRouter(betterSupabase, map, {
+          ...(basePath === undefined ? {} : { basePath }),
+          ...(server.authorizer === undefined
+            ? {}
+            : { authorizer: server.authorizer }),
+        });
+
+        return serve(
+          (request, ctx) => {
+            // Matched again here: the bridge buffers a request with a body into
+            // a new Request, so the early check and the handler see different
+            // objects.
+            const route = router.match(request);
+
+            if (route instanceof Response) {
+              return route;
+            }
+
+            return route.handler.serve(request, ctx.db, route.segments, {
+              instance: route.instance,
+              expose,
+            });
+          },
+          middlewareOptions,
+          (request) => {
+            const route = router.match(request);
+
+            return route instanceof Response ? route : undefined;
+          },
+        );
+      },
     },
-
-    resources(map, resourcesOptions = {}) {
-      const { basePath, ...middlewareOptions } = resourcesOptions;
-
-      const router = resourceRouter(betterSupabase, map, {
-        ...(basePath === undefined ? {} : { basePath }),
-        ...(options.authorizer === undefined
-          ? {}
-          : { authorizer: options.authorizer }),
-      });
-
-      return serve(
-        (request, ctx) => {
-          // Matched again here: the bridge buffers a request with a body into
-          // a new Request, so the early check and the handler see different
-          // objects.
-          const route = router.match(request);
-
-          if (route instanceof Response) {
-            return route;
-          }
-
-          return route.handler.serve(request, ctx.db, route.segments, {
-            instance: route.instance,
-            expose,
-          });
-        },
-        middlewareOptions,
-        (request) => {
-          const route = router.match(request);
-
-          return route instanceof Response ? route : undefined;
-        },
-      );
-    },
-  });
+  );
 }
 
 export { type CorsOptions, corsConfig, SUPABASE_CORS_HEADERS };

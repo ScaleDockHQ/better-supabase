@@ -10,6 +10,17 @@ import type * as Connect from "@vercel/connect";
 import type * as ConnectChat from "@vercel/connect/chat";
 import type * as VercelSandbox from "@vercel/sandbox";
 import type {
+  ConnectionAuthDefinition,
+  ProvidedArgumentValue,
+} from "eve/connections";
+import type { SessionAuthContext } from "eve/context";
+import type { MemoryProvider } from "eve/memory";
+import type { ScheduleRunHandler } from "eve/schedules";
+import type {
+  ToolApprovalConfiguration,
+  ToolApproval,
+} from "eve/tools/approval";
+import type {
   Adapter,
   FlagDeclaration,
   FlagOptionType,
@@ -21,6 +32,17 @@ import { describe, expectTypeOf, it } from "vitest";
 
 import type { AnthropicMemoryTools } from "../src/ai-sdk/memory/index.ts";
 import type { CredentialSubject } from "../src/credentials/index.ts";
+import type {
+  EveApprovalConfiguration,
+  EveConnectionAuthorization,
+  EveScheduleArgs,
+  EveSessionAuth,
+  EveToolApproval,
+  approvalPolicy,
+  queueSchedules,
+  supabaseMemory,
+  tenantArgument,
+} from "../src/eve/index.ts";
 import type {
   BetterSupabaseAdapterFactory,
   createIdentify,
@@ -76,6 +98,25 @@ describe("structurally typed optional peers", () => {
     >();
     expectTypeOf<FlagsSdkProviderData>().toExtend<ProviderData>();
     expectTypeOf<FlagsSdkOption[]>().toExtend<FlagOptionType[]>();
+  });
+
+  it("eve takes the session auth, memory, connection, tool, approval and schedule shapes", () => {
+    expectTypeOf<EveSessionAuth>().toExtend<SessionAuthContext>();
+    expectTypeOf<SessionAuthContext>().toExtend<EveSessionAuth>();
+    expectTypeOf<
+      ReturnType<typeof supabaseMemory>
+    >().toExtend<MemoryProvider>();
+    expectTypeOf<EveConnectionAuthorization>().toExtend<ConnectionAuthDefinition>();
+    expectTypeOf<EveApprovalConfiguration>().toExtend<ToolApprovalConfiguration>();
+    expectTypeOf<ReturnType<typeof approvalPolicy>>().toExtend<ToolApproval>();
+    expectTypeOf<EveToolApproval>().toExtend<ToolApproval>();
+    expectTypeOf<
+      ReturnType<typeof queueSchedules>
+    >().toExtend<ScheduleRunHandler>();
+    expectTypeOf<
+      ReturnType<typeof tenantArgument>[string]
+    >().toExtend<ProvidedArgumentValue>();
+    expectTypeOf<EveScheduleArgs["appAuth"]>().toExtend<SessionAuthContext>();
   });
 
   it("a PowerSync database has what syncWithAuth drives", () => {

@@ -135,6 +135,13 @@ export { testBlockTransportMiddleware } from "./transport-middleware.ts";
 
 export { testAuthorizationProvider } from "./authorization-provider.ts";
 
+export { authorizationRequest, sessionSnapshot } from "./authorization.ts";
+
+export type {
+  AuthorizationRequestInput,
+  SessionSnapshotInput,
+} from "./authorization.ts";
+
 export { testAuthorizationHooks } from "./authorization-hooks.ts";
 
 export {

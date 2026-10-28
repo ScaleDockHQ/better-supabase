@@ -182,7 +182,13 @@ function organizationToTenant(
   };
 }
 
-const KEY_RENAMES: Readonly<Record<string, string>> = {
+/** Config keys `configFile` renames, by dotted path. */
+export const CONFIG_KEY_RENAMES_0_32: Readonly<Record<string, string>> = {
+  "auth.organization": "auth.tenant",
+};
+
+/** Option keys `source` renames in code. */
+export const OPTION_KEY_RENAMES_0_32: Readonly<Record<string, string>> = {
   requireOrganization: "requireTenant",
   checkSession: "verifySession",
   endedSession: "verifySession",
@@ -199,7 +205,7 @@ function renameKeys(text: string): {
   readonly review: readonly ReviewLine[];
 } {
   const ranges = codeRanges(text);
-  const names = Object.keys(KEY_RENAMES).join("|");
+  const names = Object.keys(OPTION_KEY_RENAMES_0_32).join("|");
   const pattern = new RegExp(`(?<![\\w$])(?:${names})(?=\\s*[:,}])`, "g");
 
   const edits = [...text.matchAll(pattern)]
@@ -209,7 +215,7 @@ function renameKeys(text: string): {
     .map((match) => ({
       start: match.index,
       end: match.index + match[0].length,
-      text: KEY_RENAMES[match[0]]!,
+      text: OPTION_KEY_RENAMES_0_32[match[0]]!,
     }));
 
   return { text: renameAdapterCalls(applyEdits(text, edits)), review: [] };

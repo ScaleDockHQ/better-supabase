@@ -192,6 +192,7 @@ export function createReactRouter<
             scope.tenant,
             server.authorizer,
             scope,
+            args.request.method,
           );
 
           if ("kind" in caller) {

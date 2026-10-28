@@ -16,7 +16,10 @@ SQL a library installs) is the separate
 ## The contract
 
 ```ts
-interface Authorizer<Ref = string> {
+interface Authorizer<
+  Ref = string,
+  V extends AuthzVersionCache = AuthzVersionCache,
+> {
   apiVersion: 1;
   name: string;
   // The stable key of a permission reference, for documents, SQL and messages.
@@ -25,13 +28,18 @@ interface Authorizer<Ref = string> {
   forOperation?(table: string, operation: string): Ref | undefined;
   evaluate(
     request: AuthorizationRequest<Ref>,
+    runtime?: AuthorizerRuntime<V>,
   ): AuthorizationOutcome | Promise<AuthorizationOutcome>;
   // The batch form; results keep the request order.
   evaluations?(
     requests: readonly AuthorizationRequest<Ref>[],
+    runtime?: AuthorizerRuntime<V>,
   ): Promise<readonly AuthorizationOutcome[]>;
 }
 ```
+
+`runtime` holds the server's `versions` cache and the request scope's
+`memo` (see [Share work in a request](#share-work-in-a-request)).
 
 `Ref` is whatever your permissions are: plain strings, or typed objects your
 library defines. The `permission` options of resources, actions and tools
@@ -69,7 +77,15 @@ subpath:
 | `AuthorizationOutcome`  | What `evaluate` returns                                                      |
 | `AuthorizationSubject`  | The request's `subject`                                                      |
 | `AuthorizationResource` | The request's `resource`                                                     |
+| `AuthorizationContext`  | The typed part of the request's `context`                                    |
+| `AuthorizationChange`   | A write's `current` row and `next` values                                    |
+| `AuthorizerRuntime<V>`  | The `versions` cache and `memo` next to each request                         |
 | `PermissionRef<A>`      | The reference type of authorizer `A`, `string` when `A` is not an authorizer |
+
+An authorization library that ships an adapter can import every one of these
+types, and the provider and policy types it fills, from the types-only
+`better-supabase/contract` entry. It has no runtime code, so the adapter adds
+nothing to the bundle by importing it.
 
 ## The request
 
@@ -77,12 +93,30 @@ Each request follows the [AuthZEN](/docs/standards/authzen) Authorization
 API 1.0 information model:
 a subject, an action, a resource and a context.
 
-| Field      | What it holds                                                                                                          |
-| ---------- | ---------------------------------------------------------------------------------------------------------------------- |
-| `subject`  | The caller and its verified token `claims`, from the verified context only (see below)                                 |
-| `action`   | The permission reference                                                                                               |
-| `resource` | What is acted on: `type`, an optional `id`, and `properties`                                                           |
-| `context`  | `tenant` (when the request has one), `aal` (from the token), and `scopes` (the token's `scope` claim, split on spaces) |
+| Field      | What it holds                                                                                 |
+| ---------- | --------------------------------------------------------------------------------------------- |
+| `subject`  | The caller and its verified token `claims`, from the verified context only (see below)        |
+| `action`   | The permission reference                                                                      |
+| `resource` | What is acted on: `type`, an optional `id`, `properties`, `source` and, for a write, `change` |
+| `context`  | The fields in the next table                                                                  |
+
+Every `context` field is optional:
+
+| Field       | What it holds                                                                              |
+| ----------- | ------------------------------------------------------------------------------------------ |
+| `tenant`    | The request's tenant                                                                       |
+| `aal`       | The token's assurance level (`aal1`, `aal2`)                                               |
+| `scopes`    | The token's `scope` claim, split on spaces                                                 |
+| `intent`    | `read` or `write`                                                                          |
+| `operation` | The kind of call: `get`, `list`, `create`, `update`, `delete`, `action`, `route` or `tool` |
+| `requestId` | The server's request id, the same for every check in one request scope                     |
+| `approval`  | The approval id the client resumes with (see [Approvals](#approvals))                      |
+
+A route is a read for `GET` and `HEAD` and a write for every other method. An
+action is a write. An MCP tool is a read when its `readOnlyHint` annotation is
+`true`. The client can send `requestId` (the `x-request-id` header) and
+`approval`, so use them for logs, audit and matching an approval you issued,
+never as a grant.
 
 The subject's `type` is the actor kind (`user` or `service`), or `agent` for
 a user token that carries an `act` claim (a delegated token). Its `id` is the
@@ -102,6 +136,40 @@ Nothing the client sends ends up in the subject.
 | An MCP tool                      | `{ type: "mcp_tool", id: <tool name>, properties: <arguments> }`              |
 | A route guard                    | `{ type: "route" }`                                                           |
 | A server or block action         | `{ type: "action", properties: <the validated input> }`                       |
+
+### Trust the source
+
+`resource.source` says where `properties` came from. `loaded` is a row
+better-supabase read through the caller's client (`get`, `update`, `delete`,
+and a resource loader's row). `input` is what the caller sent: the body of a
+`create`, an action's input and an MCP tool's arguments. Decide from `loaded`
+properties, and treat `input` ones as claims the caller makes, the same way
+the conformance kit does.
+
+A write also carries `change`. `change.current` is the stored row (absent for
+a `create`), and `change.next` is the values the caller sends. For an
+`update`, `properties` stays the loaded row, so a rule such as "only the
+owner may move a project to another team" compares `change.current.teamId`
+with `change.next.teamId` and checks the owner on `properties`:
+
+```ts title="src/lib/authorizer.ts"
+import { defineAuthorizer } from "better-supabase/server";
+
+export const authorizer = defineAuthorizer({
+  name: "projects",
+  key: (permission: string) => permission,
+  evaluate({ subject, resource }) {
+    const owner =
+      resource.source === "loaded" &&
+      resource.properties?.["ownerId"] === subject.id;
+    const moves =
+      resource.change?.next["teamId"] !== undefined &&
+      resource.change.next["teamId"] !== resource.change.current?.["teamId"];
+
+    return owner || !moves ? { outcome: "granted" } : { outcome: "denied" };
+  },
+});
+```
 
 ### Load the resource
 
@@ -143,6 +211,48 @@ loader that throws refuses the caller: a `DbException` (such as the
 with `forbidden` and `code: "RESOURCE_UNAVAILABLE"`. Without a `permission`,
 the loader doesn't run.
 
+### Share work in a request
+
+Every check in one request scope gets the same `context.requestId` and the
+same `runtime.memo`. Load what several checks need (a user's grants in a
+tenant, say) once through `runtime.memo.once(key, load)` instead of keying a
+module-level cache on `requestId`: each `use cache` scope gets its own memo,
+so nothing request-specific lives in module state.
+
+### Typed versions
+
+A library that caches grants across requests passes its own version cache to
+the server as `versions`. The type flows to the authorizer's runtime, so
+`runtime.versions` is the library's cache with its own methods, not the
+`AuthzVersionCache` the server needs (`evict(userId)` only):
+
+```ts title="src/lib/server.ts"
+import {
+  createServer,
+  defineAuthorizer,
+  type AuthorizerRuntime,
+} from "better-supabase/server";
+import { grantVersions } from "./grants";
+
+const authorizer = defineAuthorizer({
+  name: "grants",
+  key: (permission: string) => permission,
+  async evaluate(request, runtime?: AuthorizerRuntime<typeof grantVersions>) {
+    const version = await runtime?.versions?.current(request.subject.id);
+    return decide(request, version);
+  },
+});
+
+export const bsb = createServer(betterSupabase, {
+  authorizer,
+  versions: grantVersions,
+});
+```
+
+`createServer`, `createNext`, `createHono`, `createEdge` and `createMcp` all
+take `versions` and hand it to every decision. `bsb.versions` is typed the
+same way.
+
 ## Outcomes
 
 `evaluate` returns one of three outcomes, each with an optional `context`:
@@ -155,6 +265,27 @@ the loader doesn't run.
 
 Both refusals are `forbidden` errors that carry the permission key in
 `permission`, rendered as [Problem Details](/docs/auth/problems).
+
+### Approvals
+
+`approval-required` stops the call and returns the approval id. Once someone
+approves it, the client sends the call again with the id, and better-supabase
+puts it in `context.approval` so the authorizer can grant it. Name the header
+the id travels in with the server's `approval` option:
+
+```ts title="src/server.ts"
+const bsb = createHono(betterSupabase, {
+  authorizer,
+  approval: { header: "x-approval-id" },
+});
+```
+
+The id is read only when the option is set, must match
+`[A-Za-z0-9._:;,@/+=-]` and be at most 256 characters, and is never part of
+the subject. An MCP tool call that needs approval returns a tool error with
+`structuredContent: { code: "APPROVAL_REQUIRED", approval: { id } }`. The
+client resumes with `_meta.approval` on the next `tools/call` (or the header).
+The tool stays in `tools/list`, since the caller may call it once approved.
 
 ## Fail closed
 
@@ -195,6 +326,38 @@ Give `defineApi` the same authorizer so the document shows each operation's
 permission key and its 403 response (see
 [Permissions in the document](/docs/specs/customize#permissions-in-the-document)).
 
+## Read claims
+
+`better-supabase/claims` reads the claims the token hook writes, from a
+session, a session snapshot or plain claims, without a server. An adapter
+uses it instead of hard-coding claim names:
+
+```ts title="src/lib/can.ts"
+import { permissionsOf } from "better-supabase/claims";
+import type { SessionSnapshot } from "better-supabase/claims";
+
+export function can(
+  snapshot: SessionSnapshot,
+  key: string,
+  tenant?: string,
+): boolean | "pending" {
+  const keys = permissionsOf(snapshot.claims, tenant);
+
+  return keys === undefined ? "pending" : keys.includes(key);
+}
+```
+
+`permissionsOf` takes a server session, a client snapshot or plain claims,
+and reads the active tenant from the tenant claim when you pass none. It
+returns `undefined` when the token can't answer (no claim, no entry for the
+tenant, or the hook's truncated marker is set), so the caller asks the
+database. Pass `truncatedClaim` when the provider names its own marker. The
+entry also exports the claim names (`PERMISSIONS_CLAIM`, `MEMBERSHIPS_CLAIM`,
+`FEATURES_CLAIM`, `AUTHZ_VERSION_CLAIM`, `PERMISSION_CAP_CLAIM`,
+`PERMISSIONS_TRUNCATED_CLAIM`), `tenantOf`, `isTruncated`,
+`decodeEntitlementClaim`, `permissionCapOf`, and the `isUserSession`,
+`isApiKeySession` and `isSessionSnapshot` guards.
+
 ## Test an authorizer
 
 `testAuthorizer` from `better-supabase/testing` runs the conformance kit
@@ -203,8 +366,10 @@ name, that `key()` returns a stable, non-empty string, that every answer is
 one of the three outcomes and leaves the request unchanged, that
 `evaluations` agrees with `evaluate` and keeps the order, that the decision
 comes from the subject and never from a forged input (a role, `claims` or
-`memberships` placed in the resource properties or the context), and that an unknown
-permission is never granted:
+`memberships` placed in the resource properties, a `source: "input"` resource,
+its `change` or the context), and that an unknown permission is never granted.
+The kit builds its requests with `authorizationRequest`, so they carry the
+`intent`, `operation` and `requestId` a server sends:
 
 ```ts title="tests/authorizer.test.ts"
 import { test } from "vitest";
@@ -222,6 +387,35 @@ test("the authorizer conforms", async () => {
 
 It resolves with the report, and rejects with a `ConformanceError` that
 lists every failed check.
+
+For your own tests, `authorizationRequest` and `sessionSnapshot` build the
+shapes the server builds, through the same code:
+
+```ts title="tests/authorizer.test.ts"
+import { expect, test } from "vitest";
+import { authorizationRequest, sessionSnapshot } from "better-supabase/testing";
+import { authorizer } from "../src/lib/authorizer";
+
+const claims = {
+  sub: userId,
+  permissions: { [tenantId]: ["projects.update"] },
+};
+
+test("grants an update to a member with the key", async () => {
+  const request = authorizationRequest({
+    action: "projects.update",
+    claims,
+    resource: { type: "projects", id: "p1", source: "loaded" },
+    context: { tenant: tenantId, intent: "write", operation: "update" },
+  });
+
+  expect(await authorizer.evaluate(request)).toEqual({ outcome: "granted" });
+});
+
+test("reads the same claims from a snapshot", () => {
+  expect(sessionSnapshot({ claims }).userId).toBe(userId);
+});
+```
 
 For tests and examples that need an authorizer but not a library,
 `staticAuthorizer` decides from the subject's role and id. See

@@ -278,6 +278,15 @@ export default defineConfig({
               selfApproval: true,
             },
           },
+          // Tool calls of the eve example's agent (`approvalPolicy`), one action
+          // per tool; the request's subject is the call id.
+          eve_tool_call: {
+            add_note: {
+              steps: [
+                { approvers: { permission: "approvals.manage" }, required: 1 },
+              ],
+            },
+          },
           // Approval nodes of a builder graph; the request's subject is the run key.
           workflow_run: {
             approve: {

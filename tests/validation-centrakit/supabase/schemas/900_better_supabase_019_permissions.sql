@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:d85c97cc9c2f49fcd6f7a80d81181f6bfefd530173e31d9cbd914b88b471f1cd
+-- @bsb-hash sha256:049c8b0125c169f88b7fed8b2aeb5901cde2da1c67a7826f2a87d64747aec2b7
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,7 +231,7 @@ as $$
     when member is not null
       and not better_supabase.user_disabled(member)
       and not better_supabase.tenant_disabled(tenant)
-    then coalesce((centrakit.authz_permissions_for(member, tenant)), '{}'::text[])
+    then coalesce(array(select k from unnest(coalesce((centrakit.authz_permissions_for(member, tenant)), '{}'::text[])) as k where k = any(array['activity.read', 'api_keys.manage', 'api_keys.own', 'attachments.manage', 'attachments.read', 'attachments.upload', 'audit.revert', 'audit.view', 'comments.create', 'comments.moderate', 'comments.read', 'crm.read', 'custom_fields.manage', 'custom_fields.read', 'custom_fields.sensitive.read', 'deals.manage', 'deals.read', 'deals.write', 'drive.create', 'drive.manage', 'drive.read', 'imports.manage', 'members.invite', 'members.remove', 'members.update_role', 'notifications.read', 'notifications.send', 'number_sequences.assign', 'organization.delete', 'organization.export', 'organization.transfer_ownership', 'organization.update', 'people.manage', 'people.read', 'people.view-sensitive', 'pipelines.manage', 'pipelines.read', 'platform.invite', 'platform.users.manage', 'reminders.manage', 'reminders.read', 'settings.manage', 'settings.read', 'settings.update', 'share_links.create', 'share_links.read', 'support.revoke', 'tags.manage', 'tags.read', 'teams.manage', 'teams.read', 'webhook.manage', 'webhook.view', 'work_items.manage', 'work_items.read', 'work_items.write']::text[])), '{}'::text[])
     else '{}'::text[]
   end
 $$;

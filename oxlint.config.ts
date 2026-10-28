@@ -7,7 +7,9 @@ import core from "ultracite/oxlint/core";
 import { jsPluginSettings, selectJsPlugins } from "ultracite/oxlint/js-plugins";
 import ultraciteNext from "ultracite/oxlint/next";
 import ultraciteNextJsPlugins from "ultracite/oxlint/next/js-plugins";
+import ultracitePlaywright from "ultracite/oxlint/playwright";
 import ultraciteReact from "ultracite/oxlint/react";
+import ultraciteReactNative from "ultracite/oxlint/react-native";
 import ultraciteShadcn from "ultracite/oxlint/shadcn";
 import vitest from "ultracite/oxlint/vitest";
 
@@ -180,6 +182,23 @@ export const react: OxlintConfig = defineConfig({
 export const next: OxlintConfig = defineConfig({
   extends: [ultraciteNext],
   rules: { ...ultraciteNextJsPlugins.rules },
+});
+
+/**
+ * Playwright tests. Oxlint has no Playwright plugin; the preset lets a hook
+ * that only needs `testInfo` take an empty fixtures pattern.
+ */
+export const playwright: OxlintConfig = defineConfig({
+  extends: [ultracitePlaywright],
+});
+
+/**
+ * React Native and Expo apps, on top of `react`. Oxlint has no React Native
+ * plugin, so the preset adds no rules yet; extending it picks them up when
+ * Ultracite adds them.
+ */
+export const reactNative: OxlintConfig = defineConfig({
+  extends: [ultraciteReactNative],
 });
 
 /** Tailwind design system rules for apps that own shadcn components. */

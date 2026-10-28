@@ -1,11 +1,19 @@
 import type { AuthState } from "../auth/resolve.ts";
-import type { AnyAuthorizer } from "../core/authorizer.ts";
+import type {
+  AnyAuthorizer,
+  AuthorizationPurpose,
+  AuthorizerRuntime,
+} from "../core/authorizer.ts";
 import type { DbError } from "../core/errors.ts";
 import type { OperationTable } from "../core/operations.ts";
 import type { RequestContext } from "../core/plugin.ts";
 import type { Result } from "../core/result.ts";
 
-import { checkEach, checkPermission } from "../core/authorizer.ts";
+import {
+  checkPermission,
+  isRequestMemo,
+  outcomesOf,
+} from "../core/authorizer.ts";
 import { dbError } from "../core/errors.ts";
 import { OPERATION_PREFIXES, operationPermission } from "../core/operations.ts";
 import { ok } from "../core/result.ts";
@@ -58,11 +66,32 @@ export function toolPermission(
   );
 }
 
+/** The hint that makes a tool a read. */
+interface ToolHints {
+  readonly annotations?: { readonly readOnlyHint?: boolean };
+}
+
 /** A tool as the authorizer sees it. */
 export interface PermissionGate {
   readonly name: string;
   /** The tool's `permission`; a tool without one is not checked here. */
   readonly permission?: unknown;
+  readonly info?: ToolHints;
+}
+
+/** A tool's purpose: `readOnlyHint` makes it a read. */
+function toolPurpose(info: ToolHints | undefined): AuthorizationPurpose {
+  return {
+    operation: "tool",
+    intent: info?.annotations?.readOnlyHint === true ? "read" : "write",
+  };
+}
+
+/** The context's memo as the authorizer runtime, when it has one. */
+function runtimeOf(
+  context: RequestContext | undefined,
+): AuthorizerRuntime | undefined {
+  return isRequestMemo(context?.memo) ? { memo: context.memo } : undefined;
 }
 
 /** The context of a `tools/call` or `tools/list` request, if the client has one. */
@@ -77,7 +106,7 @@ export function contextOf(db: unknown): RequestContext | undefined {
 
 /** The tool's name and permission, as the authorizer sees them. */
 export interface CheckedTool {
-  readonly info: { readonly name: string };
+  readonly info: { readonly name: string } & ToolHints;
   readonly permission?: unknown;
 }
 
@@ -103,21 +132,27 @@ export async function checkTool(
     ? (args as Readonly<Record<string, unknown>>)
     : undefined;
 
+  const context = contextOf(db);
+  const runtime = runtimeOf(context);
+
   return checkPermission({
     authorizer,
     permission: tool.permission,
     resource: {
       type: "mcp_tool",
       id: tool.info.name,
-      ...(properties ? { properties } : {}),
+      ...(properties ? { properties, source: "input" } : {}),
     },
-    context: contextOf(db),
+    context,
+    ...toolPurpose(tool.info),
+    ...(runtime ? { runtime } : {}),
   });
 }
 
 /**
  * Which tools the caller may see, in `tools` order: one batch per permission,
- * and a tool without a permission is always shown.
+ * and a tool without a permission is always shown. A tool that needs an
+ * approval stays listed, so the client can call it and resume.
  */
 export async function permittedTools(
   authorizer: AnyAuthorizer | undefined,
@@ -125,7 +160,11 @@ export async function permittedTools(
   context: RequestContext | undefined,
 ): Promise<readonly boolean[]> {
   const shown = tools.map((tool) => tool.permission === undefined);
-  const groups = new Map<string, { permission: unknown; indexes: number[] }>();
+
+  const groups = new Map<
+    string,
+    { permission: unknown; purpose: AuthorizationPurpose; indexes: number[] }
+  >();
 
   for (const [index, tool] of tools.entries()) {
     if (tool.permission === undefined || !authorizer) {
@@ -140,26 +179,33 @@ export async function permittedTools(
       continue;
     }
 
-    const group = groups.get(key) ?? {
+    const purpose = toolPurpose(tool.info);
+    const groupKey = `${purpose.intent ?? ""} ${key}`;
+
+    const group = groups.get(groupKey) ?? {
       permission: tool.permission,
+      purpose,
       indexes: [],
     };
 
     group.indexes.push(index);
-    groups.set(key, group);
+    groups.set(groupKey, group);
   }
 
   await Promise.all(
-    [...groups.values()].map(async ({ permission, indexes }) => {
-      const granted = await checkEach(
+    [...groups.values()].map(async ({ permission, purpose, indexes }) => {
+      const outcomes = await outcomesOf(
         authorizer,
         permission,
         indexes.map((index) => ({ type: "mcp_tool", id: tools[index]!.name })),
         context,
+        runtimeOf(context),
+        purpose,
       );
 
       for (const [position, index] of indexes.entries()) {
-        shown[index] = granted[position] ?? false;
+        const outcome = outcomes[position];
+        shown[index] = outcome === "granted" || outcome === "approval-required";
       }
     }),
   );

@@ -1,7 +1,15 @@
 import type { StandardSchemaV1 } from "@standard-schema/spec";
 
-import type { AuthorizationResource, Authorizer } from "../core/authorizer.ts";
+import type {
+  AuthorizationChange,
+  AuthorizationPurpose,
+  AuthorizationResource,
+  AuthorizationResourceSource,
+  Authorizer,
+  AuthorizerRuntime,
+} from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
+import type { RequestContext } from "../core/plugin.ts";
 import type { RepositoryOf } from "../core/repository-types.ts";
 import type { Result } from "../core/result.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
@@ -16,7 +24,11 @@ import type {
 } from "./resource-types.ts";
 import type { RespondOptions } from "./respond.ts";
 
-import { checkEach, checkPermission } from "../core/authorizer.ts";
+import {
+  checkEach,
+  checkPermission,
+  isRequestMemo,
+} from "../core/authorizer.ts";
 import { dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 import { methodNotAllowed } from "../core/problem.ts";
@@ -39,6 +51,15 @@ import {
 import { respond } from "./respond.ts";
 
 type AnyRepository = RepositoryOf<AnyModels, string, unknown>;
+
+const READ = { intent: "read" } as const;
+
+const WRITE = { intent: "write" } as const;
+
+/** The scope's memo as the authorizer runtime, when the context has one. */
+function runtimeOf(context: RequestContext): AuthorizerRuntime | undefined {
+  return isRequestMemo(context.memo) ? { memo: context.memo } : undefined;
+}
 
 /**
  * Operations over one table, matching the paths and responses of the API model:
@@ -93,16 +114,23 @@ export function defineResource<
   // SAFETY: hooks are typed per table for callers; here the table generics are erased.
   const hooks = (options.hooks ?? {}) as ResourceHooks<AnyModels, string>;
 
-  const resourceOf = (id: unknown, row: unknown): AuthorizationResource => ({
+  const resourceOf = (
+    id: unknown,
+    row: unknown,
+    source: AuthorizationResourceSource,
+    change?: AuthorizationChange,
+  ): AuthorizationResource => ({
     type: table,
     ...(id === undefined ? {} : { id: String(id) }),
-    ...(isRecord(row) ? { properties: row } : {}),
+    ...(isRecord(row) ? { properties: row, source } : {}),
+    ...(change ? { change } : {}),
   });
 
   const permit = (
     name: string,
     db: object,
     resource: AuthorizationResource,
+    purpose: AuthorizationPurpose,
   ): Promise<Result<void>> | Result<void> => {
     const permission = plan.permissions[name];
 
@@ -110,11 +138,16 @@ export function defineResource<
       return ok(undefined);
     }
 
+    const context = contextOf(db);
+    const runtime = runtimeOf(context);
+
     return checkPermission({
       authorizer,
       permission,
       resource,
-      context: contextOf(db),
+      context,
+      ...purpose,
+      ...(runtime ? { runtime } : {}),
     });
   };
 
@@ -198,6 +231,8 @@ export function defineResource<
         permission,
         resource: { type: table },
         context: contextOf(db),
+        operation: "list",
+        ...READ,
       });
 
       if (!denied.ok) {
@@ -212,14 +247,21 @@ export function defineResource<
     }
 
     const items: readonly unknown[] = page["items"];
+    const context = contextOf(db);
 
     const granted = await checkEach(
       authorizer,
       permission,
       items.map((row) =>
-        resourceOf(keyParam && isRecord(row) ? row[keyParam] : undefined, row),
+        resourceOf(
+          keyParam && isRecord(row) ? row[keyParam] : undefined,
+          row,
+          "loaded",
+        ),
       ),
-      contextOf(db),
+      context,
+      runtimeOf(context),
+      { operation: "list", ...READ },
     );
 
     return ok({ ...page, items: items.filter((_, index) => granted[index]) });
@@ -314,7 +356,8 @@ export function defineResource<
         const permitted = await permit(
           "get",
           db,
-          resourceOf(id.data, row.data),
+          resourceOf(id.data, row.data, "loaded"),
+          { operation: "get", ...READ },
         );
 
         if (!permitted.ok) {
@@ -351,7 +394,13 @@ export function defineResource<
         const permitted = await permit(
           "create",
           db,
-          resourceOf(undefined, data.data),
+          resourceOf(
+            undefined,
+            data.data,
+            "input",
+            isRecord(data.data) ? { next: data.data } : undefined,
+          ),
+          { operation: "create", ...WRITE },
         );
 
         if (!permitted.ok) {
@@ -414,7 +463,18 @@ export function defineResource<
         const permitted = await permit(
           "update",
           db,
-          resourceOf(id.data, row.data),
+          resourceOf(
+            id.data,
+            row.data,
+            "loaded",
+            isRecord(data.data)
+              ? {
+                  ...(isRecord(row.data) ? { current: row.data } : {}),
+                  next: data.data,
+                }
+              : undefined,
+          ),
+          { operation: "update", ...WRITE },
         );
 
         if (!permitted.ok) {
@@ -473,7 +533,8 @@ export function defineResource<
         const permitted = await permit(
           "delete",
           db,
-          resourceOf(id.data, row.data),
+          resourceOf(id.data, row.data, "loaded"),
+          { operation: "delete", ...WRITE },
         );
 
         if (!permitted.ok) {
@@ -550,7 +611,18 @@ export function defineResource<
       }
 
       const data = Array.isArray(input.data) ? values : values[0];
-      const permitted = await permit("upsert", db, resourceOf(undefined, data));
+
+      const permitted = await permit(
+        "upsert",
+        db,
+        resourceOf(
+          undefined,
+          data,
+          "input",
+          isRecord(data) ? { next: data } : undefined,
+        ),
+        { operation: "create", ...WRITE },
+      );
 
       if (!permitted.ok) {
         return permitted;
@@ -575,7 +647,12 @@ export function defineResource<
       );
     }
 
-    const permitted = await permit(name, db, { type: table });
+    const permitted = await permit(
+      name,
+      db,
+      { type: table },
+      { operation: "list", ...READ },
+    );
 
     if (!permitted.ok) {
       return permitted;
@@ -679,7 +756,18 @@ export function defineResource<
       return row;
     }
 
-    const permitted = await permit(name, db, resourceOf(id, row.data ?? data));
+    const permitted = await permit(
+      name,
+      db,
+      row.data === undefined
+        ? resourceOf(id, data, "input")
+        : resourceOf(id, row.data, "loaded"),
+      {
+        operation: "action",
+        intent:
+          definition.intent ?? (planned.method === "GET" ? "read" : "write"),
+      },
+    );
 
     if (!permitted.ok) {
       return permitted;

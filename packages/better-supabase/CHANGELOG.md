@@ -1,5 +1,186 @@
 # better-supabase
 
+## 0.33.0
+
+### Minor Changes
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - Resume an `approval-required` decision. `approval: { header: "x-approval-id" }` on the server options names the header the client sends the approval id in; it reaches `ctx.approval` and the authorizer's `context.approval`, never the subject. MCP reads it from the header or `params._meta.approval`, returns the id in `structuredContent.approval`, and keeps tools that need an approval in `tools/list`.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - Add `blockTables(config)` to `better-supabase/sql`. It returns the memberships, membership roles and organizations tables with their configured schema, table and column names, plus every installed block's tables, so an authorization library's SQL follows the app's renames.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - Add `better-supabase/claims`. It exports the claim names (`PERMISSIONS_CLAIM`, `MEMBERSHIPS_CLAIM`, `FEATURES_CLAIM`, `AUTHZ_VERSION_CLAIM`, `PERMISSION_CAP_CLAIM`, `PERMISSIONS_TRUNCATED_CLAIM`), `permissionsOf`, `isTruncated`, `tenantOf`, `decodeEntitlementClaim`, `permissionCapOf` and the `isUserSession`, `isApiKeySession` and `isSessionSnapshot` guards, so client code and authorization adapters read the token without importing the server.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - Each codemod publishes its renames as JSON: `better-supabase/codemods/0.32.json` lists the 0.32 imports, members, config keys and option keys, each mapped from the old name to the new one, for tools that check or apply them.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - Add `better-supabase/contract`, a types-only entry that re-exports every type an authorization library implements or reads (the provider, token hook, authorizer, request, hooks, bucket and topic policies, credential provider, session snapshot and block tables) with `ContractApiVersion`.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - Doctor BS407 reports a custom hook that calls `better_supabase.permission_claims` when the authorization provider owns the `permissions` claim. The new BS419 warns when app code calls `permissionsAuthorizer` while some provider keys lack `sqlComplete`, since the token leaves those keys out.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - The `permissions` claim carries only the keys the authorization provider marks `sqlComplete: true`: `better_supabase.member_permissions` and `permission_claims` drop the others, because a key in the token is a grant in the whole tenant. A provider whose `tokenHook.ownedClaims` lists `permissions` gets no permissions lines in the generated hook template, and `tokenHook.truncatedClaim` names the hook's truncated marker for `permissionsOf` and `permissionsAuthorizer`. Run `better-supabase gen` to regenerate the functions.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - Authorizers get more context on each request. `context` gains `intent` (`read` or `write`), `operation` (`get`, `list`, `create`, `update`, `delete`, `action`, `route` or `tool`), `requestId` and `approval`, typed as `AuthorizationContext`. `resource.source` says whether the properties were `loaded` from the database or are caller `input`, and writes carry `resource.change` with the stored row (`current`) and the new values (`next`). `resource.properties` is unchanged. Resources pass the request scope's memo as `runtime.memo`.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/testing` adds `authorizationRequest` and `sessionSnapshot`, which build the request and snapshot shapes the server builds. `testAuthorizer` also checks write requests with `source: "input"` and a `change`. `testAuthorizationProvider` checks that the token hook names one truncated marker and that a hook writing `permissions` has `sqlComplete` keys.
+
+- [#483](https://github.com/ScaleDockHQ/better-supabase/pull/483) [`99c9ef2`](https://github.com/ScaleDockHQ/better-supabase/commit/99c9ef2b8fc5891fe82102d37ebfaf70161c3943) Thanks [@martijn00](https://github.com/martijn00)! - `versions` is typed through `createServer`, `createNext`, `createHono`, `createEdge` and `createMcp`, so `AuthorizerRuntime<V>` and `bsb.versions` are the authorization library's own cache type instead of `AuthzVersionCache`. Edge and MCP decisions now get the server's `versions` too.
+
+## 0.32.0
+
+### Minor Changes
+
+- [#470](https://github.com/ScaleDockHQ/better-supabase/pull/470) [`8fa0c75`](https://github.com/ScaleDockHQ/better-supabase/commit/8fa0c75ab437ae1b7ac6f6e90916ab0a671e75fa) Thanks [@mick340](https://github.com/mick340)! - Invoices, catalog, leave, expenses and time tracking run over more of an app's own tables, and `createNext().signUp` tells the app about an existing account.
+  
+  - Invoices: `options.totals: "app"` leaves the totals to the app: no totals trigger and no recount, and the block reads `subtotal`, `taxTotal` and `total` as the app keeps them (`listTotal` and `discountTotal` can map to `null`). A company, contact or origin can be one foreign key column: map its type column to `null`, and the id takes the fixed type `options.company`, `options.contact` or `quote`, cast to the column's type. A new `invoice_charges` table (`tables.charges`, which can be the app's table or `null`) holds charges on top of the total, such as collection costs; `charge(invoiceId, { amount, description })` adds one, the balance and aging include them, and `invoice.charged` is recorded. An invoice's number takes the period of its issue date, so a back-dated invoice is numbered in its own year's sequence.
+  - Catalog: `options.rankType: "integer"` orders options, option values, variants, categories and collection products by whole-number positions. With `tables.prices: null`, a variant's price is `columns.variants.price`, falling back to `columns.products.price`, in `columns.products.currency`. `columns.variants.trackInventory` can be `null` with the flag on the product, which inventory and orders then read.
+  - Leave: `options.approvals: false` (or no approval column) runs leave without the approvals block; `decide(requestId, { approved, note })` approves or rejects a request, and a rejection records `leave.rejected`. With share-links, a `leave_feed` link to the organization serves its approved leave through `feed(token)` while the link's creator can still read everyone's leave.
+  - Expenses: `options.approvals: false` (or no approval column) runs expenses without the approvals block; `decide(reportId, { approved, note })` approves or rejects a submitted report, and a rejection records `expense_report.rejected`. `ExpenseReportSubmittedEventData.approvalId` is `string | null`.
+  - Next.js: `signUp` returns `{ existingAccount: true }` (type `ExistingAccount`) when Auth answers with the stand-in user it gives for an email that already has an account, so the app can send its own email. Nothing about it reaches an error message.
+  - Time tracking: `options.overlap: "allow"` lets a member's entries overlap, and `options.timers: "many"` runs several timers at once (`stop_timer` takes an entry, `running_timers` and the client's `runningAll()` list them). Over a duration column, stopping adds the running segment and `resume_timer` (`resume(entryId)`) runs a stopped entry again. A rate needs a currency, but a currency without a rate is allowed (`currency` on the client); the managed table's `rate_pair_check` becomes `rate_needs_currency_check`. `stop_timer` takes an optional entry id.
+  - Calendar: an organization purge deletes calendar events itself, so an app's restricting foreign key from events to calendars no longer blocks it.
+  - Drive: `options.drives: true` adds several drives per organization, drive-level grants, connected drives and mirror nodes. A drive has a kind and an owner, `drives()` lists them with the caller's role and read-only state, `createDrive`, `renameDrive`, `deleteDrive`, `shareDrive` and `unshareDrive` manage them, and `connections()` lists the connected drives. `drive_sync_batch` mirrors a provider tree into a connected drive as service role: it upserts by external id, links parents, and prunes nodes missing from the run. The tree functions take an optional drive, and roots and sibling names are scoped per drive. `drive.connection_created`, `drive.connection_removed`, `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared` and `drive.unshared` are recorded.
+  - Drive legal holds: a `held` subject column, or `options.drives` with `legalHoldUntil`, marks a node as held, and `drive_node_held` reports a node when it or a descendant is held. `holdNode` and `releaseHold` set and clear a hold, a held subtree refuses `drive_delete` and `drive_trash` with `DRIVE_HELD`, and mirror nodes are read-only. `drive.node_hold_placed` and `drive.node_hold_released` are recorded.
+  - Trash: version 3 refuses to purge a held batch with `TRASH_HELD`, and `purge_expired_trash` skips held batches instead of failing the whole run.
+  - Tasks: `set_work_item_assignees` declares its notification variables only when it notifies, which clears the plpgsql_check warnings with `options.notify: false`.
+
+- [#469](https://github.com/ScaleDockHQ/better-supabase/pull/469) [`e983085`](https://github.com/ScaleDockHQ/better-supabase/commit/e983085ca3de04d1c3de63fec877bdf924c36e84) Thanks [@martijn00](https://github.com/martijn00)! - The AI SDK integration follows `ai` 7. `createAssistant` reads `stream`, `usage` and `finalStep` from what `run` returns and builds the UI message stream with the standalone `toUIMessageStream`; a result with only the 0.31 members (`toUIMessageStream()`, `totalUsage`, `providerMetadata`) still works until 0.33, and a result without a stream answers `500 AI_CHAT_RUN_FAILED`. `usageOf` takes `usage` and `finalStep` (the old names still work), and the agent runtime stops on `isStepCount`. `validUIMessages` checks a stored history against the app's tools and schemas through `safeValidateUIMessages`. `connectTools` takes `redirect` and `protocolVersionDiscovery`, and `connectAll` sets them per server through `serverOptions`. `aiBatches` gains `list()` over the provider's batches.
+  
+  | 0.31                                        | 0.32                            |
+  | ------------------------------------------- | ------------------------------- |
+  | `usageOf({ totalUsage, providerMetadata })` | `usageOf({ usage, finalStep })` |
+  | `AssistantRunResult.toUIMessageStream()`    | `AssistantRunResult.stream`     |
+
+- [#476](https://github.com/ScaleDockHQ/better-supabase/pull/476) [`2b35a99`](https://github.com/ScaleDockHQ/better-supabase/commit/2b35a995130760d6ab04fa2629f9c85741c1e139) Thanks [@martijn00](https://github.com/martijn00)! - The AI SDK integration covers more of the AI SDK UI.
+  
+  - `createAssistant` takes `stream` (the `toUIMessageStream` options, such as
+    `assistantMetadata`, `sendReasoning` and `sendSources`) and `validate`, which
+    checks the user's message with `safeValidateUIMessages` and answers
+    `422 AI_MESSAGE_INVALID`.
+  - `aiErrorToDbError` maps AI SDK and AI Gateway errors to `DbError`s with a fixed
+    message per kind. A provider error when the answer starts now answers with its
+    own status (a provider 429 answers 429); `aiErrorMessage` is the default
+    `onError` for stream errors, so the provider's message no longer reaches the client.
+  - `createCompletionRoute` and `createObjectRoute` serve `useCompletion` and
+    `useObject` with the quota check, gateway tags and usage in `onFinish`;
+    `useAssistantCompletion` and `useAssistantObject` are the client hooks.
+  - `useAssistant` takes a message type and passes `onToolCall`, `onData`,
+    `messageMetadataSchema` and `dataPartSchemas` to `useChat`; `assistantTransport`
+    is exported, and the fields of `AssistantTransportConfig` other than `api` are optional.
+
+- [#477](https://github.com/ScaleDockHQ/better-supabase/pull/477) [`3727603`](https://github.com/ScaleDockHQ/better-supabase/commit/3727603e3a656d365004c32291368decafec315c) Thanks [@martijn00](https://github.com/martijn00)! - Chat SDK: `stateScheduler` and `scheduledAdapter` give any adapter `scheduleMessage`, holding the
+  messages in a Chat SDK state adapter until `publishDue` (or `maintain({ scheduled })`) posts them.
+  `inboxAdapter` gains `openDM` (with the new `dmInbox` option), `reply`, `fetchChannelInfo` and
+  `listThreads`, and keeps a posted card in `metadata.card`. `better-supabase/testing` adds
+  `testChatAdapter`, a conformance kit for Chat SDK adapters.
+
+- [#471](https://github.com/ScaleDockHQ/better-supabase/pull/471) [`dcafed8`](https://github.com/ScaleDockHQ/better-supabase/commit/dcafed8c5d4373587d1bee326e9511af12136417) Thanks [@martijn00](https://github.com/martijn00)! - The Chat SDK integration follows `chat` 4.42. Inbox thread ids name the inbox (`inbox:<inboxId>:<conversationId>`), so `channelIdFromThreadId` returns `inbox:<inboxId>`; build and read them with `inboxThreadId` and `decodeInboxThreadId`. The inbox module's upgrade (version 4 to 5) rewrites stored thread ids, subscriptions and thread state. `inboxAdapter` is an `Adapter<InboxThread, InboxMessage>`, forwards `WebhookOptions` (`waitUntil`, `propagateHandlerErrors`) from `dispatch` and `handleWebhook`, takes `concurrencyScope`, implements `markAsRead` and `fetchMessages` with `direction: "forward"` (through the new `after` argument of `list_inbox_messages`), and resolves reaction names to unicode. Adapter calls throw `ChatError` with the Chat SDK code (`RateLimitError` for `rate_limited` and `quota_exceeded`, `NotImplementedError` for `unsupported`) and the `DbError` as `cause`; `chatErrorOf` does the mapping. `inboundHandler` takes `propagateHandlerErrors`, `handler.mirror` records messages from other bots and skips only the bot's own, and `deliver` retries a platform `RATE_LIMITED` reply after `retryAfterMs` (`rateLimitRetries`, `maxRetryWaitMs`).
+  
+  | 0.31                            | 0.32                                      |
+  | ------------------------------- | ----------------------------------------- |
+  | `inbox:<conversationId>`        | `inbox:<inboxId>:<conversationId>`        |
+  | `Adapter<string, InboxMessage>` | `Adapter<InboxThread, InboxMessage>`      |
+  | adapter errors are `DbError`s   | `ChatError` with the `DbError` as `cause` |
+
+- [#473](https://github.com/ScaleDockHQ/better-supabase/pull/473) [`064b342`](https://github.com/ScaleDockHQ/better-supabase/commit/064b342dfdf0b7b34cb82b9d8a662ade42d7f2bd) Thanks [@martijn00](https://github.com/martijn00)! - Vercel Connect support covers the rest of `@vercel/connect`.
+  
+  - `vercelConnectCredentials` passes a ref's `audience`, `resources`, `authorizationDetails` and
+    `validityBufferMs` through to the token request, takes a `region`, and maps Connect's error
+    codes to hinted `DbError`s (`CREDENTIAL_CONNECTOR_NOT_FOUND`, `CREDENTIAL_CONNECTOR_NOT_LINKED`,
+    `CREDENTIAL_CONNECTOR_NOT_ENABLED`, `CREDENTIAL_RATE_LIMITED`).
+  - `getToken` takes `fresh: true` to skip the token cache.
+  - `startAuthorization` returns the request, verifier, expiry and device code next to the URL, and
+    takes `deviceCode` and `prompt`.
+  - `CredentialSubject` adds `jwt-bearer` and `token` subjects for token exchange. Vercel Connect
+    accepts them and Vault refuses them.
+  - A ref with `inbound: true` verifies webhooks Connect forwards, through `@vercel/connect/chat`.
+  - MCP servers whose grant is a Vercel Connect ref connect through `connectAuthProvider` from
+    `@vercel/connect/mcp`; a consent request fails with `CONNECTOR_AUTHORIZATION_REQUIRED` and the
+    URL in `details`.
+  - eve's `credentialAuth` runs the interactive flow for providers without `completeAuthorization`
+    and shows a device code.
+  - `channelAdapter` passes a `resolve` function to `create`, so adapters read a rotated token per
+    call.
+  - Mail sync accounts and the sync report set `reconnect` when the member's grant is gone.
+  
+  The Next.js example adds an Integrations settings tab that connects Gmail and Outlook through
+  Vercel Connect.
+
+- [#480](https://github.com/ScaleDockHQ/better-supabase/pull/480) [`8b80347`](https://github.com/ScaleDockHQ/better-supabase/commit/8b80347d827376e5ae604eb2acbe29a70e14cabd) Thanks [@martijn00](https://github.com/martijn00)! - `vercelConnectCredentials()` now returns `VercelConnectCredentials`, a credential provider with the calls only Vercel Connect has: `tokenDetails` (the whole token response), `invalidateToken` (drops a cached token the provider rejected), `connectorMetadata`, `startInstallation` (a connector installation for a tenant) and `channelConfig` (a Chat SDK adapter config from `@vercel/connect/chat`).
+  
+  `installationRef(ref, installationId)` lets the app subject read a tenant's own installation; the adapter checks the token's `tenantId` against the ref's tenant. `connectSubject(user, { supabaseUrl })` builds the Connect subject for a Supabase Auth user with the project's Auth issuer, and `withConnectorToken` runs a function with a user's token or returns the consent URL when the user hasn't authorized the connector.
+
+- [#482](https://github.com/ScaleDockHQ/better-supabase/pull/482) [`33c7969`](https://github.com/ScaleDockHQ/better-supabase/commit/33c796991f9960c4eeda09bb155c579b116d142e) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/eve` runs eve tools as the session's user. `supabaseTool` wraps a tool for eve's `defineTool` and gives its `execute` the repositories from `server.forContext()`, with the agent's `act` claim and the permission keys named in `scopes`. `eveContext` builds that context, and `tenantToolApproval` applies the tenants' `auto`, `ask` and `deny` tool policies.
+  
+  `approvalPolicy` is a tool `approval` backed by the approvals block: each call files one request under `eve_tool_call`, with the steps from `blocks.approvals.options.policies.eve_tool_call.<tool>`, and an answer in eve approves or rejects as the person who gave it.
+  
+  `queueSchedules` runs the queue block's schedules from one every-minute eve schedule and starts a session for each `eve` job as its user. `scheduleAgent`, `agentJobHandler`, `jobAuth` and the `eveAgentJob` schema go with it. `openApiAuth` gives `defineOpenAPIConnection` its token from a credential provider, and `tenantArgument` fills an argument with the session's organization.
+
+- [#474](https://github.com/ScaleDockHQ/better-supabase/pull/474) [`828f361`](https://github.com/ScaleDockHQ/better-supabase/commit/828f3618497c36788b590dc8454b30998a3458e2) Thanks [@martijn00](https://github.com/martijn00)! - Feature flags keep a history and roll out on a schedule (breaking). Every `save_flag` records a revision with an optional message, and `createFlags()` gains `history(key)` and `restore(key, revision)`. `rolloutVariant` becomes `rolloutVariants`, a weighted split drawn from a second bucket so growing a rollout never moves a target between variants; `better-supabase upgrade` moves a stored variant over with weight 100. `rolloutSchedule` raises the percentage in steps, and rules can name shared segments (`saveSegment`, `segments`, `removeSegment`). The provider takes `onEvaluate`.
+  
+  `better-supabase/flags-sdk` adds `flagsDiscoveryHandler` for discovery routes outside Next.js, `explorerOverrides` and `withExplorerOverrides` for toolbar overrides on the OpenFeature path, `toFlagsSdkDefinition`, `flagDrift` and `vercelEnvironmentContext`. `better-supabase/testing` adds `flagOverrideCookie`.
+  
+  | 0.31                         | 0.32                                                |
+  | ---------------------------- | --------------------------------------------------- |
+  | `rolloutVariant: "on"`       | `rolloutVariants: [{ variant: "on", weight: 100 }]` |
+  | `rollout_variant` column     | `rollout_variants`                                  |
+  | `save_flag(key, definition)` | `save_flag(key, definition, message)`               |
+
+- [#467](https://github.com/ScaleDockHQ/better-supabase/pull/467) [`47893bc`](https://github.com/ScaleDockHQ/better-supabase/commit/47893bcfc256ecdbdbdda0435cb0202e1c805192) Thanks [@martijn00](https://github.com/martijn00)! - `better-supabase/flags-sdk` follows the Flags SDK's adapter conventions (breaking). `betterSupabaseAdapter` is now a ready adapter that reads `SUPABASE_URL` and `SUPABASE_SECRET_KEY` on first use; pass it to `flag()` as `adapter: betterSupabaseAdapter`. The old factory is `createBetterSupabaseAdapter`, which also takes `url` and `secretKey` and an `identify` every flag on it shares. `createIdentify({ server })` reads the session from the request without refreshing it, and `visitor` gives signed-out requests a stable rollout bucket. `getProviderData(adapter, { flags })` joins the declared flags for Flags Explorer. `pnpm better-supabase codemod 0.32` renames the calls.
+  
+  | 0.31                             | 0.32                                   |
+  | -------------------------------- | -------------------------------------- |
+  | `betterSupabaseAdapter(options)` | `createBetterSupabaseAdapter(options)` |
+  | `adapter: bsFlags()`             | `adapter: bsFlags`                     |
+  | `createIdentify({ claims })`     | `createIdentify({ server: bsb })`      |
+
+- [#465](https://github.com/ScaleDockHQ/better-supabase/pull/465) [`0947199`](https://github.com/ScaleDockHQ/better-supabase/commit/0947199f81aac548895eee7aa1a26142a63b5e7c) Thanks [@martijn00](https://github.com/martijn00)! - The access token can carry the caller's permission keys. The permissions block adds `better_supabase.permission_claims(user_id, tenant)` for the access token hook, which writes them under the `permissions` claim (`claims.permissions` renames it) for the active tenant, with `permissions_truncated` when they don't fit. `permissionsOf(session, tenant)` reads them back, and `permissionsAuthorizer({ permissions, load })` from `better-supabase/blocks/permissions` decides route, action and resource checks from the claim, calling `load` once per request only when the token can't answer.
+
+- [#472](https://github.com/ScaleDockHQ/better-supabase/pull/472) [`985a0eb`](https://github.com/ScaleDockHQ/better-supabase/commit/985a0eb7d3f61dc9288035f6bbd0f3f66ccd9e3f) Thanks [@martijn00](https://github.com/martijn00)! - Run jobs that Vercel Queues pushes to a route. `vercelQueueRoute(jobs, { client, handlers })` from `better-supabase/blocks/queue` wraps the `@vercel/queue` client's `handleCallback`: it checks each payload against the queue's schema, runs the handler with the same tenant context as `drain`, retries a failed delivery after `retryAfter` and acknowledges the one that reaches `maxAttempts`. `vercelQueueNodeRoute` does the same for `(req, res)` frameworks over `handleNodeCallback`. `jobs.runJob(queue, delivery, handler)` runs one pushed job for other push backends.
+  
+  `vercelQueueProvider` now accepts a `QueueClient`, which only sends (its `read` rejects), and sets `retentionSeconds` on a delayed message so a delay longer than a day is kept until it runs. Delays past 7 days throw, since Vercel Queues keeps a message at most that long. The `onReceive` option reports each `receive` result, with the reason a poll found nothing.
+
+- [#479](https://github.com/ScaleDockHQ/better-supabase/pull/479) [`1b1e24b`](https://github.com/ScaleDockHQ/better-supabase/commit/1b1e24b2e31737d1d10f5fb39355df4e3c2348a4) Thanks [@martijn00](https://github.com/martijn00)! - Vercel Queues: `vercelQueueProvider` takes `retention`, `headers` and a `consumerGroup` function per queue, hashes idempotency keys longer than 256 characters, and its `stats` points to the Vercel dashboard. New `vercelQueueTriggers` writes the `vercel.json` triggers for a push route, `vercelSendOptionsOf`, `vercelIdempotencyKey` and `vercelTopicOf` expose the send rules, and `withDeadLetters` hands jobs past their last attempt to a sink.
+
+- [#465](https://github.com/ScaleDockHQ/better-supabase/pull/465) [`059de7d`](https://github.com/ScaleDockHQ/better-supabase/commit/059de7dc6791ef8e706beaf05db52739046567a4) Thanks [@martijn00](https://github.com/martijn00)! - Breaking: the public auth names follow supabase-js and Next.js, and tenant is the public word again. Run `npx better-supabase@latest codemod 0.32`, then read the [0.31 to 0.32 guide](https://bettersupabase.com/docs/migration/0.31-to-0.32).
+  
+  | 0.31                                                  | 0.32                                                                    |
+  | ----------------------------------------------------- | ----------------------------------------------------------------------- |
+  | `auth.organization`, `requireOrganization`            | `auth.tenant`, `requireTenant`                                          |
+  | `OrganizationConfig`                                  | `TenantConfig`                                                          |
+  | `bsb.session()`, `bsb.getRequestSession()`            | `bsb.claims()`, `bsb.getClaims()`                                       |
+  | `bsb.contextForSession()`                             | `bsb.contextFromSession()` (a snapshot, or a session with `{ token }`)  |
+  | `AuthState.profile`, `AuthSession.profile`            | `userMetadata`                                                          |
+  | caller kinds and `allow` values `anon`, `service`     | `none`, `secret`                                                        |
+  | `bsb.signIn()`                                        | removed: `bsb.signInWithPassword()`                                     |
+  | `bsb.authorizeUrl()`, `OAuthStart`                    | `bsb.signInWithOAuth()`, `SignInWithOAuthParams`                        |
+  | `bsb.exchangeCode()`, `CodeExchange`                  | `bsb.exchangeCodeForSession()`, `ExchangeCodeParams`                    |
+  | `endedSession`, `checkSession`, `EndedSessionOptions` | `verifySession`, `VerifySessionOptions`                                 |
+  | `sessionEnded`, `sessionEndedReason`                  | `sessionVerified: false`, `reason` (`session_not_found`, `user_banned`) |
+  | `refreshSkewSeconds`                                  | `leeway`                                                                |
+  | `expiredPrefetch: "protect"`                          | `onExpiredPrefetch: "redirect"`                                         |
+  | `bsb.invalidateSession()`, `bsb.forgetSession()`      | `bsb.evictSession()`, which returns a promise                           |
+  | `bsb.cacheTag()`, `bsb.cacheTags()`                   | `bsb.tag()`, `bsb.tags()`                                               |
+  
+  The actor kinds (`ctx.actor.kind`), event subscribers and the Postgres roles keep `anon` and `service`.
+
+- [#481](https://github.com/ScaleDockHQ/better-supabase/pull/481) [`e291a63`](https://github.com/ScaleDockHQ/better-supabase/commit/e291a6393ac801cf6952b3eb55ef558858583f65) Thanks [@martijn00](https://github.com/martijn00)! - Add `better-supabase/vercel-sandbox`. `vercelSandboxes({ sandboxes })` gives each chat its own Vercel sandbox: `forChat` registers it in the AI chat block's `ai_sandboxes`, creates or resumes it by name, and returns an AI SDK sandbox session that marks the row used. `stop` is the stopper for the block's idle-stop job. The `untrusted`, `gatewayOnly` and `brokered` presets set the sandbox's network policy; `gatewayOnly` and `brokered` add tokens at the firewall, so code in the sandbox never holds them. `@vercel/sandbox` (`>=3 <4`) and `@ai-sdk/sandbox-vercel` (`>=1 <2`) are new optional peers.
+  
+  `better-supabase/ai-sdk` adds `codeTool()`, a tool that runs a Python, Node or Bash snippet in the call's `experimental_sandbox` with a timeout and an output cap. Hold each run for approval with `toolApproval` on the model call.
+
+- [#475](https://github.com/ScaleDockHQ/better-supabase/pull/475) [`a20f6c9`](https://github.com/ScaleDockHQ/better-supabase/commit/a20f6c98c3533ca597b0ee04f0027884a7c475b0) Thanks [@martijn00](https://github.com/martijn00)! - Workflow SDK runs start once per idempotency key, even when two starts race. The Supabase World claims the key in `workflow.workflow_run_keys` before it starts the run, and `startOnce(ctx, workflow, args, { key })` is `startFor` with a required key. `better-supabase/workflow-sdk` adds `cancelRuns` with a reason, `resumeStreamResponse` for streams a client reconnects to by chunk index, and `resumeHookFromWebhook`, which verifies a Stripe or Standard Webhooks callback and resumes the hook. The World gains `openHooks` (the hooks open runs wait on, without tokens) and `purgeRuns`.
+  
+  Ended runs no longer have to stay forever: the `workflow-sdk` block's `retention` option (`"30 days"`) deletes them every hour with pg_cron, and `better-supabase db prune-workflows --older-than 30d` does it on demand. Run `better-supabase upgrade` and generate a migration for the new table and functions.
+
+- [#468](https://github.com/ScaleDockHQ/better-supabase/pull/468) [`76800bb`](https://github.com/ScaleDockHQ/better-supabase/commit/76800bb3497a281b132634db1a3f92f6b988361e) Thanks [@martijn00](https://github.com/martijn00)! - The Workflow SDK integration follows `workflow` 5.2 (breaking for graph approvals). An approval node always files an approvals request through the runtime's `requestApproval`, which is now required, and `graphStarter` refuses a live run of a graph with an approval node unless you pass `approval`. `approvalToken` is removed, because a token derived from the run key could be guessed; resume the node with `wakeOnApproval`. The Supabase World speaks protocol 5.0.4, reads `WORKFLOW_POSTGRES_MAX_POOL_SIZE` (with `WORKFLOW_POSTGRES_MAX_CONNECTIONS` as an alias), and adds `registerRoute` and `registerHandler` so a queue prefix can go to its own route or run in-process. `approvalWaiter` and the durable chat resume use the SDK's `HookNotFoundError`, and `durableTurn` takes an optional `setAttributes` that records the turn's `bsb.phase`.
+  
+  | 0.31                          | 0.32                                                  |
+  | ----------------------------- | ----------------------------------------------------- |
+  | `approvalToken(runKey, node)` | the approvals request id `requestApproval` returns    |
+  | `graphStarter({ ... })`       | `graphStarter({ ..., approval })` for approval graphs |
+
+### Patch Changes
+
+- [#465](https://github.com/ScaleDockHQ/better-supabase/pull/465) [`322a09a`](https://github.com/ScaleDockHQ/better-supabase/commit/322a09a1a3fe30468b89a061d4b817a0e1a60299) Thanks [@martijn00](https://github.com/martijn00)! - `gen` counts a row-level `before insert` trigger as filling a column a CHECK makes not null only when its PL/pgSQL body assigns that column (`new.col := …`, `new.col = …` or `select … into new.col`). A trigger that only validates no longer makes the column optional on insert. Snapshots record the assigned columns as `fills` on the trigger.
+
 ## 0.31.0
 
 ### Minor Changes

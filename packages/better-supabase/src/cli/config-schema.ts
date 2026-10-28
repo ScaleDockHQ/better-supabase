@@ -331,6 +331,7 @@ const authorization = v.strictObject({
       tenantClaim: v.optional(v.string()),
       activeOrganizationFrom: v.optional(activeTenantSource),
       ownedClaims: v.pipe(strings, v.minLength(1, "List at least one claim")),
+      truncatedClaim: v.optional(v.string()),
       registeredClaims: v.optional(
         v.array(v.strictObject({ name: v.string(), function: v.string() })),
       ),

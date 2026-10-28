@@ -351,11 +351,20 @@ const bsb = createMcp(betterSupabase, {
 
 - `tools/call` checks the permission after the arguments are validated and
   before `run`, with `{ type: "mcp_tool", id: <tool name>, properties: <arguments> }`
-  as the resource. A denial is a tool error with `kind: "forbidden"`,
-  `code: "PERMISSION_DENIED"` (or `APPROVAL_REQUIRED`) and the permission
-  key.
-- `tools/list` hides the tools the caller is denied. Tools that share a
-  permission are checked in one batch.
+  as the resource, `source: "input"`, and `intent: "read"` in the context
+  when the tool's `readOnlyHint` is `true` (`"write"` otherwise). A denial
+  is a tool error with `kind: "forbidden"`, `code: "PERMISSION_DENIED"` (or
+  `APPROVAL_REQUIRED`) and the permission key, also in `structuredContent`.
+- `approval-required` puts the approval id in
+  `structuredContent.approval.id`. The client calls the tool again with
+  `_meta: { approval: <id> }` in the `tools/call` params, or with the header
+  named in `approval: { header }`, and the authorizer reads it from
+  `context.approval`.
+- `tools/list` hides the tools the caller is denied, and keeps the tools
+  that need an approval, so the client can call them and resume. Tools that
+  share a permission are checked in one batch.
+- `versions` hands the library's version cache to every decision, as on
+  `createServer`.
 - Without an authorizer, a tool with a `permission` is hidden and refused,
   so a forgotten setup never opens it. The first `tools/list` logs one
   warning that names the hidden tools.

@@ -9,6 +9,7 @@ import {
   moduleKeyProblems,
   providerLabel,
   unsafeKey,
+  sqlCompleteKeys,
 } from "../../src/cli/authorization.ts";
 import { resolveConfig } from "../../src/config/index.ts";
 import {
@@ -170,7 +171,37 @@ describe("accessProviderMode", () => {
         scopes: ["organization", "project"],
         idType: "uuid",
         functions: stubProvider.functions,
+        sqlCompleteKeys: sqlCompleteKeys(stubProvider),
+        truncatedClaim: "memberships_truncated",
       },
+    });
+  });
+
+  it("passes on the sqlComplete keys and whether the hook owns permissions", () => {
+    const base = config();
+
+    const owning = {
+      ...base,
+      authorization: {
+        ...stubProvider,
+        permissions: [
+          { key: "projects.read", sqlComplete: true },
+          { key: "projects.share" },
+        ],
+        tokenHook: {
+          function: "authz.hook",
+          ownedClaims: ["memberships", "permissions"],
+          truncatedClaim: "perms_partial",
+        },
+      },
+    };
+
+    const mode = accessProviderMode(owning);
+
+    expect(mode.kind === "provider" ? mode.access : undefined).toMatchObject({
+      sqlCompleteKeys: ["projects.read"],
+      ownsPermissions: true,
+      truncatedClaim: "perms_partial",
     });
   });
 

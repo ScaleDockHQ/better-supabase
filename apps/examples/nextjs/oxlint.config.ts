@@ -4,13 +4,14 @@ import { defineConfig } from "oxlint";
 import root, {
   ignorePatterns,
   next,
+  playwright,
   react,
   shadcn,
   settings,
 } from "../../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [root, react, next, shadcn],
+  extends: [root, react, next, shadcn, playwright],
   settings,
   ignorePatterns: [
     ...ignorePatterns,

@@ -4,11 +4,12 @@ import { defineConfig } from "oxlint";
 import root, {
   ignorePatterns,
   react,
+  reactNative,
   settings,
 } from "../../../oxlint.config.ts";
 
 export default defineConfig({
-  extends: [root, react],
+  extends: [root, react, reactNative],
   settings,
   ignorePatterns: [
     ...ignorePatterns,

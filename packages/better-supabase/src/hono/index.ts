@@ -8,7 +8,11 @@ import { routePath } from "hono/route";
 import type { AuthState } from "../auth/resolve.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthSession } from "../auth/view.ts";
-import type { AnyAuthorizer, PermissionRef } from "../core/authorizer.ts";
+import type {
+  AnyAuthorizer,
+  AuthzVersionCache,
+  PermissionRef,
+} from "../core/authorizer.ts";
 import type { BetterSupabase } from "../core/define.ts";
 import type { AnyFunctions, AnyModels, TableKey } from "../schema/types.ts";
 import type { CorsOptions } from "../server/cors.ts";
@@ -127,7 +131,8 @@ export interface BetterHono<
   P = unknown,
   Ref = string,
   B = unknown,
-> extends BetterServer<M, F, E, C, P, B> {
+  V extends AuthzVersionCache = AuthzVersionCache,
+> extends BetterServer<M, F, E, C, P, B, V> {
   /**
    * The app's Hono `Env`, for `new Hono<typeof bsb.Env>()` and `Context<typeof
    * bsb.Env>`. Type only: `undefined` at runtime.
@@ -243,15 +248,19 @@ export function createHono<
   E,
   C = unknown,
   P = unknown,
-  A extends AnyAuthorizer | undefined = undefined,
+  A extends AnyAuthorizer<V> | undefined = undefined,
   B = unknown,
+  V extends AuthzVersionCache = AuthzVersionCache,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: HonoOptions & { readonly authorizer?: A } = {},
-): BetterHono<M, F, E, C, P, PermissionRef<A>, B> {
+  options: HonoOptions & {
+    readonly authorizer?: A;
+    readonly versions?: V;
+  } = {},
+): BetterHono<M, F, E, C, P, PermissionRef<A>, B, V> {
   // SAFETY: a shared server was built from the same BetterSupabase, so its type parameters match.
   const server =
-    (options.server as BetterServer<M, F, E, C, P, B> | undefined) ??
+    (options.server as BetterServer<M, F, E, C, P, B, V> | undefined) ??
     createServer(betterSupabase, options);
 
   const expose = options.exposeErrors ?? defaultExpose();
@@ -301,168 +310,173 @@ export function createHono<
     }
   };
 
-  return extendServer<BetterHono<M, F, E, C, P, PermissionRef<A>, B>>(server, {
-    // SAFETY: `Env` only carries a type, like Drizzle's `$inferSelect`; reading
-    // it at runtime is documented as `undefined`.
-    // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- a type-only marker has no runtime value to narrow.
-    Env: undefined as unknown as HonoEnv<M, F, E, C, P, B>,
-    onError,
+  return extendServer<BetterHono<M, F, E, C, P, PermissionRef<A>, B, V>>(
+    server,
+    {
+      // SAFETY: `Env` only carries a type, like Drizzle's `$inferSelect`; reading
+      // it at runtime is documented as `undefined`.
+      // oxlint-disable-next-line anti-slop/no-chained-type-assertions -- a type-only marker has no runtime value to narrow.
+      Env: undefined as unknown as HonoEnv<M, F, E, C, P, B>,
+      onError,
 
-    app() {
-      const app = new Hono<HonoEnv<M, F, E, C, P, B>>().onError(onError);
+      app() {
+        const app = new Hono<HonoEnv<M, F, E, C, P, B>>().onError(onError);
 
-      if (corsMiddleware) {
-        app.use("*", corsMiddleware);
-      }
-
-      return app;
-    },
-
-    middleware(middlewareOptions = {}) {
-      assertCookieRefresh(middlewareOptions);
-
-      const run = honoMiddleware(
-        [withBetterSupabase(server, { ...middlewareOptions, expose })],
-        (c, ctx) => {
-          // SAFETY: withBetterSupabase(server) contributes this server's ServerContext as `bsb`.
-          const bsb = (ctx as { readonly bsb: ServerContext<M, F, E, C, P, B> })
-            .bsb;
-
-          // SAFETY: withBetterSupabase contributes the resolved tenant as `tenant`.
-          const { tenant } = ctx as { readonly tenant: string | undefined };
-          c.set("bsb", bsb);
-          c.set("db", bsb.db);
-          c.set("auth", bsb.auth);
-          c.set("session", toSession(bsb.auth));
-          c.set("snapshot", snapshotOf(bsb.auth));
-          c.set("tenant", tenant);
-        },
-      );
-
-      return async (c, next) => {
-        try {
-          await run(c, next);
-        } finally {
-          flushEvents(server, waitUntilOf(c));
-        }
-      };
-    },
-
-    require:
-      (requireOptions = {}) =>
-      async (c, next) => {
-        const ctx = contextOf(c);
-
-        const caller = await requireCaller(
-          ctx.auth,
-          requireOptions,
-          c.get("tenant"),
-          server.authorizer,
-          ctx,
-        );
-
-        if ("kind" in caller) {
-          return problemResponse(caller, {
-            instance: new URL(c.req.url).pathname,
-            expose,
-          });
+        if (corsMiddleware) {
+          app.use("*", corsMiddleware);
         }
 
-        return next();
+        return app;
       },
 
-    rateLimit(rateLimitOptions) {
-      const gate = rateLimitGate(rateLimitOptions);
+      middleware(middlewareOptions = {}) {
+        assertCookieRefresh(middlewareOptions);
 
-      return async (c, next) => {
-        const outcome = await gate(c);
+        const run = honoMiddleware(
+          [withBetterSupabase(server, { ...middlewareOptions, expose })],
+          (c, ctx) => {
+            // SAFETY: withBetterSupabase(server) contributes this server's ServerContext as `bsb`.
+            const bsb = (
+              ctx as { readonly bsb: ServerContext<M, F, E, C, P, B> }
+            ).bsb;
 
-        if (outcome.kind === "deny") {
-          return problemResponse(outcome.error, {
-            instance: new URL(c.req.url).pathname,
-            expose,
-            headers: outcome.headers,
-            format: rateLimitOptions.problem,
-          });
-        }
+            // SAFETY: withBetterSupabase contributes the resolved tenant as `tenant`.
+            const { tenant } = ctx as { readonly tenant: string | undefined };
+            c.set("bsb", bsb);
+            c.set("db", bsb.db);
+            c.set("auth", bsb.auth);
+            c.set("session", toSession(bsb.auth));
+            c.set("snapshot", snapshotOf(bsb.auth));
+            c.set("tenant", tenant);
+          },
+        );
 
-        await next();
-
-        if (outcome.kind === "allow") {
-          for (const [name, value] of outcome.headers) {
-            c.header(name, value);
+        return async (c, next) => {
+          try {
+            await run(c, next);
+          } finally {
+            flushEvents(server, waitUntilOf(c));
           }
-        }
+        };
+      },
 
-        return;
-      };
-    },
+      require:
+        (requireOptions = {}) =>
+        async (c, next) => {
+          const ctx = contextOf(c);
 
-    handler(fn, handlerOptions = {}) {
-      return (c) => {
-        const ctx = contextOf(c);
-
-        return respond(() => fn(c, ctx), {
-          instance: new URL(c.req.url).pathname,
-          expose,
-          ...handlerOptions,
-        });
-      };
-    },
-
-    resource(table, resourceOptions) {
-      const resource = defineResource(
-        betterSupabase,
-        table,
-        resourceOptions,
-        server.authorizer,
-      );
-
-      const { keyParam } = resource;
-      const app = new Hono<HonoEnv<M, F, E, C, P, B>>();
-
-      // Every route matches through `matchResource`, which also picks an
-      // action over an id; the routes are listed for `app.routes`.
-      const serve =
-        (pattern: string) =>
-        async (c: Context<HonoEnv<M, F, E, C, P, B>>): Promise<Response> => {
-          const { pathname } = new URL(c.req.url);
-
-          const mounted =
-            segmentsOf(routePath(c)).length - segmentsOf(pattern).length;
-
-          const route = matchResource(
-            resource,
-            segmentsOf(pathname).slice(mounted),
-            pathname,
+          const caller = await requireCaller(
+            ctx.auth,
+            requireOptions,
+            c.get("tenant"),
+            server.authorizer,
+            ctx,
+            c.req.method,
           );
 
-          if (route instanceof Response) {
-            return route;
+          if ("kind" in caller) {
+            return problemResponse(caller, {
+              instance: new URL(c.req.url).pathname,
+              expose,
+            });
           }
 
-          return resource.serve(c.req.raw, contextOf(c).db, route.segments, {
-            instance: pathname,
+          return next();
+        },
+
+      rateLimit(rateLimitOptions) {
+        const gate = rateLimitGate(rateLimitOptions);
+
+        return async (c, next) => {
+          const outcome = await gate(c);
+
+          if (outcome.kind === "deny") {
+            return problemResponse(outcome.error, {
+              instance: new URL(c.req.url).pathname,
+              expose,
+              headers: outcome.headers,
+              format: rateLimitOptions.problem,
+            });
+          }
+
+          await next();
+
+          if (outcome.kind === "allow") {
+            for (const [name, value] of outcome.headers) {
+              c.header(name, value);
+            }
+          }
+
+          return;
+        };
+      },
+
+      handler(fn, handlerOptions = {}) {
+        return (c) => {
+          const ctx = contextOf(c);
+
+          return respond(() => fn(c, ctx), {
+            instance: new URL(c.req.url).pathname,
             expose,
+            ...handlerOptions,
           });
         };
+      },
 
-      const patterns = [
-        "/",
-        ...resource.plan.actions.map(
-          (action) =>
-            `/${action.segments.map((segment) => (segment.startsWith("{") ? `:${keyParam}` : segment)).join("/")}`,
-        ),
-        ...resource.plan.verbs.map((verb) => `/${verb}`),
-        ...(keyParam ? [`/:${keyParam}`] : []),
-        "/*",
-      ];
+      resource(table, resourceOptions) {
+        const resource = defineResource(
+          betterSupabase,
+          table,
+          resourceOptions,
+          server.authorizer,
+        );
 
-      for (const pattern of patterns) {
-        app.all(pattern, serve(pattern));
-      }
+        const { keyParam } = resource;
+        const app = new Hono<HonoEnv<M, F, E, C, P, B>>();
 
-      return app;
+        // Every route matches through `matchResource`, which also picks an
+        // action over an id; the routes are listed for `app.routes`.
+        const serve =
+          (pattern: string) =>
+          async (c: Context<HonoEnv<M, F, E, C, P, B>>): Promise<Response> => {
+            const { pathname } = new URL(c.req.url);
+
+            const mounted =
+              segmentsOf(routePath(c)).length - segmentsOf(pattern).length;
+
+            const route = matchResource(
+              resource,
+              segmentsOf(pathname).slice(mounted),
+              pathname,
+            );
+
+            if (route instanceof Response) {
+              return route;
+            }
+
+            return resource.serve(c.req.raw, contextOf(c).db, route.segments, {
+              instance: pathname,
+              expose,
+            });
+          };
+
+        const patterns = [
+          "/",
+          ...resource.plan.actions.map(
+            (action) =>
+              `/${action.segments.map((segment) => (segment.startsWith("{") ? `:${keyParam}` : segment)).join("/")}`,
+          ),
+          ...resource.plan.verbs.map((verb) => `/${verb}`),
+          ...(keyParam ? [`/:${keyParam}`] : []),
+          "/*",
+        ];
+
+        for (const pattern of patterns) {
+          app.all(pattern, serve(pattern));
+        }
+
+        return app;
+      },
     },
-  });
+  );
 }

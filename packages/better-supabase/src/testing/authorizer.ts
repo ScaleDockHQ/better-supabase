@@ -6,11 +6,8 @@ import type {
 import type { RequestContext } from "../core/plugin.ts";
 import type { ConformanceReport } from "./conformance.ts";
 
-import {
-  checkPermission,
-  defineAuthorizer,
-  requestOf,
-} from "../core/authorizer.ts";
+import { checkPermission, defineAuthorizer } from "../core/authorizer.ts";
+import { authorizationRequest } from "./authorization.ts";
 import { conform, expect, frozenCopy, same } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
@@ -58,30 +55,48 @@ const FORGED = {
  * string each time (and after a JSON round trip, so references are plain JSON),
  * answers every request with a known outcome without mutating it, keeps the
  * request order in `evaluations`, decides from the subject rather than the
- * input (forged roles, claims and memberships in the resource properties or the
- * context never turn a denial into a grant), never grants an unknown
- * permission, and grants `options.granted` through `checkPermission`.
+ * input (forged roles, claims and memberships in the resource properties, a
+ * `source: "input"` resource, its `change` or the context never turn a denial
+ * into a grant), never grants an unknown permission, and grants
+ * `options.granted` through `checkPermission`.
  */
 export function testAuthorizer<Ref>(
   authorizer: Authorizer<Ref>,
   options: TestAuthorizerOptions<Ref>,
 ): Promise<ConformanceReport> {
-  const { subject, context } = requestOf(undefined);
-
   const requestFor = (
     action: Ref,
     id: string,
     properties?: Readonly<Record<string, unknown>>,
-  ): AuthorizationRequest<Ref> => ({
-    subject,
-    action,
-    resource: {
-      type: "conformance",
-      id,
-      ...(properties ? { properties } : {}),
-    },
-    context,
-  });
+  ): AuthorizationRequest<Ref> =>
+    authorizationRequest({
+      action,
+      resource: {
+        type: "conformance",
+        id,
+        source: "loaded",
+        ...(properties ? { properties } : {}),
+      },
+      context: { intent: "read", operation: "get", requestId: "conformance" },
+    });
+
+  const writeFor = (action: Ref): AuthorizationRequest<Ref> =>
+    authorizationRequest({
+      action,
+      resource: {
+        type: "conformance",
+        id: "a",
+        source: "input",
+        properties: FORGED,
+        change: { current: { id: "a" }, next: FORGED },
+      },
+      context: {
+        intent: "write",
+        operation: "update",
+        requestId: "conformance",
+        approval: "conformance",
+      },
+    });
 
   const requests = options.permissions.flatMap((permission) =>
     ["a", "b", "c"].map((id) => requestFor(permission, id)),
@@ -125,7 +140,10 @@ export function testAuthorizer<Ref>(
     [
       "answers every request with a known outcome, without mutating it",
       async () => {
-        for (const request of requests) {
+        for (const request of [
+          ...requests,
+          ...options.permissions.map(writeFor),
+        ]) {
           const outcome = await authorizer.evaluate(frozenCopy(request));
           expect(
             isOutcome(outcome),
@@ -177,12 +195,16 @@ export function testAuthorizer<Ref>(
             requestFor(permission, "a", FORGED),
           );
 
+          const plainRequest = requestFor(permission, "a");
+
           const forgedContext = await authorizer.evaluate({
-            ...requestFor(permission, "a"),
-            context: { ...context, ...FORGED },
+            ...plainRequest,
+            context: { ...plainRequest.context, ...FORGED },
           });
 
-          for (const forged of [forgedResource, forgedContext]) {
+          const forgedInput = await authorizer.evaluate(writeFor(permission));
+
+          for (const forged of [forgedResource, forgedContext, forgedInput]) {
             expect(
               forged.outcome !== "granted" || plain.outcome === "granted",
               `input claiming a service caller was granted ${authorizer.key(permission)}`,

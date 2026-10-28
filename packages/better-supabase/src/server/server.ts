@@ -10,6 +10,7 @@ import type {
   ResolvePhase,
 } from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
+import type { AuthzVersionCache, RequestMemo } from "../core/authorizer.ts";
 import type {
   DelegationPermissions,
   TicketSubject,
@@ -83,6 +84,13 @@ import { endSessions, suspendAccount } from "./suspend-account.ts";
 /** The header `better_supabase.acting_member()` reads for a service caller. */
 const ACTOR_HEADER = "x-bsb-actor";
 
+const APPROVAL_PATTERN = /^[A-Za-z0-9._:;,@/+=-]{1,256}$/;
+
+/** A scope's request ids plus the approval id the client resumes with. */
+interface ScopeIds extends RequestIds {
+  readonly approval?: string;
+}
+
 /** The environment as `getEnv` resolves it, one variable at a time. */
 const RUNTIME_ENV: EnvSource = new Proxy<EnvSource>(
   {},
@@ -154,10 +162,11 @@ export function createServer<
   C = unknown,
   P = unknown,
   B = unknown,
+  V extends AuthzVersionCache = AuthzVersionCache,
 >(
   betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
-  options: ServerOptions = {},
-): BetterServer<M, F, E, C, P, B> {
+  options: ServerOptions<V> = {},
+): BetterServer<M, F, E, C, P, B, V> {
   const credentials =
     options.credentials === undefined
       ? {}
@@ -274,6 +283,30 @@ export function createServer<
 
   const pinMs = options.replicas?.pinMs ?? DEFAULT_PIN_MS;
   const idPolicy = requestIdPolicy(options.requestIds);
+  const approvalHeader = options.approval?.header?.toLowerCase();
+
+  /**
+   * The request ids, and the approval id from `contextOptions.approval` or the
+   * configured header. Without `ServerOptions.approval.header` no header is
+   * read.
+   */
+  const scopeIds = (
+    request: Request | undefined,
+    contextOptions: ContextOptions,
+  ): ScopeIds => {
+    const approval =
+      contextOptions.approval ??
+      (approvalHeader && request
+        ? (request.headers.get(approvalHeader) ?? undefined)
+        : undefined);
+
+    return {
+      ...idPolicy.forRequest(request, contextOptions),
+      ...(approval !== undefined && APPROVAL_PATTERN.test(approval)
+        ? { approval }
+        : {}),
+    };
+  };
 
   if (options.support && !options.postgres) {
     throw new TypeError(
@@ -302,6 +335,22 @@ export function createServer<
     : supportOff;
 
   /**
+   * The authorization scope of one context: its memo and the request id every
+   * check in the scope shares.
+   */
+  const authzScope = (
+    ids: ScopeIds,
+  ): {
+    readonly memo: RequestMemo;
+    readonly requestId?: string;
+    readonly approval?: string;
+  } => ({
+    memo: requestMemo(),
+    ...(ids.requestId === undefined ? {} : { requestId: ids.requestId }),
+    ...(ids.approval === undefined ? {} : { approval: ids.approval }),
+  });
+
+  /**
    * The target's context in a support session. Queries run over direct Postgres
    * with the target's claims plus `act`, read-only unless the session allows
    * writes; nothing reaches Supabase with the admin's token.
@@ -311,7 +360,7 @@ export function createServer<
     active: ActiveSupport,
     parent: StatsRecorder | undefined,
     tenant: string | undefined,
-    ids: RequestIds,
+    ids: ScopeIds,
   ): ServerContext<M, F, E, C, P, B> => {
     const { session, claims } = active;
 
@@ -351,9 +400,13 @@ export function createServer<
 
     const scope = tenant ?? session.tenant;
     const base = userContext(user, claims);
+    const authz = authzScope(ids);
 
-    const context: RequestContext =
-      scope === undefined ? base : { ...base, tenant: scope };
+    const context: RequestContext = {
+      ...base,
+      ...(scope === undefined ? {} : { tenant: scope }),
+      ...authz,
+    };
 
     const sessionOptions = sessionWith(ids, scope, session.readOnly);
     const recorder = new StatsRecorder(parent);
@@ -406,7 +459,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
-      memo: requestMemo(),
+      memo: authz.memo,
       auth,
       resolution,
       support: active,
@@ -455,13 +508,17 @@ export function createServer<
     auth: Extract<AuthState, { kind: "apiKey" }>,
     parent: StatsRecorder | undefined,
     tenant: string | undefined,
-    ids: RequestIds,
+    ids: ScopeIds,
   ): ServerContext<M, F, E, C, P, B> => {
     const scope = tenant ?? auth.organizationId;
     const base = authContext(auth);
+    const authz = authzScope(ids);
 
-    const context: RequestContext =
-      scope === undefined ? base : { ...base, tenant: scope };
+    const context: RequestContext = {
+      ...base,
+      ...(scope === undefined ? {} : { tenant: scope }),
+      ...authz,
+    };
 
     const session = sessionWith(ids, scope);
     const recorder = new StatsRecorder(parent);
@@ -471,7 +528,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
-      memo: requestMemo(),
+      memo: authz.memo,
       auth: resolution.auth,
       resolution,
       get supabase(): SupabaseClient {
@@ -511,7 +568,7 @@ export function createServer<
     until = 0,
     tenant?: string,
     active?: ActiveSupport,
-    ids: RequestIds = {},
+    ids: ScopeIds = {},
   ): ServerContext<M, F, E, C, P, B> => {
     if (active) {
       return supportContextFor(resolution, active, parent, tenant, ids);
@@ -523,10 +580,13 @@ export function createServer<
       return apiKeyContextFor(resolution, auth, parent, tenant, ids);
     }
 
-    const context: RequestContext =
-      tenant === undefined
-        ? authContext(auth)
-        : { ...authContext(auth), tenant };
+    const authz = authzScope(ids);
+
+    const context: RequestContext = {
+      ...authContext(auth),
+      ...(tenant === undefined ? {} : { tenant }),
+      ...authz,
+    };
 
     const clientHeaders =
       tenant === undefined
@@ -566,7 +626,7 @@ export function createServer<
     return {
       ...credentials,
       ...ids,
-      memo: requestMemo(),
+      memo: authz.memo,
       auth,
       resolution,
       get supabase() {
@@ -651,7 +711,7 @@ export function createServer<
         (readUrl() ? pinnedUntil(resolution.requestCookies) : 0),
       tenant,
       contextOptions.support,
-      idPolicy.forRequest(request, contextOptions),
+      scopeIds(request, contextOptions),
     );
 
   const resolve = async (
@@ -768,11 +828,11 @@ export function createServer<
           contextOptions.pinnedUntil,
           contextOptions.tenant,
           contextOptions.support,
-          idPolicy.forRequest(undefined, contextOptions),
+          scopeIds(undefined, contextOptions),
         ),
     });
 
-  const server: BetterServer<M, F, E, C, P, B> = {
+  const server: BetterServer<M, F, E, C, P, B, V> = {
     get env() {
       return env();
     },
@@ -817,7 +877,7 @@ export function createServer<
         contextOptions.pinnedUntil,
         contextOptions.tenant,
         contextOptions.support,
-        idPolicy.forRequest(undefined, contextOptions),
+        scopeIds(undefined, contextOptions),
       ),
     context(request, contextOptions = {}) {
       const { refresh, cookies, ...rest } = contextOptions;

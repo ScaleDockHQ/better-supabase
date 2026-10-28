@@ -27,6 +27,7 @@ const INTEGRATIONS = [
   "@vercel/connect",
   "@vercel/queue",
   "@vercel/sandbox",
+  "eve",
   "flags",
   "stripe",
   "yjs",

@@ -390,6 +390,49 @@ describe("BS407", () => {
       await runRules(context(withHook([writer]), { config }), only("BS407")),
     ).toHaveLength(1);
   });
+
+  it("reports a second permissions writer when the provider owns the claim", async () => {
+    const owning = resolveConfig(
+      {
+        auth: {
+          authorization: {
+            ...stubProvider,
+            tokenHook: {
+              ...stubProvider.tokenHook,
+              ownedClaims: ["memberships", "permissions"],
+            },
+          },
+        },
+      },
+      "/project",
+    );
+
+    const leaving = resolveConfig(
+      { auth: { authorization: stubProvider } },
+      "/project",
+    );
+
+    const caller = hookFn({
+      source:
+        "begin return jsonb_set(event, '{claims,perms}', better_supabase.permission_claims(uid)); end",
+    });
+
+    expect(
+      await runRules(
+        context(withHook([caller]), { config: leaving }),
+        only("BS407"),
+      ),
+    ).toEqual([]);
+
+    const [finding] = await runRules(
+      context(withHook([caller]), { config: owning }),
+      only("BS407"),
+    );
+
+    expect(finding?.message).toContain(
+      "calls better_supabase.permission_claims",
+    );
+  });
 });
 
 describe("BS410 HTTP auth hooks", () => {

@@ -59,6 +59,8 @@ function claimsLimits(context: DoctorContext): ClaimsLimits {
 /** The module function that fills the `memberships` claim. */
 const MODULE_MEMBERSHIPS = /better_supabase\s*\.\s*membership_claims\b/i;
 
+const MODULE_PERMISSIONS = /better_supabase\s*\.\s*permission_claims\b/i;
+
 const providerHook = (
   context: DoctorContext,
 ): AuthorizationTokenHook | undefined =>
@@ -782,7 +784,7 @@ export const HOOK_RULES: readonly Rule[] = [
     severity: "error",
     title: "Two authorization hooks",
     description:
-      "When the authorization provider's hook (`authorization.tokenHook`) owns claims such as `memberships`, `roles` or the tenant claim, a custom access token hook that also calls `better_supabase.membership_claims`, or writes one of those claims itself, gives them a second source that drifts from the provider's. Use the provider's hook and drop the extra writes. Claims the provider's hook fills from other functions (`registeredClaims`, such as `features` from `better_supabase.feature_claims`) are not reported; a hook that wraps the provider's and writes one of those claims again is.",
+      "When the authorization provider's hook (`authorization.tokenHook`) owns claims such as `memberships`, `permissions`, `roles` or the tenant claim, a custom access token hook that also calls `better_supabase.membership_claims` or `better_supabase.permission_claims`, or writes one of those claims itself, gives them a second source that drifts from the provider's. Use the provider's hook and drop the extra writes. Claims the provider's hook fills from other functions (`registeredClaims`, such as `features` from `better_supabase.feature_claims`) are not reported; a hook that wraps the provider's and writes one of those claims again is.",
     check: (context) => {
       const provider = context.config.authorization;
       const hook = provider?.tokenHook;
@@ -816,6 +818,10 @@ export const HOOK_RULES: readonly Rule[] = [
           const module =
             owned.includes("memberships") && MODULE_MEMBERSHIPS.test(fn.source);
 
+          const permissionModule =
+            owned.includes(context.config.claims.permissions) &&
+            MODULE_PERMISSIONS.test(fn.source);
+
           const wrapper = wrapsProviderHook(hook, fn.source);
 
           const written = writtenClaims(fn.source, [
@@ -823,7 +829,7 @@ export const HOOK_RULES: readonly Rule[] = [
             ...(wrapper ? registered.keys() : []),
           ]);
 
-          if (!module && written.length === 0) {
+          if (!module && !permissionModule && written.length === 0) {
             continue;
           }
 
@@ -831,6 +837,9 @@ export const HOOK_RULES: readonly Rule[] = [
 
           const what = [
             ...(module ? ["calls better_supabase.membership_claims"] : []),
+            ...(permissionModule
+              ? ["calls better_supabase.permission_claims"]
+              : []),
             ...(written.length > 0 ? [`writes ${written.join(", ")}`] : []),
           ].join(" and ");
 

@@ -1,13 +1,13 @@
-import type { AuthSnapshot } from "../client/bind.ts";
-import type { AuthSession } from "./view.ts";
+import type { ClaimsSource } from "./claims-source.ts";
 
 import { claimAt, tenantClaimPaths } from "../core/claims.ts";
+import { claimsFrom } from "./claims-source.ts";
 
 /**
  * The active tenant of a user session: the `claim` claim (`tenant_id` by
  * default, as `config.claims.tenant`) at the top level of the token, then in
- * `app_metadata`. `undefined` for every other session. Takes a server session
- * or the client's `useAuth()` snapshot.
+ * `app_metadata`. `undefined` for every other session. Takes a server session,
+ * the client's `useAuth()` snapshot or verified claims.
  *
  * ```ts
  * const organizationId = tenantOf(await bsb.claims());
@@ -15,10 +15,10 @@ import { claimAt, tenantClaimPaths } from "../core/claims.ts";
  * ```
  */
 export function tenantOf<C, P>(
-  session: AuthSession<C, P> | AuthSnapshot,
+  session: ClaimsSource<C, P>,
   claim?: string,
 ): string | undefined {
-  const claims = claimsOf(session);
+  const claims = claimsFrom(session);
 
   if (claims === undefined) {
     return undefined;
@@ -33,14 +33,4 @@ export function tenantOf<C, P>(
   }
 
   return undefined;
-}
-
-function claimsOf<C, P>(
-  session: AuthSession<C, P> | AuthSnapshot,
-): Readonly<Record<string, unknown>> | undefined {
-  if ("kind" in session) {
-    return session.kind === "user" ? session.claims : undefined;
-  }
-
-  return session.status === "signed-in" ? session.claims : undefined;
 }

@@ -1,6 +1,10 @@
 import type { BlockSqlContext } from "../context.ts";
-import type { BlockSqlLayout } from "../module-types.ts";
+import type {
+  BlockSqlAccessProvider,
+  BlockSqlLayout,
+} from "../module-types.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { accessModel } from "./permissions-model.ts";
 
 /**
@@ -70,4 +74,60 @@ as $$
     else coalesce(jsonb_strip_nulls(jsonb_build_object(permission_claims.tenant::text, ${keys})), '{}'::jsonb)
   end
 $$;`;
+}
+
+/**
+ * `keys` without the keys the provider doesn't mark `sqlComplete`, so the
+ * `permissions` claim never grants what the SQL functions can't decide. A
+ * provider built without `sqlCompleteKeys` keeps every key.
+ */
+export function sqlCompleteOnly(
+  provider: BlockSqlAccessProvider,
+  keys: string,
+): string {
+  if (provider.sqlCompleteKeys === undefined) {
+    return keys;
+  }
+
+  if (provider.sqlCompleteKeys.length === 0) {
+    return "'{}'::text[]";
+  }
+
+  const complete = provider.sqlCompleteKeys.map(sqlString).join(", ");
+
+  return `coalesce(array(select k from unnest(${keys}) as k where k = any(array[${complete}]::text[])), '{}'::text[])`;
+}
+
+/**
+ * How an access token hook writes the `permissions` claim, as a comment. A
+ * provider whose hook owns the claim gets a note instead, so the app's hook
+ * doesn't write it a second time.
+ */
+export function permissionClaimHook(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
+  const claim = ctx.claims.permissions;
+  const provider = layout.accessProvider;
+
+  if (provider?.ownsPermissions === true) {
+    return `-- The permission claim: ${provider.name}'s access token hook writes
+-- "${claim}" itself, so leave it out of any other hook.`;
+  }
+
+  const marker = provider?.truncatedClaim ?? `${claim}_truncated`;
+
+  return `-- The permission claim: { [tenant id]: permission keys }, for the access
+-- token hook when the app checks permissions from the token. Write the
+-- active tenant only, and mark the claim truncated when it outgrows the
+-- token budget, so readers ask the database instead:
+--   declare
+--     tenant text := event #>> '{claims,app_metadata,${ctx.claims.tenant}}';
+--     keys jsonb := better_supabase.permission_claims((event ->> 'user_id')::uuid, tenant::${ctx.idType});
+--   begin
+--     if octet_length(keys::text) > 2048 then
+--       event := jsonb_set(event, '{claims,${marker}}', 'true');
+--       keys := '{}'::jsonb;
+--     end if;
+--     return jsonb_set(event, '{claims,${claim}}', keys);`;
 }

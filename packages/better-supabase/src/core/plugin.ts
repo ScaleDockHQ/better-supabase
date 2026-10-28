@@ -10,6 +10,7 @@ import type {
   TableFlags,
   TableMeta,
 } from "../schema/types.ts";
+import type { RequestMemo } from "./authorizer.ts";
 import type { ErrorMapper } from "./errors.ts";
 import type { Executor } from "./executor.ts";
 
@@ -32,6 +33,19 @@ export interface RequestContext {
   readonly actor?: Actor;
   readonly tenant?: string;
   readonly claims?: Readonly<Record<string, unknown>>;
+  /**
+   * The server's request id (`ServerContext.requestId`): the `x-request-id`
+   * header or a generated one. A client can send it, so it is for logs and
+   * audit; share work within a request through `memo`.
+   */
+  readonly requestId?: string;
+  /** The scope's memo, passed to the authorizer as `runtime.memo`. */
+  readonly memo?: RequestMemo;
+  /**
+   * The approval id the client resumes with, read from the header in
+   * `ServerOptions.approval`. Never part of the subject.
+   */
+  readonly approval?: string;
   readonly [key: string]: unknown;
 }
 

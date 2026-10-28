@@ -254,7 +254,28 @@ const ctx = server.contextFor(auth, {
 
 `ctx.requestId` and `ctx.correlationId` hold the ids, for an
 [audit event](/docs/blocks/audit#recording-events) written with a
-service-role transport or a log line.
+service-role transport or a log line. The authorizer gets the request id as
+`context.requestId` on every check (see
+[Authorizers](/docs/extending/authorizers#the-request)).
+
+## Approval ids
+
+An authorizer that answers `approval-required` returns an approval id. The
+client resumes by sending the call again with that id in the header you name
+with `approval`:
+
+```ts
+export const bsb = createServer(betterSupabase, {
+  authorizer,
+  approval: { header: "x-approval-id" },
+});
+```
+
+Without `approval.header`, no header is read. The id must be 1 to 256
+characters from `A-Z`, `a-z`, `0-9` and `. _ : ; , @ / + = -`, and anything
+else is dropped. It reaches `ctx.approval` and the authorizer's
+`context.approval`, never the subject, so the authorizer grants only an id it
+issued and someone approved. A job passes `approval` to `contextFor` instead.
 
 ## Active tenant
 

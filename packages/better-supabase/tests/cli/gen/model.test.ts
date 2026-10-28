@@ -456,6 +456,47 @@ describe('bucket policies with sql: "provider"', () => {
   });
 });
 
+describe("buildModel claims", () => {
+  const provider = (tokenHook: object) => ({
+    apiVersion: 1 as const,
+    name: "stub",
+    scopes: [{ name: "organization", idType: "uuid" }],
+    tenantScope: "organization",
+    functions: {
+      idsWith: "authz.ids_{scope}({permission})",
+      isPlatform: "authz.is_platform({permission})",
+    },
+    tokenHook: { function: "authz.hook", ownedClaims: ["roles"], ...tokenHook },
+  });
+
+  it("writes the provider's truncated marker, then the budget's", async () => {
+    const own = await model(() => ({}), {
+      auth: {
+        authorization: provider({
+          truncatedClaim: "perms_partial",
+          budget: { claims: ["roles"], bytes: 10, truncatedClaim: "other" },
+        }),
+      },
+    });
+
+    expect(own.meta.claims?.permissionsTruncated).toBe("perms_partial");
+
+    const budget = await model(() => ({}), {
+      auth: {
+        authorization: provider({
+          budget: { claims: ["roles"], bytes: 10, truncatedClaim: "other" },
+        }),
+      },
+    });
+
+    expect(budget.meta.claims?.permissionsTruncated).toBe("other");
+
+    const none = await model(() => ({}));
+
+    expect(none.meta.claims?.permissionsTruncated).toBeUndefined();
+  });
+});
+
 describe("buildModel comments", () => {
   it("puts table and column comments in the meta, mapping @deprecated", async () => {
     const built = await model((generator) => {
