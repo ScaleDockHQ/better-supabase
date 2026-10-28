@@ -65,6 +65,10 @@ the record's messaging conversation.
   first record, as the `templates.apply` step already requires.
 - With the outbox installed, a status change reaches a timeline twice, as a
   `status.changed` event and as a `transition`; views filter with `sources`.
+- A workflow machine names its definition by slug in the config. The
+  lifecycle defaults of ADR 0126 (`resolve_workflow_definition`) pick a
+  workflow to start per subject type and don't change which version a
+  machine reads.
 - A workflow machine can't set `initial`, `transitions`, `order` or
   `lifecycle: false`, and needs workflow-editor.
 - Every new table is adoptable and tenant-scoped through `bsb_tenant_scope`.

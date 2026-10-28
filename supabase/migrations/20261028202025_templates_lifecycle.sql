@@ -370,8 +370,8 @@ begin
     where "subject_type" = 'change_request' and "subject_id" = new."id"::text;
     perform "better_supabase".emit_event('status.resumed', jsonb_build_object('organizationId', new."organization_id"::text, 'subjectType', 'change_request', 'subjectId', new."id"::text), 'statuses/change_request/' || new."id"::text, (new."organization_id"::text)::text, null, 'better-supabase/state-machine');
   end if;
-  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason")
-        values (new."organization_id", 'change_request', new."id"::text, old."status"::text, new."status"::text, auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''));
+  insert into "better_supabase"."status_history" ("tenant_id", "subject_type", "subject_id", "from_status", "to_status", "actor_user_id", "reason", "actor_name", "actor_email", "ip_address", "user_agent")
+        values (new."organization_id", 'change_request', new."id"::text, old."status"::text, new."status"::text, auth.uid(), nullif(current_setting('better_supabase.transition_reason', true), ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'name', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'email', ''), nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'ip', '')::inet, nullif(nullif(current_setting('better_supabase.transition_actor', true), '')::jsonb ->> 'userAgent', ''));
   
   perform "better_supabase".emit_event('status.changed', jsonb_build_object('organizationId', new."organization_id"::text, 'subjectType', 'change_request', 'subjectId', new."id"::text, 'from', old."status"::text, 'to', new."status"::text, 'reason', nullif(current_setting('better_supabase.transition_reason', true), '')), 'statuses/change_request/' || new."id"::text, (new."organization_id"::text)::text, null, 'better-supabase/state-machine');
   return new;
@@ -2672,6 +2672,7 @@ AS $function$
     ('user', 'better_supabase.inbox_team_members', '"better_supabase"."inbox_team_members"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.contacts', '"better_supabase"."contacts"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.scheduled_inbox_messages', '"better_supabase"."scheduled_inbox_messages"', 'author_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.inbox_drafts', '"better_supabase"."inbox_drafts"', 'author_id', true, '{}'::text[], true),
     ('user', 'better_supabase.ai_projects', '"better_supabase"."ai_projects"', 'owner_id', true, '{}'::text[], true),
     ('user', 'better_supabase.ai_chats', '"better_supabase"."ai_chats"', 'owner_id', true, array['search_tsv']::text[], true),
     ('user', 'better_supabase.ai_chat_participants', '"better_supabase"."ai_chat_participants"', 'user_id', true, '{}'::text[], true),
@@ -2690,6 +2691,7 @@ AS $function$
     ('user', 'better_supabase.ai_document_versions', '"better_supabase"."ai_document_versions"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.ai_suggestions', '"better_supabase"."ai_suggestions"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.knowledge_documents', '"better_supabase"."knowledge_documents"', 'owner_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.knowledge_collection_grants', '"better_supabase"."knowledge_collection_grants"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.memories', '"better_supabase"."memories"', 'owner_id', true, '{}'::text[], true),
     ('user', 'better_supabase.ai_message_embeddings', '"better_supabase"."ai_message_embeddings"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.agents', '"better_supabase"."agents"', 'owner_id', true, '{}'::text[], true),
@@ -2839,6 +2841,7 @@ AS $function$
     ('organization', 'better_supabase.inbound_events', '"better_supabase"."inbound_events"', 'tenant_id', true, array['headers']::text[], true),
     ('organization', 'better_supabase.message_templates', '"better_supabase"."message_templates"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.scheduled_inbox_messages', '"better_supabase"."scheduled_inbox_messages"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.inbox_drafts', '"better_supabase"."inbox_drafts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.ai_projects', '"better_supabase"."ai_projects"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.ai_chats', '"better_supabase"."ai_chats"', 'organization_id', true, array['search_tsv']::text[], true),
     ('organization', 'better_supabase.ai_tool_policies', '"better_supabase"."ai_tool_policies"', 'organization_id', true, '{}'::text[], true),
@@ -2847,6 +2850,7 @@ AS $function$
     ('organization', 'better_supabase.ai_files', '"better_supabase"."ai_files"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.ai_documents', '"better_supabase"."ai_documents"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.knowledge_documents', '"better_supabase"."knowledge_documents"', 'organization_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.knowledge_collections', '"better_supabase"."knowledge_collections"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.memories', '"better_supabase"."memories"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.ai_message_embeddings', '"better_supabase"."ai_message_embeddings"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.agents', '"better_supabase"."agents"', 'organization_id', true, '{}'::text[], true),
@@ -5363,9 +5367,10 @@ begin
       end if;
       return coalesce((
         select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
-          'actorId', r.actor, 'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
+          'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
+          'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
         from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
-          h."actor_user_id"::text as actor, h."reason" as reason, h."created_at" as created_at
+          h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
         from "better_supabase"."status_history" h
         where h."subject_type" = 'work_item'
           and h."subject_id" = list_status_history.subject_id
@@ -5379,9 +5384,10 @@ begin
       end if;
       return coalesce((
         select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
-          'actorId', r.actor, 'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
+          'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
+          'reason', r.reason, 'createdAt', r.created_at) order by r.created_at desc, r.id desc)
         from (select h."id"::text as id, h."from_status" as from_status, h."to_status" as to_status,
-          h."actor_user_id"::text as actor, h."reason" as reason, h."created_at" as created_at
+          h."actor_user_id"::text as actor, h."actor_name"::text as "actorName", h."actor_email"::text as "actorEmail", regexp_replace(h."ip_address"::text, '/(32|128)$', '') as "ip", h."user_agent"::text as "userAgent", h."reason" as reason, h."created_at" as created_at
         from "better_supabase"."status_history" h
         where h."subject_type" = 'change_request'
           and h."subject_id" = list_status_history.subject_id
@@ -9566,7 +9572,7 @@ AS $function$
     and (templates_list.language is null or x."language" = templates_list.language)
 $function$;
 
-CREATE OR REPLACE FUNCTION better_supabase.transition(subject_type text, subject_id text, to_status text, reason text)
+CREATE OR REPLACE FUNCTION better_supabase.transition(subject_type text, subject_id text, to_status text, reason text DEFAULT NULL::text, actor jsonb DEFAULT NULL::jsonb)
  RETURNS boolean
  LANGUAGE plpgsql
  SET search_path TO ''
@@ -9574,7 +9580,18 @@ AS $function$
 declare
   v_found boolean;
 begin
+  if transition.actor is not null then
+    if jsonb_typeof(transition.actor) <> 'object' then
+      raise exception 'actor must be an object of name, email, ip and userAgent' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(transition.actor ->> 'ip', '')::inet;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
+    end;
+  end if;
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
+  perform set_config('better_supabase.transition_actor', coalesce(transition.actor::text, ''), true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_status_transition"(text, text, text)');
   begin
@@ -9595,6 +9612,7 @@ begin
   end case;
   v_found := found;
   perform set_config('better_supabase.transition_reason', '', true);
+  perform set_config('better_supabase.transition_actor', '', true);
   if not v_found then
     raise exception 'no such record, or the caller can''t see it' using errcode = 'P0002', hint = 'STATE_SUBJECT_NOT_FOUND';
   end if;
