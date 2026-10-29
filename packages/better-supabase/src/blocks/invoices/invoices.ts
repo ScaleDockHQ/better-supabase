@@ -7,7 +7,7 @@ import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { Line, LineInput, Totals } from "../sales-lines.ts";
 import type { RecordRef } from "../sales-shared.ts";
-import type { BlockTemporalOptions } from "../shared.ts";
+import type { BlockTemporalOptions, TransitionActor } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -174,7 +174,11 @@ export interface Invoices<F extends object = Record<never, never>> {
   issue(
     invoiceId: string,
     issuedOn?: Temporal.PlainDate,
-    options?: { readonly dueOn?: Temporal.PlainDate },
+    options?: {
+      readonly dueOn?: Temporal.PlainDate;
+      /** Who issued it, for the state machine's history. */
+      readonly actor?: TransitionActor;
+    },
   ): AsyncResult<Invoice<F>>;
   /** Records a payment; a negative amount is a refund. */
   recordPayment(
@@ -188,6 +192,8 @@ export interface Invoices<F extends object = Record<never, never>> {
       readonly reference?: string;
       /** A memo kept with the payment. */
       readonly note?: string;
+      /** Who recorded it, for the state machine's history. */
+      readonly actor?: TransitionActor;
     },
   ): AsyncResult<Invoice<F>>;
   /** A draft credit note for the whole invoice, or for the given lines. */
@@ -460,6 +466,9 @@ export function createInvoices<
         ...(issueOptions.dueOn === undefined
           ? {}
           : { due_on: issueOptions.dueOn.toString() }),
+        ...(issueOptions.actor === undefined
+          ? {}
+          : { actor: issueOptions.actor }),
       }),
     recordPayment: (invoiceId, payment) =>
       invoice("record_invoice_payment", {
@@ -470,6 +479,7 @@ export function createInvoices<
         method: payment.method ?? null,
         reference: payment.reference ?? null,
         note: payment.note ?? null,
+        ...(payment.actor === undefined ? {} : { actor: payment.actor }),
       }),
     credit: (invoiceId, credit = {}) => {
       const invalid = amountsError(

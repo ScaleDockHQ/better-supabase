@@ -20,6 +20,7 @@ import {
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
+  transitionActorSql,
 } from "../shared.ts";
 import {
   LIFECYCLE_INTERNAL,
@@ -133,6 +134,12 @@ const ACTOR_SETTING = "better_supabase.transition_actor";
 const REASON =
   "nullif(current_setting('better_supabase.transition_reason', true), '')";
 
+/**
+ * The acting user: the signed-in user, else the actor's `id`, which the service
+ * role passes for the user it acts for.
+ */
+const ACTOR_ID = `coalesce(auth.uid(), nullif(nullif(current_setting('${ACTOR_SETTING}', true), '')::jsonb ->> 'id', '')::uuid)`;
+
 /** One field of the actor `transition()` passed, as SQL. */
 function actorField(field: string): string {
   const value = `nullif(nullif(current_setting('${ACTOR_SETTING}', true), '')::jsonb ->> ${sqlString(field)}, '')`;
@@ -158,7 +165,7 @@ function historyWrite(ctx: BlockSqlContext, item: Machine): string {
       [hist.tenant, `new.${sqlIdent(item.tenantColumn)}`],
       [hist.from, asColumnType(table, hist.from, from)],
       [hist.to, asColumnType(table, hist.to, to)],
-      [hist.actor, "auth.uid()"],
+      [hist.actor, ACTOR_ID],
       [hist.reason, REASON],
       ...ACTOR_FIELDS.flatMap(([key, field]): [string, string][] => {
         const column = hist[key];
@@ -181,7 +188,7 @@ function historyWrite(ctx: BlockSqlContext, item: Machine): string {
     [h("subjectId"), `new.${sqlIdent(item.idColumn)}::text`],
     [h("fromStatus"), ctx.cast("history", "fromStatus", from)],
     [h("toStatus"), ctx.cast("history", "toStatus", to)],
-    [h("actor"), "auth.uid()"],
+    [h("actor"), ACTOR_ID],
     [h("reason"), REASON],
     ...ACTOR_FIELDS.flatMap(([key, field]): [string, string][] =>
       ctx.has("history", key) ? [[h(key), actorField(field)]] : [],
@@ -861,7 +868,8 @@ drop function if exists ${ctx.fn("transition")}(text, text, text, text);
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
 -- carries the name, email, ip and userAgent the history row keeps, e.g. for
--- a portal visitor who isn't an auth user.
+-- a portal visitor who isn't an auth user, and the id of the user the
+-- service role acts for.
 create or replace function ${ctx.fn("transition")}(subject_type text, subject_id text, to_status text, reason text default null, actor jsonb default null)
 returns boolean
 language plpgsql
@@ -871,18 +879,8 @@ as $$
 declare
   v_found boolean;
 begin
-  if transition.actor is not null then
-    if jsonb_typeof(transition.actor) <> 'object' then
-      ${fail("STATE_ACTOR_INVALID", "actor must be an object of name, email, ip and userAgent", "22023")}
-    end if;
-    begin
-      perform nullif(transition.actor ->> 'ip', '')::inet;
-    exception when invalid_text_representation then
-      ${fail("STATE_ACTOR_INVALID", "actor.ip must be an IP address", "22023")}
-    end;
-  end if;
   perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
-  perform set_config('${ACTOR_SETTING}', coalesce(transition.actor::text, ''), true);
+  ${transitionActorSql("transition.actor", "STATE_ACTOR_INVALID")}
   ${ctx.hook("before_status_transition", [
     ["text", "transition.subject_type"],
     ["text", "transition.subject_id"],

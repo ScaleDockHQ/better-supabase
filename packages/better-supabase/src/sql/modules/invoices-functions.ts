@@ -4,6 +4,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
 import {
   countedLine,
+  declared,
   lineColumn,
   lineCopyColumns,
   lineFieldsJson,
@@ -17,6 +18,7 @@ import {
   extraFieldsJson,
   fail,
   insertExtraColumns,
+  transitionActorSql,
   updateExtraColumns,
   userGrant,
 } from "../shared.ts";
@@ -451,7 +453,7 @@ ${userGrant(`${fn("delete_invoice")}(uuid)`)}
     if v_row.${i("id")} is not null then
       return ${row("v_row")};
     end if;
-    select coalesce(jsonb_agg(jsonb_build_object('description', x.${ql("description")}, 'quantity', x.${ql("quantity")}, 'unitAmount', x.${ql("unitAmount")}::text,
+    select coalesce(jsonb_agg(jsonb_build_object('description', x.${ql("description")}, 'quantity', x.${ql("quantity")}${declared(quotes, "lines", "periods") ? ` * coalesce(x.${ql("periods")}, 1)` : ""}, 'unitAmount', x.${ql("unitAmount")}::text,
         'discountBps', ${lineColumn(quotes, "lines", "x", "discountBps")}, 'taxRateBps', ${lineColumn(quotes, "lines", "x", "taxRateBps")}, 'taxCode', ${lineColumn(quotes, "lines", "x", "taxCode")},
         'product', case when ${lineColumn(quotes, "lines", "x", "productType")} is null then null else jsonb_build_object('type', ${lineColumn(quotes, "lines", "x", "productType")}, 'id', ${lineColumn(quotes, "lines", "x", "productId")}) end
       ) order by x.${ql("position")}), '[]'::jsonb) into v_lines
@@ -731,8 +733,10 @@ ${updateInvoiceSql()}${lineItemsSql(
 -- Issues a draft: it gets the next number of its kind (gapless, so a
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
+-- actor: who issued it, for the state machine's history.
 drop function if exists ${fn("issue_invoice")}(uuid, date);
-create or replace function ${fn("issue_invoice")}(invoice uuid, issued_on date, due_on date default null)
+drop function if exists ${fn("issue_invoice")}(uuid, date, date);
+create or replace function ${fn("issue_invoice")}(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -758,6 +762,7 @@ begin
   if issue_invoice.due_on < v_issued_on then
     ${fail("INVOICE_DUE_INVALID", "an invoice falls due on or after its issue date", "22023")}
   end if;
+  ${transitionActorSql("issue_invoice.actor", "INVOICE_ACTOR_INVALID")}
   ${ctx.hook("before_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
   if ${kd(`v_row.${i("kind")}`, ["credit_note"])} then
     select * into v_original from ${t("invoices")} x where x.${i("id")} = v_row.${i("original")} for update;
@@ -788,15 +793,17 @@ begin
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("issue_invoice")}(uuid, date, date)`)}
+${userGrant(`${fn("issue_invoice")}(uuid, date, date, jsonb)`)}
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
 -- cash. A reference, such as a bank or payment provider id, is unique per
--- organization, so recording the same payment twice adds it once.
+-- organization, so recording the same payment twice adds it once. actor:
+-- who recorded it, for the state machine's history.
 drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, timestamptz, text, text);
 drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text);
-create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null)
+drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text);
+create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -821,6 +828,7 @@ begin
   if upper(record_invoice_payment.currency) is distinct from v_row.${i("currency")} then
     ${fail("INVOICE_CURRENCY_MISMATCH", "a payment must be in the invoice's currency", "22023")}
   end if;
+  ${transitionActorSql("record_invoice_payment.actor", "INVOICE_ACTOR_INVALID")}
   -- A recorded reference is a replay that adds nothing, so it skips the check.
   v_reference := nullif(trim(record_invoice_payment.reference), '');
   if v_reference is not null and exists (
@@ -849,7 +857,7 @@ begin
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text)`)}
+${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text, jsonb)`)}
 
 create or replace function ${fn("list_invoice_payments")}(invoice uuid)
 returns jsonb

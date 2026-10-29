@@ -47,4 +47,5 @@ export type {
   BlockOptions,
   BlockTemporalOptions,
   CursorPageOptions,
+  TransitionActor,
 } from "../core/block-helpers.ts";
