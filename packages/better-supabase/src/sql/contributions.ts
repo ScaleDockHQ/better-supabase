@@ -95,6 +95,12 @@ export interface PipelineContribution {
  */
 export interface RelationContribution extends RelationKindOptions {
   readonly kind: string;
+  /**
+   * A boolean expression over the link's `data` (a jsonb expression) that every
+   * link of this kind must pass, or `link` raises `RELATION_DATA_INVALID`. An
+   * app kind of the same name drops it.
+   */
+  readonly data?: (data: string) => string;
 }
 
 /** SQL expressions for the subject a new share link names. */

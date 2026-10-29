@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@1 managed
--- @bsb-hash sha256:ed834f4fc4d59756ab4c3e278c2ed26c6dbc580e46138f8bdde57a215a3b7d76
+-- @bsb-hash sha256:cd6d6243487da022a9cfc827e5c394750f4b28ec2b52ab149ca0870b6e420025
 -- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -821,6 +821,72 @@ $$;
 revoke execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) to authenticated, service_role;
 
+-- The people who represent a record (a client's guardian, a legal
+-- representative), with their role and authority. Runs as the caller, so the
+-- relations and people policies decide what they see. Ended links come last.
+create or replace function "better_supabase"."list_representatives"(subject_type text, subject_id text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object(
+    'id', r."id", 'organizationId', r."tenant_id"::text,
+    'personId', p."id", 'name', p."name", 'email', p."email", 'phone', p."phone",
+    'role', r."data" ->> 'role', 'authority', r."data" ->> 'authority',
+    'validFrom', r."data" ->> 'valid_from', 'validUntil', r."data" ->> 'valid_until',
+    'active', (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end), 'createdAt', r."created_at"
+  ) order by (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end) desc, p."name", r."id"), '[]'::jsonb)
+  from "better_supabase"."relations" r
+  join "better_supabase"."people" p on p."id"::text = r."source_id" and p."tenant_id" = r."tenant_id"
+  where r."kind" = 'represents' and r."source_type" = 'person'
+    and r."target_type" = list_representatives.subject_type
+    and r."target_id" = list_representatives.subject_id
+$$;
+revoke execute on function "better_supabase"."list_representatives"(text, text) from public, anon;
+grant execute on function "better_supabase"."list_representatives"(text, text) to authenticated, service_role;
+
+-- The records the caller represents in tenant, as a guest whose party is the
+-- representative, while the link holds.
+create or replace function "better_supabase"."represented_by_me"(tenant uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  return (
+    select coalesce(jsonb_agg(jsonb_build_object(
+      'id', r."id", 'organizationId', r."tenant_id"::text, 'personId', r."source_id",
+      'subjectType', r."target_type", 'subjectId', r."target_id",
+      'role', r."data" ->> 'role', 'authority', r."data" ->> 'authority',
+    'validFrom', r."data" ->> 'valid_from', 'validUntil', r."data" ->> 'valid_until'
+    ) order by r."created_at", r."id"), '[]'::jsonb)
+    from "better_supabase"."relations" r
+    where r."tenant_id" = represented_by_me.tenant
+      and r."kind" = 'represents' and r."source_type" = 'person'
+      and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+      and ((represented_by_me.tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."represented_by_me"(uuid) from public, anon;
+grant execute on function "better_supabase"."represented_by_me"(uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1078,6 +1144,24 @@ set search_path = ''
 as $$ select "better_supabase"."person_for_inbox_contact"($1, $2) $$;
 revoke execute on function "api"."person_for_inbox_contact"(uuid, boolean) from public, anon;
 grant execute on function "api"."person_for_inbox_contact"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."list_representatives"(subject_type text, subject_id text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_representatives"($1, $2) $$;
+revoke execute on function "api"."list_representatives"(text, text) from public, anon;
+grant execute on function "api"."list_representatives"(text, text) to authenticated, service_role;
+
+create or replace function "api"."represented_by_me"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."represented_by_me"($1) $$;
+revoke execute on function "api"."represented_by_me"(uuid) from public, anon;
+grant execute on function "api"."represented_by_me"(uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

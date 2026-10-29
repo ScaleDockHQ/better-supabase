@@ -3141,7 +3141,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "notifications",
-        "inbox"
+        "inbox",
+        "relations"
       ],
       "manifest": "contacts",
       "scopes": [
@@ -4764,7 +4765,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "invoices",
         "bookings",
-        "contacts"
+        "contacts",
+        "relations"
       ],
       "manifest": "guests",
       "scopes": [

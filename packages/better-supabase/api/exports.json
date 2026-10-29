@@ -7242,6 +7242,8 @@
       "extendBlock",
       "partyListFilterSchema",
       "personInputSchema",
+      "REPRESENTATIVE_AUTHORITIES",
+      "REPRESENTATIVE_ROLES",
       "rpcTransport",
       "sqlTransport",
       "withBlockHooks",
@@ -7262,6 +7264,11 @@
       "PartyPage",
       "Person",
       "PersonInput",
+      "Representation",
+      "Representative",
+      "RepresentativeAuthority",
+      "RepresentativeRole",
+      "RepresentedRecord",
       "RpcClient"
     ]
   },

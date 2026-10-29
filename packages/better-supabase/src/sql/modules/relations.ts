@@ -114,6 +114,8 @@ interface ResolvedKind {
   readonly sourceTypes: readonly string[] | undefined;
   /** Subject types allowed at the stored target end; undefined is any. */
   readonly targetTypes: readonly string[] | undefined;
+  /** The contributing block's check of a link's data. */
+  readonly data: ((data: string) => string) | undefined;
 }
 
 const KIND_OPTIONS = [
@@ -192,13 +194,19 @@ function relationKinds(ctx: BlockSqlContext): readonly ResolvedKind[] {
 
   const own = new Map<string, unknown>(Object.entries(raw));
 
-  const contributed = uniqueContributions(
+  const contributions = uniqueContributions(
     "relations",
     ctx.contributions("relations"),
     (contribution) => contribution.kind,
-  )
-    .filter((contribution) => !own.has(contribution.kind))
-    .map(({ kind, ...entry }) => [kind, entry] as const);
+  ).filter((contribution) => !own.has(contribution.kind));
+
+  const contributed = contributions.map(
+    ({ kind, data: _data, ...entry }) => [kind, entry] as const,
+  );
+
+  const checks = new Map(
+    contributions.map((contribution) => [contribution.kind, contribution.data]),
+  );
 
   const kinds: ResolvedKind[] = [];
   const names = new Set<string>();
@@ -265,6 +273,7 @@ function relationKinds(ctx: BlockSqlContext): readonly ResolvedKind[] {
       single: cardinality === "one",
       symmetric,
       ...kindTypes(`${where}.${name}.types`, entry.get("types")),
+      data: checks.get(name),
     });
   }
 
@@ -306,6 +315,22 @@ function typeChecks(kinds: readonly ResolvedKind[]): string {
     ${fail("RELATION_TYPE_NOT_ALLOWED", `this kind of link doesn't accept these record types`, "22023")}
   end if;`;
     })
+    .join("");
+}
+
+/** The checks `link` runs on the data it stores, for kinds that check it. */
+function dataChecks(kinds: readonly ResolvedKind[], data: string): string {
+  return kinds
+    .flatMap((kind) =>
+      kind.data === undefined
+        ? []
+        : [
+            `
+    if v_kind = ${sqlString(kind.name)} and not coalesce(${kind.data(data)}, false) then
+      ${fail("RELATION_DATA_INVALID", "this kind of link doesn't accept this data", "22023")}
+    end if;`,
+          ],
+    )
     .join("");
 }
 
@@ -558,7 +583,7 @@ ${canonical("link")}${typeChecks(kinds)}
     where ${tenant} = link.tenant and ${kind} = v_kind
       and ${sourceType} = v_source_type and ${sourceId} = v_source_id
       and ${targetType} = v_target_type and ${targetId} = v_target_id;
-  if v_id is null then
+  if v_id is null then${dataChecks(kinds, "coalesce(link.data, '{}'::jsonb)")}
     if v_acyclic and exists (
       with recursive reach(t, i, depth) as (
         select v_target_type, v_target_id, 0
@@ -593,7 +618,7 @@ ${canonical("link")}${typeChecks(kinds)}
     returning ${id} into v_id;
     v_created := true;
     ${event("subject.linked", "v_id", "link.tenant")}
-  elsif link.data is not null then
+  elsif link.data is not null then${dataChecks(kinds, "link.data")}
     update ${relations} set ${data} = link.data where ${id} = v_id;
   end if;${writeExtraColumns(relations, extras, "link.fields", `x.${id} = v_id`)}
   ${ctx.hook("after_relation_link", [["uuid", "v_id"]])}

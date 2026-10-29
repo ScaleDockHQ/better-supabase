@@ -10,7 +10,17 @@ export {
   type PartyPage,
   type Person,
   type PersonInput,
+  type Representation,
+  type Representative,
+  type RepresentedRecord,
 } from "./contacts.ts";
+
+export {
+  REPRESENTATIVE_AUTHORITIES,
+  REPRESENTATIVE_ROLES,
+  type RepresentativeAuthority,
+  type RepresentativeRole,
+} from "./representatives.ts";
 
 export {
   extendBlock,
