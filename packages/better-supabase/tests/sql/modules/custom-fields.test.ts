@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { driveSubject } from "../../../src/blocks/drive/drive.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
@@ -147,6 +148,70 @@ describe("custom-fields module", () => {
 
     expect(sql).toContain(`jsonb_agg(v."id") filter (where true)`);
     expect(sql).not.toContain("encrypt_field_definition");
+  });
+
+  it("reads values of a record-checked type through the record", () => {
+    const sql = sqlOf(
+      {
+        subjects: {
+          drive_node: driveSubject(),
+          task: {
+            table: "public.tasks",
+            idType: "bigint",
+            permissions: { read: "tasks.read" },
+          },
+        },
+      },
+      ["subjects", "drive"],
+    );
+
+    expect(sql).toContain(
+      `case when read_field_values.subject_type in ('drive_node') then case read_field_values.subject_type`,
+    );
+    expect(sql).toContain(
+      `coalesce("better_supabase"."drive_node_readable"(s."id"), false)`,
+    );
+    expect(sql).toContain(
+      `else coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false) end`,
+    );
+    expect(sql).toContain(
+      `coalesce("better_supabase"."can_subject"(set_field_value.subject_type, set_field_value.subject_id, 'fields'), false)`,
+    );
+  });
+
+  it("reads every type through the record with the readAccess option", () => {
+    const sql = sqlOf(
+      {
+        subjects: {
+          task: {
+            table: "public.tasks",
+            idType: "bigint",
+            permissions: { read: "tasks.read" },
+          },
+        },
+        modules: { "custom-fields": { options: { readAccess: "record" } } },
+      },
+      ["subjects"],
+    );
+
+    expect(sql).not.toContain("read_field_values.tenant, 'custom_fields.read'");
+    expect(sql).toContain(
+      `when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (read_field_values.subject_id)::bigint`,
+    );
+  });
+
+  it("keeps the tenant read key without record-checked types", () => {
+    expect(sqlOf()).toContain(
+      `and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))`,
+    );
+  });
+
+  it("needs record types for the readAccess option", () => {
+    expect(() =>
+      sqlOf({
+        modules: { "custom-fields": { options: { readAccess: "record" } } },
+      }),
+    ).toThrow(/readAccess "record" needs record types/u);
   });
 
   it("needs the audit block for auditReads", () => {

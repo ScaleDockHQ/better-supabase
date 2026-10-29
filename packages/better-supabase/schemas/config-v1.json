@@ -1434,6 +1434,9 @@
                     },
                     "also": {
                       "type": "string"
+                    },
+                    "check": {
+                      "type": "string"
                     }
                   },
                   "additionalProperties": false
@@ -1455,6 +1458,10 @@
             "description": "The soft-delete column."
           },
           "held": {
+            "type": "string"
+          },
+          "readAccess": {
+            "enum": ["tenant", "record"],
             "type": "string"
           },
           "search": {

@@ -928,8 +928,10 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
 
 /**
  * The `subjects.drive_node` entry for the managed tables, so comments,
- * attachments, versions, trash and search can name drive nodes. The permissions
- * are the tenant-wide floor; grants decide per node.
+ * attachments, versions, trash and search can name drive nodes. The permission
+ * keys are the tenant-wide floor; grants decide per node, through
+ * `drive_node_readable` for reads and `drive_node_writable` for custom field
+ * writes, and custom field values follow the node's read grants.
  */
 export function driveSubject(
   options: {
@@ -940,13 +942,20 @@ export function driveSubject(
     readonly tenant?: string;
   } = {},
 ): SubjectConfig {
+  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
+
   return {
-    table: `${options.schema ?? DEFAULT_BLOCK_SCHEMA}.${options.table ?? "drive_nodes"}`,
+    table: `${schema}.${options.table ?? "drive_nodes"}`,
     idType: "uuid",
     tenant: options.tenant ?? "tenant_id",
     title: "name",
     deletedAt: "deleted_at",
-    permissions: { read: "drive.read", write: "drive.manage" },
+    permissions: {
+      read: { key: "drive.read", check: `${schema}.drive_node_readable` },
+      write: "drive.manage",
+      fields: { check: `${schema}.drive_node_writable` },
+    },
+    readAccess: "record",
     search: { title: "name" },
   };
 }

@@ -34,9 +34,16 @@ export interface SubjectConfig {
    * permission modules check before they attach rows to the subject. An object
    * adds per-row grants: `rows` asks the authorization provider for the rows of
    * that resource the caller holds `key` on, and `owner` names a uuid column
-   * whose value is the caller; any form that holds grants the action.
+   * whose value is the caller; any form that holds grants the action. `check`
+   * names a SQL function that decides the action for one row.
    */
   readonly permissions?: Readonly<Record<string, string | SubjectPermission>>;
+  /**
+   * Who reads the rows blocks keep per record, such as custom field values:
+   * `tenant` (the default) asks for the block's own read key, `record` asks
+   * whether the caller may read the record through `permissions.read`.
+   */
+  readonly readAccess?: "tenant" | "record";
   /**
    * A scope the authorization provider declares whose ids are this subject's
    * ids, so a grant on the record counts as well as one on the tenant.
@@ -93,6 +100,14 @@ export interface SubjectPermission {
    * `scope`), whichever of `key`, `rows` and `owner` grants the action.
    */
   readonly also?: string;
+  /**
+   * The schema-qualified name of a SQL function `(subject_id <idType>) returns
+   * boolean`, such as `better_supabase.drive_node_writable`, that answers for
+   * the caller (`auth.uid()`). Alone it decides the action; next to `key`,
+   * `rows` or `owner` it must return true as well. `can_subject_for` can't run
+   * it for another user, so the action is false there.
+   */
+  readonly check?: string;
 }
 
 /** One table `search.watch[].through` crosses: from the `from` column to `to`. */

@@ -205,11 +205,54 @@ describe("subject actions beyond tenant keys", () => {
     expect(bad({ rows: "doc" })).toThrow(/rows needs the key/u);
     expect(bad({ rows: "Doc-x", key: "a" })).toThrow(/SQL name of a resource/u);
     expect(bad({ owner: "x;y" })).toThrow(/owner must be a column name/u);
-    expect(bad({})).toThrow(/needs a key or an owner column/u);
+    expect(bad({})).toThrow(/needs a key, an owner column or a check/u);
+    expect(bad({ check: "drive_node_readable" })).toThrow(
+      /must be a schema-qualified function name/u,
+    );
+    expect(bad({ check: "app.x(); drop" })).toThrow(
+      /must be a schema-qualified function name/u,
+    );
     expect(bad({ key: "a", other: 1 })).toThrow(/other is not an option/u);
     expect(bad({ owner: "user_id", also: "" })).toThrow(
       /also must be a permission key/u,
     );
+  });
+
+  it("asks a check function, alone or on top of the key", () => {
+    const sql = renderBlocks(["subjects"], {
+      subjects: {
+        node: {
+          table: "public.nodes",
+          idType: "uuid",
+          permissions: {
+            read: { key: "node.read", check: "app.node_readable" },
+            fields: { check: "app.node_writable" },
+          },
+        },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `when 'read' then (coalesce(better_supabase.can('tenant', s."organization_id", 'node.read'), false) and coalesce("app"."node_readable"(s."id"), false))`,
+    );
+    expect(sql).toContain(
+      `when 'fields' then coalesce("app"."node_writable"(s."id"), false)`,
+    );
+    expect(sql).toMatch(/when 'read' then false\s/u);
+    expect(sql).toMatch(/when 'fields' then false\s/u);
+  });
+
+  it("refuses a readAccess other than tenant or record", () => {
+    expect(() =>
+      renderBlocks(["subjects"], {
+        subjects: {
+          // SAFETY: the test passes a value the type refuses on purpose.
+          doc: { table: "docs", readAccess: "any" } as never,
+        },
+      }),
+    ).toThrow(/readAccess/u);
   });
 
   it("requires the also key on top of a row grant or the owner", () => {
