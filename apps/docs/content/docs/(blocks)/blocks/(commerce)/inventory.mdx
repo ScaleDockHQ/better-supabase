@@ -296,7 +296,8 @@ await inventory
 
 Pass `backorder: false` to refuse what isn't available
 (`INVENTORY_INSUFFICIENT`). Orders allocate their lines themselves (see
-[orders from documents](/docs/blocks/orders#orders-from-documents)), and
+[orders from documents](/docs/blocks/orders#orders-from-documents)), sent
+quotes hold theirs with [`holds`](/docs/blocks/quotes#stock-holds), and
 [shipment lines](/docs/blocks/shipments#shipment-lines) ship from them.
 
 ## Transfers

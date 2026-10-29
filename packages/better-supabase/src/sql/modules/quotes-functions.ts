@@ -22,6 +22,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { quoteDecisions } from "./quotes-decisions.ts";
+import { holdsDeclare, holdsOnSend, holdsSql } from "./quotes-holds.ts";
 import { quoteKit, quoteOrigin, quoteParty } from "./quotes-kit.ts";
 
 export { quoteGuest, quoteOrigin, quoteParty } from "./quotes-kit.ts";
@@ -513,7 +514,7 @@ as $$
 declare
   v_row ${t("quotes")};
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
-  v_version uuid;${k.workingCopy ? "\n  v_linked boolean;" : ""}
+  v_version uuid;${k.workingCopy ? "\n  v_linked boolean;" : ""}${holdsDeclare(ctx)}
 begin
   select * into v_row from ${t("quotes")} x where x.${q("id")} = send_quote.quote and ${editable("x", n.send)} for update;
   if v_row.${q("id")} is null then
@@ -533,7 +534,7 @@ begin
   returning * into v_row;
   insert into ${t("versions")} (${v("tenant")}, ${v("quote")}, ${v("revision")}, ${v("snapshot")}, ${v("total")}, ${v("currency")}${ctx.has("versions", "publishedBy") ? `, ${v("publishedBy")}` : ""})
   values (v_row.${q("tenant")}, v_row.${q("id")}, v_row.${q("revision")}, ${row("v_row")}, v_row.${q("total")}, v_row.${q("currency")}${ctx.has("versions", "publishedBy") ? `, ${publishedBy}` : ""})
-  returning ${v("id")} into v_version;${versionLinesCopy}
+  returning ${v("id")} into v_version;${versionLinesCopy}${holdsOnSend(ctx, n)}
   ${record("quote.sent", "v_row", `, 'revision', v_row.${q("revision")}`)}
   ${ctx.hook("after_quote_send", [["uuid", `v_row.${q("id")}`]])}
   return ${row("v_row")} || jsonb_build_object('token', ${k.workingCopy ? "case when v_linked then null else v_token end" : "v_token"});
@@ -637,7 +638,7 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("expire_quotes")}()`)}
-${appTotalsGuard(ctx, n, k)}${fromDeal}`;
+${holdsSql(ctx, n)}${appTotalsGuard(ctx, n, k)}${fromDeal}`;
 }
 
 /**

@@ -181,6 +181,16 @@ blocks: {
 }
 ```
 
+### Stock holds
+
+With `options.holds: true` and the [inventory](/docs/blocks/inventory) block installed, sending a quote holds stock for it. Each published version allocates its lines that name a tracked catalog variant through `allocate_stock`, at the location with the most stock available. The document type is `quote_version`, the document id is the version's id and the line id is the quote line's id. What isn't in stock waits on backorder, so a hold never stops a quote from going out, but the organization needs an active stock location. Optional lines the customer didn't take and lines with a zero quantity hold nothing.
+
+The holds end when the quote goes back to draft (`revise`), is withdrawn, expires or is rejected, and when an order is made from it with `order_from_quote`, which allocates the order's own lines. Sending the next revision releases the holds of the earlier versions and allocates the new one, once per version. With `workingCopy`, a sent quote stays sent while staff edit it, so its holds stay until the next send. An accepted quote keeps its holds until the order takes over. `list_allocations(tenant, 'quote_version', versionId)` lists a version's holds, and `release_quote_holds(quoteId)` (service role) releases them all. Without the inventory block, the option fails when the SQL renders.
+
+```ts
+blocks: { quotes: { options: { holds: true } }, inventory: {} }
+```
+
 ## Pricing
 
 A quote can take prices that include tax, a discount on the whole document and a deposit:

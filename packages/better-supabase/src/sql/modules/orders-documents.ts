@@ -384,7 +384,12 @@ begin
   where x.${ql("parent")} = v_quote.${q("id")} and ${countedLine(quotes, "lines", "x")} and x.${ql("quantity")} > 0;
   if jsonb_array_length(v_lines) = 0 then
     ${fail("ORDERS_LINES_INVALID", "the quote has no lines to order", "55000")}
-  end if;
+  end if;${
+    quotes.flag("holds", false)
+      ? `
+  perform ${quotes.fn("release_quote_holds")}(v_quote.${q("id")});`
+      : ""
+  }
   return ${fn("order_from_document")}(v_quote.${q("tenant")}, v_attrs || jsonb_build_object(
     'currency', v_quote.${q("currency")}, 'taxInclusive', ${inclusive},
     'subtotal', v_quote.${q(quotes.has("quotes", "listTotal") ? "listTotal" : "subtotal")}::text, 'discountTotal', ${quotes.has("quotes", "discountTotal") ? `v_quote.${q("discountTotal")}::text` : "'0'"}, 'shippingTotal', '0',
