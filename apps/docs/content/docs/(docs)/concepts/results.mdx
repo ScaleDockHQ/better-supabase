@@ -66,6 +66,26 @@ A `DbException` has the `DbError` as `error` and `cause`, and its own
 The `status` field feeds the [RFC 9457](/docs/standards) problem details
 mapping in the server adapters.
 
+## Block hint codes
+
+A block's errors carry a code in `hint`, such as `WORK_ITEM_LOCKED`.
+`better-supabase/blocks` types them: `BlockHint<"tasks">` is the union of one
+block's codes, and `BlockHint` the codes of every block. `isBlockHint`
+checks an error against some codes and narrows `hint` to them; a code no
+block raises is a type error. `blockHint<"tasks">(error)` returns the hint
+typed as that block's codes, for an exhaustive `switch`, without checking
+it.
+
+```ts
+import { blockHint, isBlockHint } from "better-supabase/blocks";
+
+const archived = await blocks.tasks.archive(taskId);
+
+if (!archived.ok && isBlockHint(archived.error, "WORK_ITEM_LOCKED")) {
+  toast.error("This task is locked.");
+}
+```
+
 ## Custom kinds and mappers
 
 Add mappers for your own `RAISE` codes:
