@@ -2896,6 +2896,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "approval": "approval_request_id",
               "message": "message",
+              "meaning": "meaning",
               "requestedBy": "requested_by",
               "createdAt": "created_at",
               "completedAt": "completed_at"
@@ -5686,6 +5687,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "description": "description",
               "owner": "owner_id",
               "applicable": "applicable",
+              "source": "source",
+              "jurisdiction": "jurisdiction",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -5697,6 +5700,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "key": "key",
               "name": "name",
+              "kind": "kind",
               "version": "version",
               "description": "description",
               "createdAt": "created_at",
@@ -5927,6 +5931,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "summary": "summary",
               "status": "status",
               "certificate": "issues_certificate",
+              "validForMonths": "valid_for_months",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -5973,6 +5978,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "user": "user_id",
               "code": "code",
               "issuedAt": "issued_at",
+              "expiresAt": "expires_at",
               "revokedAt": "revoked_at"
             }
           }
@@ -12171,6 +12177,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ControlFrameworkInput"
         },
         {
+          "name": "ControlFrameworkKind"
+        },
+        {
           "name": "ControlInput",
           "fields": true
         },
@@ -12232,6 +12241,16 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "minLength": 1,
                 "maxLength": 200
               },
+              "kind": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "standard",
+                  "legal",
+                  "internal",
+                  "contract"
+                ]
+              },
               "version": {
                 "kind": "string",
                 "optional": true,
@@ -12257,6 +12276,15 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 200
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "standard",
+                    "legal",
+                    "internal",
+                    "contract"
+                  ]
                 },
                 "version": {
                   "type": "string",
@@ -12309,6 +12337,18 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "uuid",
                 "optional": true
               },
+              "source": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "jurisdiction": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -12348,6 +12388,16 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "controlId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "jurisdiction": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
                 },
                 "fields": {
                   "description": "The extra columns, keyed by database name."
@@ -13009,6 +13059,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CourseCertificateEventData"
         },
         {
+          "name": "CourseCertificateIssuedEventData"
+        },
+        {
           "name": "CourseEventData"
         },
         {
@@ -13127,6 +13180,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "boolean",
                 "optional": true
               },
+              "validForMonths": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 1,
+                "maximum": 240
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -13169,6 +13229,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                 },
                 "certificate": {
                   "type": "boolean"
+                },
+                "validForMonths": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 240
                 },
                 "fields": {
                   "description": "The extra columns to set, keyed by database name."

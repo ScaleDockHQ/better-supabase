@@ -6472,6 +6472,12 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "meanings": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }
