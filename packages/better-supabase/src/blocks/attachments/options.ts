@@ -13,6 +13,7 @@ export type AttachmentsSqlOptions = {
   readonly publicBuckets?: readonly string[];
   readonly offline?: boolean;
   readonly extraColumns?: ExtraColumns;
+  readonly topic?: string;
 };
 
 export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
@@ -27,4 +28,5 @@ export const attachmentsSqlOptions: BlockOptionsSchema<AttachmentsSqlOptions> =
     publicBuckets: option.strings({ default: [], client: true }),
     offline: option.boolean({ client: true }),
     extraColumns: option.extraColumns(),
+    topic: option.string({ default: "attachments", client: true }),
   });

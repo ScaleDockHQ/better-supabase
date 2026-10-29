@@ -45,6 +45,10 @@ import {
   attachmentsOnlineSql,
 } from "./attachments-offline.ts";
 import { pathExpression, pathTemplate } from "./attachments-path.ts";
+import {
+  attachmentsTopicOf,
+  attachmentsTopicSql,
+} from "./attachments-topic.ts";
 import { attachmentVersionsSql, versionPaths } from "./attachments-versions.ts";
 import { authorLookup } from "./authors.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -542,7 +546,7 @@ ${renderPolicy(
   { drop: true, target: t },
 )}
 ${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("attachments").name}_delete`), command: "delete", roles: ["authenticated"], using: `${c("uploadedBy")} = (select auth.uid()) or ${access.memberOn(c("tenant"), c("subjectType"), c("subjectId"), "manage")}` }), { drop: true, target: t })}
-
+${attachmentsTopicSql(ctx, { t, c, read: ctx.permission("read", permissions.read) })}
 ${versioned.table}
 -- Whether the caller may run action (insert, select or delete) on the
 -- object at path in bucket: an upload needs the caller's pending record, a
@@ -943,7 +947,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
   integrates: ["profiles"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   upgrades: [
     {
       from: 1,
@@ -976,8 +980,15 @@ export const ATTACHMENTS: BlockSqlDefinition = {
         "options.offline takes client ids, marks an upload done from a storage trigger and queues a deleted record's objects in attachment_cleanup; options.path takes {ext}.",
       sql: () => "",
     },
+    {
+      from: 6,
+      description:
+        "Attachments broadcast changed to <topic>:<tenant> (options.topic, default attachments) when a tenant's files change.",
+      sql: () => "",
+    },
   ],
   names: NAMES,
+  topics: (ctx) => [`${attachmentsTopicOf(ctx)}:{tenant}`],
   contract: (ctx) =>
     attachmentsContract(
       ctx,

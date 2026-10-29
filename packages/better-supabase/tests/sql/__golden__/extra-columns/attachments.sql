@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
--- @bsb-block attachments@6 managed
--- @bsb-hash sha256:524002c50d647d2645449b48ed44b0b7e28a87bef2e8b9dba3191116e61a5e98
+-- @bsb-block attachments@7 managed
+-- @bsb-hash sha256:db1d72f91a72b78c93f0e911f38ac44d1e32b1fd37dcb204e73597f5ed751fdd
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -208,6 +208,51 @@ drop policy if exists attachments_delete on "better_supabase"."attachments";
 create policy attachments_delete on "better_supabase"."attachments"
   for delete to authenticated
   using (("uploaded_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('attachments.manage'))) and (select better_supabase.actor_may_write()));
+
+-- Tells the tenant's topic which subject's files changed. The payload carries
+-- ids only; files without a tenant broadcast nothing.
+create or replace function "better_supabase"."attachments_changed"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."attachments"%rowtype;
+begin
+  if tg_op = 'DELETE' then
+    v_row := old;
+  else
+    v_row := new;
+  end if;
+  if v_row."organization_id" is null then
+    return null;
+  end if;
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then
+    perform realtime.send(jsonb_build_object('subjectType', v_row."subject_type", 'subjectId', v_row."subject_id"), 'changed', 'attachments:' || v_row."organization_id"::text, true);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."attachments_changed"() from public, anon, authenticated;
+drop trigger if exists "bsb_attachments_changed" on "better_supabase"."attachments";
+create trigger "bsb_attachments_changed"
+  after insert or update or delete on "better_supabase"."attachments"
+  for each row execute function "better_supabase"."attachments_changed"();
+
+-- Members join attachments:{tenant}; payloads name the subject whose files changed.
+do $do$
+begin
+  if to_regclass('realtime.messages') is not null then
+        drop policy if exists bsb_attachments_receive on realtime.messages;
+create policy bsb_attachments_receive on realtime.messages
+  for select to authenticated
+  using (realtime.messages.extension = 'broadcast'
+        and (select realtime.topic()) like 'attachments:%'
+        and substr((select realtime.topic()), 13) in (select x::text from better_supabase.tenant_ids_with('attachments.read') x));
+  end if;
+end;
+$do$;
 
 -- The earlier versions of each file, written by replace_attachment() and
 -- restore_attachment_version(). A reader of the file reads its versions; the
@@ -795,7 +840,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:0cc16dbc1bddc2d30910293326fab5aa0c627f1df60d347196ebc6b68dfe24e2
+-- @bsb-hash sha256:4a5d8f0e51c3e915f48ef994cb5516725a1ca9707f2b45f3680af9c6dc3767e5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -806,6 +851,6 @@ values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('attachments', 6, 'managed')
+values ('attachments', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

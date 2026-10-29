@@ -74,6 +74,13 @@ attachments: {
 },
 ```
 
+When a tenant's file is uploaded, replaced or deleted, a trigger broadcasts
+`changed` to the private topic `<topic>:<tenant>` with the file's
+`subjectType` and `subjectId`. `topic` defaults to
+`attachments`; a policy on `realtime.messages` lets only the tenant's readers
+join it, and files without a tenant broadcast nothing.
+`attachmentsTopic(organizationId, topic)` returns the topic name.
+
 ### Subjects and buckets
 
 `subjects` maps each subject type to its table, as in the
@@ -396,6 +403,32 @@ const { state, actions } = useSolidController(
   false,
 );
 ```
+
+### List a record's files
+
+`createAttachmentListController` lists one record's files with
+`attachments.list(subject)` and lists them again when the record's files
+change in another tab or for another member. It joins the tenant's topic
+through `ports.topic`; pass `topic: null` to load without listening.
+
+```ts
+import { createAttachmentListController } from "better-supabase/blocks/attachments";
+import { blockConfig } from "@/lib/supabase/blocks.generated";
+
+const files = createAttachmentListController({
+  client: attachments,
+  auth,
+  ports,
+  tenant: organizationId,
+  subject: { type: "task", id: taskId },
+  topic: blockConfig.attachments.options.topic,
+});
+```
+
+The snapshot has `attachments` (`undefined` until the first load), the topic's
+`status` and the last `error`; `refresh` loads again. Vue, Svelte and Solid
+run it with `useBlockController`, which reads `auth` and `ports` from the
+provider.
 
 ## Versions
 

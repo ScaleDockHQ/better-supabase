@@ -73,3 +73,12 @@ export {
   createAttachmentUploadController,
   xhrSend,
 } from "./client.ts";
+
+export {
+  type AttachmentListActions,
+  type AttachmentListController,
+  type AttachmentListControllerOptions,
+  type AttachmentListSnapshot,
+  attachmentsTopic,
+  createAttachmentListController,
+} from "./list-controller.ts";

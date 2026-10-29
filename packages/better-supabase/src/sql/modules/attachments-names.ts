@@ -61,6 +61,7 @@ export const NAMES: BlockSqlNames = {
     "publicBuckets",
     "offline",
     "extraColumns",
+    "topic",
   ],
   tables: {
     attachments: {
