@@ -40,7 +40,8 @@ function subjectEntries(ctx: BlockSqlContext): readonly SubjectEntry[] {
         !Object.hasOwn(spec.columns, "subjectType") ||
         !Object.hasOwn(spec.columns, "subjectId") ||
         !of.has(logical, "subjectType") ||
-        !of.has(logical, "subjectId")
+        !of.has(logical, "subjectId") ||
+        unusedSubject(of, logical, spec.app?.unused)
       ) {
         continue;
       }
@@ -67,6 +68,24 @@ function subjectEntries(ctx: BlockSqlContext): readonly SubjectEntry[] {
   }
 
   return list;
+}
+
+/**
+ * Whether a table the module creates leaves its subject columns out: a
+ * feature-gated column stays mapped even when the module doesn't create it.
+ */
+function unusedSubject(
+  of: BlockSqlContext,
+  logical: string,
+  unused: ((ctx: BlockSqlContext) => readonly string[]) | undefined,
+): boolean {
+  if (unused === undefined || !of.owns(logical)) {
+    return false;
+  }
+
+  const columns = unused(of);
+
+  return columns.includes("subjectType") || columns.includes("subjectId");
 }
 
 /**

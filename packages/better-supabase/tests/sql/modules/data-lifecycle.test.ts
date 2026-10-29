@@ -532,6 +532,19 @@ describe("data-lifecycle module", () => {
       );
     });
 
+    it("skips a managed table whose configuration leaves its subject columns out", () => {
+      const sql = subjectSql(["subjects", "calendar", "data-lifecycle"], {
+        subjects: SUBJECTS,
+      });
+
+      expect(sql).toContain(
+        "jsonb_build_object('better_supabase.calendar_events', v_rows)",
+      );
+      expect(sql).not.toContain(
+        "jsonb_build_object('better_supabase.calendar_attendees', v_rows)",
+      );
+    });
+
     it("lets the record's manage action stand in for the export permission", () => {
       const sql = subjectSql(["subjects", "data-lifecycle"], {
         subjects: SUBJECTS,
