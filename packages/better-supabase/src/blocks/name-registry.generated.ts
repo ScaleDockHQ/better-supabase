@@ -42,6 +42,21 @@ export interface BlockNameRegistry {
     };
     readonly primary: "accounting_account";
   };
+  readonly "acknowledgements": {
+    readonly tables: {
+      readonly "assignments": "id" | "tenant" | "subjectType" | "subjectId" | "principalType" | "principalId" | "dueInDays" | "createdBy" | "createdAt";
+      readonly "acknowledgements": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "user" | "method" | "signature" | "acknowledgedAt";
+      readonly "notices": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "user" | "notifiedAt";
+    };
+    readonly functions: "acknowledge" | "acknowledgement_status" | "acknowledgements_of" | "assign_acknowledgement" | "current_acknowledgement_version" | "list_acknowledgement_assignments" | "list_my_acknowledgements" | "notify_due_acknowledgements" | "unassign_acknowledgement";
+    readonly actions: "read" | "manage" | "acknowledge";
+    readonly hooks: "before_acknowledgement_assignment_create" | "after_acknowledgement_assignment_create" | "before_acknowledgement_create" | "after_acknowledgement_create";
+    readonly entities: {
+      readonly "acknowledgement": "id" | "tenant_id" | "subject_type" | "subject_id" | "version_id" | "user_id" | "method" | "signature_id" | "acknowledged_at";
+      readonly "acknowledgement_assignment": "id" | "tenant_id" | "subject_type" | "subject_id" | "principal_type" | "principal_id" | "due_in_days" | "created_by" | "created_at";
+    };
+    readonly primary: "acknowledgement";
+  };
   readonly "activities": {
     readonly tables: {
       readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt";

@@ -208,6 +208,7 @@
   "./blocks/shifts": 33293,
   "./blocks/contracts": 38982,
   "./blocks/compliance": 33148,
+  "./blocks/acknowledgements": 24866,
   "./blocks/incidents": 33252,
   "./blocks/dispatch": 35455,
   "./blocks/shipments": 48354,

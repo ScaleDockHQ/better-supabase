@@ -22621,6 +22621,143 @@ export function ControlPostureSkeleton() {
 }
 ```
 
+## Acknowledgement inbox
+
+The records a member is asked to read, soonest due first, with the due date and a button that acknowledges the version they read. It loads its data on the server through the block's client; the [acknowledgements block](https://bettersupabase.com/blocks/acknowledgements) must be installed (`npx better-supabase add acknowledgements`). Page: https://bettersupabase.com/recipes/acknowledgement-inbox.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/acknowledgements/components/acknowledgement-inbox.tsx"
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+/**
+ * Render inside `<Suspense>`: the records the signed-in member is asked to
+ * read, soonest due first, each with a button that acknowledges the version
+ * they read.
+ */
+export async function AcknowledgementInbox() {
+  const [state, t, format] = await Promise.all([
+    getPending(),
+    getExtracted("acknowledgements"),
+    getFormatter(),
+  ]);
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  if (state.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="acknowledgement-inbox">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("Your reading list didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  if (state.rows.length === 0) {
+    return (
+      <Empty className="border" data-recipe="acknowledgement-inbox">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <BookCheckIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("Nothing to read")}</EmptyTitle>
+          <EmptyDescription>
+            {t(
+              "When an admin asks you to acknowledge a policy, it shows here until you confirm you read its current version.",
+            )}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <a
+            className="text-sm underline underline-offset-4"
+            href="https://bettersupabase.com/docs/blocks/acknowledgements"
+          >
+            {t("Read the acknowledgements guide")}
+          </a>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  const day = (date: string) =>
+    format.dateTime(new Date(date), { dateStyle: "medium", timeZone: "UTC" });
+
+  return (
+    <Card data-recipe="acknowledgement-inbox">
+      <CardHeader>
+        <CardTitle>{t("To read")}</CardTitle>
+        <CardDescription>
+          {t(
+            "{count, plural, one {# record waits} other {# records wait}} for you to confirm you read the current version.",
+            { count: state.rows.length },
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="flex flex-col divide-y">
+          {state.rows.map((row) => {
+            const title = row.title ?? t("Untitled {type}", { type: row.type });
+
+            return (
+              <li
+                key={`${row.type}:${row.id}`}
+                className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
+              >
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate text-sm font-medium">{title}</span>
+                  <span className="text-xs text-muted-foreground capitalize">
+                    {row.type}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  {row.dueOn === null ? null : (
+                    <Badge
+                      variant={row.overdue ? "destructive-light" : "secondary"}
+                    >
+                      {row.overdue
+                        ? t("Overdue since {date}", { date: day(row.dueOn) })
+                        : t("Due {date}", { date: day(row.dueOn) })}
+                    </Badge>
+                  )}
+                  <AcknowledgeButton
+                    type={row.type}
+                    id={row.id}
+                    versionId={row.versionId}
+                    title={title}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+export function AcknowledgementInboxSkeleton() {
+  return <Skeleton className="h-40 rounded-xl" aria-busy="true" />;
+}
+```
+
 ## Status page
 
 A public status page: the overall status, each public component with its daily uptime, and the public incident updates. It loads its data on the server through the block's client; the [incidents block](https://bettersupabase.com/blocks/incidents) must be installed (`npx better-supabase add incidents`). Page: https://bettersupabase.com/recipes/status-page.

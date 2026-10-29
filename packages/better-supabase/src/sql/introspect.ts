@@ -5,11 +5,11 @@ import { sqlIdent } from "../core/template.ts";
 import { eventTriggersOf } from "./event-triggers.ts";
 import { moduleContext } from "./module-context.ts";
 import {
-  hasPlatformRoles,
   isOperationModule,
   moduleOperations,
   modulePermissionKey,
 } from "./modules/permissions-model.ts";
+import { hasPlatformRoles } from "./modules/permissions-platform.ts";
 import { MODULE_PERMISSION_SCOPES } from "./modules/permissions-scopes.ts";
 import { OPTIONAL_MODULE_PERMISSIONS } from "./optional-permissions.ts";
 import { SQL_MODULES, checkModules, resolveBlocks } from "./registry.ts";

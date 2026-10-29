@@ -27,11 +27,8 @@ import {
   membershipRolesSql,
   membershipRolesTable,
 } from "./membership-roles.ts";
-import {
-  accessModel,
-  providerPlatformRoles,
-  roleNames,
-} from "./permissions-model.ts";
+import { accessModel, roleNames } from "./permissions-model.ts";
+import { providerPlatformRoles } from "./permissions-platform.ts";
 import { sameTenantSql } from "./tenant-same.ts";
 
 /**

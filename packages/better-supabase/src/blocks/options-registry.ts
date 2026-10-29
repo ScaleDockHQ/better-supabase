@@ -274,6 +274,7 @@ type None = Record<never, never>;
 export interface BlockOptionsRegistry {
   readonly "access-requests": AccessRequestsSqlOptions;
   readonly accounting: AccountingSqlOptions;
+  readonly acknowledgements: None;
   readonly activities: ActivitiesSqlOptions;
   readonly agents: AgentsSqlOptions;
   readonly "ai-cache": AiCacheSqlOptions;
@@ -437,6 +438,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "ai-keys": aiKeysSqlOptions,
   "ai-schedules": aiSchedulesSqlOptions,
   announcements: announcementsSqlOptions,
+  acknowledgements: NO_OPTIONS,
   "api-keys": apiKeysSqlOptions,
   approvals: approvalsSqlOptions,
   assets: assetsSqlOptions,

@@ -28,12 +28,12 @@ import {
 } from "./permissions-keys.ts";
 import {
   accessModel,
-  hasPlatformRoles,
   roleScopeIs,
   rolesOf,
   tenantScope,
 } from "./permissions-model.ts";
 import { operationsSql } from "./permissions-operations.ts";
+import { hasPlatformRoles } from "./permissions-platform.ts";
 import { catalogKeyRenames } from "./permissions-renames.ts";
 import {
   catalogRoleFunctions,

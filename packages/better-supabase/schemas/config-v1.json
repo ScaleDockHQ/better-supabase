@@ -1594,6 +1594,7 @@
             "enum": [
               "access-requests",
               "accounting",
+              "acknowledgements",
               "activities",
               "agents",
               "ai-cache",
@@ -1753,6 +1754,7 @@
                 "enum": [
                   "access-requests",
                   "accounting",
+                  "acknowledgements",
                   "activities",
                   "agents",
                   "ai-cache",
@@ -1908,6 +1910,9 @@
             },
             "accounting": {
               "$ref": "#/$defs/blocks/accounting"
+            },
+            "acknowledgements": {
+              "$ref": "#/$defs/blocks/acknowledgements"
             },
             "activities": {
               "$ref": "#/$defs/blocks/activities"
@@ -3555,6 +3560,17 @@
                 }
               }
             }
+          }
+        }
+      },
+      "acknowledgements": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
           }
         }
       },

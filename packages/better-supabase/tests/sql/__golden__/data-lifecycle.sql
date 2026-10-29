@@ -1075,7 +1075,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:2a8c85e0e60d6da158aaadc0ef6b8989a33d09d3900488537f0b024e7e701b37
+-- @bsb-hash sha256:3f44a93491c93ff87bfba7e342e88a3d02bd83b418011471df62e33717390873
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1624,6 +1624,8 @@ as $$
     ('user', 'better_supabase.shift_assignments', '"better_supabase"."shift_assignments"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.shift_swaps', '"better_supabase"."shift_swaps"', 'from_user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.shift_availability', '"better_supabase"."shift_availability"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'user_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.acknowledgement_notices', '"better_supabase"."acknowledgement_notices"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'organization_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true),
@@ -1970,7 +1972,10 @@ as $$
     ('organization', 'better_supabase.accounting_dimensions', '"better_supabase"."accounting_dimensions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.accounting_dimension_values', '"better_supabase"."accounting_dimension_values"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.accounting_fx_rates', '"better_supabase"."accounting_fx_rates"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.accounting_tax_codes', '"better_supabase"."accounting_tax_codes"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.accounting_tax_codes', '"better_supabase"."accounting_tax_codes"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.acknowledgement_assignments', '"better_supabase"."acknowledgement_assignments"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.acknowledgement_notices', '"better_supabase"."acknowledgement_notices"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
@@ -2482,6 +2487,21 @@ begin
   from "better_supabase"."sequence_enrollments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.sequence_enrollments', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."acknowledgement_assignments" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.acknowledgement_assignments', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."acknowledgements" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.acknowledgements', v_rows);
+  end if;
+  select coalesce(jsonb_agg((to_jsonb(t.*)) order by t.ctid), '[]'::jsonb) into v_rows
+  from "better_supabase"."acknowledgement_notices" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
+  if jsonb_array_length(v_rows) > 0 then
+    v_parts := v_parts || jsonb_build_object('better_supabase.acknowledgement_notices', v_rows);
   end if;
   insert into "better_supabase"."data_exports" ("subject", "organization_id", "subject_type", "subject_id", "format")
   values ('record', v_tenant, request_subject_export.subject_type, request_subject_export.subject_id, request_subject_export.format)

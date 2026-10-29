@@ -4,6 +4,7 @@ import {
   AlarmClockIcon,
   ActivityIcon,
   ArchiveIcon,
+  BookCheckIcon,
   ArrowRightFromLineIcon,
   ArrowRightToLineIcon,
   ArrowUpDownIcon,
@@ -268,6 +269,7 @@ export const BLOCK_ICONS = {
   "drive-files": FolderOpenIcon,
   forms: ClipboardListIcon,
   signatures: SignatureIcon,
+  acknowledgements: BookCheckIcon,
   templates: LayoutTemplateIcon,
   // AI
   "vector-search": ScanSearchIcon,

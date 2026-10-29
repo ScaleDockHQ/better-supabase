@@ -47,6 +47,7 @@ import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { contractsBlock } from "better-supabase/blocks/contracts";
 import { complianceBlock } from "better-supabase/blocks/compliance";
+import { acknowledgementsBlock } from "better-supabase/blocks/acknowledgements";
 import { incidentsBlock } from "better-supabase/blocks/incidents";
 import { coursesBlock } from "better-supabase/blocks/courses";
 import { sequencesBlock } from "better-supabase/blocks/sequences";
@@ -178,6 +179,7 @@ export const blockSet = defineBlocks(blockConfig, {
   shipments: shipmentsBlock,
   contracts: contractsBlock,
   compliance: complianceBlock,
+  acknowledgements: acknowledgementsBlock,
   incidents: incidentsBlock,
   courses: coursesBlock,
   sequences: sequencesBlock,

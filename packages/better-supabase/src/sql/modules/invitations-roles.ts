@@ -6,10 +6,10 @@ import { roleValue, tenantRoleScope } from "./organizations-roles.ts";
 import {
   accessModel,
   OPERATIONS,
-  providerPlatformRoles,
   roleNames,
   roleScopeIs,
 } from "./permissions-model.ts";
+import { providerPlatformRoles } from "./permissions-platform.ts";
 
 /**
  * The catalog role id for a key or id, in `scope`, among `tenant`'s roles when
