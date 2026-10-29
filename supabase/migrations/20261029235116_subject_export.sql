@@ -484,6 +484,12 @@ begin
       v_name := 'better_supabase.policies';
       v_reveal := 'policies_reveal';
       v_reveal_schema := 'better_supabase';
+    when 'qualification_type' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."qualification_types" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.qualification_types';
+      v_reveal := 'qualification_types_reveal';
+      v_reveal_schema := 'better_supabase';
     when 'incident' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
       from "better_supabase"."incidents" s where s."id" = (request_subject_export.subject_id)::uuid;
