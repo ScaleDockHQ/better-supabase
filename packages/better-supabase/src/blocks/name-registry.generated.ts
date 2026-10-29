@@ -940,7 +940,7 @@ export interface BlockNameRegistry {
       readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt";
       readonly "charges": "id" | "tenant" | "invoice" | "amount" | "currency" | "description" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_invoice_charge" | "create_invoice" | "credit_invoice" | "delete_invoice" | "invoice_aging" | "issue_invoice" | "record_invoice_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "update_invoice" | "void_invoice" | "write_off_invoice";
+    readonly functions: "add_invoice_charge" | "create_invoice" | "credit_invoice" | "delete_invoice" | "invoice_aging" | "issue_invoice" | "list_invoice_payments" | "record_invoice_payment" | "remove_invoice_charge" | "reverse_invoice_payment" | "set_invoice_lines" | "set_invoice_lines_recount" | "update_invoice" | "void_invoice" | "write_off_invoice";
     readonly actions: "read" | "write" | "manage" | "create" | "update" | "issue" | "payment" | "credit" | "charge" | "void" | "writeOff" | "reverse" | "delete";
     readonly hooks: "before_invoice_issue" | "after_invoice_issue" | "before_invoice_payment" | "after_invoice_payment";
     readonly entities: {

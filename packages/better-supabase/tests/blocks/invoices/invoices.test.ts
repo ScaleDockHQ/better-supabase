@@ -169,6 +169,32 @@ describe("invoices block", () => {
     expect(invoice.dueOn?.toString()).toBe("2026-11-14");
   });
 
+  it("reads an invoice's payments in its currency", async () => {
+    const t = transport({
+      list_invoice_payments: () => ({
+        currency: "EUR",
+        payments: ROW.payments,
+      }),
+    });
+
+    const payments = await createInvoices({ transport: t })
+      .payments("i1")
+      .orThrow();
+
+    expect(t.calls).toEqual([["list_invoice_payments", { invoice: "i1" }]]);
+    expect(payments).toEqual([
+      {
+        id: "pay1",
+        amount: eur(500n),
+        paidAt: Temporal.Instant.from("2026-10-16T09:00:00Z"),
+        method: "bank",
+        reference: "b1",
+        note: "Paid in two parts",
+        recordedBy: "u1",
+      },
+    ]);
+  });
+
   it("reads a draft without a number", async () => {
     const draft = {
       ...ROW,

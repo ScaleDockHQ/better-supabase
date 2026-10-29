@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:3fd73b58308ff75791f308e1485c966335bdc4020682fc588401660504b98e4c
+-- @bsb-hash sha256:263ca9e7175c91be7a954586b5474988e5ab1de508bff846c5de493950c6c051
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -251,16 +251,25 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  if tg_op = 'DELETE' and current_setting('better_supabase.purge_tenant', true) = to_jsonb(old) ->> tg_argv[0] then
+    if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
+      select 1 from "better_supabase"."organization_deletions" x
+      where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+    ) then
+      return old;
+    end if;
+  end if;
   raise exception 'ledger entries and transactions can''t be changed or deleted; post a reversal' using errcode = '55000', hint = 'LEDGER_APPEND_ONLY';
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
 drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -891,7 +900,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "better_supabase"."ledger_entries" y
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"

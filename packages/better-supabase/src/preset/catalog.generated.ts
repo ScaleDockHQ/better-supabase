@@ -4426,7 +4426,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "audit"
+        "audit",
+        "data-lifecycle"
       ],
       "manifest": "ledger",
       "scopes": [

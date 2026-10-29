@@ -148,6 +148,7 @@ export interface LedgerAccountEntry extends LedgerEntry {
   readonly reverses?: string;
   readonly metadata: Readonly<Record<string, unknown>>;
   readonly effectiveAt: Temporal.Instant;
+  readonly actorId?: string;
   readonly createdAt: Temporal.Instant;
 }
 
@@ -337,6 +338,7 @@ function accountEntryOf(value: unknown, fn: string): LedgerAccountEntry {
     ...optional("referenceId", optionalText(row["referenceId"])),
     ...optional("memo", optionalText(row["memo"])),
     ...optional("reverses", optionalText(row["reverses"])),
+    ...optional("actorId", optionalText(row["actorId"])),
   };
 }
 

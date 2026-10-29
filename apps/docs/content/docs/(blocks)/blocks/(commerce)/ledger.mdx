@@ -106,8 +106,16 @@ unit (`LEDGER_UNBALANCED`). `kind` is lowercase words joined by dots, such as
 `credit.grant`. `reference` links the transaction to a record, `effectiveAt`
 dates it (default now), and an `idempotencyKey` makes a second post return
 the first transaction. `reverse(transactionId)` posts the opposite entries
-once. `entries(accountId)` pages an account's entries newest first, and
-`transaction(id)` reads one transaction with its entries.
+once. `entries(accountId)` pages an account's entries newest first, each with
+the transaction's `actorId` (the user who posted it), and `transaction(id)`
+reads one transaction with its entries.
+
+Entries and transactions are append-only (`LEDGER_APPEND_ONLY`). With the
+[data-lifecycle](/docs/blocks/data-lifecycle) block installed,
+`purge_organization` still deletes a purged tenant's ledger rows: the guard
+lets a delete through only for the service role, only for the tenant whose
+purge is running, and only while that tenant has a due deletion. Updates stay
+refused.
 
 ## Holds
 

@@ -281,7 +281,9 @@ export function invoiceFunctions(
   end if;`;
   };
 
-  const settle = (alias: string): string => `
+  const afterWriteOff = ctx.flag("paymentsAfterWriteOff", false);
+
+  const settle = (alias: string, writtenOff = false): string => `
   update ${t("invoices")} x set
     ${i("paidTotal")} = ${ledger.paidTotal("x")},
     ${i("updatedAt")} = now()
@@ -292,12 +294,12 @@ export function invoiceFunctions(
       "invoices",
       "status",
       `case
-      when ${balance("x")} <= 0 then 'paid'
+      when ${balance("x")} <= 0 then 'paid'${writtenOff ? `\n      when ${st(`x.${i("status")}`, ["uncollectible"])} then 'uncollectible'` : ""}
       when x.${i("paidTotal")} > 0 or x.${i("creditedTotal")} > 0 then 'partially_paid'
       else 'issued' end`,
     )},
     ${i("paidAt")} = case when ${balance("x")} <= 0 then coalesce(x.${i("paidAt")}, now()) end
-  where x.${i("id")} = ${alias}.${i("id")} and ${st(`x.${i("status")}`, ["issued", "partially_paid", "paid"])}
+  where x.${i("id")} = ${alias}.${i("id")} and ${st(`x.${i("status")}`, writtenOff ? ["issued", "partially_paid", "paid", "uncollectible"] : ["issued", "partially_paid", "paid"])}
   returning * into ${alias};`;
 
   const keep = (logical: string, value: string, key: string): string =>
@@ -810,7 +812,7 @@ begin
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;
-  if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
+  if ${kd(`v_row.${i("kind")}`, ["invoice"], true)} or ${st(`v_row.${i("status")}`, afterWriteOff ? ["issued", "partially_paid", "paid", "uncollectible"] : ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_PAYABLE", "only an issued invoice takes payments", "55000")}
   end if;
   if coalesce(record_invoice_payment.amount, 0) = 0 then
@@ -835,7 +837,7 @@ begin
     ["bigint", "record_invoice_payment.amount"],
   ])}
   v_was := v_row.${i("status")};
-  v_payment := ${ledger.post("v_row", "record_invoice_payment.amount", "coalesce(record_invoice_payment.paid_at, now())", "record_invoice_payment.method", "v_reference", "nullif(trim(record_invoice_payment.note), '')")};${settle("v_row")}
+  v_payment := ${ledger.post("v_row", "record_invoice_payment.amount", "coalesce(record_invoice_payment.paid_at, now())", "record_invoice_payment.method", "v_reference", "nullif(trim(record_invoice_payment.note), '')")};${settle("v_row", afterWriteOff)}
   ${record("invoice.payment_recorded", "v_row", `, 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', ${balance("v_row")}::text`)}
   if ${st(`v_row.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} then
     ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
@@ -848,6 +850,25 @@ begin
 end;
 $$;
 ${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text)`)}
+
+create or replace function ${fn("list_invoice_payments")}(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+begin
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = list_invoice_payments.invoice and ${can("x", n.read)};
+  if v_row.${i("id")} is null then
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can read", "P0002")}
+  end if;
+  return jsonb_build_object('currency', v_row.${i("currency")}, 'payments', ${ledger.payments("v_row")});
+end;
+$$;
+${userGrant(`${fn("list_invoice_payments")}(uuid)`)}
 
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it.

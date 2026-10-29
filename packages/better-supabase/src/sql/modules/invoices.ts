@@ -105,6 +105,7 @@ const NAMES: BlockSqlNames = {
     "providerPaymentMethods",
     "uniqueNumber",
     "linePositionKey",
+    "paymentsAfterWriteOff",
   ],
   tables: {
     invoices: {
@@ -450,6 +451,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     { name: "invoice_aging", args: ["{id}", "text", "date"], returns: "jsonb" },
+    { name: "list_invoice_payments", args: ["uuid"], returns: "jsonb" },
     ...(ctx.installed("quotes")
       ? [
           {

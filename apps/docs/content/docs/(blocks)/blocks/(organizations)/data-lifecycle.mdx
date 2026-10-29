@@ -268,6 +268,13 @@ so the order of the tables doesn't matter and your foreign keys can stay;
 when no pass makes progress, the purge stops with `ORGANIZATION_PURGE_BLOCKED`
 and names the tables.
 
+The [ledger](/docs/blocks/ledger)'s entries and transactions are append-only.
+While it deletes, `purge_organization` sets the transaction-local
+`better_supabase.purge_tenant` setting to the tenant's id, and the ledger's
+guard lets a delete through only for the service role, only for that tenant
+and only while its deletion is due. Every other update or delete on the ledger
+is still refused.
+
 The tenant row is the organizations module's (on its own table or yours), or the
 row of the table `blocks.permissions.disabled.tenant` names, or the one in
 `options.tenantRow` (`"schema.table.column"`, `false` to keep it), so a

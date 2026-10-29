@@ -906,6 +906,110 @@ describe.skipIf(!live)("data lifecycle", () => {
     }
   });
 
+  it("purges a tenant's ledger while the append-only guard holds for everyone else", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "ledger", "data-lifecycle"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+      const other = await s.organization(await s.user("other"));
+      await s.service();
+
+      const post = async (tenant: string): Promise<string> => {
+        const account = async (code: string): Promise<string> =>
+          s.value<string>(
+            "(better_supabase.open_ledger_account($1, 'credit', $2, $2, 'EUR', allow_negative => true) ->> 'id')",
+            [tenant, code],
+          );
+
+        const from = await account("from");
+        const to = await account("to");
+
+        return s.value<string>(
+          "(better_supabase.post_ledger_transaction($1, 'credit.grant', $2::jsonb) ->> 'id')",
+          [
+            tenant,
+            JSON.stringify([
+              { account: from, amount: "-100" },
+              { account: to, amount: "100" },
+            ]),
+          ],
+        );
+      };
+
+      const mine = await post(organization);
+      const theirs = await post(other);
+
+      const purgeOf = (tenant: string) =>
+        s.client.query(
+          "select set_config('better_supabase.purge_tenant', $1, true)",
+          [tenant],
+        );
+
+      await purgeOf(organization);
+      expect(
+        await s.hint(
+          "delete from better_supabase.ledger_entries where transaction_id = $1",
+          [mine],
+        ),
+      ).toBe("LEDGER_APPEND_ONLY");
+
+      await s.rows(
+        "insert into better_supabase.organization_deletions (organization_id, purge_after) values ($1, now() - interval '1 minute')",
+        [organization],
+      );
+
+      expect(
+        await s.hint(
+          "update better_supabase.ledger_transactions set kind = 'changed' where id = $1",
+          [mine],
+        ),
+      ).toBe("LEDGER_APPEND_ONLY");
+      expect(
+        await s.hint(
+          "delete from better_supabase.ledger_entries where transaction_id = $1",
+          [theirs],
+        ),
+      ).toBe("LEDGER_APPEND_ONLY");
+
+      await s.as(owner);
+      expect(
+        await s.hint(
+          "delete from better_supabase.ledger_entries where transaction_id = $1",
+          [mine],
+        ),
+      ).toBe("LEDGER_APPEND_ONLY");
+
+      await s.service();
+      await purgeOf("");
+
+      const purged = await s.value<{ deleted: Record<string, number> }>(
+        "better_supabase.purge_organization($1)",
+        [organization],
+      );
+
+      expect(purged.deleted).toMatchObject({
+        "better_supabase.ledger_entries": 2,
+        "better_supabase.ledger_transactions": 1,
+        "better_supabase.ledger_accounts": 2,
+      });
+      expect(
+        await s.value<string>(
+          "current_setting('better_supabase.purge_tenant', true)",
+        ),
+      ).toBe("");
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.ledger_entries where tenant_id = $1)",
+          [other],
+        ),
+      ).toBe(2);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("never exports API keys and still purges them with the tenant", async () => {
     const s = await BlockSession.open(pool);
 

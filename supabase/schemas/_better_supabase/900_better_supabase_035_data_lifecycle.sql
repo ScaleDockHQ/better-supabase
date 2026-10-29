@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:8e8d0b135189bb4b00a669706cc7735e580bee16b0605cb33d7682474e862a30
+-- @bsb-hash sha256:34876763b90dd86a610df0c484543be20510f9cc4991eb0f7630808092cfc231
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1345,6 +1345,7 @@ begin
       and to_regclass(t.tbl) <> to_regclass('"better_supabase"."organization_deletions"') and to_regclass(t.tbl) is distinct from to_regclass('"public"."organizations"')
     order by (row_number() over ()) desc
   );
+  perform set_config('better_supabase.purge_tenant', purge_organization.tenant::text, true);
   for v_pass in 1..10 loop
     exit when cardinality(v_pending) = 0;
     v_left := '{}';
@@ -1371,6 +1372,7 @@ begin
     end if;
     v_pending := v_left;
   end loop;
+  perform set_config('better_supabase.purge_tenant', '', true);
   update "better_supabase"."organization_deletions" x set "purged_at" = now() where x."organization_id" = v_row."organization_id" returning * into v_row;
   begin
     delete from "public"."organizations" where "id" = purge_organization.tenant;

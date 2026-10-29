@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:3b295858928b1f11ac7e797242eac2ab7155518311d335377ed9761bd1190874
+-- @bsb-hash sha256:f74dedf4ae414ac34781c1f5a5db72d67615ca14030ba9f8fdf26d0047aa1863
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -804,6 +804,7 @@ begin
       and to_regclass(t.tbl) <> to_regclass('"better_supabase"."workspace_deletions"')
     order by (row_number() over ()) desc
   );
+  perform set_config('better_supabase.purge_tenant', purge_workspace.tenant::text, true);
   for v_pass in 1..10 loop
     exit when cardinality(v_pending) = 0;
     v_left := '{}';
@@ -830,6 +831,7 @@ begin
     end if;
     v_pending := v_left;
   end loop;
+  perform set_config('better_supabase.purge_tenant', '', true);
   update "better_supabase"."workspace_deletions" x set "purged_at" = now() where x."workspace_id" = v_row."workspace_id" returning * into v_row;
   
   null;
