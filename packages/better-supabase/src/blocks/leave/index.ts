@@ -13,6 +13,7 @@ export {
   type LeaveRequestUpdate,
   type LeaveRequestListOptions,
   type LeaveFeed,
+  type LeaveFeedBusy,
   type LeaveFeedEntry,
   type LeaveStatus,
   type LeaveType,

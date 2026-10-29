@@ -121,12 +121,37 @@ export interface LeaveFeedEntry {
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
+/**
+ * Confidential leave in a feed with `options.feed.confidential: "busy"`: who
+ * and when, without the type, amount or fields.
+ */
+export interface LeaveFeedBusy {
+  readonly id: string;
+  readonly userId?: string;
+  readonly employeeId?: string;
+  /** The employee's name, with `options.feed.names`. */
+  readonly name?: string;
+  readonly startsOn: Temporal.PlainDate;
+  /** Inclusive. */
+  readonly endsOn: Temporal.PlainDate;
+  readonly partial: LeavePartial;
+  readonly startPart?: LeavePartial;
+  readonly endPart?: LeavePartial;
+  readonly updatedAt: Temporal.Instant;
+}
+
 /** What a leave feed share link reads. */
 export interface LeaveFeed {
   readonly organizationId: string;
+  /** With `options.feed.organizationName`. */
+  readonly organizationName?: string;
   /** The team of a `leave_team_feed` link. */
   readonly teamId?: string;
+  /** The team's name, with `options.feed.teamName`. */
+  readonly teamName?: string;
   readonly requests: readonly LeaveFeedEntry[];
+  /** With `options.feed.confidential: "busy"`. */
+  readonly busy?: readonly LeaveFeedBusy[];
 }
 
 /** A leave request. `F` types the extra columns the `fields` schema describes. */
@@ -256,6 +281,11 @@ export interface LeaveAdjustment {
   readonly kind?: "grant" | "adjustment";
   readonly note?: string;
   readonly expiresOn?: Temporal.PlainDate;
+  /**
+   * The day the entry counts from, such as a backdated correction. Default: the
+   * first day of the period. Needs `columns.balances.effectiveOn`.
+   */
+  readonly effectiveOn?: Temporal.PlainDate;
 }
 
 export interface LeaveAccrual {
@@ -270,6 +300,11 @@ export interface LeaveAccrual {
   /** A member gets an accrual with the same key once. */
   readonly idempotencyKey?: string;
   readonly note?: string;
+  /**
+   * The day the accrual counts from, such as the first of the month. Default:
+   * the first day of the period. Needs `columns.balances.effectiveOn`.
+   */
+  readonly effectiveOn?: Temporal.PlainDate;
 }
 
 export interface Leave<F extends object = Record<never, never>> {
@@ -661,7 +696,31 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
 
         return {
           organizationId: textOf(row["organizationId"]),
+          ...optional(
+            "organizationName",
+            optionalText(row["organizationName"]),
+          ),
           ...optional("teamId", optionalText(row["teamId"])),
+          ...optional("teamName", optionalText(row["teamName"])),
+          ...(row["busy"] === undefined
+            ? {}
+            : {
+                busy: recordsOf(row["busy"], "leave_feed").map((entry) => ({
+                  id: textOf(entry["id"]),
+                  ...owners(entry),
+                  ...optional("name", optionalText(entry["name"])),
+                  startsOn: dateOf(entry["startsOn"]),
+                  endsOn: dateOf(entry["endsOn"]),
+                  partial: enumOrThrow(
+                    entry["partial"],
+                    PARTIALS,
+                    "leave partial",
+                  ),
+                  ...optional("startPart", optionalPart(entry["startPart"])),
+                  ...optional("endPart", optionalPart(entry["endPart"])),
+                  updatedAt: requiredInstant(entry["updatedAt"], "updatedAt"),
+                })),
+              }),
           requests: recordsOf(row["requests"], "leave_feed").map((entry) => ({
             id: textOf(entry["id"]),
             ...owners(entry),
@@ -742,6 +801,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           note: adjustment.note ?? null,
           ...optional("employee_id", adjustment.employeeId),
           ...optional("expires_on", adjustment.expiresOn?.toString()),
+          ...optional("effective_on", adjustment.effectiveOn?.toString()),
         },
         (value) => entryOf(value, "adjust_leave_balance"),
       ),
@@ -757,6 +817,7 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           idempotency_key: accrual.idempotencyKey ?? null,
           note: accrual.note ?? null,
           ...optional("employee_ids", accrual.employeeIds),
+          ...optional("effective_on", accrual.effectiveOn?.toString()),
         },
         numberOf,
       ),

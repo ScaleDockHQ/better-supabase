@@ -1033,6 +1033,207 @@ $$;`,
     expect(stack.url).not.toBe("");
   });
 
+  it("dates adjustments and accruals on an effective day", async () => {
+    await expect(
+      runEmployees(
+        `create table public.denied (user_id uuid, permission text);
+insert into public.denied values ('${BOB}', 'leave.manage');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.user_id = auth.uid() and d.permission = can.permission) $$;
+do $$
+declare
+  v_type uuid;
+  v_entry jsonb;
+begin
+  ${SERVICE}
+  v_type := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation', 'hours') ->> 'id')::uuid;
+  v_entry := better_supabase.adjust_leave_balance('${TENANT}', null, v_type, -4, null, 'adjustment', 'correction',
+    employee_id => '${ALICE_EMPLOYEE}', effective_on => '2098-11-15');
+  if (select effective_on from public.time_off_ledger where id = (v_entry ->> 'id')::uuid) <> '2098-11-15'
+    or (v_entry ->> 'period')::integer <> 2098 then
+    raise exception 'adjusted %', v_entry;
+  end if;
+  if better_supabase.accrue_leave('${TENANT}', v_type, 8, null, employee_ids => array['${ALICE_EMPLOYEE}'::uuid, '${NO_ACCOUNT}'::uuid],
+    effective_on => '2099-05-01') <> 2 then
+    raise exception 'accrued';
+  end if;
+  if (select count(*) from public.time_off_ledger where kind = 'accrual' and effective_on = '2099-05-01') <> 2 then
+    raise exception 'accrual dates %', (select jsonb_agg(row_to_json(l)) from public.time_off_ledger l);
+  end if;
+  perform better_supabase.accrue_leave('${TENANT}', v_type, 8, 2099, employee_ids => array['${ALICE_EMPLOYEE}'::uuid]);
+  if not exists (select 1 from public.time_off_ledger where kind = 'accrual' and effective_on = '2099-01-01') then
+    raise exception 'default effective day';
+  end if;
+  ${AS(BOB)}
+  begin
+    perform better_supabase.adjust_leave_balance('${TENANT}', null, v_type, 1, null, employee_id => '${ALICE_EMPLOYEE}', effective_on => '2099-01-01');
+    raise exception 'allowed a backdated adjustment';
+  exception when others then
+    if sqlerrm not like '%not allowed%' then
+      raise;
+    end if;
+  end;
+  begin
+    perform better_supabase.accrue_leave('${TENANT}', v_type, 1, effective_on => '2099-01-01');
+    raise exception 'allowed a dated accrual';
+  exception when others then
+    if sqlerrm not like '%not allowed%' then
+      raise;
+    end if;
+  end;
+end;
+$$;`,
+        EMPLOYEE_BLOCKS,
+        EMPLOYEE_OWN,
+        EMPLOYEE_APP,
+      ),
+    ).resolves.toBeUndefined();
+
+    const leave = EMPLOYEE_BLOCKS["leave"];
+
+    const sql = renderBlocks(["employees", "leave"], {
+      modules: {
+        leave: {
+          ...leave,
+          columns: {
+            ...leave?.columns,
+            balances: { ...leave?.columns?.["balances"], effectiveOn: null },
+          },
+        },
+      },
+      ownTables: EMPLOYEE_OWN,
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    const body = (name: string): string => {
+      const start = sql.indexOf(`function "better_supabase"."${name}"(`);
+
+      return sql.slice(start, sql.indexOf("$$;", start));
+    };
+
+    expect(body("adjust_leave_balance")).toContain(
+      "LEAVE_EFFECTIVE_UNSUPPORTED",
+    );
+    expect(body("accrue_leave")).toContain("LEAVE_EFFECTIVE_UNSUPPORTED");
+  });
+
+  it("shares a team by an employees column, with names and confidential leave as busy", async () => {
+    const reader = "99999999-9999-4999-8999-999999999999";
+    const team = "88888888-8888-4888-8888-888888888888";
+    const leave = EMPLOYEE_BLOCKS["leave"];
+
+    const files = renderBlocks(["employees", "teams", "leave", "share-links"], {
+      modules: {
+        employees: {
+          options: { extraColumns: { department_team_id: "uuid" } },
+        },
+        leave: {
+          ...leave,
+          columns: {
+            ...leave?.columns,
+            types: {
+              ...leave?.columns?.["types"],
+              confidential: "confidential",
+            },
+          },
+          options: {
+            ...leave?.options,
+            feed: {
+              teams: true,
+              names: true,
+              teamColumn: "department_team_id",
+              teamName: true,
+              organizationName: "public.orgs.name",
+              confidential: "busy",
+            },
+          },
+        },
+      },
+      ownTables: EMPLOYEE_OWN,
+    });
+
+    await using stack = await liteStack({
+      driver: "pglite",
+      migrations: [
+        ROLES,
+        `${EMPLOYEE_APP.replace(
+          "  deducts_balance boolean not null default true,",
+          "  deducts_balance boolean not null default true,\n  confidential boolean not null default false,",
+        )}
+create table public.orgs (id uuid primary key, name text not null);
+create schema if not exists extensions;
+create or replace function extensions.gen_random_bytes(n integer) returns bytea
+language sql volatile as $$ select decode(md5(random()::text) || md5(random()::text), 'hex') $$;
+create or replace function extensions.digest(data bytea, type text) returns bytea
+language sql immutable as $$ select sha256(data) $$;`,
+        ...files
+          .filter((file) => file.kind !== "data")
+          .map((file) => file.contents),
+      ],
+      seed: [
+        ...files
+          .filter((file) => file.kind === "data")
+          .map((file) => file.contents),
+        ALLOW,
+        STAFF,
+        `insert into public.orgs values ('${TENANT}', 'Acme');
+insert into better_supabase.teams (id, tenant_id, name, slug) values ('${team}', '${TENANT}', 'Support', 'support');
+update better_supabase.employees set department_team_id = '${team}' where id in ('${ALICE_EMPLOYEE}', '${NO_ACCOUNT}');
+create table public.denied (user_id uuid, permission text);
+insert into public.denied values ('${reader}', 'leave.manage');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.user_id = auth.uid() and d.permission = can.permission) $$;
+create or replace function better_supabase.can_user(member uuid, scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.user_id = can_user.member and d.permission = can_user.permission) $$;
+insert into auth.users (id) values ('${reader}');
+insert into better_supabase.memberships (organization_id, user_id, role) values ('${TENANT}', '${reader}', 'member');`,
+        `do $$
+declare
+  v_holiday uuid;
+  v_sick uuid;
+  v_feed jsonb;
+begin
+  ${SERVICE}
+  v_holiday := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday', 'days') ->> 'id')::uuid;
+  v_sick := (better_supabase.save_leave_type('${TENANT}', 'sick', 'Sick', 'days', true, false) ->> 'id')::uuid;
+  update public.time_off_types set confidential = true where id = v_sick;
+  perform better_supabase.adjust_leave_balance('${TENANT}', null, v_holiday, 10, 2099, 'grant', null, employee_id => '${ALICE_EMPLOYEE}');
+  perform better_supabase.adjust_leave_balance('${TENANT}', null, v_holiday, 10, 2099, 'grant', null, employee_id => '${BOB_EMPLOYEE}');
+  perform better_supabase.decide_leave_request((better_supabase.request_leave('${TENANT}', v_holiday, '2099-03-02', '2099-03-02', employee_id => '${ALICE_EMPLOYEE}') ->> 'id')::uuid, true, null);
+  perform better_supabase.decide_leave_request((better_supabase.request_leave('${TENANT}', v_sick, '2099-03-05', '2099-03-05', employee_id => '${NO_ACCOUNT}') ->> 'id')::uuid, true, null);
+  perform better_supabase.decide_leave_request((better_supabase.request_leave('${TENANT}', v_holiday, '2099-03-09', '2099-03-09', employee_id => '${BOB_EMPLOYEE}') ->> 'id')::uuid, true, null);
+  ${AS(reader)}
+  v_feed := better_supabase.leave_feed(better_supabase.create_share_link('${TENANT}', 'leave_team_feed', '${team}', 'view') ->> 'token');
+  if v_feed ->> 'organizationName' <> 'Acme' or v_feed ->> 'teamName' <> 'Support'
+    or jsonb_array_length(v_feed -> 'requests') <> 1 or v_feed -> 'requests' -> 0 ->> 'name' <> 'Alice'
+    or jsonb_array_length(v_feed -> 'busy') <> 1 or v_feed -> 'busy' -> 0 ->> 'name' <> 'Dana'
+    or v_feed -> 'busy' -> 0 ? 'typeId' or v_feed -> 'busy' -> 0 ? 'type' or v_feed -> 'busy' -> 0 ? 'amount' then
+    raise exception 'reader feed %', v_feed;
+  end if;
+  ${AS(ALICE)}
+  v_feed := better_supabase.leave_feed(better_supabase.create_share_link('${TENANT}', 'leave_team_feed', '${team}', 'view') ->> 'token');
+  if jsonb_array_length(v_feed -> 'requests') <> 2 or jsonb_array_length(v_feed -> 'busy') <> 0 then
+    raise exception 'holder feed %', v_feed;
+  end if;
+end;
+$$;`,
+      ],
+    });
+
+    expect(stack.url).not.toBe("");
+    expect(() =>
+      renderBlocks(["employees", "teams", "leave", "share-links"], {
+        modules: { leave: { options: { feed: { teamColumn: "team_id" } } } },
+      }),
+    ).toThrow(/teamColumn/);
+    expect(() =>
+      renderBlocks(["employees", "teams", "leave", "share-links"], {
+        modules: { leave: { options: { feed: { confidential: "busy" } } } },
+      }),
+    ).toThrow(/confidential/);
+  });
+
   it("keys the ledger by employee on the block's own tables", async () => {
     await expect(
       runEmployees(
