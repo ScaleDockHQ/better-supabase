@@ -37,7 +37,10 @@ export const catalogSqlOptions: BlockOptionsSchema<CatalogSqlOptions> =
     variantExtraColumns: option.extraColumns(),
     categoryExtraColumns: option.extraColumns(),
     locales: option.strings({ default: ["en"] }),
-    rankType: option.string<"text" | "integer">({ default: "text" }),
+    rankType: option.string<"text" | "integer">({
+      default: "text",
+      client: true,
+    }),
     variantInUse: option.string(),
     maxVariants: option.number({ default: 100 }),
   });

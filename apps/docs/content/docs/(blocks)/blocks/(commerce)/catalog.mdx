@@ -84,7 +84,16 @@ const rows = useCatalog({ limit: 50 });
 
 The slug comes from the title when you leave it out, and it is unique per
 organization (`CATALOG_SLUG_TAKEN`). `kind` is `physical`, `digital` or
-`service`.
+`service`. A unique index of your own on the products, variants or categories
+table, such as one on a barcode, keeps its own error: the block reports
+`CATALOG_SLUG_TAKEN` or `CATALOG_SKU_TAKEN` only for an index on the slug or
+SKU column, and raises any other unique violation unchanged with its
+constraint name.
+
+A new row never writes `null` into a column the call leaves out: the
+description of a product or category, and the SKU, title, barcode and weight of
+a variant take your column's default instead, so a `title text not null
+default ''` column works for a variant without a title.
 
 A product starts as `draft`. The built-in transitions are draft to active or
 archived, active to draft or archived, and archived back to draft; anything
@@ -225,8 +234,16 @@ per-variant one (`CATALOG_TRACK_INVENTORY_UNSUPPORTED`).
 Options, option values, variants, categories and collection products are
 ordered by base-62 rank keys. When your rank columns are whole-number
 positions, set `options.rankType: "integer"`: a new row goes one after the
-last, and `reorderVariant`, `moveCategory` and `addToCollection` take the
-position as text (`"3"`).
+last. `reorderVariant`, `moveCategory` and `addToCollection` then take
+`{ position }`, or `{ previous, next }` with whole-number neighbors, which picks
+the number halfway between them or one past an end. Two neighbors with no
+whole number between them return `RANK_KEY_INVALID`; pass a position and
+renumber the rest yourself. A position with text ranks returns the same error.
+`blockConfig` passes `rankType` to the client.
+
+```ts
+await catalog.moveCategory(categoryId, parentId, { position: 3 }).orThrow();
+```
 
 ## Prices
 

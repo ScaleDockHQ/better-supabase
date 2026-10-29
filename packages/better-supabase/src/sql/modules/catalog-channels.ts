@@ -4,7 +4,8 @@ import type { Names } from "./catalog-names.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, lockTable, pageSize, userGrant } from "../shared.ts";
-import { SLUG, catalogRank, guard } from "./catalog-functions.ts";
+import { SLUG, guard } from "./catalog-functions.ts";
+import { catalogRank } from "./catalog-names.ts";
 
 const LOCALE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/;
 

@@ -1,10 +1,13 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
-import type { RankSql } from "../rank-sql.ts";
 import type { Names } from "./catalog-names.ts";
 
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
-import { rankSql } from "../rank-sql.ts";
+import {
+  columnDefaults,
+  uniqueViolationOn,
+  withColumnDefault,
+} from "../column-defaults.ts";
 import {
   columnsObject,
   extraFieldsArg,
@@ -13,6 +16,7 @@ import {
   updateExtraColumns,
   userGrant,
 } from "../shared.ts";
+import { catalogRank } from "./catalog-names.ts";
 import { stockHistory } from "./inventory-stock.ts";
 
 export const SLUG = "'^[a-z0-9]+(?:-[a-z0-9]+)*$'";
@@ -149,19 +153,6 @@ function variantInUse(ctx: BlockSqlContext): string | undefined {
   return value.split(".").map(sqlIdent).join(".");
 }
 
-/** `blocks.catalog.options.rankType`: rank keys or integer positions. */
-export function catalogRank(ctx: BlockSqlContext): RankSql {
-  const type = ctx.text("rankType", "text");
-
-  if (type !== "text" && type !== "integer") {
-    throw new TypeError(
-      'blocks.catalog.options.rankType must be "text" or "integer"',
-    );
-  }
-
-  return rankSql(type);
-}
-
 export function guard(
   names: Names,
   tenant: string,
@@ -277,7 +268,7 @@ declare
   v_title text := save_product.title;
   v_slug text := nullif(save_product.slug, '');
   v_status text;
-  v_created boolean := save_product.product is null;
+  v_created boolean := save_product.product is null;${desc ? "\n  v_defaults jsonb;" : ""}
 begin
   if v_created then
     ${guard(names, "save_product.tenant", names.create)}
@@ -304,9 +295,9 @@ begin
     ["text", "save_product.kind"],
   ])}
   begin
-    if v_created then
+    if v_created then${desc ? `\n      ${columnDefaults(products, [[p("description"), "save_product.description"]], "v_defaults")}` : ""}
       insert into ${products} (${p("tenant")}, ${p("title")}, ${p("slug")}${desc ? `, ${p("description")}` : ""}${kind ? `, ${p("kind")}` : ""}${inserted.columns})
-      values (save_product.tenant, v_title, v_slug${desc ? ", save_product.description" : ""}${kind ? `, ${ctx.cast("products", "kind", "coalesce(save_product.kind, 'physical')")}` : ""}${inserted.values})
+      values (save_product.tenant, v_title, v_slug${desc ? `, ${withColumnDefault(products, p("description"), "save_product.description", "v_defaults")}` : ""}${kind ? `, ${ctx.cast("products", "kind", "coalesce(save_product.kind, 'physical')")}` : ""}${inserted.values})
       returning ${p("id")}, ${ctx.label("products", "status", p("status"))} into v_id, v_status;
     else
       update ${products} x set ${p("title")} = v_title, ${p("slug")} = v_slug${desc ? `, ${p("description")} = case when ${clears("description")} then null else coalesce(save_product.description, x.${p("description")}) end` : ""}${kind ? `, ${p("kind")} = coalesce(${ctx.cast("products", "kind", "save_product.kind")}, x.${p("kind")})` : ""}, ${p("updatedAt")} = now()${settingSet}${updateExtraColumns(products, extras, "save_product.fields")}
@@ -317,7 +308,7 @@ begin
       end if;
     end if;
   exception when unique_violation then
-    ${fail("CATALOG_SLUG_TAKEN", "another product has this slug", "23505")}
+    ${uniqueViolationOn(products, p("slug"), fail("CATALOG_SLUG_TAKEN", "another product has this slug", "23505"))}
   end;${settingWrite}
   if v_created then
     ${ctx.record({
@@ -890,6 +881,10 @@ function variantFunctions(
     ],
   ];
 
+  const defaulted = columns
+    .filter(([column]) => clearable.includes(column))
+    .map(([column, value]): readonly [string, string] => [v(column), value]);
+
   const valueChecks = hasValues
     ? (() => {
         const options = ctx.table("options");
@@ -964,6 +959,7 @@ declare
   v_last text;
   v_rank text;
   v_sku text := save_variant.sku;
+  v_defaults jsonb;
 begin
   select x.${p("tenant")} into v_tenant from ${products} x where x.${p("id")} = save_variant.product for update;
   if v_tenant is null then
@@ -988,9 +984,10 @@ ${valueChecks.check}
     if v_created then
       select max(${rank.order(`x.${v("rank")}`)}) into v_last from ${variants} x where x.${v("product")} = save_variant.product;
       v_rank := ${rank.after("v_last")};
-      insert into ${variants} (${v("tenant")}, ${v("product")}, ${columns.map(([column]) => v(column)).join(", ")}, ${v("rank")}${inserted.columns})
-      values (v_tenant, save_variant.product, ${columns.map(([, value]) => value).join(", ")}, ${rank.write("v_rank")}${inserted.values})
-      returning ${v("id")} into v_id;
+      ${columnDefaults(variants, defaulted, "v_defaults")}
+      insert into ${variants} as x (${v("tenant")}, ${v("product")}, ${columns.map(([column]) => v(column)).join(", ")}, ${v("rank")}${inserted.columns})
+      values (v_tenant, save_variant.product, ${columns.map(([column, value]) => (clearable.includes(column) ? withColumnDefault(variants, v(column), value, "v_defaults") : value)).join(", ")}, ${rank.write("v_rank")}${inserted.values})
+      returning x.${v("id")}, x.${v("sku")} into v_id, v_sku;
     else
       update ${variants} x set ${columns.map(([column, , param]) => (clearable.includes(column) ? `${v(column)} = case when ${sqlString(column)} = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(${param}, x.${v(column)}) end` : `${v(column)} = coalesce(${param}, x.${v(column)})`)).join(", ")}, ${v("updatedAt")} = now()${updateExtraColumns(variants, extras, "save_variant.fields")}
       where x.${v("id")} = save_variant.variant and x.${v("product")} = save_variant.product
@@ -1000,7 +997,7 @@ ${valueChecks.check}
       end if;
     end if;
   exception when unique_violation then
-    ${fail("CATALOG_SKU_TAKEN", "another variant has this SKU", "23505")}
+    ${uniqueViolationOn(variants, v("sku"), fail("CATALOG_SKU_TAKEN", "another variant has this SKU", "23505"))}
   end;
 ${valueChecks.write}
   if v_created then

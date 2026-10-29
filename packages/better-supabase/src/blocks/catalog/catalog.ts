@@ -2,10 +2,11 @@ import type { Money } from "../../commerce/money.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { RankNeighbors } from "../../core/rank-result.ts";
+import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { FilterQuery } from "../../list/filter-query.ts";
 import type { BlockOptions, CursorPageOptions } from "../shared.ts";
+import type { CatalogRank } from "./rank.ts";
 
 import { money } from "../../commerce/money.ts";
 import {
@@ -15,7 +16,6 @@ import {
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
-import { rankBetweenResult } from "../../core/rank-result.ts";
 import { AsyncResult } from "../../core/result.ts";
 import {
   amountText,
@@ -36,6 +36,7 @@ import {
   stringsOf,
   textOf,
 } from "../shared.ts";
+import { catalogRankKey } from "./rank.ts";
 
 export const PRODUCT_KINDS = ["physical", "digital", "service"] as const;
 
@@ -60,6 +61,11 @@ export interface CatalogOptions<
   readonly hooks?: NoInfer<BlockHooks<Catalog<FieldsOf<S>>>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
+  /**
+   * `blocks.catalog.options.rankType`, which `blockConfig` passes. With
+   * `"integer"`, the rank methods write whole-number positions.
+   */
+  readonly rankType?: "text" | "integer";
 }
 
 export interface ProductInput {
@@ -381,11 +387,11 @@ export interface Catalog<F extends object = Record<never, never>> {
     variantId: string,
     input: VariantInput,
   ): AsyncResult<SavedVariant>;
-  /** Moves a variant between the variants with rank keys `previous` and `next`. */
-  reorderVariant(
-    variantId: string,
-    neighbors: RankNeighbors,
-  ): AsyncResult<string>;
+  /**
+   * Moves a variant between the variants with rank keys `previous` and `next`,
+   * or to a whole-number position with integer ranks.
+   */
+  reorderVariant(variantId: string, rank: CatalogRank): AsyncResult<string>;
   setVariantStatus(
     variantId: string,
     status: "active" | "archived" | (string & {}),
@@ -419,7 +425,7 @@ export interface Catalog<F extends object = Record<never, never>> {
   moveCategory(
     categoryId: string,
     parentId: string | null,
-    neighbors: RankNeighbors,
+    rank: CatalogRank,
   ): AsyncResult<string>;
   deleteCategory(categoryId: string): AsyncResult<boolean>;
   setProductCategories(
@@ -438,7 +444,7 @@ export interface Catalog<F extends object = Record<never, never>> {
   addToCollection(
     collectionId: string,
     productId: string,
-    neighbors?: RankNeighbors,
+    rank?: CatalogRank,
   ): AsyncResult<string>;
   removeFromCollection(
     collectionId: string,
@@ -721,6 +727,9 @@ export function createCatalog<
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "product fields");
 
+  const rankOf = (rank: CatalogRank): Result<string> =>
+    catalogRankKey(rank, options.rankType ?? "text");
+
   const saveProduct = (
     organizationId: string,
     productId: string | null,
@@ -846,8 +855,8 @@ export function createCatalog<
       call("save_variant", variantArgs(productId, null, input), variantOf),
     updateVariant: (productId, variantId, input) =>
       call("save_variant", variantArgs(productId, variantId, input), variantOf),
-    reorderVariant: (variantId, neighbors) => {
-      const key = rankBetweenResult(neighbors);
+    reorderVariant: (variantId, rank) => {
+      const key = rankOf(rank);
 
       if (!key.ok) {
         return AsyncResult.err(key.error);
@@ -957,8 +966,8 @@ export function createCatalog<
           };
         },
       ),
-    moveCategory: (categoryId, parentId, neighbors) => {
-      const key = rankBetweenResult(neighbors);
+    moveCategory: (categoryId, parentId, rank) => {
+      const key = rankOf(rank);
 
       if (!key.ok) {
         return AsyncResult.err(key.error);
@@ -1009,7 +1018,7 @@ export function createCatalog<
         { collection: collectionId },
         (value) => value === true,
       ),
-    addToCollection: (collectionId, productId, neighbors) => {
+    addToCollection: (collectionId, productId, rank) => {
       const add = (rank: string | null): AsyncResult<string> =>
         call(
           "add_to_collection",
@@ -1017,11 +1026,11 @@ export function createCatalog<
           textOf,
         );
 
-      if (neighbors === undefined) {
+      if (rank === undefined) {
         return add(null);
       }
 
-      const key = rankBetweenResult(neighbors);
+      const key = rankOf(rank);
 
       return key.ok ? add(key.data) : AsyncResult.err(key.error);
     },

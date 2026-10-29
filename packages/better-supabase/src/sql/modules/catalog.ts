@@ -26,7 +26,6 @@ import {
 } from "./catalog-channels.ts";
 import {
   SLUG,
-  catalogRank,
   categoryExtras,
   optionFunctions,
   productExtras,
@@ -41,6 +40,7 @@ import {
   priceFunctions,
   storefrontFunctions,
 } from "./catalog-merchandising.ts";
+import { catalogRank } from "./catalog-names.ts";
 import { variantStatusFunction } from "./catalog-variant-status.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
