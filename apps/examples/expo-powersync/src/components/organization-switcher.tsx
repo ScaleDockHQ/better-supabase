@@ -3,7 +3,7 @@ import type { OrganizationMembership } from "better-supabase/blocks/organization
 
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
-import type { OrganizationSource } from "../hooks/use-organizations";
+import type { UseOrganizationsOptions } from "../hooks/use-organizations";
 
 import { useOrganizations } from "../hooks/use-organizations";
 import { API_SCHEMA } from "../lib/blocks";
@@ -11,19 +11,17 @@ import { API_SCHEMA } from "../lib/blocks";
 /**
  * The caller's organizations. Pressing one switches to it, refreshes the
  * session so the token carries the new tenant, and loads the list again. `load`
- * reads them elsewhere, such as from the PowerSync database.
+ * reads them elsewhere, such as from the PowerSync database, and `onSwitched`
+ * replaces the refresh, such as one that also reconnects sync.
  */
-export function OrganizationSwitcher({
-  load,
-}: {
-  readonly load?: OrganizationSource<OrganizationMembership>;
-}) {
+export function OrganizationSwitcher(
+  props: Pick<
+    UseOrganizationsOptions<OrganizationMembership>,
+    "load" | "onSwitched"
+  >,
+) {
   const { organizations, activeId, switching, error, switchTo } =
-    useOrganizations(
-      load === undefined
-        ? { schema: API_SCHEMA }
-        : { schema: API_SCHEMA, load },
-    );
+    useOrganizations({ ...props, schema: API_SCHEMA });
 
   if (organizations === undefined) {
     return <ActivityIndicator />;

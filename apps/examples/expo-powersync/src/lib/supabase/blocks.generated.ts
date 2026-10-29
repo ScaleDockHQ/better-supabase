@@ -9,13 +9,18 @@ import {
 } from "better-supabase/blocks";
 import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
+import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { TagsEvents } from "better-supabase/blocks/tags";
+import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { commentsBlock as commentsBlockInstance } from "better-supabase/blocks/comments";
 import { messagingBlock as messagingBlockInstance } from "better-supabase/blocks/messaging";
 import { notificationsBlock as notificationsBlockInstance } from "better-supabase/blocks/notifications";
+import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
+import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { tagsBlock as tagsBlockInstance } from "better-supabase/blocks/tags";
+import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
 
 /**
  * The installed blocks' settings from the `blocks` config, for
@@ -46,11 +51,31 @@ export const blockConfig = {
       topic: "notifications:{userId}",
     },
   },
+  organizations: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  profiles: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  sessions: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
   subjects: {
     schema: "better_supabase",
     options: {},
   },
   tags: {
+    schema: "better_supabase",
+    api: "api",
+    options: {},
+  },
+  teams: {
     schema: "better_supabase",
     api: "api",
     options: {},
@@ -82,9 +107,13 @@ export const blocks = {
   messaging: messagingBlockInstance,
   notifications: notificationsBlockInstance,
   /** Needs the network on native. */
+  organizations: organizationsBlockInstance,
+  profiles: profilesBlockInstance,
+  /** Needs the network on native. */
   subjects: subjectsBlockInstance,
   /** Needs the network on native. */
   tags: tagsBlockInstance,
+  teams: teamsBlockInstance,
 } as const;
 
 /**
@@ -137,6 +166,15 @@ export const permissions = {
     send: "notifications.send",
     read: "notifications.read",
   },
+  organizations: {
+    update: "organization.update",
+    delete: "organization.delete",
+    listMembers: "members.read",
+    removeMember: "members.remove",
+    suspendMember: "members.remove",
+    updateRole: "members.update_role",
+    transferOwnership: "organization.transfer_ownership",
+  },
   permissions: {
     listRoles: "members.read",
     setOverride: "roles.manage",
@@ -146,6 +184,10 @@ export const permissions = {
     read: "tags.read",
     apply: "tags.apply",
   },
+  teams: {
+    manage: "teams.manage",
+    read: "teams.read",
+  },
 } as const;
 
 /**
@@ -153,10 +195,10 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "members.read" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "roles.manage" | "tags.apply" | "tags.manage" | "tags.read";
+export type PermissionKey = "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "roles.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = MessagingEvents & NotificationsEvents & TagsEvents;
+export type BlockEvents = MessagingEvents & NotificationsEvents & OrganizationsEvents & TagsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -169,6 +211,12 @@ export const blockEvents: Events<BlockEvents> = {
     "conversation.created",
     "conversation.member_added",
     "conversation.member_removed",
+    "invitation.accepted",
+    "invitation.created",
+    "invitation.declined",
+    "invitation.resent",
+    "invitation.revoked",
+    "invitation.updated",
     "message.deleted",
     "message.edited",
     "message.pinned",
@@ -182,11 +230,31 @@ export const blockEvents: Events<BlockEvents> = {
     "notification.delivered",
     "notification.failed",
     "notification.opened",
+    "organization.created",
+    "organization.deleted",
+    "organization.member_added",
+    "organization.member_left",
+    "organization.member_removed",
+    "organization.member_resumed",
+    "organization.member_suspended",
+    "organization.ownership_transferred",
+    "organization.role_added",
+    "organization.role_changed",
+    "organization.role_removed",
+    "organization.switched",
+    "organization.updated",
     "subject.tagged",
     "subject.untagged",
     "tag.created",
     "tag.deleted",
     "tag.updated",
+    "team.archived",
+    "team.created",
+    "team.deleted",
+    "team.restored",
+    "team.updated",
+    "team_member.added",
+    "team_member.removed",
   ],
 };
 
@@ -199,6 +267,12 @@ export const blockEventSchemas = {
   "conversation.created": true,
   "conversation.member_added": true,
   "conversation.member_removed": true,
+  "invitation.accepted": true,
+  "invitation.created": true,
+  "invitation.declined": true,
+  "invitation.resent": true,
+  "invitation.revoked": true,
+  "invitation.updated": true,
   "message.deleted": true,
   "message.edited": true,
   "message.pinned": true,
@@ -212,11 +286,31 @@ export const blockEventSchemas = {
   "notification.delivered": true,
   "notification.failed": true,
   "notification.opened": true,
+  "organization.created": true,
+  "organization.deleted": true,
+  "organization.member_added": true,
+  "organization.member_left": true,
+  "organization.member_removed": true,
+  "organization.member_resumed": true,
+  "organization.member_suspended": true,
+  "organization.ownership_transferred": true,
+  "organization.role_added": true,
+  "organization.role_changed": true,
+  "organization.role_removed": true,
+  "organization.switched": true,
+  "organization.updated": true,
   "subject.tagged": true,
   "subject.untagged": true,
   "tag.created": true,
   "tag.deleted": true,
   "tag.updated": true,
+  "team.archived": true,
+  "team.created": true,
+  "team.deleted": true,
+  "team.restored": true,
+  "team.updated": true,
+  "team_member.added": true,
+  "team_member.removed": true,
 } as const;
 
 /**
