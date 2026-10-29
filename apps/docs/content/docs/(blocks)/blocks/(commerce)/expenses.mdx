@@ -236,19 +236,32 @@ An expense belongs to a member (`user`), or with `options.owner: "employee"` to 
 
 Amounts are `Money` in minor units. Each change records `expense.created`, `expense.submitted`, `expense.approved`, `expense.rejected`, `expense.reimbursed`, `expense.withdrawn` or `expense.deleted`. Extra columns (`options.extraColumns`) are written in the insert itself, so a `not null` column without a default or a check across columns holds from the first write.
 
+Two opt-in options loosen what can change after submitting. With `options.withdrawApproved: true`, `withdrawExpense` also takes an approved expense that isn't reimbursed back to draft, for example to correct an amount, and clears `approvedAt`, `decidedBy` and `decidedAt`. The owner may do that, and so may a holder of `permissions.withdraw` (the `update` key when unset). `permissions.deleteSubmitted` names a key whose holders may delete a submitted or approved expense that isn't reimbursed; a reimbursed expense stays. Without them, only a submitted expense is withdrawn and only a draft is deleted.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  expenses: {
+    options: { withdrawApproved: true },
+    permissions: { withdraw: "expense.withdraw", deleteSubmitted: "expense.delete_any" },
+  },
+}
+```
+
 With `options.companyExpenses: true`, `createExpense({ company: true, ... })` records an expense of the organization itself, without a member or employee. It needs `expenses.manage` (or the service role), and the owner column must allow null; the block's own table does. `listExpenses({ everyone: true })` returns them with the rest.
 
 ### A key per action
 
 `expenses.manage` covers everything done for someone else. Name a key per action in `permissions` to split it; an action without its own key checks `manage`.
 
-| Key          | What it allows                                                                   |
-| ------------ | -------------------------------------------------------------------------------- |
-| `create`     | `createExpense` for another member or employee, and company expenses             |
-| `update`     | `updateExpense`, `submitExpense` and `withdrawExpense` on someone else's expense |
-| `delete`     | `deleteExpense` on someone else's expense                                        |
-| `reimburse`  | `reimburseExpense`, and `reimburse_expense_report` with reports                  |
-| `categories` | `save_expense_category` and `archive_expense_category`                           |
+| Key               | What it allows                                                                   |
+| ----------------- | -------------------------------------------------------------------------------- |
+| `create`          | `createExpense` for another member or employee, and company expenses             |
+| `update`          | `updateExpense`, `submitExpense` and `withdrawExpense` on someone else's expense |
+| `delete`          | `deleteExpense` on someone else's expense                                        |
+| `withdraw`        | `withdrawExpense` on someone else's approved expense, with `withdrawApproved`    |
+| `deleteSubmitted` | `deleteExpense` on a submitted or approved expense; no fallback                  |
+| `reimburse`       | `reimburseExpense`, and `reimburse_expense_report` with reports                  |
+| `categories`      | `save_expense_category` and `archive_expense_category`                           |
 
 A payroll role that may only mark expenses reimbursed:
 

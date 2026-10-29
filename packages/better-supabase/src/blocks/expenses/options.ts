@@ -18,6 +18,12 @@ export type ExpensesSqlOptions = {
    * must allow null.
    */
   readonly companyExpenses?: boolean;
+  /**
+   * Without reports: `withdrawExpense` also takes an approved expense that
+   * isn't reimbursed back to draft and clears its decision. The owner may, and
+   * so may a holder of `permissions.withdraw` (default the `update` key).
+   */
+  readonly withdrawApproved?: boolean;
 };
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
@@ -27,4 +33,5 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
     approvals: option.boolean({ default: true }),
     owner: option.string<"user" | "employee">({ default: "user" }),
     companyExpenses: option.boolean({ default: false }),
+    withdrawApproved: option.boolean({ default: false }),
   });

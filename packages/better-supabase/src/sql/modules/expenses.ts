@@ -111,6 +111,7 @@ const NAMES: BlockSqlNames = {
     "approvals",
     "owner",
     "companyExpenses",
+    "withdrawApproved",
   ],
   tables: {
     categories: {
