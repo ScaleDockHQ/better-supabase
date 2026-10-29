@@ -37,7 +37,7 @@ function grantTeams(ctx: BlockSqlContext): BlockSqlContext | undefined {
 }
 
 /** The type of a grant's team: the teams id type, or text without teams. */
-export function grantTeamType(ctx: BlockSqlContext): string {
+function grantTeamType(ctx: BlockSqlContext): string {
   const teams = grantTeams(ctx);
 
   return teams ? teamIdType(teams) : "text";
