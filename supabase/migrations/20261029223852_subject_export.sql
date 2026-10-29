@@ -646,7 +646,7 @@ begin
       v_parts := v_parts || jsonb_build_object('better_supabase.field_values', v_rows);
     end if;
   end if;
-  select coalesce(jsonb_agg((to_jsonb(t.*) - array['token_hash']::text[]) order by t.ctid), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg((to_jsonb(t.*) - array['token_hash', 'password_hash']::text[]) order by t.ctid), '[]'::jsonb) into v_rows
   from "better_supabase"."share_links" t where t."subject_type"::text = request_subject_export.subject_type and t."subject_id"::text = request_subject_export.subject_id and (v_tenant is null or t."tenant_id"::text = v_tenant::text);
   if jsonb_array_length(v_rows) > 0 then
     v_parts := v_parts || jsonb_build_object('better_supabase.share_links', v_rows);
