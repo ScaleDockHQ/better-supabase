@@ -1,9 +1,9 @@
 ---
-title: From 0.44 to 0.45
-description: What to check when upgrading from better-supabase 0.44 to 0.45, where PowerSync streams move to edition 3, attachments fill object_path from a trigger, doctor adds BS421 and the rate limiter moves to its own entry.
+title: From 0.45 to 0.46
+description: What to check when upgrading from better-supabase 0.45 to 0.46, where PowerSync streams move to edition 3, attachments fill object_path from a trigger, doctor adds BS421 and the rate limiter moves to its own entry.
 ---
 
-0.45.0 collects fixes reported by an app in production. Most of them add
+0.46.0 collects fixes reported by an app in production. Most of them add
 options. Four can need a step: the regenerated module SQL, the PowerSync
 streams, a new doctor error and an import path.
 
@@ -72,7 +72,7 @@ export default defineConfig({
 `createRateLimit` and `rateLimited` have their own entry. The exports from
 `better-supabase/blocks/queue` stay as deprecated aliases.
 
-| 0.44                                                  | 0.45                                                |
+| 0.45                                                  | 0.46                                                |
 | ----------------------------------------------------- | --------------------------------------------------- |
 | `createRateLimit` from `better-supabase/blocks/queue` | `createRateLimit` from `better-supabase/rate-limit` |
 | `rateLimited` from `better-supabase/blocks/queue`     | `rateLimited` from `better-supabase/rate-limit`     |

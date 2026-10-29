@@ -2,7 +2,7 @@
 "better-supabase": minor
 ---
 
-Fixes from an app built on better-supabase: tenant scope exemptions, PowerSync streams on edition 3, multi-limit rate limits, formatter-stable generated code, and block controllers that share a data engine. The [0.44 to 0.45 guide](https://bettersupabase.com/docs/migration/0.44-to-0.45) lists what to check.
+Fixes from an app built on better-supabase: tenant scope exemptions, PowerSync streams on edition 3, multi-limit rate limits, formatter-stable generated code, and block controllers that share a data engine. The [0.45 to 0.46 guide](https://bettersupabase.com/docs/migration/0.45-to-0.46) lists what to check.
 
 Import paths, old to new:
 
