@@ -101,7 +101,7 @@ export function bootstrapSchema(
 }
 
 /** A caller without a session: no wrapper call, nothing to cache. */
-export function signedOutBootstrap<C, P>(
+function signedOutBootstrap<C, P>(
   view: AuthSession<C, P>,
   tenant: string | undefined,
 ): Bootstrap<C, P, never> {
@@ -117,7 +117,7 @@ export function signedOutBootstrap<C, P>(
 }
 
 /** Calls `<schema>.bootstrap_<rpc>(args)` and checks the row it returns. */
-export async function runBootstrap(
+async function runBootstrap(
   executor: Executor,
   schema: string,
   rpc: string,
@@ -291,7 +291,7 @@ export function accessOf<
 }
 
 /** A per-Request memo of bootstrap calls, for `server.bootstrapFor`. */
-export function requestBootstrapMemo(): (request: Request) => BootstrapMemo {
+function requestBootstrapMemo(): (request: Request) => BootstrapMemo {
   const calls = new WeakMap<Request, Map<string, Promise<BootstrapRow>>>();
 
   return (request) => (key, run) => {

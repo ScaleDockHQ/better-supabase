@@ -47,7 +47,7 @@ export interface AuthzTopicOptions {
 }
 
 /** A version from a broadcast payload or an RPC; `bigint` may arrive as text. */
-export function versionFrom(value: unknown): number | undefined {
+function versionFrom(value: unknown): number | undefined {
   const version = typeof value === "string" ? Number(value) : value;
 
   return typeof version === "number" && Number.isFinite(version)

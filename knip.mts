@@ -129,6 +129,8 @@ const config: KnipConfig = {
         ...exampleIgnore,
         "src/hooks/use-*.ts",
         "src/lib/supabase/records/**",
+        // `better-supabase gen` writes the PowerSync schema with one export per table.
+        "powersync/schema.ts",
       ],
       // @react-native/metro-config pins the optional peer of React Native's
       // CLI plugin to the React Native version.
