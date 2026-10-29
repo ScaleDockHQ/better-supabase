@@ -133,3 +133,7 @@ add one, and link it from the code or config it explains.
 | [0127](0127-fractional-stock-lots-and-allocations.md)         | Stock is numeric with a unit scale; lots, bins, average cost, document allocations, orders from lines or a quote, and shipment lines               |
 | [0128](0128-brand-templates-schedules-workflow-machines.md)   | Templates gain brand starters and schedules on reminders' rules; a machine can read its edges from a workflow version                              |
 | [0129](0129-native-authz-refresh.md)                          | Native apps refresh on the authorization version and reconnect PowerSync; bootstrap reports the live version                                       |
+| [0130](0130-one-naming-convention-for-blocks.md)              | One naming convention for block entities, tables, permission keys, events, hints, functions and docs pages                                         |
+| [0131](0131-merge-overlapping-blocks.md)                      | Inbox contacts, sequence enrollments, AI file versions and postmortem actions move onto the blocks that own them                                   |
+| [0132](0132-quality-blocks.md)                                | Quality management from five cross-cutting blocks: acknowledgements, cases, inspections, risks and qualifications                                  |
+| [0133](0133-drive-roles-sharing-and-controlled-documents.md)  | Drive commenter and upload-only roles, link passwords and download control, preview and text ports, controlled documents                           |

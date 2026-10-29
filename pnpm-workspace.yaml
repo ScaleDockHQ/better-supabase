@@ -492,11 +492,13 @@ auditConfig:
     # zod 4; zod 3 stays only for @expo/cli in apps/examples/expo-powersync
     # (dev tooling, never shipped). Remove it once @expo/cli moves to zod 4.
     - GHSA-mrhx-c7xc-m3w5
-    # decode-uri-component <=0.4.2 (moderate) reaches the tree only through
-    # expo-router > query-string 7 in apps/examples/expo-powersync. The fix,
-    # 0.5, is ESM-only and query-string 7 requires it as a function. Remove it
-    # once expo-router moves to query-string 8 or later (ADR 0002).
+    # decode-uri-component <=0.4.2 (moderate) and <=0.5.0 (high) reach the tree
+    # only through expo-router > query-string 7 in apps/examples/expo-powersync
+    # and the registry's expo devDependency. The fixes, 0.5 and 0.5.1, are
+    # ESM-only and query-string 7 requires it as a function. Remove both once
+    # expo-router moves to query-string 8 or later (ADR 0002).
     - GHSA-vcc3-ghjq-m6fr
+    - GHSA-qr28-fpjm-wq7f
     # nodemailer <=10.0.5 reaches the tree only through @supabase/lite 0.11,
     # which requires nodemailer 9; the liteStack() tests send no mail. Remove
     # them once @supabase/lite moves to nodemailer 10.0.6 or later (ADR 0002).
