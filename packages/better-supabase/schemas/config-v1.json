@@ -6445,6 +6445,10 @@
               "notifications": {
                 "type": "boolean",
                 "default": true
+              },
+              "holds": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
