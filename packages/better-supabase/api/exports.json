@@ -6851,6 +6851,7 @@
     ],
     "types": [
       "ApprovalApprovers",
+      "ApprovalDecideOptions",
       "ApprovalDecision",
       "ApprovalListOptions",
       "ApprovalMode",
@@ -6864,6 +6865,7 @@
       "ApprovalsOptions",
       "ApprovalStatus",
       "ApprovalStep",
+      "ApprovalStepInput",
       "ApprovalTenantPolicy",
       "BlockTransport"
     ]

@@ -1,6 +1,6 @@
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:746442ff3390cfa4cdfcae0cf09d10c502f7e4475e2ffa308a3707a3e7318003
+-- @bsb-hash sha256:b1eaf1e3735ddf2a7ad259660f00425657e5536cdc4424912b71b97ba7a26b29
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -102,7 +102,8 @@ drop function if exists "better_supabase"."transition"(text, text, text, text);
 -- Sets the status as the caller, so the subject table's policies decide
 -- whether they may update the record; the trigger checks the edge. actor
 -- carries the name, email, ip and userAgent the history row keeps, e.g. for
--- a portal visitor who isn't an auth user.
+-- a portal visitor who isn't an auth user, and the id of the user the
+-- service role acts for.
 create or replace function "better_supabase"."transition"(subject_type text, subject_id text, to_status text, reason text default null, actor jsonb default null)
 returns boolean
 language plpgsql
@@ -112,17 +113,17 @@ as $$
 declare
   v_found boolean;
 begin
+  perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
   if transition.actor is not null then
     if jsonb_typeof(transition.actor) <> 'object' then
-      raise exception 'actor must be an object of name, email, ip and userAgent' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
     end if;
     begin
-      perform nullif(transition.actor ->> 'ip', '')::inet;
+      perform nullif(transition.actor ->> 'ip', '')::inet, nullif(transition.actor ->> 'id', '')::uuid;
     exception when invalid_text_representation then
-      raise exception 'actor.ip must be an IP address' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'STATE_ACTOR_INVALID';
     end;
   end if;
-  perform set_config('better_supabase.transition_reason', coalesce(transition.reason, ''), true);
   perform set_config('better_supabase.transition_actor', coalesce(transition.actor::text, ''), true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_status_transition"(text, text, text)');

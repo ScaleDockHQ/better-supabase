@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:f3d07c284811de3617a774cfb908a0af859284ccb623f1a58661336e24705b95
+-- @bsb-hash sha256:569872c2ad935ac069c073d8421cc60f757833cd065745a3e98e615d16c67bc4
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,7 +116,10 @@ create table if not exists "better_supabase"."quotes" (
   "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
   "discount_amount" bigint not null default 0 check ("discount_amount" >= 0),
   "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
+  "deposit_amount" bigint check ("deposit_amount" > 0),
+  "deposit_required" boolean not null default false,
   "deposit_due" bigint not null default 0,
+  "unpublished_changes" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -129,6 +132,9 @@ create table if not exists "better_supabase"."quotes" (
   check (("company_type" is null) = ("company_id" is null)),
   check (("origin_type" is null) = ("origin_id" is null))
 );
+alter table "better_supabase"."quotes" add column if not exists "deposit_amount" bigint check ("deposit_amount" > 0);
+alter table "better_supabase"."quotes" add column if not exists "deposit_required" boolean not null default false;
+alter table "better_supabase"."quotes" add column if not exists "unpublished_changes" boolean not null default false;
 create index if not exists quotes_tenant_status_idx on "better_supabase"."quotes" ("tenant_id", "status", "created_at" desc);
 create index if not exists quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 
@@ -199,8 +205,9 @@ create policy quote_tax_lines_read on "better_supabase"."quote_tax_lines"
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
 -- id }, the record it was made from), pricesIncludeTax, discountBps,
--- discountAmount (minor units as text) and depositBps. lines: see
--- set_quote_lines.
+-- discountAmount (minor units as text), depositBps, or depositAmount (minor
+-- units as text) for a fixed deposit, and depositRequired, which makes the
+-- customer pay it before they accept. lines: see set_quote_lines.
 create or replace function "better_supabase"."create_quote"(tenant uuid, attrs jsonb, lines jsonb)
 returns jsonb
 language plpgsql
@@ -236,7 +243,7 @@ begin
   v_identifier := 'Q-' || v_seq::text;
   begin
     insert into "better_supabase"."quotes" ("tenant_id", "number", "identifier", "title", "company_type", "company_id", "contact_type", "contact_id",
-      "owner_user_id", "currency", "valid_until", "terms", "note", "origin_type", "origin_id", "prices_include_tax", "discount_bps", "discount_amount", "deposit_bps", "created_by")
+      "owner_user_id", "currency", "valid_until", "terms", "note", "origin_type", "origin_id", "prices_include_tax", "discount_bps", "discount_amount", "deposit_bps", "deposit_amount", "deposit_required", "created_by")
     values (create_quote.tenant, v_seq, v_identifier, trim(create_quote.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
@@ -244,11 +251,14 @@ begin
       coalesce((create_quote.attrs ->> 'validUntil')::date, current_date + 30),
       create_quote.attrs ->> 'terms', create_quote.attrs ->> 'note',
       create_quote.attrs -> 'origin' ->> 'type', create_quote.attrs -> 'origin' ->> 'id',
-      coalesce((create_quote.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce((create_quote.attrs ->> 'discountBps')::integer, 0), coalesce((create_quote.attrs ->> 'discountAmount')::bigint, 0), (create_quote.attrs ->> 'depositBps')::integer, auth.uid())
+      coalesce((create_quote.attrs ->> 'pricesIncludeTax')::boolean, false), coalesce((create_quote.attrs ->> 'discountBps')::integer, 0), coalesce((create_quote.attrs ->> 'discountAmount')::bigint, 0), (create_quote.attrs ->> 'depositBps')::integer, (create_quote.attrs ->> 'depositAmount')::bigint, coalesce((create_quote.attrs ->> 'depositRequired')::boolean, false), auth.uid())
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a quote field has an invalid value' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
   end;
+  if v_row."deposit_bps" is not null and v_row."deposit_amount" is not null then
+    raise exception 'a deposit is a share (depositBps) or an amount (depositAmount), not both' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
+  end if;
   if create_quote.lines is not null then
     perform "better_supabase"."set_quote_lines"(v_row."id", create_quote.lines);
   end if;
@@ -256,7 +266,7 @@ begin
     
   end if;
   null;
-  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
+  return (select (to_jsonb(x) - 'token_hash') || jsonb_build_object('number', x."number"::text, 'list_total', x."list_total"::text, 'discount_total', x."discount_total"::text, 'subtotal', x."subtotal"::text, 'tax_total', x."tax_total"::text, 'total', x."total"::text, 'discount_amount', x."discount_amount"::text, 'deposit_due', x."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = x."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = x."id"), '[]'::jsonb)) from "better_supabase"."quotes" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."create_quote"(uuid, jsonb, jsonb) from public, anon;
@@ -264,8 +274,8 @@ grant execute on function "better_supabase"."create_quote"(uuid, jsonb, jsonb) t
 
 -- Changes a draft quote, or one the customer asked changes on: title,
 -- company, contact, currency, ownerId, validUntil, terms, note,
--- pricesIncludeTax, discountBps, discountAmount and depositBps. The totals
--- follow the new pricing.
+-- pricesIncludeTax, discountBps, discountAmount, depositBps, depositAmount
+-- and depositRequired. The totals follow the new pricing.
 create or replace function "better_supabase"."update_quote"(quote uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -303,6 +313,8 @@ begin
       "discount_bps" = case when update_quote.attrs ? 'discountBps' then coalesce((update_quote.attrs ->> 'discountBps')::integer, 0) else x."discount_bps" end,
       "discount_amount" = case when update_quote.attrs ? 'discountAmount' then coalesce((update_quote.attrs ->> 'discountAmount')::bigint, 0) else x."discount_amount" end,
       "deposit_bps" = case when update_quote.attrs ? 'depositBps' then (update_quote.attrs ->> 'depositBps')::integer else x."deposit_bps" end,
+      "deposit_amount" = case when update_quote.attrs ? 'depositAmount' then (update_quote.attrs ->> 'depositAmount')::bigint else x."deposit_amount" end,
+      "deposit_required" = case when update_quote.attrs ? 'depositRequired' then coalesce((update_quote.attrs ->> 'depositRequired')::boolean, false) else x."deposit_required" end,
       "company_type" = case when update_quote.attrs ? 'company' then case when update_quote.attrs -> 'company' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'company' ->> 'type', 'company') end else x."company_type" end,
       "company_id" = case when update_quote.attrs ? 'company' then update_quote.attrs -> 'company' ->> 'id' else x."company_id" end,
       "contact_type" = case when update_quote.attrs ? 'contact' then case when update_quote.attrs -> 'contact' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'contact' ->> 'type', 'person') end else x."contact_type" end,
@@ -313,10 +325,13 @@ begin
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a quote field has an invalid value' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
   end;
+  if v_row."deposit_bps" is not null and v_row."deposit_amount" is not null then
+    raise exception 'a deposit is a share (depositBps) or an amount (depositAmount), not both' using errcode = '22023', hint = 'QUOTE_ATTRS_INVALID';
+  end if;
   perform "better_supabase"."set_quote_lines_recount"(v_row."id");
   select * into v_row from "better_supabase"."quotes" x where x."id" = v_row."id";
   null;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."update_quote"(uuid, jsonb) from public, anon;
@@ -336,10 +351,12 @@ create table if not exists "better_supabase"."quote_lines" (
   "section" text check (length("section") between 1 and 300),
   "optional" boolean not null default false,
   "selected" boolean not null default true,
+  "periods" integer not null default 1 check ("periods" > 0),
   "position" integer not null,
   "created_at" timestamptz not null default now(),
   check (("product_type" is null) = ("product_id" is null))
 );
+alter table "better_supabase"."quote_lines" add column if not exists "periods" integer not null default 1 check ("periods" > 0);
 create index if not exists "quote_lines_parent_idx" on "better_supabase"."quote_lines" ("parent_id", "position");
 alter table "better_supabase"."quote_lines" enable row level security;
 revoke all on "better_supabase"."quote_lines" from public, anon, authenticated;
@@ -377,7 +394,7 @@ begin
   select x."tenant_id", x."prices_include_tax", x."discount_bps", x."discount_amount"
     into v_tenant, v_inclusive, v_record_bps, v_record_amount
   from "better_supabase"."quotes" x where x."id" = set_quote_lines_recount.parent;
-  select coalesce(sum(round(l."quantity" * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
+  select coalesce(sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount")), 0), coalesce(sum(round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0)), 0)
     into v_list, v_line_discount
   from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected");
   v_net := v_list - v_line_discount;
@@ -386,8 +403,8 @@ begin
     else 0
   end;
   with grouped as (
-    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
-      sum(round((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0)) as amount,
+      sum(round((round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") - round(round(l."quantity" * coalesce(l."periods", 1) * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when v_inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end)) as tax
     from "better_supabase"."quote_lines" l where l."parent_id" = set_quote_lines_recount.parent and (not l."optional" or l."selected")
     group by 1, 2
   ), shared as (
@@ -427,7 +444,7 @@ begin
     "subtotal" = v_subtotal,
     "tax_total" = v_tax,
     "total" = v_total,
-    "deposit_due" = case when x."deposit_bps" is null then 0 else round(v_total * x."deposit_bps" / 10000.0)::bigint end
+    "deposit_due" = case when x."deposit_amount" is not null then least(greatest(v_total, 0), x."deposit_amount") when x."deposit_bps" is not null then round(v_total * x."deposit_bps" / 10000.0)::bigint else 0 end
   where x."id" = set_quote_lines_recount.parent;
 end;
 $$;
@@ -505,7 +522,7 @@ begin
   end if;
   delete from "better_supabase"."quote_lines" l where l."parent_id" = v_parent;
   begin
-    insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "section", "optional", "selected", "position")
+    insert into "better_supabase"."quote_lines" ("tenant_id", "parent_id", "product_type", "product_id", "description", "quantity", "unit_amount", "discount_bps", "tax_rate_bps", "tax_code", "section", "optional", "selected", "periods", "position")
     select v_tenant,
       v_parent,
       x.value -> 'product' ->> 'type',
@@ -519,6 +536,7 @@ begin
       nullif(trim(x.value ->> 'section'), ''),
       coalesce((x.value ->> 'optional')::boolean, false),
       coalesce((x.value ->> 'selected')::boolean, not coalesce((x.value ->> 'optional')::boolean, false)),
+      coalesce((x.value ->> 'periods')::integer, 1),
       x.ordinality::integer
     from jsonb_array_elements(coalesce(set_quote_lines.lines, '[]')) with ordinality x;
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
@@ -540,7 +558,9 @@ grant execute on function "better_supabase"."set_quote_lines"(uuid, jsonb) to au
 -- revised or the customer asks for changes; sending it again then publishes
 -- the next revision. Returns the quote with the link's token, which is stored
 -- only as a hash and returned this once.
-create or replace function "better_supabase"."send_quote"(quote uuid)
+-- actor: who sent it, for the state machine's history.
+drop function if exists "better_supabase"."send_quote"(uuid);
+create or replace function "better_supabase"."send_quote"(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -549,6 +569,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_version uuid;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -563,6 +584,17 @@ begin
   if not exists (select 1 from "better_supabase"."quote_lines" x where x."parent_id" = v_row."id") then
     raise exception 'a quote needs a line before it is sent' using errcode = '23514', hint = 'QUOTE_EMPTY';
   end if;
+  if send_quote.actor is not null then
+    if jsonb_typeof(send_quote.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(send_quote.actor ->> 'ip', '')::inet, nullif(send_quote.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(send_quote.actor::text, ''), true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_quote_send"(uuid)');
   begin
@@ -577,7 +609,8 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   insert into "better_supabase"."quote_versions" ("tenant_id", "quote_id", "revision", "snapshot", "total", "currency", "published_by")
-  values (v_row."tenant_id", v_row."id", v_row."revision", (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb)), v_row."total", v_row."currency", auth.uid());
+  values (v_row."tenant_id", v_row."id", v_row."revision", (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb)), v_row."total", v_row."currency", coalesce(auth.uid(), nullif(send_quote.actor ->> 'id', '')::uuid))
+  returning "id" into v_version;
   null;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_quote_send"(uuid)');
@@ -587,17 +620,18 @@ begin
         using v_row."id";
     end if;
   end;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb)) || jsonb_build_object('token', v_token);
 end;
 $$;
-revoke execute on function "better_supabase"."send_quote"(uuid) from public, anon;
-grant execute on function "better_supabase"."send_quote"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."send_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."send_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- Opens a sent or declined quote again as a draft of its next revision: the
 -- same quote, number and lines, a fresh valid-until date, and its link ends.
 -- The versions already published stay as they were. An accepted quote is
 -- kept as the customer accepted it; start a new quote instead.
-create or replace function "better_supabase"."revise_quote"(quote uuid)
+drop function if exists "better_supabase"."revise_quote"(uuid);
+create or replace function "better_supabase"."revise_quote"(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -619,23 +653,80 @@ begin
   if v_row."status" = 'accepted' then
     raise exception 'an accepted quote stays as accepted; start a new quote' using errcode = '55000', hint = 'QUOTE_ACCEPTED';
   end if;
+  if revise_quote.actor is not null then
+    if jsonb_typeof(revise_quote.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(revise_quote.actor ->> 'ip', '')::inet, nullif(revise_quote.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(revise_quote.actor::text, ''), true);
   update "better_supabase"."quotes" x set "status" = 'draft', "revision" = x."revision" + 1, "token_hash" = null, "sent_at" = null, "viewed_at" = null,
     "valid_until" = greatest(x."valid_until", current_date + 30),
     "decided_at" = null, "decided_by" = null, "decision_note" = null, "decided_user_id" = null, "decided_ip" = null, "decided_user_agent" = null, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   null;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."revise_quote"(uuid) from public, anon;
-grant execute on function "better_supabase"."revise_quote"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."revise_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."revise_quote"(uuid, jsonb) to authenticated, service_role;
+
+-- Takes back a sent quote the customer hasn't accepted: it can't be answered
+-- any more until it is revised and sent again.
+create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."quotes";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."quotes" x where x."id" = withdraw_quote.quote and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.write'), false)) for update;
+  if v_row."id" is null then
+    raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
+  end if;
+  if v_row."status" not in ('sent', 'viewed', 'changes_requested') then
+    raise exception 'only a sent quote that wasn''t answered is withdrawn' using errcode = '55000', hint = 'QUOTE_NOT_OPEN';
+  end if;
+  if withdraw_quote.actor is not null then
+    if jsonb_typeof(withdraw_quote.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(withdraw_quote.actor ->> 'ip', '')::inet, nullif(withdraw_quote.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(withdraw_quote.actor::text, ''), true);
+  update "better_supabase"."quotes" x set "status" = 'withdrawn', "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  null;
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- Records the customer's answer taken another way (by phone, by email):
 -- decision is accepted, rejected or changes_requested; by is their name.
--- selected lists the positions of the optional lines they took.
+-- selected lists the positions of the optional lines they took. actor is
+-- the customer when the app takes the answer in its own portal: id, name,
+-- email, ip and userAgent, kept with the answer and in the state machine's
+-- history; a quote past its valid date then expires instead.
 drop function if exists "better_supabase"."decide_quote"(uuid, text, text, text);
-create or replace function "better_supabase"."decide_quote"(quote uuid, decision text, note text, by text, selected jsonb default null)
+drop function if exists "better_supabase"."decide_quote"(uuid, text, text, text, jsonb);
+create or replace function "better_supabase"."decide_quote"(quote uuid, decision text, note text, by text, selected jsonb default null, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -658,18 +749,35 @@ begin
   if v_row."status" not in ('sent', 'viewed') then
     raise exception 'this quote no longer takes an answer' using errcode = '55000', hint = 'QUOTE_NOT_OPEN';
   end if;
+  if decide_quote.actor is not null then
+    if jsonb_typeof(decide_quote.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(decide_quote.actor ->> 'ip', '')::inet, nullif(decide_quote.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(decide_quote.actor::text, ''), true);
+  if (decide_quote.actor is not null) and v_row."valid_until" < current_date then
+    update "better_supabase"."quotes" x set "status" = 'expired', "updated_at" = now() where x."id" = v_row."id"
+    returning * into v_row;
+    null;
+    return jsonb_build_object('status', 'expired');
+  end if;
   if decide_quote.decision = 'accepted' then
     if decide_quote.selected is not null then
       if jsonb_typeof(decide_quote.selected) <> 'array' or exists (
         select 1 from jsonb_array_elements(decide_quote.selected) e
-        where jsonb_typeof(e.value) <> 'number' or not exists (
+        where jsonb_typeof(e.value) not in ('number') or not exists (
           select 1 from "better_supabase"."quote_lines" ql
           where ql."parent_id" = v_row."id" and ql."optional" and ql."position" = (e.value #>> '{}')::numeric
         )
       ) then
         raise exception 'pick optional lines of this quote by position' using errcode = '22023', hint = 'QUOTE_SELECTION_INVALID';
       end if;
-      update "better_supabase"."quote_lines" ql set "selected" = ql."position" in (select (e.value #>> '{}')::integer from jsonb_array_elements(decide_quote.selected) e)
+      update "better_supabase"."quote_lines" ql set "selected" = ql."position" in (select ((e.value #>> '{}')::numeric)::integer from jsonb_array_elements(decide_quote.selected) e)
       where ql."parent_id" = v_row."id" and ql."optional";
     end if;
     declare
@@ -681,8 +789,8 @@ begin
     end if;
   end;
   end if;
-  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), auth.uid()::text)), ''),
-    "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = auth.uid(), "decided_ip" = null, "decided_user_agent" = null, "updated_at" = now()
+  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)), ''),
+    "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   case decide_quote.decision
@@ -703,11 +811,11 @@ begin
     end if;
   end;
   end if;
-  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
+  return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."decide_quote"(uuid, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."decide_quote"(uuid, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."decide_quote"(uuid, text, text, text, jsonb, jsonb) from public, anon;
+grant execute on function "better_supabase"."decide_quote"(uuid, text, text, text, jsonb, jsonb) to authenticated, service_role;
 
 -- What the customer sees through the link: the quote without internal
 -- notes. Opening a sent quote marks it viewed. Callable without signing in.
@@ -737,9 +845,12 @@ begin
     'status', v_row."status", 'currency', v_row."currency", 'validUntil', v_row."valid_until",
     'terms', v_row."terms", 'pricesIncludeTax', v_row."prices_include_tax",
     'discountBps', v_row."discount_bps", 'discountAmount', v_row."discount_amount"::text,
-    'depositBps', v_row."deposit_bps", 'depositDue', v_row."deposit_due"::text,
+    'depositBps', v_row."deposit_bps", 'depositAmount', v_row."deposit_amount"::text, 'depositRequired', v_row."deposit_required",
+    'depositDue', v_row."deposit_due"::text,
     'listTotal', v_row."list_total"::text, 'subtotal', v_row."subtotal"::text, 'discountTotal', v_row."discount_total"::text,
-    'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text, 'lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
+    'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text,
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb),
+    'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke all on function "better_supabase"."public_quote"(text) from public, anon, authenticated;
@@ -759,6 +870,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_ip inet;
   v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -774,7 +886,13 @@ begin
   if v_row."status" not in ('sent', 'viewed') then
     raise exception 'this quote no longer takes an answer' using errcode = '55000', hint = 'QUOTE_NOT_OPEN';
   end if;
-  if v_row."valid_until" < current_date then
+  begin
+    v_ip := left(nullif(trim(reverse(split_part(reverse(v_headers ->> 'x-forwarded-for'), ',', 1))), ''), 64)::inet;
+  exception when invalid_text_representation then
+    v_ip := null;
+  end;
+  perform set_config('better_supabase.transition_actor', jsonb_strip_nulls(jsonb_build_object('name', nullif(trim(respond_to_quote.name), ''), 'email', auth.jwt() ->> 'email', 'ip', v_ip::text, 'userAgent', left(v_headers ->> 'user-agent', 512)))::text, true);
+  if (true) and v_row."valid_until" < current_date then
     update "better_supabase"."quotes" x set "status" = 'expired', "updated_at" = now() where x."id" = v_row."id"
     returning * into v_row;
     null;
@@ -784,17 +902,20 @@ begin
     raise exception 'say who answers' using errcode = '23502', hint = 'QUOTE_NAME_REQUIRED';
   end if;
   if respond_to_quote.decision = 'accepted' then
+    if v_row."deposit_required" and v_row."deposit_due" > 0 then
+      raise exception 'pay the deposit before accepting; the app records the acceptance once it is paid' using errcode = '55000', hint = 'QUOTE_DEPOSIT_REQUIRED';
+    end if;
     if respond_to_quote.selected is not null then
       if jsonb_typeof(respond_to_quote.selected) <> 'array' or exists (
         select 1 from jsonb_array_elements(respond_to_quote.selected) e
-        where jsonb_typeof(e.value) <> 'number' or not exists (
+        where jsonb_typeof(e.value) not in ('number') or not exists (
           select 1 from "better_supabase"."quote_lines" ql
           where ql."parent_id" = v_row."id" and ql."optional" and ql."position" = (e.value #>> '{}')::numeric
         )
       ) then
         raise exception 'pick optional lines of this quote by position' using errcode = '22023', hint = 'QUOTE_SELECTION_INVALID';
       end if;
-      update "better_supabase"."quote_lines" ql set "selected" = ql."position" in (select (e.value #>> '{}')::integer from jsonb_array_elements(respond_to_quote.selected) e)
+      update "better_supabase"."quote_lines" ql set "selected" = ql."position" in (select ((e.value #>> '{}')::numeric)::integer from jsonb_array_elements(respond_to_quote.selected) e)
       where ql."parent_id" = v_row."id" and ql."optional";
     end if;
     declare
@@ -836,7 +957,8 @@ grant execute on function "better_supabase"."respond_to_quote"(text, text, text,
 
 -- A quote shared with the signed-in guest, as the customer sees it: through
 -- a grant on the quote or as a guest of its company or contact. Opening a
--- sent quote marks it viewed. No link token is needed.
+-- sent quote marks it viewed. No link token is needed. The service role
+-- reads it too, for an app's own portal.
 create or replace function "better_supabase"."portal_quote"(quote uuid)
 returns jsonb
 language plpgsql
@@ -849,7 +971,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."quotes" x where x."id" = portal_quote.quote and false;
+  select * into v_row from "better_supabase"."quotes" x where x."id" = portal_quote.quote and (false or ((auth.role() = 'service_role') and x."status" <> 'draft'));
   if v_row."id" is null then
     raise exception 'no such quote shared with you' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
@@ -863,9 +985,12 @@ begin
     'status', v_row."status", 'currency', v_row."currency", 'validUntil', v_row."valid_until",
     'terms', v_row."terms", 'pricesIncludeTax', v_row."prices_include_tax",
     'discountBps', v_row."discount_bps", 'discountAmount', v_row."discount_amount"::text,
-    'depositBps', v_row."deposit_bps", 'depositDue', v_row."deposit_due"::text,
+    'depositBps', v_row."deposit_bps", 'depositAmount', v_row."deposit_amount"::text, 'depositRequired', v_row."deposit_required",
+    'depositDue', v_row."deposit_due"::text,
     'listTotal', v_row."list_total"::text, 'subtotal', v_row."subtotal"::text, 'discountTotal', v_row."discount_total"::text,
-    'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text, 'lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
+    'taxTotal', v_row."tax_total"::text, 'total', v_row."total"::text,
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb),
+    'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."portal_quote"(uuid) from public, anon;
@@ -883,6 +1008,7 @@ as $$
 declare
   v_row "better_supabase"."quotes";
   v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_ip inet;
   v_claims text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -898,7 +1024,13 @@ begin
   if v_row."status" not in ('sent', 'viewed') then
     raise exception 'this quote no longer takes an answer' using errcode = '55000', hint = 'QUOTE_NOT_OPEN';
   end if;
-  if v_row."valid_until" < current_date then
+  begin
+    v_ip := left(nullif(trim(reverse(split_part(reverse(v_headers ->> 'x-forwarded-for'), ',', 1))), ''), 64)::inet;
+  exception when invalid_text_representation then
+    v_ip := null;
+  end;
+  perform set_config('better_supabase.transition_actor', jsonb_strip_nulls(jsonb_build_object('name', nullif(trim(coalesce(nullif(trim(respond_to_portal_quote.name), ''), auth.jwt() ->> 'email')), ''), 'email', auth.jwt() ->> 'email', 'ip', v_ip::text, 'userAgent', left(v_headers ->> 'user-agent', 512)))::text, true);
+  if (true) and v_row."valid_until" < current_date then
     update "better_supabase"."quotes" x set "status" = 'expired', "updated_at" = now() where x."id" = v_row."id"
     returning * into v_row;
     null;
@@ -908,17 +1040,20 @@ begin
     raise exception 'say who answers' using errcode = '23502', hint = 'QUOTE_NAME_REQUIRED';
   end if;
   if respond_to_portal_quote.decision = 'accepted' then
+    if v_row."deposit_required" and v_row."deposit_due" > 0 then
+      raise exception 'pay the deposit before accepting; the app records the acceptance once it is paid' using errcode = '55000', hint = 'QUOTE_DEPOSIT_REQUIRED';
+    end if;
     if respond_to_portal_quote.selected is not null then
       if jsonb_typeof(respond_to_portal_quote.selected) <> 'array' or exists (
         select 1 from jsonb_array_elements(respond_to_portal_quote.selected) e
-        where jsonb_typeof(e.value) <> 'number' or not exists (
+        where jsonb_typeof(e.value) not in ('number') or not exists (
           select 1 from "better_supabase"."quote_lines" ql
           where ql."parent_id" = v_row."id" and ql."optional" and ql."position" = (e.value #>> '{}')::numeric
         )
       ) then
         raise exception 'pick optional lines of this quote by position' using errcode = '22023', hint = 'QUOTE_SELECTION_INVALID';
       end if;
-      update "better_supabase"."quote_lines" ql set "selected" = ql."position" in (select (e.value #>> '{}')::integer from jsonb_array_elements(respond_to_portal_quote.selected) e)
+      update "better_supabase"."quote_lines" ql set "selected" = ql."position" in (select ((e.value #>> '{}')::numeric)::integer from jsonb_array_elements(respond_to_portal_quote.selected) e)
       where ql."parent_id" = v_row."id" and ql."optional";
     end if;
     declare

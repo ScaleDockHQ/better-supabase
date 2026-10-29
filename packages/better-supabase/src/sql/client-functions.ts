@@ -165,7 +165,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   queue:
     "advance_schedule claim_due_schedules claim_jobs complete_job enqueue_job enqueue_job_once extend_job_lease fail_job job_queue_stats list_dead_jobs list_schedules purge_job_archive replay_dead_job retry_dead_jobs schedule_job unschedule_job unschedule_tenant",
   quotes:
-    "create_quote decide_quote expire_quotes portal_quote public_quote quote_version quote_versions respond_to_portal_quote respond_to_quote revise_quote send_quote set_quote_lines update_quote",
+    "create_quote decide_quote expire_quotes portal_quote public_quote quote_version quote_versions respond_to_portal_quote respond_to_quote revise_quote send_quote set_quote_lines update_quote withdraw_quote",
   rank: "move rebalance_ranks",
   "rate-limit": "check_rate_limit check_rate_limits purge_rate_limits",
   reactions:
