@@ -720,8 +720,10 @@ runs over yours looks for it there. A `columns.<table>.tenant` mapping still
 wins for its table. The SQL, the generated types (read from the database) and
 the policies use the name; `gen` writes it to the block's `names` in
 `blocks.generated.ts`, so the block's TypeScript client reads rows back with
-`tenant_id` as before. A name another column of a block table already has,
-such as `parent_id`, is refused.
+`tenant_id` as before. The subjects blocks register, such as
+`ledger_account` or `work_item`, name the same column, so comments and other
+subject checks find the tenant. A name another column of a block table
+already has, such as `parent_id`, is refused.
 
 ### Line tables
 
