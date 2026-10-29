@@ -20,6 +20,7 @@ import {
   collectionReadable,
   collectionSearched,
   knowledgeCollectionsSql,
+  upgradeCollectionGrants,
 } from "./knowledge-collections.ts";
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -90,12 +91,13 @@ const NAMES: BlockSqlNames = {
       columns: COLLECTIONS,
       app: {},
       lifecycle: { tenant: "tenant" },
+      typed: ["visibility"],
     },
     collectionGrants: {
       name: "knowledge_collection_grants",
       columns: COLLECTION_GRANTS,
       app: {},
-      lifecycle: { user: "user" },
+      lifecycle: { user: "user", tenant: "tenant" },
     },
     chunks: {
       name: "knowledge_chunks",
@@ -941,7 +943,7 @@ export const KNOWLEDGE: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "vector-search"],
   integrates: ["ai-chat", "ai-files", "queue", "subjects", "teams"],
   target: "schema",
-  version: 4,
+  version: 5,
   upgrades: [
     {
       from: 1,
@@ -963,6 +965,12 @@ export const KNOWLEDGE: BlockSqlDefinition = {
       description:
         "Subject knowledge: scope 'subject' with subject_type and subject_id names a record, and only those who can read the record (can_subject) read the document, with the subjects block.",
       sql: () => "",
+    },
+    {
+      from: 4,
+      description:
+        "Collection grants gain the collection's tenant (organization_id, filled from the collection), and team_id takes the teams id type when teams is installed.",
+      sql: upgradeCollectionGrants,
     },
   ],
   names: NAMES,

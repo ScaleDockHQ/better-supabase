@@ -2,7 +2,9 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { raise, revokeTable, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { teamIdType } from "./teams.ts";
 
 export const COLLECTIONS = {
   id: "id",
@@ -18,6 +20,7 @@ export const COLLECTIONS = {
 
 export const COLLECTION_GRANTS = {
   collection: "collection_id",
+  tenant: "organization_id",
   user: "user_id",
   team: "team_id",
   createdAt: "created_at",
@@ -25,6 +28,20 @@ export const COLLECTION_GRANTS = {
 
 /** How a collection shows up: in every search, to its grants, or nowhere. */
 const VISIBILITIES = "'automatic', 'restricted', 'disabled'";
+
+/** The teams the grants name, when teams keeps its own teams table. */
+function grantTeams(ctx: BlockSqlContext): BlockSqlContext | undefined {
+  return ctx.installed("teams") && ctx.of("teams").mode !== "custom"
+    ? ctx.of("teams")
+    : undefined;
+}
+
+/** The type of a grant's team: the teams id type, or text without teams. */
+export function grantTeamType(ctx: BlockSqlContext): string {
+  const teams = grantTeams(ctx);
+
+  return teams ? teamIdType(teams) : "text";
+}
 
 /**
  * `knowledge_collection_readable(id)`: whether the caller may read a
@@ -43,7 +60,7 @@ export function collectionSearched(
   ctx: BlockSqlContext,
   collection: string,
 ): string {
-  return `exists (select 1 from ${ctx.table("collections")} kc where kc.${ctx.col("collections", "id")} = ${collection} and kc.${ctx.col("collections", "visibility")} <> 'disabled')`;
+  return `exists (select 1 from ${ctx.table("collections")} kc where kc.${ctx.col("collections", "id")} = ${collection} and ${ctx.is("collections", "visibility", asText(ctx, "collections", `kc.${ctx.col("collections", "visibility")}`), ["disabled"], true)})`;
 }
 
 /** The priority of a document's collection, 0 without one. */
@@ -75,25 +92,29 @@ export function knowledgeCollectionsSql(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", permissions.read);
   const manage = ctx.permission("manage", permissions.manage);
 
-  const teams =
-    ctx.installed("teams") && ctx.of("teams").mode !== "custom"
-      ? ctx.of("teams")
-      : undefined;
+  const teams = grantTeams(ctx);
+  const teamType = grantTeamType(ctx);
 
   const teamGrant = teams
-    ? ` or (x.${g("team")} is not null and exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")}::text = x.${g("team")} and tm.${teams.col("members", "user")} = auth.uid()))`
+    ? ` or (x.${g("team")} is not null and exists (select 1 from ${teams.table("members")} tm where tm.${teams.col("members", "team")} = x.${g("team")} and tm.${teams.col("members", "user")} = auth.uid()))`
     : "";
+
+  const visibility = (row: string): string =>
+    asText(ctx, "collections", `${row}.${k("visibility")}`);
 
   const manages = (tenant: string): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.scope.can(tenant, manage)}))`;
 
   const json = (row: string): string =>
     `jsonb_build_object(${Object.entries(COLLECTIONS)
-      .map(
-        ([key, name]) =>
-          // SAFETY: the keys are COLLECTIONS' own keys.
-          `'${name}', ${row}.${k(key as keyof typeof COLLECTIONS)}`,
-      )
+      .map(([key, name]) => {
+        if (key === "visibility") {
+          return `'${name}', ${ctx.label("collections", "visibility", visibility(row))}`;
+        }
+
+        // SAFETY: the keys are COLLECTIONS' own keys.
+        return `'${name}', ${row}.${k(key as keyof typeof COLLECTIONS)}`;
+      })
       .join(", ")})`;
 
   const checkVisibility = (value: string): string => `
@@ -130,13 +151,15 @@ grant all on ${collections} to service_role;
 
 create table if not exists ${grants} (
   ${g("collection")} uuid not null references ${collections} (${k("id")}) on delete cascade,
+  ${g("tenant")} ${id},
   ${g("user")} uuid references auth.users (id) on delete cascade,
-  ${g("team")} text,
+  ${g("team")} ${teamType},
   ${g("createdAt")} timestamptz not null default now(),
   check ((${g("user")} is null) <> (${g("team")} is null))
-);
+);${ctx.owns("collectionGrants") ? `\nalter table ${grants} add column if not exists ${g("tenant")} ${id};` : ""}
 create unique index if not exists ${ctx.naming.rename("knowledge_collection_grants_key")} on ${grants} (${g("collection")}, ${g("user")}, ${g("team")}) nulls not distinct;
 create index if not exists ${ctx.naming.rename("knowledge_collection_grants_user_idx")} on ${grants} (${g("user")}) where ${g("user")} is not null;
+create index if not exists ${ctx.naming.rename("knowledge_collection_grants_tenant_idx")} on ${grants} (${g("tenant")}) where ${g("tenant")} is not null;
 alter table ${grants} enable row level security;
 ${revokeTable(grants)}
 grant all on ${grants} to service_role;
@@ -154,7 +177,7 @@ as $$
     select 1 from ${collections} c
     where c.${k("id")} = knowledge_collection_readable.collection_id
       and (c.${k("tenant")} is null or ${SERVICE_CALLER} or ${ctx.scope.can(`c.${k("tenant")}`, read)})
-      and (c.${k("visibility")} = 'automatic'
+      and (${ctx.is("collections", "visibility", visibility("c"), ["automatic"])}
         or ${manages(`c.${k("tenant")}`)}
         or exists (
           select 1 from ${grants} x
@@ -186,7 +209,7 @@ begin
     ${raise("only admins add knowledge collections", "42501", "KNOWLEDGE_FORBIDDEN")}
   end if;${checkVisibility("create_knowledge_collection.visibility")}
   insert into ${collections} (${k("tenant")}, ${k("name")}, ${k("description")}, ${k("visibility")}, ${k("priority")}, ${k("createdBy")})
-  values (create_knowledge_collection.tenant, create_knowledge_collection.name, create_knowledge_collection.description, create_knowledge_collection.visibility, coalesce(create_knowledge_collection.priority, 0), auth.uid())
+  values (create_knowledge_collection.tenant, create_knowledge_collection.name, create_knowledge_collection.description, ${ctx.cast("collections", "visibility", "create_knowledge_collection.visibility")}, coalesce(create_knowledge_collection.priority, 0), auth.uid())
   returning * into v_row;
   return ${json("v_row")};
 end;
@@ -209,7 +232,7 @@ begin${loadManaged("update_knowledge_collection")}
   update ${collections} x set
     ${k("name")} = coalesce(update_knowledge_collection.patch ->> 'name', x.${k("name")}),
     ${k("description")} = case when update_knowledge_collection.patch ? 'description' then update_knowledge_collection.patch ->> 'description' else x.${k("description")} end,
-    ${k("visibility")} = case when update_knowledge_collection.patch ? 'visibility' then v_visibility else x.${k("visibility")} end,
+    ${k("visibility")} = case when update_knowledge_collection.patch ? 'visibility' then ${ctx.cast("collections", "visibility", "v_visibility")} else x.${k("visibility")} end,
     ${k("priority")} = coalesce((update_knowledge_collection.patch ->> 'priority')::integer, x.${k("priority")}),
     ${k("updatedAt")} = now()
   where x.${k("id")} = v_row.${k("id")}
@@ -251,8 +274,8 @@ $$;
 ${userGrant(`${fn("list_knowledge_collections")}(${id})`)}
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
--- whether anything changed.
-create or replace function ${fn("set_knowledge_collection_grant")}(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
+-- whether anything changed. The grant keeps the collection's tenant.${teamType === "text" ? "" : `\ndrop function if exists ${fn("set_knowledge_collection_grant")}(uuid, uuid, text, boolean);`}
+create or replace function ${fn("set_knowledge_collection_grant")}(collection_id uuid, user_id uuid default null, team_id ${teamType} default null, granted boolean default true)
 returns boolean
 language plpgsql
 security definer
@@ -267,8 +290,8 @@ begin${loadManaged("set_knowledge_collection_grant")}
     ${raise("name a user or a team", "22023", "KNOWLEDGE_GRANT")}
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into ${grants} (${g("collection")}, ${g("user")}, ${g("team")})
-    values (v_row.${k("id")}, set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into ${grants} (${g("collection")}, ${g("tenant")}, ${g("user")}, ${g("team")})
+    values (v_row.${k("id")}, v_row.${k("tenant")}, set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from ${grants} x
@@ -280,7 +303,7 @@ begin${loadManaged("set_knowledge_collection_grant")}
   return v_count > 0;
 end;
 $$;
-${userGrant(`${fn("set_knowledge_collection_grant")}(uuid, uuid, text, boolean)`)}
+${userGrant(`${fn("set_knowledge_collection_grant")}(uuid, uuid, ${teamType}, boolean)`)}
 
 -- The grants of a collection, for its admins.
 create or replace function ${fn("list_knowledge_collection_grants")}(collection_id uuid)
@@ -305,4 +328,30 @@ end;
 $$;
 ${userGrant(`${fn("list_knowledge_collection_grants")}(uuid)`)}
 `;
+}
+
+/**
+ * Version 4: grants keep their collection's tenant, and a grant's team takes
+ * the teams id type.
+ */
+export function upgradeCollectionGrants(ctx: BlockSqlContext): string {
+  if (!ctx.owns("collectionGrants")) {
+    return "";
+  }
+
+  const grants = ctx.table("collectionGrants");
+  const collections = ctx.table("collections");
+  const tenant = ctx.col("collectionGrants", "tenant");
+  const team = ctx.col("collectionGrants", "team");
+  const teamType = grantTeamType(ctx);
+
+  const retype =
+    teamType === "text"
+      ? ""
+      : `\nalter table ${grants} alter column ${team} type ${teamType} using ${team}::${teamType};`;
+
+  return `alter table ${grants} add column if not exists ${tenant} ${ctx.idType};
+update ${grants} x set ${tenant} = c.${ctx.col("collections", "tenant")}
+from ${collections} c
+where c.${ctx.col("collections", "id")} = x.${ctx.col("collectionGrants", "collection")} and x.${tenant} is null;${retype}`;
 }

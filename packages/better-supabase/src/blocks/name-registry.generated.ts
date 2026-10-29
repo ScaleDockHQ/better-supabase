@@ -1041,7 +1041,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "documents": "id" | "tenant" | "owner" | "scope" | "scopeId" | "file" | "title" | "source" | "metadata" | "status" | "error" | "chunkCount" | "model" | "collection" | "subjectType" | "subjectId" | "createdAt" | "updatedAt";
       readonly "collections": "id" | "tenant" | "name" | "description" | "visibility" | "priority" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "collectionGrants": "collection" | "user" | "team" | "createdAt";
+      readonly "collectionGrants": "collection" | "tenant" | "user" | "team" | "createdAt";
       readonly "chunks": "document" | "index" | "content" | "tokens" | "embedding" | "hash" | "metadata" | "tsv";
     };
     readonly functions: "create_knowledge_collection" | "create_knowledge_document" | "delete_knowledge_collection" | "delete_knowledge_document" | "fail_knowledge_document" | "get_knowledge_document" | "knowledge_collection_readable" | "knowledge_search" | "list_knowledge_collection_grants" | "list_knowledge_collections" | "list_knowledge_documents" | "pending_knowledge_chunks" | "pending_knowledge_documents" | "reembed_knowledge" | "set_knowledge_collection_grant" | "set_knowledge_embeddings" | "update_knowledge_collection" | "write_knowledge_chunks";

@@ -8,6 +8,13 @@ export type MemorySqlOptions = {
   readonly type?: unknown;
   readonly textSearch?: unknown;
   readonly maxContent?: number;
+  /** `false` lets personal memory have no tenant. */
+  readonly tenant?: boolean;
+  /**
+   * The most live archival facts per owner and tenant; older ones are
+   * forgotten.
+   */
+  readonly maxItems?: number;
 };
 
 export const memorySqlOptions: BlockOptionsSchema<MemorySqlOptions> =
@@ -16,4 +23,6 @@ export const memorySqlOptions: BlockOptionsSchema<MemorySqlOptions> =
     type: option.unknown(),
     textSearch: option.unknown(),
     maxContent: option.number({ default: 100_000 }),
+    tenant: option.boolean({ default: true }),
+    maxItems: option.number(),
   });

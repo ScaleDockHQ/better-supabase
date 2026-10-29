@@ -382,8 +382,8 @@ may be your own enum or domain.
   - `better_supabase.invoice_charges`: `id`, `tenant_id`, `invoice_id`, `amount`
 - `knowledge`
   - `better_supabase.knowledge_documents`: `id`, `organization_id`, `owner_id`, `scope`, `scope_id`, `title`, `status`, `updated_at`; typed: `scope`, `status`
-  - `better_supabase.knowledge_collections`: `id`, `organization_id`, `name`, `description`, `visibility`, `priority`, `created_by`, `created_at`, `updated_at`
-  - `better_supabase.knowledge_collection_grants`: `collection_id`, `user_id`, `team_id`, `created_at`
+  - `better_supabase.knowledge_collections`: `id`, `organization_id`, `name`, `description`, `visibility`, `priority`, `created_by`, `created_at`, `updated_at`; typed: `visibility`
+  - `better_supabase.knowledge_collection_grants`: `collection_id`, `organization_id`, `user_id`, `team_id`, `created_at`
   - `better_supabase.knowledge_chunks`: `document_id`, `idx`, `content`, `embedding`
 - `lead-scoring`
   - `better_supabase.lead_score_checks`: `tenant_id`, `subject_type`, `subject_id`, `stale`, `checked_at`

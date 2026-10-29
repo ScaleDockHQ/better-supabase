@@ -181,8 +181,15 @@ const hits = await knowledge
   .orThrow();
 ```
 
-Team grants need the [`teams`](/docs/blocks/teams) block. Removing a
-collection keeps its documents, without a collection.
+Team grants need the [`teams`](/docs/blocks/teams) block, and their
+`team_id` column takes the teams id type (`uuid` or `bigint`). Each grant
+keeps its collection's `organization_id`, so data lifecycle exports and
+deletes it with the tenant. Removing a collection keeps its documents,
+without a collection.
+
+An adopted `knowledge_collections` table may declare `visibility` as an
+enum: the module writes and compares it through the column's type, and
+`blocks.knowledge.values.collections.visibility` maps its labels.
 
 ## Record knowledge
 
