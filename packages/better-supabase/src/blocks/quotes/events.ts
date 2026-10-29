@@ -14,6 +14,7 @@ export type QuotesEvents = {
   readonly "quote.changes_requested": QuoteEventData;
   readonly "quote.expired": QuoteEventData;
   readonly "quote.revised": QuoteEventData;
+  readonly "quote.withdrawn": QuoteEventData;
 };
 
 /** The `quotes` block's event types, for its manifest and `onBlockEvent`. */
@@ -27,4 +28,5 @@ export const quotesEvents: Events<QuotesEvents> = defineEvents({
   "quote.changes_requested": event<QuoteEventData>(),
   "quote.expired": event<QuoteEventData>(),
   "quote.revised": event<QuoteEventData>(),
+  "quote.withdrawn": event<QuoteEventData>(),
 });

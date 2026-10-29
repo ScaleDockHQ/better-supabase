@@ -64,11 +64,15 @@ const OPTIONAL_LINE_COLUMNS = [
   "createdAt",
 ] as const;
 
-/** The line columns of a document a customer answers: sections and options. */
+/**
+ * The line columns of a document a customer answers: sections, options and the
+ * number of periods a subscription line runs.
+ */
 const DOCUMENT_LINE_COLUMNS = {
   section: "section",
   optional: "optional",
   selected: "selected",
+  periods: "periods",
 } as const;
 
 /**
@@ -131,6 +135,22 @@ export function countedLine(
   return declared(ctx, lines, "selected")
     ? `(not ${optional} or ${alias}.${ctx.col(lines, "selected")})`
     : `not ${optional}`;
+}
+
+/**
+ * A line's amount before discounts: quantity times unit amount, times its
+ * periods when the line table counts them, rounded once.
+ */
+function lineAmount(
+  ctx: BlockSqlContext,
+  lines: string,
+  alias: string,
+): string {
+  const periods = declared(ctx, lines, "periods")
+    ? ` * coalesce(${alias}.${ctx.col(lines, "periods")}, 1)`
+    : "";
+
+  return `round(${alias}.${ctx.col(lines, "quantity")}${periods} * ${alias}.${ctx.col(lines, "unitAmount")})`;
 }
 
 /**
@@ -264,6 +284,11 @@ export function lineItemsSql(
       readonly unitAmount: string;
       readonly description: string;
     };
+    /**
+     * Also renders `<this>(record, lines)`: the same write without the guard or
+     * the frozen check, for the module's own functions only.
+     */
+    readonly restorer?: string;
   },
 ): string {
   const t = ctx.table(items.lines);
@@ -278,7 +303,7 @@ export function lineItemsSql(
   const fn = ctx.fn(options.setter);
   const recount = ctx.fn(`${options.setter}_recount`);
   const trigger = `bsb_${ctx.tableName(items.lines).name}_totals`;
-  const list = `round(l.${c("quantity")} * l.${c("unitAmount")})`;
+  const list = lineAmount(ctx, items.lines, "l");
 
   const discount = has("discountBps")
     ? `round(${list} * ${l("discountBps")} / 10000.0)`
@@ -328,6 +353,7 @@ export function lineItemsSql(
         "selected",
         "coalesce((x.value ->> 'selected')::boolean, not coalesce((x.value ->> 'optional')::boolean, false))",
       ],
+      ["periods", "coalesce((x.value ->> 'periods')::integer, 1)"],
       ["position", "x.ordinality::integer"],
     ] as const
   )
@@ -356,10 +382,10 @@ export function lineItemsSql(
   ${c("parent")} uuid not null references ${p} (${pc("id")}) on delete cascade,${optional("productType")}${optional("productId")}
   ${c("description")} text not null check (length(${c("description")}) between 1 and 2000),
   ${c("quantity")} numeric(18, 4) not null check (${c("quantity")} > 0),
-  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}
+  ${c("unitAmount")} bigint not null,${optional("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${optional("taxRateBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 100000)`)}${optional("taxCode")}${optional("section", (section) => `text check (length(${section}) between 1 and 300)`)}${optional("optional", () => "boolean not null default false")}${optional("selected", () => "boolean not null default true")}${optional("periods", (periods) => `integer not null default 1 check (${periods} > 0)`)}
   ${c("position")} integer not null${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("productType") && has("productId") ? `,\n  check ((${c("productType")} is null) = (${c("productId")} is null))` : ""}
 );
-create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
+${has("periods") ? `alter table ${t} add column if not exists ${c("periods")} integer not null default 1 check (${c("periods")} > 0);\n` : ""}create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
         ctx.owns(items.lines) || !positionKey
           ? ""
           : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_position_key`)} on ${t} (${c("parent")}, ${c("position")});`
@@ -480,34 +506,34 @@ drop function if exists better_supabase.${trigger}();
 drop function if exists ${recount}(uuid);
 `;
 
-  return `${manages}${triggers}
--- Replaces a record's lines with lines: a list of { description, quantity,
--- unitAmount (minor units as text), currency, discountBps, taxRateBps,
--- taxCode, product: { type, id } }. A line's currency must be the record's.
--- Returns the record's totals as text, with its currency.${options.fallback ? "\n-- A line without unitAmount or description takes them from its product." : ""}
-create or replace function ${fn}(parent uuid, lines jsonb)
+  const setterSql = (
+    name: string,
+    guard: string,
+    frozen: string | undefined,
+    grant: string,
+  ): string => `create or replace function ${ctx.fn(name)}(parent uuid, lines jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_parent uuid := ${options.setter}.parent;
+  v_parent uuid := ${name}.parent;
   v_tenant ${ctx.idType};
   v_currency text;${extras.length === 0 ? "" : "\n  v_line record;"}
 begin
-  select x.${pc("tenant")}, x.${pc("currency")} into v_tenant, v_currency from ${p} x where x.${pc("id")} = v_parent${items.frozen === undefined ? "" : ` and not (${items.frozen.replaceAll("p.", "x.")})`};
+  select x.${pc("tenant")}, x.${pc("currency")} into v_tenant, v_currency from ${p} x where x.${pc("id")} = v_parent${frozen === undefined ? "" : ` and not (${frozen.replaceAll("p.", "x.")})`};
   if v_tenant is null then
     ${fail("LINES_RECORD_INVALID", "no such record, or its lines are locked", "P0002")}
   end if;
-  ${options.guard}
-  if jsonb_typeof(coalesce(${options.setter}.lines, '[]')) <> 'array' then
+  ${guard}
+  if jsonb_typeof(coalesce(${name}.lines, '[]')) <> 'array' then
     ${fail("LINES_INVALID", "lines must be a list", "22023")}
   end if;
-  if exists (select 1 from jsonb_array_elements(${options.setter}.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
+  if exists (select 1 from jsonb_array_elements(${name}.lines) x where x.value ? 'currency' and x.value ->> 'currency' is distinct from v_currency) then
     ${fail("LINES_CURRENCY", "every line must be in the record's currency", "22023")}
   end if;
-  delete from ${t} l where l.${c("parent")} = v_parent${replaces ? "" : ` and l.${c("position")} > jsonb_array_length(coalesce(${options.setter}.lines, '[]'))`};
+  delete from ${t} l where l.${c("parent")} = v_parent${replaces ? "" : ` and l.${c("position")} > jsonb_array_length(coalesce(${name}.lines, '[]'))`};
   begin${
     replaces || positionKey
       ? ""
@@ -516,12 +542,12 @@ begin
       .filter(([column]) => !["tenant", "parent", "position"].includes(column))
       .map(([column, value]) => `${c(column)} = ${value}`)
       .join(", ")}
-    from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x
+    from jsonb_array_elements(coalesce(${name}.lines, '[]')) with ordinality x
     where l.${c("parent")} = v_parent and l.${c("position")} = x.ordinality;`
   }
     insert into ${t} (${written.map(([column]) => c(column)).join(", ")}${extrasInsert.columns})
     select ${written.map(([, value]) => value).join(",\n      ")}${extrasInsert.values}
-    from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x${
+    from jsonb_array_elements(coalesce(${name}.lines, '[]')) with ordinality x${
       replaces
         ? ""
         : positionKey
@@ -540,7 +566,7 @@ begin
     extras.length === 0
       ? ""
       : `
-  for v_line in select x.value -> 'fields' as fields, x.ordinality::integer as position from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x where jsonb_typeof(x.value -> 'fields') = 'object' loop${writeExtraColumns(t, extras, "v_line.fields", `x.${c("parent")} = v_parent and x.${c("position")} = v_line.position`).replaceAll("\n", "\n  ")}
+  for v_line in select x.value -> 'fields' as fields, x.ordinality::integer as position from jsonb_array_elements(coalesce(${name}.lines, '[]')) with ordinality x where jsonb_typeof(x.value -> 'fields') = 'object' loop${writeExtraColumns(t, extras, "v_line.fields", `x.${c("parent")} = v_parent and x.${c("position")} = v_line.position`).replaceAll("\n", "\n  ")}
   end loop;`
   }
 ${recounted ? `  perform ${recount}(v_parent);\n` : ""}  return (select jsonb_build_object(
@@ -549,9 +575,33 @@ ${recounted ? `  perform ${recount}(v_parent);\n` : ""}  return (select jsonb_bu
     from ${p} x where x.${pc("id")} = v_parent);
 end;
 $$;
-revoke execute on function ${fn}(uuid, jsonb) from public, anon;
-grant execute on function ${fn}(uuid, jsonb) to authenticated, service_role;
+${grant}
 `;
+
+  return `${manages}${triggers}
+-- Replaces a record's lines with lines: a list of { description, quantity,
+-- unitAmount (minor units as text), currency, discountBps, taxRateBps,
+-- taxCode, product: { type, id } }. A line's currency must be the record's.
+-- Returns the record's totals as text, with its currency.${options.fallback ? "\n-- A line without unitAmount or description takes them from its product." : ""}
+${setterSql(
+  options.setter,
+  options.guard,
+  items.frozen,
+  `revoke execute on function ${fn}(uuid, jsonb) from public, anon;
+grant execute on function ${fn}(uuid, jsonb) to authenticated, service_role;`,
+)}${
+    options.restorer === undefined
+      ? ""
+      : `
+-- Writes a record's lines like ${options.setter}, without its checks, for the
+-- module's own functions.
+${setterSql(
+  options.restorer,
+  "",
+  undefined,
+  `revoke execute on function ${ctx.fn(options.restorer)}(uuid, jsonb) from public, anon, authenticated;`,
+)}`
+  }`;
 }
 
 /**
@@ -638,7 +688,7 @@ function documentRecountSql(
     declared(ctx, items.parent, column);
 
   const parent = `${options.setter}_recount.parent`;
-  const amount = `round(l.${c("quantity")} * l.${c("unitAmount")})`;
+  const amount = lineAmount(ctx, items.lines, "l");
 
   const discount = declared(ctx, items.lines, "discountBps")
     ? `round(${amount} * ${l("discountBps")} / 10000.0)`

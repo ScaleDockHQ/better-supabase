@@ -27,6 +27,31 @@ export function quoteOrigin(ctx: BlockSqlContext): boolean {
 }
 
 /**
+ * `blocks.quotes.options.versionLines`: each published version keeps its lines
+ * as rows with their own ids in `quote_version_lines`.
+ */
+export function versionLinesOn(ctx: BlockSqlContext): boolean {
+  return ctx.flag("versionLines", false) && ctx.hasTable("versionLines");
+}
+
+/**
+ * `blocks.quotes.options.workingCopy`: staff edit a sent quote while the
+ * customer keeps seeing its last published version, and sending publishes the
+ * next one on the same link.
+ */
+function workingCopyOn(ctx: BlockSqlContext): boolean {
+  const on = ctx.flag("workingCopy", false);
+
+  if (on && !ctx.has("quotes", "unpublishedChanges")) {
+    throw new TypeError(
+      "blocks.quotes.options.workingCopy needs the quotes table's unpublishedChanges column",
+    );
+  }
+
+  return on;
+}
+
+/**
  * SQL over quote columns prefixed with `prefix` (`""` in a policy, `v_row.` in
  * a function) that is true when the caller is a guest the quote is shared with:
  * a grant on the quote, or a guest of its company or contact (ADR 0070). A
@@ -94,8 +119,20 @@ export interface QuoteKit {
   readonly lines: (alias: string) => string;
   readonly taxLines: (alias: string) => string;
   readonly row: (alias: string) => string;
-  /** What a customer sees of quote `alias`: no internal note, no owner. */
-  readonly publicJson: (alias: string) => string;
+  /**
+   * What a customer sees of quote `alias`: no internal note, no owner. With
+   * `version`, the lines and tax lines come from that snapshot jsonb.
+   */
+  readonly publicJson: (alias: string, version?: string) => string;
+  /**
+   * Line jsonb list `lines` with each line's `versionLineId` in version
+   * `version` (a uuid SQL expression), matched by position.
+   */
+  readonly withVersionLineIds: (lines: string, version: string) => string;
+  /** The id of quote `alias`'s latest published version, as SQL. */
+  readonly latestVersion: (alias: string) => string;
+  readonly versionLines: boolean;
+  readonly workingCopy: boolean;
   readonly record: (type: string, alias: string, extra?: string) => string;
   readonly checkParty: (
     kind: "COMPANY" | "CONTACT",
@@ -185,13 +222,21 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
   end if;`
       : "  null;";
 
+  const workingCopy = workingCopyOn(ctx);
+  const versionLines = versionLinesOn(ctx);
+
   const open = (alias: string): string =>
-    st(`${alias}.${q("status")}`, ["draft", "changes_requested"]);
+    st(
+      `${alias}.${q("status")}`,
+      workingCopy
+        ? ["draft", "changes_requested", "sent", "viewed"]
+        : ["draft", "changes_requested"],
+    );
 
   const lineValue = (column: string): string =>
     lineColumn(ctx, "lines", "ql", column);
 
-  const documentLine = ["section", "optional", "selected"]
+  const documentLine = ["section", "optional", "selected", "periods"]
     .filter(lineHas)
     .map((column) => `, ${sqlString(column)}, ql.${l(column)}`)
     .join("");
@@ -235,14 +280,33 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
   const text = (alias: string, logical: string, otherwise: string): string =>
     has(logical) ? `${alias}.${q(logical)}::text` : otherwise;
 
-  const publicJson = (alias: string): string => `jsonb_build_object(
+  const v = (column: string): string => c("versions", column);
+  const vl = (column: string): string => c("versionLines", column);
+
+  const latestVersion = (alias: string): string =>
+    `(select lv.${v("id")} from ${t("versions")} lv where lv.${v("quote")} = ${alias}.${q("id")} order by lv.${v("revision")} desc limit 1)`;
+
+  const withVersionLineIds = (list: string, version: string): string =>
+    versionLines
+      ? `(select coalesce(jsonb_agg(e.value || jsonb_build_object('versionLineId', vx.${vl("id")}) order by e.ordinality), '[]'::jsonb)
+      from jsonb_array_elements(${list}) with ordinality e
+      left join ${t("versionLines")} vx on vx.${vl("version")} = ${version} and vx.${vl("position")} = (e.value ->> 'position')::integer)`
+      : list;
+
+  const publicJson = (
+    alias: string,
+    version?: string,
+  ): string => `jsonb_build_object(
     'identifier', ${alias}.${q("identifier")}, 'revision', ${alias}.${q("revision")}, 'title', ${alias}.${q("title")},
     'status', ${ctx.label("quotes", "status", `${alias}.${q("status")}`)}, 'currency', ${alias}.${q("currency")}, 'validUntil', ${alias}.${q("validUntil")},
     'terms', ${or(alias, "terms")}, 'pricesIncludeTax', ${has("pricesIncludeTax") ? `${alias}.${q("pricesIncludeTax")}` : "false"},
     'discountBps', ${has("discountBps") ? `${alias}.${q("discountBps")}` : "0"}, 'discountAmount', ${text(alias, "discountAmount", "'0'")},
-    'depositBps', ${or(alias, "depositBps")}, 'depositDue', ${text(alias, "depositDue", "'0'")},
+    'depositBps', ${or(alias, "depositBps")}, 'depositAmount', ${text(alias, "depositAmount", "null")}, 'depositRequired', ${has("depositRequired") ? `${alias}.${q("depositRequired")}` : "false"},
+    'depositDue', ${text(alias, "depositDue", "'0'")},
     'listTotal', ${text(alias, "listTotal", `${alias}.${q("subtotal")}::text`)}, 'subtotal', ${alias}.${q("subtotal")}::text, 'discountTotal', ${text(alias, "discountTotal", "'0'")},
-    'taxTotal', ${alias}.${q("taxTotal")}::text, 'total', ${alias}.${q("total")}::text, 'lines', ${lines(alias)}, 'taxLines', ${taxLines(alias)})`;
+    'taxTotal', ${alias}.${q("taxTotal")}::text, 'total', ${alias}.${q("total")}::text,
+    'lines', ${version === undefined ? withVersionLineIds(lines(alias), latestVersion(alias)) : withVersionLineIds(`coalesce(${version} -> 'lines', '[]'::jsonb)`, latestVersion(alias))},
+    'taxLines', ${version === undefined ? taxLines(alias) : `coalesce(${version} -> 'taxLines', '[]'::jsonb)`})`;
 
   const checkParty = (
     kind: "COMPANY" | "CONTACT",
@@ -304,13 +368,17 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     taxLines,
     row,
     publicJson,
+    withVersionLineIds,
+    latestVersion,
+    versionLines,
+    workingCopy,
     record,
     checkParty,
     notifyOwner,
     markViewed,
     depositDue:
-      has("depositDue") && has("depositBps")
-        ? `${q("depositDue")} = case when x.${q("depositBps")} is null then 0 else round(${total} * x.${q("depositBps")} / 10000.0)::bigint end`
+      has("depositDue") && (has("depositBps") || has("depositAmount"))
+        ? `${q("depositDue")} = case${has("depositAmount") ? ` when x.${q("depositAmount")} is not null then least(greatest(${total}, 0), x.${q("depositAmount")})` : ""}${has("depositBps") ? ` when x.${q("depositBps")} is not null then round(${total} * x.${q("depositBps")} / 10000.0)::bigint` : ""} else 0 end`
         : undefined,
   };
 }
