@@ -717,6 +717,7 @@ ${updateInvoiceSql()}${lineItemsSql(
       frozen: st(`p.${i("status")}`, ["draft"], true),
       extras: n.lineExtras,
       totals: !n.appTotals,
+      positionKey: ctx.flag("linePositionKey", true),
     },
     {
       setter: "set_invoice_lines",
