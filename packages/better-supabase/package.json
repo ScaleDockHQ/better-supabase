@@ -857,6 +857,11 @@
       "types": "./dist/blocks/access-requests/index.d.ts",
       "default": "./dist/blocks/access-requests/index.js"
     },
+    "./blocks/accounting": {
+      "@better-supabase/source": "./src/blocks/accounting/index.ts",
+      "types": "./dist/blocks/accounting/index.d.ts",
+      "default": "./dist/blocks/accounting/index.js"
+    },
     "./blocks/documents": {
       "@better-supabase/source": "./src/blocks/documents/index.ts",
       "types": "./dist/blocks/documents/index.d.ts",
@@ -1759,6 +1764,10 @@
       "./blocks/access-requests": {
         "types": "./dist/blocks/access-requests/index.d.ts",
         "default": "./dist/blocks/access-requests/index.js"
+      },
+      "./blocks/accounting": {
+        "types": "./dist/blocks/accounting/index.d.ts",
+        "default": "./dist/blocks/accounting/index.js"
       },
       "./blocks/documents": {
         "types": "./dist/blocks/documents/index.d.ts",

@@ -111,6 +111,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "risks.*",
     "shifts.*",
     "waitlist.invite",
+    "accounting.*",
   ],
   member: [
     "organization.read",
@@ -531,6 +532,11 @@ export const OPERATIONS = {
   "shifts.write": "shifts.write",
   "shifts.request": "shifts.request",
   "shifts.manage": "shifts.manage",
+  "accounting.read": "accounting.read",
+  "accounting.write": "accounting.write",
+  "accounting.post": "accounting.post",
+  "accounting.close": "accounting.close",
+  "accounting.manage": "accounting.manage",
   "messaging.read": "messages.read",
   "messaging.send": "messages.send",
   "messaging.moderate": "messages.moderate",
@@ -831,6 +837,13 @@ export const MODULE_PERMISSION_SCOPES: {
     read: "tenant",
     write: "tenant",
     request: "tenant",
+    manage: "tenant",
+  },
+  accounting: {
+    read: "tenant",
+    write: "tenant",
+    post: "tenant",
+    close: "tenant",
     manage: "tenant",
   },
 };

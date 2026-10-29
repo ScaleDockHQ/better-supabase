@@ -21,6 +21,7 @@ import {
   BrainIcon,
   Building2Icon,
   BuildingIcon,
+  CalculatorIcon,
   CalendarCheckIcon,
   CalendarClockIcon,
   CalendarDaysIcon,
@@ -243,6 +244,7 @@ export const BLOCK_ICONS = {
   promotions: TicketPercentIcon,
   invoices: ReceiptIcon,
   ledger: ScaleIcon,
+  accounting: CalculatorIcon,
   assets: MapPinnedIcon,
   // Scheduling
   reminders: AlarmClockIcon,
