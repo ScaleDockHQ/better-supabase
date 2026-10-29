@@ -1,6 +1,7 @@
 import type { LiteRuntime } from "../../lite/runtime.ts";
 import type { Issue } from "../issue.ts";
 import type { PresetMigrationFile } from "../types.ts";
+import type { SkippedBlock } from "./apply.ts";
 
 import { LITE_INSTALL, loadLite } from "../../lite/runtime.ts";
 import { applyFiles } from "./apply.ts";
@@ -101,7 +102,7 @@ export function verifyQuery(schemas: readonly string[] = ["public"]): string {
             'command', case p.polcmd when 'r' then 'select' when 'a' then 'insert'
               when 'w' then 'update' when 'd' then 'delete' else 'all' end,
             'permissive', p.polpermissive,
-            'roles', (select coalesce(json_agg(case when r.oid = 0 then 'public' else r.rolname end), '[]'::json)
+            'roles', (select coalesce(json_agg(case when u.oid = 0 then 'public' else r.rolname end), '[]'::json)
               from unnest(p.polroles) as u(oid)
               left join pg_roles r on r.oid = u.oid),
             'using', pg_get_expr(p.polqual, p.polrelid),
@@ -468,18 +469,27 @@ export interface VerifyDesignOptions extends VerifyOptions {
   readonly schemas?: readonly string[];
 }
 
+export interface FilesVerification {
+  /**
+   * The files Postgres rejected (`source: "sql"`), then `verifyCatalog`'s
+   * findings.
+   */
+  readonly issues: readonly Issue[];
+  readonly matrix: readonly MatrixCell[];
+  /** Modules left out because PGlite lacks an extension they need. */
+  readonly skipped: readonly SkippedBlock[];
+}
+
 /**
  * Applies the files to an in-memory PGlite database, reads its catalog and
- * returns `verifyCatalog`'s findings with the matrix. Throws when
- * `@supabase/lite` isn't installed.
+ * returns `verifyCatalog`'s findings with the matrix. A file Postgres rejects
+ * is an issue, as in `validateDesign`, because its tables are missing from the
+ * catalog. Throws when `@supabase/lite` isn't installed.
  */
 export async function verifyFiles(
   files: readonly PresetMigrationFile[],
   options: VerifyDesignOptions = {},
-): Promise<{
-  readonly issues: readonly Issue[];
-  readonly matrix: readonly MatrixCell[];
-}> {
+): Promise<FilesVerification> {
   const runtime = options.runtime ?? (await loadLite());
 
   if (runtime === undefined) {
@@ -492,14 +502,15 @@ export async function verifyFiles(
     const { driver } = connection;
 
     await driver.exec(SUPABASE_PRELUDE);
-    await applyFiles(driver, files);
+    const applied = await applyFiles(driver, files);
 
     const { rows } = await driver.query(verifyQuery(options.schemas));
     const catalog = readSecurityCatalog(rows);
 
     return {
-      issues: verifyCatalog(catalog, options),
+      issues: [...applied.issues, ...verifyCatalog(catalog, options)],
       matrix: accessMatrix(catalog),
+      skipped: applied.skipped,
     };
   } finally {
     await connection.close();
