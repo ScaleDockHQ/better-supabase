@@ -63,6 +63,7 @@ export { coursesEvents } from "./events.ts";
 
 export type {
   CourseCertificateEventData,
+  CourseCertificateIssuedEventData,
   CourseEventData,
   CourseLearnerEventData,
   CourseLessonCompletedEventData,

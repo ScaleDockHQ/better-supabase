@@ -40,6 +40,12 @@ export interface CourseCertificateEventData {
   readonly enrollmentId: string;
 }
 
+/** `course_certificate.issued`: also when the certificate expires. */
+export interface CourseCertificateIssuedEventData extends CourseCertificateEventData {
+  /** An ISO timestamp, or null when the certificate never expires. */
+  readonly expiresAt: string | null;
+}
+
 /** The events of the `courses` block: type to data. */
 export type CoursesEvents = {
   readonly "course.saved": CourseEventData;
@@ -48,7 +54,7 @@ export type CoursesEvents = {
   readonly "course.unenrolled": CourseLearnerEventData;
   readonly "course.completed": CourseLearnerEventData;
   readonly "course_lesson.completed": CourseLessonCompletedEventData;
-  readonly "course_certificate.issued": CourseCertificateEventData;
+  readonly "course_certificate.issued": CourseCertificateIssuedEventData;
   readonly "course_certificate.revoked": CourseCertificateEventData;
 };
 
@@ -60,6 +66,6 @@ export const coursesEvents: Events<CoursesEvents> = defineEvents({
   "course.unenrolled": event<CourseLearnerEventData>(),
   "course.completed": event<CourseLearnerEventData>(),
   "course_lesson.completed": event<CourseLessonCompletedEventData>(),
-  "course_certificate.issued": event<CourseCertificateEventData>(),
+  "course_certificate.issued": event<CourseCertificateIssuedEventData>(),
   "course_certificate.revoked": event<CourseCertificateEventData>(),
 });

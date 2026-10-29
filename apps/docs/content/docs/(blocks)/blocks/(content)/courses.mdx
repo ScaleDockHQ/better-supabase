@@ -156,6 +156,24 @@ keeps their certificate.
 
 `verifyCertificate(code)` tells anyone with the code, signed in or not, the
 course, when the certificate was issued and whether it is still `valid`.
+
+### Expiry
+
+Set `validForMonths` (1 to 240) on a course to make its certificates expire.
+Each certificate gets `expiresAt`, that many months after it is issued, and
+`verifyCertificate` returns `expired: true` and `valid: false` once that time
+passes. Without `validForMonths` (or with `null`) certificates never expire.
+Changing it later applies to certificates issued after the change.
+
+```ts title="app/courses/actions.ts"
+await db.courses
+  .upsert({ key: "fire-safety", title: "Fire safety", validForMonths: 12 })
+  .orThrow();
+
+const check = await db.courses.verifyCertificate(code).orThrow();
+// check?.expired, check?.expiresAt
+```
+
 `revokeCertificate(certificateId)` revokes one for members with
 `courses.manage`.
 
@@ -192,12 +210,12 @@ course, when the certificate was issued and whether it is still `valid`.
 
 ## Events
 
-| Event                                                      | Data                                                         |
-| ---------------------------------------------------------- | ------------------------------------------------------------ |
-| `course.saved`, `course.deleted`                           | `organizationId`, `id`, `key`, `status`                      |
-| `course.enrolled`, `course.unenrolled`, `course.completed` | `organizationId`, `id`, `userId`, `enrollmentId`             |
-| `course_lesson.completed`                                  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId` |
-| `course_certificate.issued`, `course_certificate.revoked`  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId` |
+| Event                                                      | Data                                                                                     |
+| ---------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| `course.saved`, `course.deleted`                           | `organizationId`, `id`, `key`, `status`                                                  |
+| `course.enrolled`, `course.unenrolled`, `course.completed` | `organizationId`, `id`, `userId`, `enrollmentId`                                         |
+| `course_lesson.completed`                                  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId`                             |
+| `course_certificate.issued`, `course_certificate.revoked`  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId`, `expiresAt` (for `issued`) |
 
 The underlying enrollment emits its own `enrollment.*` events as well. A rule
 on `course.completed` can notify a learner's manager, and a sink on

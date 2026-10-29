@@ -53,10 +53,19 @@ describe.skipIf(!live)("courses", () => {
       const courses = createCourses({ transport: sqlTransport(s.sql), tenant });
 
       const course = await courses
-        .upsert({ key: "onboarding", title: "Onboarding", certificate: true })
+        .upsert({
+          key: "onboarding",
+          title: "Onboarding",
+          certificate: true,
+          validForMonths: 12,
+        })
         .orThrow();
 
-      expect(course).toMatchObject({ status: "draft", certificate: true });
+      expect(course).toMatchObject({
+        status: "draft",
+        certificate: true,
+        validForMonths: 12,
+      });
       expect(
         await s.hint("better_supabase.save_course($1, $2)", [
           tenant,
@@ -222,9 +231,19 @@ describe.skipIf(!live)("courses", () => {
 
       const anon = createCourses({ transport: sqlTransport(s.sql), tenant });
 
+      const check = await anon.verifyCertificate(certificate.code).orThrow();
+
+      expect(check).toMatchObject({
+        courseTitle: "Onboarding",
+        valid: true,
+        expired: false,
+      });
       expect(
-        await anon.verifyCertificate(certificate.code).orThrow(),
-      ).toMatchObject({ courseTitle: "Onboarding", valid: true });
+        Temporal.Instant.compare(
+          check!.expiresAt!,
+          certificate.issuedAt.add({ hours: 24 * 330 }),
+        ),
+      ).toBe(1);
       expect(await anon.verifyCertificate("0".repeat(32)).orThrow()).toBeNull();
 
       await s.asRole(outsider);

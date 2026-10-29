@@ -20,6 +20,7 @@ const COURSE = {
   summary: null,
   status: "published",
   certificate: true,
+  validForMonths: 12,
   createdBy: "u1",
   createdAt: AT,
   updatedAt: AT,
@@ -79,6 +80,7 @@ const LEARNER = {
     code: "a".repeat(32),
     issuedAt: AT,
     revokedAt: null,
+    expiresAt: "2027-10-22T10:00:00Z",
   },
   enrolledAt: AT,
   completedAt: AT,
@@ -135,6 +137,7 @@ describe("createCourses", () => {
       .upsert({
         key: "security-basics",
         title: "Security basics",
+        validForMonths: 12,
         fields: { level: "intro" },
       })
       .orThrow();
@@ -143,6 +146,7 @@ describe("createCourses", () => {
     expect(saved).toMatchObject({
       status: "published",
       certificate: true,
+      validForMonths: 12,
       createdBy: "u1",
       fields: { level: "intro" },
     });
@@ -163,6 +167,7 @@ describe("createCourses", () => {
           course: {
             key: "security-basics",
             title: "Security basics",
+            validForMonths: 12,
             fields: { level: "intro" },
           },
         },
@@ -298,6 +303,9 @@ describe("createCourses", () => {
     expect(read.modules[0]?.lessons[1]).not.toHaveProperty("completedAt");
     expect(read.modules[1]?.lessons).toEqual([]);
     expect(read.progress?.certificate?.code).toBe("a".repeat(32));
+    expect(read.progress?.certificate?.expiresAt).toBeInstanceOf(
+      Temporal.Instant,
+    );
     expect(read.progress?.lessons[1]).toMatchObject({
       attempts: 2,
       score: 1,
@@ -497,6 +505,8 @@ describe("createCourses", () => {
         organizationId: "org-1",
         issuedAt: AT,
         revokedAt: AT,
+        expiresAt: AT,
+        expired: true,
         valid: false,
       },
       revoke_course_certificate: true,
@@ -507,8 +517,10 @@ describe("createCourses", () => {
 
     expect(check).toMatchObject({
       valid: false,
+      expired: true,
       courseTitle: "Security basics",
     });
+    expect(check?.expiresAt).toBeInstanceOf(Temporal.Instant);
     expect(check?.revokedAt).toBeInstanceOf(Temporal.Instant);
     expect(await courses.revokeCertificate("cert1").orThrow()).toBe(true);
 
