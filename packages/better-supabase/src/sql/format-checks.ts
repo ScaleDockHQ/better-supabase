@@ -11,7 +11,7 @@ import {
 import { sqlIdent, sqlString } from "../core/template.ts";
 
 /** `<schema>.bsb_valid_<name>`, quoted. */
-export function validatorFunction(
+function validatorFunction(
   schema: string,
   validator: FieldFormatValidator,
 ): string {
