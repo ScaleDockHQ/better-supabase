@@ -184192,6 +184192,18 @@
         ],
         "triggers": [
           {
+            "name": "bsb_attachments_changed",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update",
+              "delete"
+            ],
+            "level": "row",
+            "function": "better_supabase.attachments_changed",
+            "source": "\ndeclare\n  v_row \"better_supabase\".\"attachments\"%rowtype;\nbegin\n  if tg_op = 'DELETE' then\n    v_row := old;\n  else\n    v_row := new;\n  end if;\n  if v_row.\"organization_id\" is null then\n    return null;\n  end if;\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(jsonb_build_object('subjectType', v_row.\"subject_type\", 'subjectId', v_row.\"subject_id\"), 'changed', 'attachments:' || v_row.\"organization_id\"::text, true);\n  end if;\n  return null;\nend;\n"
+          },
+          {
             "name": "bsb_attachments_object_path",
             "timing": "before",
             "events": [
