@@ -1,31 +1,22 @@
-import { AUTHZ_EVENT, authzUserTopic } from "../core/authz-topic.ts";
+import type {
+  AuthzPresence,
+  AuthzRefreshClient,
+  AuthzTopicOptions,
+} from "../client/authz-refresh.ts";
+import type { AuthzVersionSource } from "../core/authz-topic.ts";
 
-/** The broadcast message shape Realtime delivers for `realtime.send()`. */
-interface BroadcastMessage {
-  readonly payload?: unknown;
-}
+import {
+  errorOf,
+  realtimeVersionSource,
+  runAuthzRefresh,
+} from "../client/authz-refresh.ts";
 
-/** The part of a supabase-js `RealtimeChannel` the provider uses. */
-export interface AuthzRefreshChannel {
-  on(
-    type: "broadcast",
-    filter: { readonly event: string },
-    callback: (message: BroadcastMessage) => void,
-  ): AuthzRefreshChannel;
-  subscribe(): AuthzRefreshChannel;
-  unsubscribe(): Promise<unknown>;
-}
+export type {
+  AuthzRefreshChannel,
+  AuthzRefreshClient,
+} from "../client/authz-refresh.ts";
 
-/** The part of a browser supabase-js client the provider uses. */
-export interface AuthzRefreshClient {
-  channel(
-    topic: string,
-    options: { readonly config: { readonly private: boolean } },
-  ): AuthzRefreshChannel;
-  readonly auth: { refreshSession(): Promise<unknown> };
-}
-
-export interface AuthzRefreshOptions {
+export interface AuthzRefreshOptions extends AuthzTopicOptions {
   readonly client: AuthzRefreshClient;
   readonly userId: string;
   /**
@@ -35,6 +26,13 @@ export interface AuthzRefreshOptions {
   readonly onChange: () => unknown;
   /** The `BroadcastChannel` name, or `false` for none. */
   readonly channel: string | false;
+  /** Where versions come from. Defaults to the user's `authz:<uid>` topic. */
+  readonly source?: AuthzVersionSource;
+  /**
+   * The version the page's token carries (`session.authzVersion`). A live
+   * version at or below it needs no refresh.
+   */
+  readonly tokenVersion?: () => number | null;
   readonly onError?: (error: Error) => void;
 }
 
@@ -58,38 +56,34 @@ function isTabMessage(value: unknown): value is TabMessage {
   );
 }
 
-/** The `version` of a broadcast payload; Postgres `bigint` may arrive as text. */
-function versionOf(payload: unknown): number | undefined {
-  if (typeof payload !== "object" || payload === null) {
-    return undefined;
-  }
+function documentPresence(): AuthzPresence {
+  const doc = "document" in globalThis ? globalThis.document : undefined;
+  const active = (): boolean => doc?.visibilityState !== "hidden";
 
-  const value: unknown = Object.entries(payload).find(
-    ([name]) => name === "version",
-  )?.[1];
+  return {
+    active,
+    onActive(listener) {
+      const onVisible = (): void => {
+        if (active()) {
+          listener();
+        }
+      };
 
-  const version = typeof value === "string" ? Number(value) : value;
+      doc?.addEventListener("visibilitychange", onVisible);
 
-  return typeof version === "number" && Number.isFinite(version)
-    ? version
-    : undefined;
-}
-
-function errorOf(cause: unknown): Error {
-  return cause instanceof Error ? cause : new Error(String(cause));
+      return () => doc?.removeEventListener("visibilitychange", onVisible);
+    },
+  };
 }
 
 /**
  * Listens on the user's `authz:<uid>` topic. A visible tab that hears a new
  * version refreshes the token, runs `onChange` and tells the other tabs, which
  * run only `onChange`: the cookies are shared, so one refresh is enough. A
- * hidden tab waits until it becomes visible. Returns the cleanup.
+ * hidden tab waits until it becomes visible, then also reads the live version
+ * in case it missed a broadcast. Returns the cleanup.
  */
 export function startAuthzRefresh(options: AuthzRefreshOptions): () => void {
-  let seen = Number.NEGATIVE_INFINITY;
-  let handled = Number.NEGATIVE_INFINITY;
-  let stopped = false;
-
   const report = (cause: unknown): void => {
     options.onError?.(errorOf(cause));
   };
@@ -99,46 +93,33 @@ export function startAuthzRefresh(options: AuthzRefreshOptions): () => void {
       ? new BroadcastChannel(options.channel)
       : undefined;
 
-  const doc = "document" in globalThis ? globalThis.document : undefined;
+  const source =
+    options.source ??
+    realtimeVersionSource(options.client, options.userId, {
+      ...(options.topic ? { topic: options.topic } : {}),
+      ...(options.event ? { event: options.event } : {}),
+      onError: report,
+    });
 
-  const visible = (): boolean => doc?.visibilityState !== "hidden";
+  const refresh = runAuthzRefresh({
+    source,
+    presence: documentPresence(),
+    tokenVersion: options.tokenVersion ?? (() => null),
+    refresh: () => options.client.auth.refreshSession(),
+    onRefreshed: async (version) => {
+      await options.onChange();
 
-  const refresh = async (version: number): Promise<void> => {
-    handled = version;
-    await options.client.auth.refreshSession();
+      const message: TabMessage = {
+        type: "better-supabase:authz",
+        userId: options.userId,
+        version,
+      };
 
-    if (stopped) {
-      return;
-    }
-
-    await options.onChange();
-
-    const message: TabMessage = {
-      type: "better-supabase:authz",
-      userId: options.userId,
-      version,
-    };
-
-    // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel.postMessage takes no target origin (1 finding).
-    tabs?.postMessage(message);
-  };
-
-  const channel = options.client
-    .channel(authzUserTopic(options.userId), { config: { private: true } })
-    .on("broadcast", { event: AUTHZ_EVENT }, (message) => {
-      const version = versionOf(message.payload);
-
-      if (version === undefined || version <= seen) {
-        return;
-      }
-
-      seen = version;
-
-      if (visible()) {
-        refresh(version).catch(report);
-      }
-    })
-    .subscribe();
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- BroadcastChannel.postMessage takes no target origin (1 finding).
+      tabs?.postMessage(message);
+    },
+    onError: report,
+  });
 
   const onTab = (event: MessageEvent): void => {
     const message: unknown = event.data;
@@ -146,30 +127,19 @@ export function startAuthzRefresh(options: AuthzRefreshOptions): () => void {
     if (
       !isTabMessage(message) ||
       message.userId !== options.userId ||
-      message.version <= handled
+      !refresh.handled(message.version)
     ) {
       return;
     }
 
-    handled = message.version;
-    seen = Math.max(seen, message.version);
     Promise.resolve(options.onChange()).catch(report);
   };
 
-  const onVisible = (): void => {
-    if (visible() && seen > handled) {
-      refresh(seen).catch(report);
-    }
-  };
-
   tabs?.addEventListener("message", onTab);
-  doc?.addEventListener("visibilitychange", onVisible);
 
   return () => {
-    stopped = true;
+    refresh.stop();
     tabs?.removeEventListener("message", onTab);
     tabs?.close();
-    doc?.removeEventListener("visibilitychange", onVisible);
-    channel.unsubscribe().catch(report);
   };
 }

@@ -43,6 +43,7 @@ import {
 } from "../../src/react/hooks.ts";
 import {
   AuthGate,
+  SessionProvider as NativeSessionProvider,
   useAuthDeepLinks,
   useOAuth,
   useProtectedRoute,
@@ -2246,5 +2247,72 @@ describe("SessionProvider", () => {
 
     rendered.unmount();
     expect(unsubscribe).toHaveBeenCalledOnce();
+  });
+});
+
+describe("native SessionProvider", () => {
+  it("refreshes for the signed-in user, reconnects PowerSync and stops on sign-out", async () => {
+    const { browser, setAuth } = fakeBrowser(signedIn(USER));
+    const handlers: ((message: { payload?: unknown }) => void)[] = [];
+    const unsubscribe = vi.fn(async () => "ok");
+    const refreshSession = vi.fn(async () => ({}));
+    const reconnect = vi.fn(async () => undefined);
+    const payload = btoa(JSON.stringify({ sub: USER, authz_ver: 1 }));
+
+    const channel = {
+      on(
+        _type: "broadcast",
+        _filter: { readonly event: string },
+        callback: (message: { payload?: unknown }) => void,
+      ) {
+        handlers.push(callback);
+
+        return channel;
+      },
+      subscribe: () => channel,
+      unsubscribe,
+    };
+
+    const client = {
+      channel: vi.fn(() => channel),
+      auth: {
+        refreshSession,
+        getSession: async () => ({
+          data: { session: { access_token: `e30.${payload}.sig` } },
+        }),
+      },
+    };
+
+    const appState = {
+      currentState: "active",
+      addEventListener: () => ({ remove: () => undefined }),
+    };
+
+    const view = renderHook(
+      () =>
+        NativeSessionProvider({
+          appState,
+          client,
+          powersync: { reconnect },
+          children: "app",
+        }),
+      undefined,
+      { client: browser },
+    );
+
+    expect(view.result).toBe("app");
+    expect(client.channel).toHaveBeenCalledWith(`authz:${USER}`, {
+      config: { private: true },
+    });
+
+    handlers[0]?.({ payload: { user_id: USER, version: 2 } });
+    await vi.waitFor(() => {
+      expect(reconnect).toHaveBeenCalledOnce();
+    });
+    expect(refreshSession).toHaveBeenCalledOnce();
+
+    setAuth(SIGNED_OUT);
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    view.unmount();
   });
 });

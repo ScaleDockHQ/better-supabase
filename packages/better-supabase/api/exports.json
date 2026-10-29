@@ -835,6 +835,7 @@
       "persistQueryCache",
       "secureStorage",
       "signInWithOAuthBrowser",
+      "startNativeAuthzRefresh",
       "storageUpload",
       "syncQueryWithApp",
       "uploadFromUri"
@@ -867,6 +868,8 @@
       "LargeSecureStorageOptions",
       "LinkingLike",
       "MmkvLike",
+      "NativeAuthzRefreshClient",
+      "NativeAuthzRefreshOptions",
       "NativePortsOptions",
       "NetInfoLike",
       "OAuthClient",
@@ -875,6 +878,7 @@
       "PersistQueryCacheOptions",
       "PickedFile",
       "PickFilesOptions",
+      "PowerSyncReconnect",
       "PushTokenPort",
       "QueryPersister",
       "SecureStorageOptions",
@@ -1009,6 +1013,7 @@
   "./react/native": {
     "values": [
       "AuthGate",
+      "SessionProvider",
       "useAuthDeepLinks",
       "useOAuth",
       "useProtectedRoute"
@@ -1019,6 +1024,7 @@
       "AuthGateProps",
       "AuthLinkResult",
       "LinkingLike",
+      "NativeSessionProviderProps",
       "OAuth",
       "OAuthSignInOptions",
       "ProtectedRouteOptions",
@@ -1221,9 +1227,11 @@
       "AuthorizationScope",
       "AuthorizationSubject",
       "AuthorizationTokenHook",
+      "AuthorizationVersions",
       "Authorizer",
       "AuthorizerRuntime",
       "AuthzVersionCache",
+      "AuthzVersionSource",
       "BlockTable",
       "BlockTables",
       "ContractApiVersion",

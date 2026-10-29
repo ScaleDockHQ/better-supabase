@@ -52,8 +52,8 @@ export interface AuthSync {
   (): void;
   /**
    * Disconnects and connects again while the same user is signed in, so the
-   * connector fetches the token again. Calls made before it runs share one
-   * reconnect; a sign-out or another user first skips it.
+   * connector fetches the token again. Calls made before its connect starts
+   * share one reconnect; a sign-out or another user first skips it.
    */
   readonly reconnect: () => Promise<void>;
 }
@@ -128,13 +128,15 @@ export function syncWithAuth<C>(
     }
 
     const run = enqueue(async () => {
-      pending = undefined;
-
       if (stopped || user !== target) {
+        pending = undefined;
+
         return;
       }
 
       await db.disconnect();
+      // Calls from here on need a connect that reads the token after them.
+      pending = undefined;
       await db.connect(options.connector);
     });
 
