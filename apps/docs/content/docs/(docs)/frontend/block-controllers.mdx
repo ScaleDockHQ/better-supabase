@@ -225,6 +225,32 @@ export function TaskList({ tasks, workspaceId }: Props) {
 and the event types that make the read stale. `useBlockEvent` types each
 event's data from `blockEvents` in `blocks.generated.ts`.
 
+### Sharing reads through an engine
+
+By default each `useBlockQuery` keeps its own read. Pass `engine` and the
+block's `instance` (its key in `createBlocks`) to keep the read in a data
+engine instead: every hook on the same method and arguments then shares one
+entry, and a `useBlockMutation` with the same options makes the instance's
+reads stale when it succeeds. `blockControllerEngine(queryClient)` from
+`better-supabase/query` keeps them in TanStack Query under the keys
+[`blockQueries`](/docs/frontend/query#block-queries) uses, so a hook and a
+`useQuery(bq.tasks.list(...))` read the same cache entry.
+
+```tsx title="components/task-list.tsx"
+import { blockControllerEngine } from "better-supabase/query";
+
+const blockReads = {
+  engine: blockControllerEngine(queryClient),
+  instance: "tasks",
+};
+
+const list = useBlockQuery(tasks, "list", [workspaceId], blockReads);
+const rename = useBlockMutation(tasks, "update", blockReads);
+```
+
+`createBlockQuery` and `createBlockMutation` take the same options outside
+a framework hook.
+
 ## Ports
 
 A controller reaches the platform only through ports, small interfaces the

@@ -208,6 +208,12 @@ queries of a block stale when one of its events arrives, such as a
 event in its `invalidates`, or all of its read methods. It returns the
 function that stops listening.
 
+`blockControllerEngine(queryClient, { scope })` is the data engine for the
+generic block hooks (`useBlockQuery` with `{ engine, instance }`). Their reads
+land under the same keys, so they share cache entries with `bq` and its
+mutations make them stale. See
+[sharing reads through an engine](/docs/frontend/block-controllers#sharing-reads-through-an-engine).
+
 ## Record types
 
 `recordQueries(customerRecord, clients, options?)` gives one record page's

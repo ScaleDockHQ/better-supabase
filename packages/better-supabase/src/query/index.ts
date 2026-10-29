@@ -11,6 +11,7 @@ export { queryEngine } from "./engine.ts";
 
 export {
   BLOCK_READ_PREFIXES,
+  blockControllerEngine,
   blockQueries,
   invalidateOnBlockEvents,
 } from "./blocks.ts";

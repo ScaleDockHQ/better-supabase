@@ -3,6 +3,7 @@ import { onCleanup, onMount } from "solid-js";
 import type {
   BlockArgsOf,
   BlockDataOf,
+  BlockEngineOptions,
   BlockEventSource,
   BlockMethodName,
   BlockMutationActions,
@@ -49,11 +50,12 @@ export function useBlockMutation<
 >(
   client: C,
   method: K,
+  options: BlockEngineOptions = {},
 ): SolidController<
   BlockMutationState<BlockDataOf<C, K>>,
   BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>>
 > {
-  return bindSolidController(createBlockMutation(client, method));
+  return bindSolidController(createBlockMutation(client, method, options));
 }
 
 /**
