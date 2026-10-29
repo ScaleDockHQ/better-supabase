@@ -101,8 +101,11 @@ begin
     raise exception 'organization_member_roles %', better_supabase.organization_member_roles('${TENANT}', '${BOB}');
   end if;
   update better_supabase.memberships set "role" = 'viewer' where user_id = '${BOB}';
-  if ${ROLE_SET(BOB)} <> array['viewer'] then
-    raise exception 'a direct role write did not replace the set: %', ${ROLE_SET(BOB)};
+  if ${ROLE_SET(BOB)} <> array['member', 'viewer'] then
+    raise exception 'a direct role write did not swap only the old primary: %', ${ROLE_SET(BOB)};
+  end if;
+  if (select "role" from better_supabase.memberships where user_id = '${BOB}') <> 'viewer' then
+    raise exception 'the written role did not stay primary';
   end if;
   delete from better_supabase.memberships where user_id = '${BOB}';
   if exists (select 1 from better_supabase.membership_roles where user_id = '${BOB}') then
@@ -192,5 +195,50 @@ begin
 end;
 $$;`),
     ).rejects.toThrow(/keeps at least one role/);
+  });
+});
+
+const AUTH_ADMIN_READS = `
+grant usage on schema better_supabase to supabase_auth_admin;
+grant select on better_supabase.memberships to supabase_auth_admin;
+create policy auth_admin_reads on better_supabase.memberships for select to supabase_auth_admin using (true);
+do $$
+declare
+  v_count integer;
+begin
+  set local role supabase_auth_admin;
+  select count(*) into v_count from better_supabase.memberships;
+  reset role;
+  perform set_config('test.auth_admin_rows', v_count::text, false);
+end;
+$$;`;
+
+describe("tenantScope.exemptRoles", BOOT, () => {
+  it("lets an exempt role read past the tenant scope", async () => {
+    await expect(
+      run(
+        `${AUTH_ADMIN_READS}
+do $$
+begin
+  if current_setting('test.auth_admin_rows') <> '2' then
+    raise exception 'exempt role read % rows', current_setting('test.auth_admin_rows');
+  end if;
+end;
+$$;`,
+        ["memberships", "permissions", "organizations"],
+        {
+          memberships: {
+            options: { roles: { many: true } },
+            tenantScope: { exemptRoles: ["supabase_auth_admin"] },
+          },
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("keeps the scope for a role that is not exempt", async () => {
+    await expect(run(AUTH_ADMIN_READS)).rejects.toThrow(
+      /permission denied for function member_organization_ids/,
+    );
   });
 });

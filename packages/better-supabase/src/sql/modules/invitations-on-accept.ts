@@ -4,7 +4,11 @@ import type { InviteTable } from "./invitations-tables.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlString } from "../../core/template.ts";
 import { raise } from "./invitations-tables.ts";
-import { manyRoles, membershipRolesTable } from "./membership-roles.ts";
+import {
+  manyRoles,
+  membershipRolesTable,
+  staticRoles,
+} from "./membership-roles.ts";
 import { accessModel, roleNames } from "./permissions-model.ts";
 import { teamIdType } from "./teams.ts";
 
@@ -118,10 +122,17 @@ export function onAcceptInvite(ctx: BlockSqlContext, t: InviteTable): string {
 
   const roles = on.roles
     ? `
-      accept_roles := array(select jsonb_array_elements_text(coalesce(on_accept -> 'roles', '[]')));
+      accept_roles := array(select jsonb_array_elements_text(coalesce(on_accept -> 'roles', '[]')));${
+        staticRoles(ctx)
+          ? `
       if exists (select 1 from unnest(accept_roles) r(role) where not (r.role = any (array[${roleNames(ctx).map(sqlString).join(", ")}]::text[]))) then
         ${raise("INVITATION_ROLE_UNKNOWN", "Unknown role in on_accept.roles")}
-      end if;
+      end if;`
+          : `
+      if exists (select 1 from unnest(accept_roles) r(role) where r.role is null or r.role = '') then
+        ${raise("INVITATION_ROLE_UNKNOWN", "Unknown role in on_accept.roles")}
+      end if;`
+      }
       if not service and exists (select 1 from unnest(accept_roles) r(role) where not better_supabase.can_assign(tenant, r.role)) then
         ${raise("INVITATION_ROLE_FORBIDDEN", "A role in on_accept.roles is above your own")}
       end if;

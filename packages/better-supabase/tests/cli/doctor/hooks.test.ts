@@ -491,6 +491,89 @@ describe("BS420", () => {
   });
 });
 
+describe("BS421", () => {
+  const scoped = (using: string): Snapshot => {
+    const snapshot = withHook([
+      hookFn({
+        source:
+          "begin select role into r from public.memberships where user_id = uid; return event; end",
+      }),
+    ]);
+
+    return {
+      ...snapshot,
+      extras: {
+        ...snapshot.extras,
+        tables: [
+          ...snapshot.extras.tables.filter(
+            (table) => table.name !== "memberships",
+          ),
+          {
+            id: 1,
+            schema: "public",
+            name: "memberships",
+            primaryKey: ["id"],
+            uniques: [],
+            foreignKeys: [],
+            checks: [],
+            indexes: [],
+            triggers: [],
+            grants: [],
+            policies: [
+              {
+                name: "bsb_tenant_scope_select",
+                command: "select",
+                roles: ["public"],
+                permissive: false,
+                using,
+                check: null,
+              },
+            ],
+          },
+        ],
+      },
+    };
+  };
+
+  it("reports a security invoker hook that reads a tenant-scoped table", async () => {
+    const findings = await runRules(
+      context(
+        scoped(
+          "organization_id IN (SELECT better_supabase.member_organization_ids())",
+        ),
+      ),
+      only("BS421"),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "rbac.custom_access_token_hook(event jsonb)",
+    ]);
+    expect(findings[0]?.message).toContain("reads public.memberships");
+  });
+
+  it("skips an exempt role and a security definer hook", async () => {
+    expect(
+      await runRules(
+        context(
+          scoped(
+            "organization_id IN (SELECT better_supabase.member_organization_ids()) OR CURRENT_USER = ANY (ARRAY['supabase_auth_admin'::name])",
+          ),
+        ),
+        only("BS421"),
+      ),
+    ).toEqual([]);
+
+    const definer = withHook([
+      hookFn({
+        securityDefiner: true,
+        source: "begin perform 1 from public.memberships; return event; end",
+      }),
+    ]);
+
+    expect(await runRules(context(definer), only("BS421"))).toEqual([]);
+  });
+});
+
 describe("BS410 HTTP auth hooks", () => {
   const httpContext = (toml: string, document = parseToml(toml)) =>
     context(base, {

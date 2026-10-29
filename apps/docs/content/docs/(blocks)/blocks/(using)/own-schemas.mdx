@@ -820,6 +820,26 @@ no permissive policy for a command the block's policies would have granted,
 because the block's functions that run as the caller and its TypeScript API
 find no rows for that command.
 
+### Roles that read past the tenant scope
+
+The scope policies are `to public`, so they also apply to database roles that
+run without a signed-in user. Auth runs a `security invoker` custom access
+token hook as `supabase_auth_admin`, where `auth.uid()` is null, so the hook
+finds no rows and every token misses its claims
+([BS421](/docs/cli/doctor#bs421)). List such roles in `tenantScope.exemptRoles`,
+in `database.sql` or on one block entry:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: { sql: { tenantScope: { exemptRoles: ["supabase_auth_admin"] } } },
+});
+```
+
+Each scope policy then lets those roles through, and the role gets `execute`
+on the functions the scope calls. The exemption lifts only the restrictive
+scope: grant the role `select` on the table and add the permissive policy
+for it that the Supabase hook guide describes.
+
 Your tables may also grant columns rather than whole tables, such as
 `grant update (first_name, timezone) on public.profiles to authenticated`.
 The `updated-at` and `created-by` extensions add `updated_at`, `created_by`

@@ -52,6 +52,17 @@ export function manyRoles(tenant: BlockSqlContext): boolean {
   return true;
 }
 
+/**
+ * Whether the role names are the declared static roles. Under an authorization
+ * provider or the custom model, roles are the provider's (custom roles
+ * included), so only `can_assign` decides which ones a caller may hand out.
+ */
+export function staticRoles(ctx: BlockSqlContext): boolean {
+  const model = accessModel(ctx);
+
+  return model !== "provider" && model !== "custom";
+}
+
 /** The quoted `membership_roles` table, in the memberships module's schema. */
 export const membershipRolesTable = (tenant: BlockSqlContext): string =>
   `${tenant.schema}."membership_roles"`;
@@ -118,9 +129,13 @@ create table if not exists ${mr} (
 );
 create index if not exists membership_roles_user_idx on ${mr} (${u});
 alter table ${mr} drop constraint if exists membership_roles_role_check;
-alter table ${mr}
+${
+  staticRoles(tenant)
+    ? `alter table ${mr}
   add constraint membership_roles_role_check check ("role" in (${roleNames(tenant).map(sqlString).join(", ")}));
-alter table ${mr} enable row level security;
+`
+    : ""
+}alter table ${mr} enable row level security;
 grant select on ${mr} to authenticated;
 grant all on ${mr} to service_role;
 
@@ -130,7 +145,8 @@ where m.${role} is not null
 on conflict do nothing;
 
 -- Writing ${role} directly (update_member_role, a client policy, the service
--- role) replaces the set with that one role.
+-- role) swaps the previous primary role for the new one and keeps the written
+-- one primary. The member's other roles, custom ones included, stay in the set.
 create or replace function ${fromRole}()
 returns trigger
 language plpgsql
@@ -141,9 +157,13 @@ begin
   if new.${role} is null or current_setting(${SYNC}, true) = 'on' then
     return null;
   end if;
-  delete from ${mr} r where r.${t} = new.${t} and r.${u} = new.${u} and r."role" <> new.${role}::text;
+  perform set_config(${SYNC}, 'on', true);
+  if tg_op = 'UPDATE' and old.${role} is not null and old.${role}::text <> new.${role}::text then
+    delete from ${mr} r where r.${t} = new.${t} and r.${u} = new.${u} and r."role" = old.${role}::text;
+  end if;
   insert into ${mr} (${t}, ${u}, "role") values (new.${t}, new.${u}, new.${role}::text)
   on conflict do nothing;
+  perform set_config(${SYNC}, '', true);
   return null;
 end;
 $$;
@@ -165,6 +185,9 @@ declare
   v_user uuid := coalesce(new.${u}, old.${u});
   v_primary text;
 begin
+  if current_setting(${SYNC}, true) = 'on' then
+    return null;
+  end if;
   select r."role" into v_primary from ${mr} r
   where r.${t} = v_tenant and r.${u} = v_user
   order by array_position(${ranks}, r."role"), r."role"

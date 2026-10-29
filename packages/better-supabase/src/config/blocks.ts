@@ -39,6 +39,17 @@ export const BLOCK_SCOPES: readonly BlockScope[] = ["tenant", "user", "none"];
  */
 export type OwnTablePolicies = "block" | "app";
 
+/** The restrictive tenant scope policies (ADR 0099, 0104). */
+export interface TenantScopeConfig {
+  /**
+   * Database roles the tenant scope lets through, such as `supabase_auth_admin`
+   * for a `security invoker` access token hook, which runs without
+   * `auth.uid()`. The policies stay `to public`; each role is an `or
+   * current_user = ...` branch. Defaults to none.
+   */
+  readonly exemptRoles?: readonly string[];
+}
+
 /**
  * A new name for one of a block's entities: its singular `name`, an irregular
  * plural and, for an entity the block registers as a subject, the URL of one
@@ -161,6 +172,8 @@ export interface BlockConfig<
    * `sql.ownTablePolicies`, then `block`.
    */
   readonly ownTablePolicies?: OwnTablePolicies;
+  /** The block's tenant scope policies. Defaults to `sql.tenantScope`. */
+  readonly tenantScope?: TenantScopeConfig;
   /**
    * Function name to the name the module writes it under, e.g. `{
    * create_organization: 'start_company' }`. Keys are the default names; an
@@ -436,6 +449,8 @@ export interface ResolvedBlock {
   readonly scope?: BlockScope;
   /** `ownTablePolicies`, with its default. */
   readonly ownTablePolicies: OwnTablePolicies;
+  /** `tenantScope.exemptRoles`, empty by default. */
+  readonly tenantScopeExempt: readonly string[];
   readonly functions: Readonly<Record<string, string>>;
   readonly permissions: Readonly<Record<string, string>>;
   readonly options: Readonly<Record<string, unknown>>;
@@ -479,6 +494,7 @@ export function resolveBlock(config: BlockConfig = {}): ResolvedBlock {
     ...(config.idType === undefined ? {} : { idType: config.idType }),
     ...(config.scope === undefined ? {} : { scope: config.scope }),
     ownTablePolicies: config.ownTablePolicies ?? "block",
+    tenantScopeExempt: config.tenantScope?.exemptRoles ?? [],
     functions: defined(config.functions),
     permissions: defined(config.permissions),
     options: config.options ?? {},

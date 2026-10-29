@@ -224,6 +224,21 @@
               "description": "Whose policies govern the app's tables a block runs over, unless the block sets its own ownTablePolicies: block (the default) lets a block add its bsb_ policies where none of the app's covers them, and app keeps every bsb_ policy, permissive or restrictive, off them.",
               "default": "block"
             },
+            "tenantScope": {
+              "type": "object",
+              "properties": {
+                "exemptRoles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*$"
+                  },
+                  "description": "Database roles the tenant scope lets through, such as supabase_auth_admin for a security invoker access token hook, which runs without auth.uid(). Each role becomes an or current_user branch. Defaults to none."
+                }
+              },
+              "additionalProperties": false,
+              "description": "The restrictive bsb_tenant_scope_* policies, unless a block sets its own tenantScope."
+            },
             "tenantColumn": {
               "type": "string"
             }
@@ -2895,6 +2910,20 @@
           "type": "string",
           "description": "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block."
         },
+        "tenantScope": {
+          "type": "object",
+          "properties": {
+            "exemptRoles": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_]*$"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "This block's tenant scope policies. Defaults to database.sql.tenantScope."
+        },
         "functions": {
           "type": "object",
           "additionalProperties": {
@@ -3109,6 +3138,20 @@
           "enum": ["block", "app"],
           "type": "string",
           "description": "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block."
+        },
+        "tenantScope": {
+          "type": "object",
+          "properties": {
+            "exemptRoles": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^[a-z_][a-z0-9_]*$"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "description": "This block's tenant scope policies. Defaults to database.sql.tenantScope."
         },
         "functions": {
           "type": "object",

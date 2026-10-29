@@ -111,6 +111,7 @@ const blockEntries = {
   idType: v.optional(v.string()),
   owner: v.optional(v.picklist(["tenant", "user", "none"])),
   ownTablePolicies: v.optional(v.picklist(["block", "app"])),
+  tenantScope: v.optional(blockSchemas.tenantScopeSchema),
   functions: v.optional(stringRecord),
   permissions: v.optional(stringRecord),
   names: v.optional(
@@ -809,6 +810,7 @@ const FLAT = {
       api: v.optional(v.string()),
       owner: v.optional(v.picklist(["tenant", "user", "none"])),
       ownTablePolicies: v.optional(v.picklist(["block", "app"])),
+      tenantScope: v.optional(blockSchemas.tenantScopeSchema),
       tenantColumn: v.optional(v.string()),
     }),
   ),

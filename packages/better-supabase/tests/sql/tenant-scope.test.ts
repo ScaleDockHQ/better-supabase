@@ -17,6 +17,23 @@ const scoped = (sql: string): string =>
 const scopePolicy = (sql: string): string =>
   sql.slice(sql.indexOf(`create policy ${TENANT_SCOPE_POLICY}_select`));
 
+describe("tenantScopePolicy exempt roles", () => {
+  it("lets each exempt role through every command", () => {
+    const sql = tenantScopePolicy({
+      target: "public.notes",
+      column: "organization_id",
+      members: "better_supabase.member_organization_ids()",
+      exempt: ["supabase_auth_admin", "supabase_auth_admin"],
+    });
+
+    expect(
+      sql.match(
+        /current_user = any \(array\['supabase_auth_admin'\]::name\[\]\)/g,
+      ),
+    ).toHaveLength(5);
+  });
+});
+
 describe("tenantScopePolicy", () => {
   it("renders one restrictive policy to public for every command", () => {
     const sql = tenantScopePolicy({

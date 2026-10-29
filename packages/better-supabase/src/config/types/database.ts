@@ -3,7 +3,11 @@ import type {
   BucketPolicyName,
 } from "../../schema/types.ts";
 import type { BucketLifecycle } from "../../storage/versioning.ts";
-import type { BlockScope, OwnTablePolicies } from "../blocks.ts";
+import type {
+  BlockScope,
+  OwnTablePolicies,
+  TenantScopeConfig,
+} from "../blocks.ts";
 
 export interface BucketConfig {
   readonly id?: string;
@@ -73,6 +77,11 @@ export interface SqlConfig {
    * them.
    */
   readonly ownTablePolicies?: OwnTablePolicies;
+  /**
+   * The restrictive `bsb_tenant_scope_*` policies, unless
+   * `blocks.<name>.tenantScope` sets its own.
+   */
+  readonly tenantScope?: TenantScopeConfig;
   readonly tenantColumn?: string;
 }
 
