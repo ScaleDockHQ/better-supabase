@@ -271,7 +271,11 @@ export default defineConfig({
       options: {
         // Organizations tighten these policies with their own (ADR 0119).
         tenantPolicies: true,
+        // A description per organization policy, written through `fields`.
+        policyExtraColumns: { description: "text" },
         policies: {
+          // One floor for an action on every subject type that files it.
+          "*": { "quote.send": { steps: [], effects: ["money-movement"] } },
           customer: {
             discount: {
               steps: [

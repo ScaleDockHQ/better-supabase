@@ -7337,6 +7337,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ApprovalRequestInput"
         },
         {
+          "name": "ApprovalRequestPolicy"
+        },
+        {
           "name": "ApprovalRequirement"
         },
         {
@@ -15103,6 +15106,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         {
           "name": "Invoice",
           "fields": true
+        },
+        {
+          "name": "InvoiceActorOptions"
         },
         {
           "name": "InvoiceAging"
