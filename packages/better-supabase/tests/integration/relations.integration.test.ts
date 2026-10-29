@@ -18,6 +18,20 @@ const layout: BlockSqlLayout = {
     relations: {
       schema: "rel_it",
       on: { task: { table: "rel_it.tasks", idType: "uuid", cascade: true } },
+      options: {
+        kinds: {
+          blocks: { inverse: "blocked_by", acyclic: true },
+          parent: { inverse: "children", cardinality: "one", acyclic: true },
+          relates: { symmetric: true },
+          created_from: {
+            inverse: "converted_to",
+            cardinality: "one",
+            acyclic: true,
+          },
+          duplicates: { types: { source: ["task"], target: ["task"] } },
+          held_by: { inverse: "holds", types: { target: ["person"] } },
+        },
+      },
     },
   },
 };
@@ -93,6 +107,19 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     );
     expect(await db.hint(link("blocks", 1, 1))).toBe("RELATION_SELF");
     expect(await db.hint(link("owns", 1, 2))).toBe("RELATION_KIND_UNKNOWN");
+  });
+
+  it("refuses subject types the kind doesn't accept", async () => {
+    await db.as(owner);
+    expect(await db.hint(link("held_by", 1, 2))).toBe(
+      "RELATION_TYPE_NOT_ALLOWED",
+    );
+    expect(await db.hint(link("holds", 1, 2))).toBe(
+      "RELATION_TYPE_NOT_ALLOWED",
+    );
+    expect(await db.value<Linked>(link("duplicates", 1, 2))).toMatchObject({
+      created: true,
+    });
   });
 
   it("stores an inverse name from the other end and reads it back by side", async () => {
