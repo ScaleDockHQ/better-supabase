@@ -55,5 +55,10 @@ export const expenseCategoryInputSchema: EntitySchema<ExpenseCategoryInput> =
       name: { kind: "string", minLength: 1, maxLength: 200 },
       limit: { ...moneyField, optional: true },
       receiptOver: { ...moneyField, optional: true },
+      fields: {
+        kind: "json",
+        optional: true,
+        description: "The extra columns to set.",
+      },
     },
   });

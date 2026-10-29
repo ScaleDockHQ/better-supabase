@@ -37,8 +37,22 @@ The service role passes every check, for imports and sync jobs.
 
 `blocks.catalog.permissions.create`, `update` and `delete` name separate keys
 for creating, changing and deleting products, options and variants (statuses
-and options count as changes). Without them those writes check `manage`, and
-prices, categories, collections and channels always do.
+and options count as changes). `categoryCreate`, `categoryUpdate` and
+`categoryDelete` do the same for `save_category` (a new or an existing
+category), `move_category` and `delete_category`. Without them those writes
+check `manage`, and prices, product categories, collections and channels
+always do.
+
+```ts title="better-supabase.config.ts"
+catalog: {
+  permissions: {
+    manage: "product.update",
+    categoryCreate: "category.create",
+    categoryUpdate: "category.update",
+    categoryDelete: "category.delete",
+  },
+}
+```
 
 ## Products
 
@@ -133,6 +147,27 @@ catalog: {
   columns: { variants: { status: "status" } },
   options: { variantInUse: "public.product_variant_in_use" },
 }
+```
+
+### Variant status
+
+With `columns.variants.status` mapped, `setVariantStatus(variantId, status)`
+(`set_variant_status`) moves a variant to `active`, `archived` or another label
+`values.variants.status` names, with the update permission. It returns the
+new and the previous label. Archived variants (every app value
+`values.variants.status.archived` lists) don't count as live, so `setOptions`
+and `createVariant` add a new variant for their combination. A variant that
+goes live again needs one value of every option (`CATALOG_VARIANT_OPTIONS`) and
+a combination no live variant has (`CATALOG_VARIANT_DUPLICATE`). Without a
+status column the function refuses (`CATALOG_VARIANT_STATUS_UNSUPPORTED`).
+
+```ts
+catalog: {
+  columns: { variants: { status: "status" } },
+  values: { variants: { status: { discontinued: "discontinued" } } },
+}
+
+await catalog.setVariantStatus(variantId, "discontinued").orThrow();
 ```
 
 ### The whole matrix at once

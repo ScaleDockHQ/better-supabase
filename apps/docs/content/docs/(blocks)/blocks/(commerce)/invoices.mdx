@@ -85,6 +85,21 @@ await invoices.create(organizationId, {
 });
 ```
 
+## Change or delete a draft
+
+`update(invoiceId, patch)` changes a draft's header: `title`, `company`, `contact`, `termsDays`, `note`, `depositBps`, `pricesIncludeTax` and `fields`. A key left out keeps its value, `null` clears it, and the block's columns and the extra columns are written in one `update`, so a check across both holds. Changing `pricesIncludeTax` counts the totals again. `delete(invoiceId)` deletes a draft with its lines and charges and returns `true`; an issued invoice keeps its number and is voided instead (`INVOICE_NOT_DRAFT`).
+
+```ts
+await db.invoices.update(draftId, {
+  title: "Website, phase 2",
+  termsDays: 14,
+  fields: { intro: "Thanks for your order." },
+});
+await db.invoices.delete(draftId);
+```
+
+The SQL functions are `update_invoice(invoice, attrs jsonb)` and `delete_invoice(invoice)`. They record `invoice.updated` and `invoice.deleted`.
+
 ## Issue and number
 
 A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of its kind (`INV-1`, credit notes `CN-1`, or the formats of `invoice` and `credit_note` entities in [numbering](/docs/blocks/numbering)), sets the issue date (today by default) and a due date `termsDays` later (`options.termsDays`, default 30), and freezes its lines. `issue(invoiceId, issuedOn, { dueOn })` sets the due date itself, on or after the issue date (`INVOICE_DUE_INVALID`), and an invoice created with `termsDays: null` (over your own table with a nullable terms column) has no due date. The number is taken in the same transaction that issues the invoice, so an issue that fails takes none. Numbers are taken only on issue, so a voided draft leaves no gap. An issued invoice voided by mistake keeps its number.
@@ -130,12 +145,13 @@ Lines carry `discountBps` and `taxRateBps` in basis points (2100 is 21%). When y
 
 ### A key per action
 
-`write` and `manage` cover several actions. Name a key per action in `permissions` to split them; an action without its own key checks `write` or `manage` as before.
+`write` and `manage` cover several actions. Name a key per action in `permissions` to split them; an action without its own key checks `write` or `manage` as before, and `delete` checks `update`, then `write`.
 
 | Key        | Functions                                     | Without it |
 | ---------- | --------------------------------------------- | ---------- |
 | `create`   | `create_invoice`, `invoice_from_quote`        | `write`    |
-| `update`   | `set_invoice_lines`                           | `write`    |
+| `update`   | `set_invoice_lines`, `update_invoice`         | `write`    |
+| `delete`   | `delete_invoice`                              | `update`   |
 | `issue`    | `issue_invoice`                               | `write`    |
 | `payment`  | `record_invoice_payment`                      | `write`    |
 | `credit`   | `credit_invoice`                              | `write`    |
@@ -209,13 +225,13 @@ An invoice with `pricesIncludeTax: true` counts tax out of its unit amounts inst
 
 ## Events
 
-| Event                                                                                        | Data                                                                                                                             |
-| -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `invoice.created`, `invoice.issued`, `invoice.paid`, `invoice.voided`, `invoice.uncollected` | `organizationId`, `invoiceId`, `subjectType`, `subjectId`, `identifier`, and `total`, `currency`, `dueOn`, `reason` or `balance` |
-| `invoice.payment_recorded`                                                                   | the same, with `paymentId`, `amount` and `balance`                                                                               |
-| `invoice.credited`                                                                           | the same, with `creditNoteId` and `amount`                                                                                       |
-| `invoice.payment_reversed`                                                                   | the same, with `paymentId`, `reversalId`, `amount`, `balance` and `reason`                                                       |
-| `invoice.charged`, `invoice.charge_removed`                                                  | the same, with `chargeId`, `amount` and `balance`                                                                                |
+| Event                                                                                                                              | Data                                                                                                                             |
+| ---------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `invoice.created`, `invoice.updated`, `invoice.deleted`, `invoice.issued`, `invoice.paid`, `invoice.voided`, `invoice.uncollected` | `organizationId`, `invoiceId`, `subjectType`, `subjectId`, `identifier`, and `total`, `currency`, `dueOn`, `reason` or `balance` |
+| `invoice.payment_recorded`                                                                                                         | the same, with `paymentId`, `amount` and `balance`                                                                               |
+| `invoice.credited`                                                                                                                 | the same, with `creditNoteId` and `amount`                                                                                       |
+| `invoice.payment_reversed`                                                                                                         | the same, with `paymentId`, `reversalId`, `amount`, `balance` and `reason`                                                       |
+| `invoice.charged`, `invoice.charge_removed`                                                                                        | the same, with `chargeId`, `amount` and `balance`                                                                                |
 
 Send dunning reminders from `invoice.issued` with a [workflow](/docs/blocks/workflows) that waits until the due date and checks the balance.
 
@@ -230,7 +246,7 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 | `INVOICE_FORBIDDEN`           | the caller lacks `invoices.write`                                                           |
 | `INVOICE_ATTRS_INVALID`       | a missing title or a field with a bad value                                                 |
 | `INVOICE_NOT_FOUND`           | no invoice the caller can edit (or manage, for void)                                        |
-| `INVOICE_NOT_DRAFT`           | the invoice was already issued                                                              |
+| `INVOICE_NOT_DRAFT`           | the invoice was already issued, so it no longer changes and isn't deleted                   |
 | `INVOICE_EMPTY`               | an invoice without lines can't be issued                                                    |
 | `INVOICE_NOT_PAYABLE`         | only an issued invoice takes payments                                                       |
 | `INVOICE_PAYMENT_INVALID`     | a payment needs an amount                                                                   |

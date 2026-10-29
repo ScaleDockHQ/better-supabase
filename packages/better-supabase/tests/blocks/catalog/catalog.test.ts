@@ -151,6 +151,26 @@ describe("catalog block", () => {
     expect(result.ok).toBe(false);
   });
 
+  it("sets a variant's status", async () => {
+    const { calls, transport } = recorder({
+      id: "v1",
+      status: "discontinued",
+      from: "active",
+    });
+
+    const result = await createCatalog({ transport })
+      .setVariantStatus("v1", "discontinued")
+      .orThrow();
+
+    expect(result).toEqual({ status: "discontinued", from: "active" });
+    expect(calls).toEqual([
+      {
+        fn: "set_variant_status",
+        args: { variant: "v1", status: "discontinued" },
+      },
+    ]);
+  });
+
   it("maps options and variants", async () => {
     const { calls, transport } = recorder(
       { id: "o1", values: [{ id: "v1", value: "S" }] },

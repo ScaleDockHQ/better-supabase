@@ -173,6 +173,17 @@ blocks: {
 
 A column derived from another one works too, such as `is_confidential boolean generated always as (category = 'sick') stored`. A feed shows confidential leave only while the link's creator holds the key.
 
+### Changes to approved leave go back to approval
+
+By default only a manager changes approved leave, and it stays approved. With `options.reapprove: true`, the requester may change their own approved leave too, and the change goes back to approval: the taken leave returns to the balance, `approvedAt` (and without the approvals block `decidedBy` and `decisionNote`) is cleared, and the request is pending again, with a new approval request when the approvals block runs. A type with `autoApprove` is approved and booked again at once. `permissions.reapprove` names a key whose holders may change anyone's leave the same way, whether or not `options.reapprove` is set. A manager's change keeps the leave approved as before.
+
+```ts title="better-supabase.config.ts"
+leave: {
+  options: { reapprove: true },
+  permissions: { reapprove: "timeOff.update" },
+},
+```
+
 ### A feed of approved leave
 
 With [share-links](/docs/blocks/share-links), the organization's approved leave can be shared as a feed, for example to subscribe in a calendar app. A member with `leave.read` creates a link of subject type `leave_feed` whose subject id is the organization's id, and `feed(token)` (or `leave_feed(token)`, open to `anon`) returns the approved requests a year back and everything ahead. The link stops working when it is revoked or expires, and when its creator no longer holds `leave.read`. Turn the requests into iCalendar all-day events in your feed route.

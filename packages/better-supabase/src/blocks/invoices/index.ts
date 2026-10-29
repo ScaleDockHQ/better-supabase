@@ -4,6 +4,7 @@ export {
   type InvoiceAging,
   type InvoiceCharge,
   type InvoiceInput,
+  type InvoicePatch,
   type InvoicePayment,
   type Invoices,
   type InvoicesOptions,

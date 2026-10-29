@@ -76,6 +76,7 @@ export interface ExpenseCategory {
   readonly archivedAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export interface ExpenseCategoryInput {
@@ -84,6 +85,7 @@ export interface ExpenseCategoryInput {
   readonly limit?: Money;
   /** Needs the attachments block, where receipts live. */
   readonly receiptOver?: Money;
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export interface ExpenseLine {
@@ -360,6 +362,7 @@ function categoryOf(value: unknown, fn: string): ExpenseCategory {
       optionalMoney(row["receiptOver"], currency, "receiptOver"),
     ),
     ...optional("archivedAt", optionalInstant(row["archivedAt"], "archivedAt")),
+    ...optional("fields", isRecord(row["fields"]) ? row["fields"] : undefined),
   };
 }
 
@@ -569,6 +572,7 @@ export function createExpenses<
             receipt_over: input.receiptOver
               ? amountText(input.receiptOver)
               : null,
+            ...(input.fields === undefined ? {} : { fields: input.fields }),
           },
           category("save_expense_category"),
         ),

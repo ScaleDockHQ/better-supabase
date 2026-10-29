@@ -17,6 +17,7 @@ import {
   extraFieldsJson,
   fail,
   insertExtraColumns,
+  updateExtraColumns,
   userGrant,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
@@ -39,6 +40,7 @@ export interface InvoiceNames {
   readonly void: string;
   readonly writeOff: string;
   readonly reverse: string;
+  readonly remove: string;
   readonly company: string;
   readonly contact: string;
   readonly prefix: string;
@@ -297,6 +299,102 @@ export function invoiceFunctions(
     ${i("paidAt")} = case when ${balance("x")} <= 0 then coalesce(x.${i("paidAt")}, now()) end
   where x.${i("id")} = ${alias}.${i("id")} and ${st(`x.${i("status")}`, ["issued", "partially_paid", "paid"])}
   returning * into ${alias};`;
+
+  const keep = (logical: string, value: string, key: string): string =>
+    has(logical)
+      ? `,\n      ${i(logical)} = case when update_invoice.attrs ? ${sqlString(key)} then ${value} else x.${i(logical)} end`
+      : "";
+
+  const relations = ctx.installed("relations")
+    ? ctx.of("relations")
+    : undefined;
+
+  const updateInvoiceSql = (): string => `
+-- Changes a draft's header. attrs: title, company and contact ({ type, id },
+-- null clears), termsDays, note, depositBps, pricesIncludeTax and the extra
+-- columns by name. A key left out keeps its value.
+create or replace function ${fn("update_invoice")}(invoice uuid, attrs jsonb)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+  v_company_type text := coalesce(update_invoice.attrs -> 'company' ->> 'type', ${sqlString(n.company)});
+  v_company_id text := update_invoice.attrs -> 'company' ->> 'id';
+  v_contact_type text := coalesce(update_invoice.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)});
+  v_contact_id text := update_invoice.attrs -> 'contact' ->> 'id';
+begin
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = update_invoice.invoice and ${can("x", n.update)} for update;
+  if v_row.${i("id")} is null then
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
+  end if;
+  if ${st(`v_row.${i("status")}`, ["draft"], true)} then
+    ${fail("INVOICE_NOT_DRAFT", "only a draft changes", "55000")}
+  end if;
+  if jsonb_typeof(update_invoice.attrs) is distinct from 'object'
+    or (update_invoice.attrs ? 'title' and nullif(trim(update_invoice.attrs ->> 'title'), '') is null) then
+    ${fail("INVOICE_ATTRS_INVALID", "attrs is an object, and a title isn't empty", "22023")}
+  end if;${checkParty("COMPANY", "v_company_type", "v_company_id", `v_row.${i("tenant")}`)}${checkParty("CONTACT", "v_contact_type", "v_contact_id", `v_row.${i("tenant")}`)}${refuse(has("note"), "update_invoice.attrs ->> 'note'", "NOTE", "note column")}${refuse(has("depositBps"), "update_invoice.attrs ->> 'depositBps'", "DEPOSIT", "deposit column")}${refuse(has("pricesIncludeTax"), "nullif(update_invoice.attrs ->> 'pricesIncludeTax', 'false')", "PRICING", "prices_include_tax column")}
+  begin
+    update ${t("invoices")} x set
+      ${i("title")} = case when update_invoice.attrs ? 'title' then trim(update_invoice.attrs ->> 'title') else x.${i("title")} end${keep("companyType", "case when v_company_id is null then null else v_company_type end", "company")}${company === undefined ? "" : keep("companyId", partyId("company", "v_company_id"), "company")}${keep("contactType", "case when v_contact_id is null then null else v_contact_type end", "contact")}${contact === undefined ? "" : keep("contactId", partyId("contact", "v_contact_id"), "contact")}${keep("termsDays", "(update_invoice.attrs ->> 'termsDays')::integer", "termsDays")}${keep("note", "update_invoice.attrs ->> 'note'", "note")}${keep("depositBps", "(update_invoice.attrs ->> 'depositBps')::integer", "depositBps")}${keep("pricesIncludeTax", "coalesce((update_invoice.attrs ->> 'pricesIncludeTax')::boolean, false)", "pricesIncludeTax")},
+      ${i("updatedAt")} = now()${updateExtraColumns(t("invoices"), n.extras, "update_invoice.attrs")}
+    where x.${i("id")} = v_row.${i("id")}
+    returning * into v_row;
+  exception when check_violation or invalid_text_representation or not_null_violation then
+    ${fail("INVOICE_ATTRS_INVALID", "an invoice field has an invalid value", "22023")}
+  end;${
+    n.appTotals || !has("pricesIncludeTax")
+      ? ""
+      : `
+  if update_invoice.attrs ? 'pricesIncludeTax' then
+    perform ${fn("set_invoice_lines_recount")}(v_row.${i("id")});
+  end if;`
+  }
+  ${record("invoice.updated", "v_row")}
+  return (select ${row("x")} from ${t("invoices")} x where x.${i("id")} = v_row.${i("id")});
+end;
+$$;
+${userGrant(`${fn("update_invoice")}(uuid, jsonb)`)}
+
+-- Deletes a draft with its lines${charges ? " and charges" : ""}. An issued invoice is voided instead.
+create or replace function ${fn("delete_invoice")}(invoice uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("invoices")};
+begin
+  select * into v_row from ${t("invoices")} x where x.${i("id")} = delete_invoice.invoice and ${can("x", n.remove)} for update;
+  if v_row.${i("id")} is null then
+    ${fail("INVOICE_NOT_FOUND", "no such invoice you can delete", "P0002")}
+  end if;
+  if ${st(`v_row.${i("status")}`, ["draft"], true)} then
+    ${fail("INVOICE_NOT_DRAFT", "only a draft is deleted; void an issued invoice", "55000")}
+  end if;${
+    charges
+      ? `
+  delete from ${t("charges")} y where y.${ch("invoice")} = v_row.${i("id")};`
+      : ""
+  }
+  delete from ${t("lines")} y where y.${l("parent")} = v_row.${i("id")};${
+    relations === undefined
+      ? ""
+      : `
+  delete from ${relations.table("relations")} y
+  where y.${relations.col("relations", "kind")} = 'created_from' and y.${relations.col("relations", "sourceType")} = 'invoice' and y.${relations.col("relations", "sourceId")} = v_row.${i("id")}::text;`
+  }
+  delete from ${t("invoices")} x where x.${i("id")} = v_row.${i("id")};
+  ${record("invoice.deleted", "v_row")}
+  return true;
+end;
+$$;
+${userGrant(`${fn("delete_invoice")}(uuid)`)}
+`;
 
   const quotes = ctx.installed("quotes") ? ctx.of("quotes") : undefined;
 
@@ -611,22 +709,22 @@ begin
 end;
 $$;
 ${userGrant(`${fn("create_invoice")}(${ctx.idType}, jsonb, jsonb)`)}
-${lineItemsSql(
-  ctx,
-  {
-    lines: "lines",
-    parent: "invoices",
-    frozen: st(`p.${i("status")}`, ["draft"], true),
-    extras: n.lineExtras,
-    totals: !n.appTotals,
-  },
-  {
-    setter: "set_invoice_lines",
-    guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.update)}) then
+${updateInvoiceSql()}${lineItemsSql(
+    ctx,
+    {
+      lines: "lines",
+      parent: "invoices",
+      frozen: st(`p.${i("status")}`, ["draft"], true),
+      extras: n.lineExtras,
+      totals: !n.appTotals,
+    },
+    {
+      setter: "set_invoice_lines",
+      guard: `if not exists (select 1 from ${t("invoices")} x where x.${i("id")} = v_parent and ${can("x", n.update)}) then
     ${fail("INVOICE_NOT_FOUND", "no such invoice you can edit", "P0002")}
   end if;`,
-  },
-)}
+    },
+  )}
 -- Issues a draft: it gets the next number of its kind (gapless, so a
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.

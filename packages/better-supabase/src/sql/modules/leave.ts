@@ -534,6 +534,15 @@ ${
     : `
   v_me := v_row.${q("user")};`;
 
+  const reapproveOwn = ctx.flag("reapprove", false);
+  const reapproveKey = ctx.config.permissions["reapprove"];
+  const reapproves = reapproveOwn || reapproveKey !== undefined;
+
+  const reapproveHolder =
+    reapproveKey === undefined
+      ? "false"
+      : ctx.can("tenant", `v_row.${q("tenant")}`, sqlString(reapproveKey));
+
   const updateBase = `uuid, date, date, text, numeric, text${parts ? ", text, text" : ""}`;
 
   const keepParts = (part: "start" | "end"): string =>
@@ -560,7 +569,7 @@ declare
   v_type ${types}%rowtype;
   v_partial text;${parts ? "\n  v_start text;\n  v_end text;" : ""}
   v_amount numeric;
-  v_manager boolean;
+  v_manager boolean;${reapproves ? "\n  v_holder boolean;\n  v_reapprove boolean;" : ""}
   v_status text;
   v_starts date;
   v_ends date;${approvalVar}${approvals === undefined ? "" : "\n  v_request jsonb;"}
@@ -571,16 +580,24 @@ begin
   end if;${loadApproval}
   v_old := v_row;
   v_manager := ${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${q("tenant")}`, manage)}${owner.employee ? ` or ${owner.manages(`v_row.${q("tenant")}`, `v_row.${q("employee")}`)}` : ""};
-  if not (v_manager or coalesce(${owner.requester("v_row")} = auth.uid(), false)) then
+${reapproves ? `  v_holder := ${reapproveHolder};\n` : ""}  if not (v_manager${reapproves ? " or v_holder" : ""} or coalesce(${owner.requester("v_row")} = auth.uid(), false)) then
     ${forbidden("not allowed to change this leave request")}
   end if;
   v_status := ${status("v_row", approvals === undefined ? "v_row" : "v_approval")};
   if v_status not in ('pending', 'approved') then
     ${fail("LEAVE_REQUEST_CLOSED", "only a pending or approved leave request changes", "55000")}
-  end if;
+  end if;${
+    reapproves
+      ? `
+  v_reapprove := v_status = 'approved' and not v_manager;
+  if v_reapprove and not (v_holder${reapproveOwn ? ` or coalesce(${owner.requester("v_row")} = auth.uid(), false)` : ""}) then
+    ${forbidden("approved leave is changed by a manager")}
+  end if;`
+      : `
   if v_status = 'approved' and not v_manager then
     ${forbidden("approved leave is changed by a manager")}
-  end if;
+  end if;`
+  }
   select * into v_type from ${types} x where x.${ty("id")} = v_row.${q("type")};${ownerFromRow}
   v_starts := coalesce(update_leave_request.starts_on, v_row.${q("startsOn")});
   v_ends := coalesce(update_leave_request.ends_on, v_row.${q("endsOn")});
@@ -617,15 +634,19 @@ ${overlapCheck(`v_row.${q("tenant")}`, "v_starts", "v_ends", `v_row.${q("id")}`)
   }
   if v_status = 'approved' then${taken("v_old", 1, "changed")}
   end if;
-  update ${requests} x set ${q("startsOn")} = v_starts, ${q("endsOn")} = v_ends${ctx.has("requests", "partial") ? `, ${q("partial")} = ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${q("startPart")} = ${ctx.cast("requests", "startPart", "v_start")}, ${q("endPart")} = ${ctx.cast("requests", "endPart", "v_end")}` : ""}, ${q("amount")} = v_amount${ctx.has("requests", "note") ? `, ${q("note")} = case when update_leave_request.note is null then x.${q("note")} else nullif(trim(update_leave_request.note), '') end` : ""}, ${q("updatedAt")} = now()${updateExtraColumns(requests, extras, "update_leave_request.fields")}
+  update ${requests} x set ${q("startsOn")} = v_starts, ${q("endsOn")} = v_ends${ctx.has("requests", "partial") ? `, ${q("partial")} = ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${q("startPart")} = ${ctx.cast("requests", "startPart", "v_start")}, ${q("endPart")} = ${ctx.cast("requests", "endPart", "v_end")}` : ""}, ${q("amount")} = v_amount${ctx.has("requests", "note") ? `, ${q("note")} = case when update_leave_request.note is null then x.${q("note")} else nullif(trim(update_leave_request.note), '') end` : ""}, ${q("updatedAt")} = now()${reapproves ? `, ${q("approvedAt")} = case when v_reapprove then null else x.${q("approvedAt")} end${statusMode ? `${decision("decidedBy", `case when v_reapprove then null else x.${q("decidedBy")} end`)}${decision("decisionNote", `case when v_reapprove then null else x.${q("decisionNote")} end`)}` : ""}` : ""}${updateExtraColumns(requests, extras, "update_leave_request.fields")}
     where x.${q("id")} = v_row.${q("id")}
     returning * into v_row;
-  if v_status = 'approved' then${taken("v_row", -1)}
+  if v_status = 'approved'${reapproves ? " and not v_reapprove" : ""} then${taken("v_row", -1)}
   end if;${
     approvals === undefined
-      ? ""
+      ? reapproves && autoApproved !== ""
+        ? `
+  if v_reapprove then${autoApproved.replaceAll("\n  ", "\n    ")}
+  end if;`
+        : ""
       : `
-  if v_status = 'pending' then
+  if v_status = 'pending'${reapproves ? " or v_reapprove" : ""} then
     update ${ar} p set ${a("status")} = 'cancelled', ${a("decidedAt")} = now()
       where p.${a("id")} = v_row.${q("approval")} and p.${a("status")} = 'pending';${openApproval(`v_row.${q("tenant")}`).replaceAll("\n  ", "\n    ")}${autoApproved.replaceAll("\n  ", "\n    ")}
   end if;`

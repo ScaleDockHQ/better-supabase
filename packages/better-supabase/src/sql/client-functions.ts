@@ -46,7 +46,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   calendar:
     "calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
   catalog:
-    "add_to_collection channel_price channel_products delete_catalog_channel delete_category delete_collection delete_price delete_price_list delete_product delete_product_option delete_variant move_category product_text publish_storefront rank_variant remove_from_collection reorder_product_options save_catalog_channel save_category save_collection save_price_list save_product save_product_option save_variant set_channel_listing set_price set_product_categories set_product_options set_product_status set_product_translation set_variant_translation variant_price",
+    "add_to_collection channel_price channel_products delete_catalog_channel delete_category delete_collection delete_price delete_price_list delete_product delete_product_option delete_variant move_category product_text publish_storefront rank_variant remove_from_collection reorder_product_options save_catalog_channel save_category save_collection save_price_list save_product save_product_option save_variant set_channel_listing set_price set_product_categories set_product_options set_product_status set_product_translation set_variant_status set_variant_translation variant_price",
   channels:
     "archive_channel channels_for_record create_channel find_channel get_channel invite_to_channel join_channel leave_channel list_channels update_channel",
   "chat-sdk-state":
@@ -119,7 +119,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   invitations:
     "accept_invitation accept_invitation_by_id decline_invitation decline_invitation_by_id invitation_preview invite_member my_invitations resend_invitation revoke_invitation update_invitation",
   invoices:
-    "add_invoice_charge create_invoice credit_invoice invoice_aging issue_invoice record_invoice_payment remove_invoice_charge reverse_invoice_payment set_invoice_lines void_invoice write_off_invoice",
+    "add_invoice_charge create_invoice credit_invoice delete_invoice invoice_aging issue_invoice record_invoice_payment remove_invoice_charge reverse_invoice_payment set_invoice_lines update_invoice void_invoice write_off_invoice",
   knowledge:
     "create_knowledge_collection create_knowledge_document delete_knowledge_collection delete_knowledge_document fail_knowledge_document get_knowledge_document knowledge_search list_knowledge_collection_grants list_knowledge_collections list_knowledge_documents pending_knowledge_chunks pending_knowledge_documents reembed_knowledge set_knowledge_collection_grant set_knowledge_embeddings update_knowledge_collection write_knowledge_chunks",
   "lead-scoring": "lead_fields score_lead score_leads_due",

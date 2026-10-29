@@ -31,6 +31,7 @@ export type LeaveSqlOptions = {
    */
   readonly approvals?: boolean;
   readonly owner?: "user" | "employee";
+  readonly reapprove?: boolean;
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -44,4 +45,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     feed: option.unknown<LeaveFeedOptions>(),
     approvals: option.boolean({ default: true }),
     owner: option.string<"user" | "employee">({ default: "user" }),
+    reapprove: option.boolean({ default: false }),
   });

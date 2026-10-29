@@ -10616,6 +10616,11 @@ export const PRESET_CATALOG: PresetCatalog = {
               "receiptOver": {
                 "kind": "custom",
                 "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns to set."
               }
             },
             "jsonSchema": {
@@ -10675,6 +10680,9 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "currency"
                   ],
                   "additionalProperties": false
+                },
+                "fields": {
+                  "description": "The extra columns to set."
                 }
               },
               "required": [
@@ -15096,6 +15104,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "fields": true
         },
         {
+          "name": "InvoicePatch",
+          "fields": true
+        },
+        {
           "name": "InvoicePayment"
         },
         {
@@ -15116,6 +15128,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "InvoicesEvents",
         "types": [
           "invoice.created",
+          "invoice.updated",
+          "invoice.deleted",
           "invoice.issued",
           "invoice.payment_recorded",
           "invoice.paid",

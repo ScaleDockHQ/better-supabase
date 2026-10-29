@@ -265,6 +265,139 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("sends a requester's change to approved leave back to approval when configured", async () => {
+    const APPROVER = "99999999-9999-4999-8999-999999999999";
+
+    const denied = (
+      keys: readonly string[],
+    ): string => `create table public.denied (permission text primary key);
+insert into public.denied values ${keys.map((key) => `('${key}')`).join(", ")};
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.permission = can.permission) $$;
+insert into auth.users (id) values ('${APPROVER}');
+insert into better_supabase.memberships (organization_id, user_id, role) values ('${TENANT}', '${APPROVER}', 'member');`;
+
+    const asApprover = `perform set_config('request.jwt.claims', '{"sub":"${APPROVER}","role":"authenticated"}', true);
+  perform set_config('request.jwt.claim.sub', '${APPROVER}', true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);`;
+
+    const flow = (
+      keys: readonly string[],
+      change: string,
+    ): string => `${denied(keys)}
+do $$
+declare
+  v_holiday uuid;
+  v_request jsonb;
+  v_first uuid;
+  v_balance jsonb;
+begin
+  ${SERVICE}
+  v_holiday := (better_supabase.save_leave_type('${TENANT}', 'holiday', 'Holiday') ->> 'id')::uuid;
+  perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_holiday, 10, 2099);
+  ${AS_ALICE}
+  v_request := better_supabase.request_leave('${TENANT}', v_holiday, '2099-03-02', '2099-03-03');
+  v_first := (v_request ->> 'approvalId')::uuid;
+  ${asApprover}
+  perform better_supabase.decide_approval(v_first, 'approved');
+  ${AS_ALICE}
+  ${change}
+end;
+$$;`;
+
+    const reapproved = `v_request := better_supabase.update_leave_request((v_request ->> 'id')::uuid, ends_on => '2099-03-04');
+  v_balance := better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099) -> 0;
+  if v_request ->> 'status' <> 'pending' or v_request ->> 'approvedAt' is not null
+    or (v_request ->> 'approvalId')::uuid = v_first
+    or (v_balance ->> 'available')::numeric <> 7 or (v_balance ->> 'pending')::numeric <> 3 then
+    raise exception 'reapproval % %', v_request, v_balance;
+  end if;
+  ${asApprover}
+  perform better_supabase.decide_approval((v_request ->> 'approvalId')::uuid, 'approved');
+  v_balance := better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099) -> 0;
+  if (v_balance ->> 'available')::numeric <> 7 or (v_balance ->> 'pending')::numeric <> 0 then
+    raise exception 'approved again %', v_balance;
+  end if;`;
+
+    const change = `perform better_supabase.update_leave_request((v_request ->> 'id')::uuid, ends_on => '2099-03-04');`;
+
+    await expect(
+      run(
+        flow(["leave.manage"], reapproved),
+        { leave: { options: { reapprove: true } } },
+        ["leave"],
+        "",
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      run(
+        flow(["leave.manage"], reapproved),
+        { leave: { permissions: { reapprove: "leave.reapprove" } } },
+        ["leave"],
+        "",
+      ),
+    ).resolves.toBeUndefined();
+    await expect(
+      run(
+        flow(["leave.manage", "leave.reapprove"], change),
+        { leave: { permissions: { reapprove: "leave.reapprove" } } },
+        ["leave"],
+        "",
+      ),
+    ).rejects.toThrow(/changed by a manager/);
+    await expect(
+      run(flow(["leave.manage"], change), {}, ["leave"], ""),
+    ).rejects.toThrow(/changed by a manager/);
+  });
+
+  it("clears the decision of reapproved leave without the approvals block", async () => {
+    const leave = BLOCKS["leave"];
+
+    await expect(
+      run(
+        `create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select can.permission <> 'leave.manage' $$;
+do $$
+declare
+  v_type_id uuid;
+  v_id uuid;
+  v_request jsonb;
+begin
+  ${SERVICE}
+  v_type_id := (better_supabase.save_leave_type('${TENANT}', 'vacation', 'Vacation') ->> 'id')::uuid;
+  perform better_supabase.adjust_leave_balance('${TENANT}', '${ALICE}', v_type_id, 10, 2099);
+  ${AS_ALICE}
+  v_id := (better_supabase.request_leave('${TENANT}', v_type_id, '2099-03-02', '2099-03-03') ->> 'id')::uuid;
+  ${SERVICE}
+  perform better_supabase.decide_leave_request(v_id, true, 'enjoy');
+  ${AS_ALICE}
+  v_request := better_supabase.update_leave_request(v_id, ends_on => '2099-03-04');
+  if v_request ->> 'status' <> 'pending'
+    or (select row(approved_at, decided_by, decision_note)::text from public.absences where id = v_id) <> '(,,)'
+    or (better_supabase.leave_balances('${TENANT}', '${ALICE}', 2099) -> 0 ->> 'available')::numeric <> 7 then
+    raise exception 'reapproval %', v_request;
+  end if;
+end;
+$$;`,
+        {
+          leave: {
+            ...leave,
+            columns: {
+              ...leave?.columns,
+              requests: { ...leave?.columns?.["requests"], approval: null },
+            },
+            options: { approvals: false, reapprove: true },
+          },
+        },
+        ["leave"],
+        APP.replace(
+          "  approval_id uuid,",
+          "  rejected_at timestamptz,\n  decided_by uuid,\n  decision_note text,",
+        ),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses a note the app's table has no column for", async () => {
     await expect(
       run(`do $$

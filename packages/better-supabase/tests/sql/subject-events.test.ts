@@ -29,6 +29,8 @@ const SUBJECT_EVENTS = [
   "quote.expired",
   "quote.revised",
   "invoice.created",
+  "invoice.updated",
+  "invoice.deleted",
   "invoice.issued",
   "invoice.payment_recorded",
   "invoice.paid",

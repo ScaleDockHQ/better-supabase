@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
+import { withBlockSubjects } from "../../../src/config/block-subjects.ts";
 import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
@@ -178,6 +179,49 @@ begin
   end if;
 end;
 $$;`),
+    ).resolves.toBeUndefined();
+  });
+
+  it("files and approves a report over categories without key and currency columns", async () => {
+    const expenses = BLOCKS["expenses"];
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_category uuid;
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_category := (better_supabase.save_expense_category('${TENANT}', null, 'Travel') ->> 'id')::uuid;
+  ${AS_ALICE}
+  v_id := (better_supabase.create_expense_report('${TENANT}', 'Conference', 'EUR') ->> 'id')::uuid;
+  perform better_supabase.add_expense_line(v_id, v_category, '2099-01-10', 12500, 'Train');
+  perform better_supabase.submit_expense_report(v_id);
+  perform better_supabase.approve_expense_report(v_id);
+  if (select approved_at from public.claims where id = v_id) is null then
+    raise exception 'not approved';
+  end if;
+end;
+$$;`,
+        {
+          expenses: {
+            ...expenses,
+            columns: {
+              ...expenses?.columns,
+              categories: {
+                ...expenses?.columns?.["categories"],
+                key: null,
+                currency: null,
+              },
+            },
+          },
+        },
+        APP.replace("  code text not null,\n", "").replace(
+          "  currency text,\n  archived_at",
+          "  archived_at",
+        ),
+      ),
     ).resolves.toBeUndefined();
   });
 
@@ -601,6 +645,115 @@ $$;`,
     ]) {
       expect(body(name)).toContain("'expenses.manage'");
     }
+  });
+
+  it("runs over categories without key and currency columns, with extra columns", async () => {
+    const modules: AnyBlocksConfig = {
+      expenses: {
+        tables: {
+          reports: null,
+          lines: null,
+          categories: "public.expense_kinds",
+        },
+        columns: {
+          categories: {
+            tenant: "organization_id",
+            key: null,
+            currency: null,
+            limitAmount: null,
+            receiptOver: null,
+          },
+        },
+        options: { categoryExtraColumns: { gl_code: "text" } },
+      },
+    };
+
+    const refused = (call: string): string => `begin
+    perform ${call};
+    raise exception 'allowed: ${call.replaceAll("'", "''")}';
+  exception when others then
+    if sqlerrm like 'allowed: %' then
+      raise;
+    end if;
+  end;`;
+
+    await expect(
+      runStandalone(
+        `do $$
+declare
+  v_category jsonb;
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_category := better_supabase.save_expense_category('${TENANT}', null, 'Travel', fields => '{"gl_code": "4100"}');
+  v_id := (v_category ->> 'id')::uuid;
+  if v_category ->> 'key' <> v_id::text or v_category -> 'fields' ->> 'gl_code' <> '4100' then
+    raise exception 'created %', v_category;
+  end if;
+  v_category := better_supabase.save_expense_category('${TENANT}', v_id::text, 'Trips');
+  if (select row(name, gl_code)::text from public.expense_kinds where id = v_id) <> '(Trips,4100)'
+    or (select count(*) from public.expense_kinds) <> 1 then
+    raise exception 'updated %', v_category;
+  end if;
+  ${refused(`better_supabase.save_expense_category('${TENANT}', null, 'Meals', 'EUR')`)}
+  ${AS(ALICE)}
+  perform better_supabase.create_expense('${TENANT}', '2099-03-02', 900, 'EUR', v_id, 'Taxi');
+end;
+$$;`,
+        modules,
+        { "public.expense_kinds": "app.sql" },
+        `create table public.expense_kinds (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null,
+  name text not null,
+  gl_code text,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);`,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(
+      renderBlocks(["expenses"], {
+        modules: {
+          expenses: {
+            columns: {
+              categories: {
+                key: null,
+                currency: null,
+                limitAmount: null,
+                receiptOver: null,
+              },
+            },
+          },
+        },
+      })
+        .map((file) => file.contents)
+        .join("\n"),
+    ).toContain(`'expenses:category:' || c."id"::text`);
+    expect(() =>
+      renderBlocks(["expenses"], {
+        modules: { expenses: { columns: { categories: { currency: null } } } },
+      }),
+    ).toThrow(/needs the currency column/);
+  });
+
+  it("registers no ledger subjects without reports", () => {
+    const standalone: AnyBlocksConfig = {
+      expenses: { tables: { reports: null, lines: null } },
+    };
+
+    const sql = (modules: AnyBlocksConfig): string =>
+      renderBlocks(["expenses", "comments"], {
+        modules,
+        subjects: withBlockSubjects({}, ["expenses", "comments"], modules),
+      })
+        .map((file) => file.contents)
+        .join("\n");
+
+    expect(sql(standalone)).not.toContain("ledger_accounts");
+    expect(sql({ expenses: {} })).toContain("'ledger_account'");
   });
 
   it("keeps a member's expenses in the block's own table with categories", async () => {
