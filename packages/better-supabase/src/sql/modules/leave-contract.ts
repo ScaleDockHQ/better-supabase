@@ -146,7 +146,7 @@ export function leaveContract(
       ? [
           {
             name: "decide_leave_request",
-            args: ["uuid", "boolean", "text"],
+            args: ["uuid", "boolean", "text", "uuid"],
             returns: "jsonb",
           },
         ]

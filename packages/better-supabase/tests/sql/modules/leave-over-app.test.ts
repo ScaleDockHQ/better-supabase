@@ -8,6 +8,7 @@ import { liteStack } from "../../../src/testing/lite.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const ALICE = "22222222-2222-4222-8222-222222222222";
+const DECIDER = "88888888-8888-4888-8888-888888888888";
 
 const ROLES = `
 do $$
@@ -448,8 +449,17 @@ begin
     end if;
   end;
   ${SERVICE}
-  v_request := better_supabase.decide_leave_request(v_first, true, 'enjoy');
-  if v_request ->> 'status' <> 'approved' or (select decision_note from public.absences where id = v_first) <> 'enjoy' then
+  begin
+    perform better_supabase.decide_leave_request(v_first, true, null, '${ALICE}');
+    raise exception 'decided for the requester';
+  exception when others then
+    if sqlerrm not like '%never for the requester%' then
+      raise;
+    end if;
+  end;
+  v_request := better_supabase.decide_leave_request(v_first, true, 'enjoy', '${DECIDER}');
+  if v_request ->> 'status' <> 'approved' or (select decision_note from public.absences where id = v_first) <> 'enjoy'
+    or (select decided_by from public.absences where id = v_first) <> '${DECIDER}' then
     raise exception 'approved %', v_request;
   end if;
   v_request := better_supabase.decide_leave_request(v_second, false, 'busy month');

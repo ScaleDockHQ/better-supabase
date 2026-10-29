@@ -265,8 +265,9 @@ begin
     end if;
   end;
   ${SERVICE}
-  v_report := better_supabase.decide_expense_report(v_id, false, 'receipt missing');
-  if v_report ->> 'status' <> 'rejected' or (select decision_note from public.claims where id = v_id) <> 'receipt missing' then
+  v_report := better_supabase.decide_expense_report(v_id, false, 'receipt missing', '${BOB}');
+  if v_report ->> 'status' <> 'rejected' or (select decision_note from public.claims where id = v_id) <> 'receipt missing'
+    or (select decided_by from public.claims where id = v_id) <> '${BOB}' then
     raise exception 'rejected %', v_report;
   end if;
   ${AS_ALICE}
@@ -450,6 +451,14 @@ begin
     end if;
   end;
   ${AS(BOB)}
+  begin
+    perform better_supabase.decide_expense(v_id, false, null, '${ALICE}');
+    raise exception 'decided as someone else';
+  exception when others then
+    if sqlerrm not like '%only the service role decides for another user%' then
+      raise;
+    end if;
+  end;
   v_expense := better_supabase.decide_expense(v_id, false, 'needs a receipt');
   if (select status from public.expenses where id = v_id) <> 'rejected' or (select decision_note from public.expenses where id = v_id) <> 'needs a receipt' then
     raise exception 'rejected %', v_expense;
@@ -458,9 +467,11 @@ begin
   perform better_supabase.submit_expense(v_dana);
   ${AS(ALICE)}
   perform better_supabase.submit_expense(v_id);
-  ${AS(BOB)}
-  perform better_supabase.decide_expense(v_id, true);
   ${SERVICE}
+  perform better_supabase.decide_expense(v_id, true, null, '${BOB}');
+  if (select decided_by from public.expenses where id = v_id) <> '${BOB}' then
+    raise exception 'decided for Bob %', (select decided_by from public.expenses where id = v_id);
+  end if;
   v_expense := better_supabase.reimburse_expense(v_id, 'SEPA-1');
   if v_expense ->> 'status' <> 'reimbursed' or (select reimbursement_reference from public.expenses where id = v_id) <> 'SEPA-1'
     or (v_expense ->> 'amount')::bigint <> 4500 then

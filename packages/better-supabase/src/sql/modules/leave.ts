@@ -245,10 +245,10 @@ function build(ctx: BlockSqlContext): string {
     ctx.has("requests", column) ? `, ${q(column)} = ${value}` : "";
 
   const decide = `
--- Approves or rejects a pending request without the approvals block: the
--- service role, or a member with the approve permission who didn't ask for
--- it. Approval books the leave like a final approval.
-create or replace function ${fn("decide_leave_request")}(request_id uuid, approved boolean, note text default null)
+-- Approves or rejects a pending request without the approvals block, as the
+-- service role or an approver who didn't ask; approval books the leave.
+drop function if exists ${fn("decide_leave_request")}(uuid, boolean, text);
+create or replace function ${fn("decide_leave_request")}(request_id uuid, approved boolean, note text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -261,8 +261,8 @@ begin
   if not found then
     ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and ${owner.requester("v_row")} is distinct from auth.uid())) then
-    ${forbidden("not allowed to decide this leave request")}
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and ${owner.requester("v_row")} is distinct from auth.uid())) or (decide_leave_request.decided_by is not null and (not ${SERVICE_CALLER} and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = ${owner.requester("v_row")})) then
+    ${forbidden("not allowed to decide this leave request; only the service role decides for another user, never for the requester")}
   end if;
   if not (${pendingIn("v_row", "")}) then
     ${fail("LEAVE_REQUEST_CLOSED", "this leave request was already decided or cancelled", "55000")}
@@ -272,13 +272,13 @@ begin
   end if;
   if decide_leave_request.approved then
     perform ${fn("approve_leave_request")}(v_row.${q("id")});
-    update ${requests} x set ${q("updatedAt")} = now()${decision("decidedBy", "auth.uid()")}${decision("decisionNote", "nullif(trim(decide_leave_request.note), '')")}
+    update ${requests} x set ${q("updatedAt")} = now()${decision("decidedBy", "coalesce(decide_leave_request.decided_by, auth.uid())")}${decision("decisionNote", "nullif(trim(decide_leave_request.note), '')")}
       where x.${q("id")} = v_row.${q("id")}
       returning * into v_row;
   else${
     rejections
       ? `
-    update ${requests} x set ${q("rejectedAt")} = now(), ${q("updatedAt")} = now()${decision("decidedBy", "auth.uid()")}${decision("decisionNote", "nullif(trim(decide_leave_request.note), '')")}
+    update ${requests} x set ${q("rejectedAt")} = now(), ${q("updatedAt")} = now()${decision("decidedBy", "coalesce(decide_leave_request.decided_by, auth.uid())")}${decision("decisionNote", "nullif(trim(decide_leave_request.note), '')")}
       where x.${q("id")} = v_row.${q("id")}
       returning * into v_row;
     ${requestRecord("leave.rejected", "v_row", "rejected leave")}`
@@ -289,7 +289,7 @@ begin
   return ${requestJson("v_row", "")};
 end;
 $$;
-${userGrant(`${fn("decide_leave_request")}(uuid, boolean, text)`)}
+${userGrant(`${fn("decide_leave_request")}(uuid, boolean, text, uuid)`)}
 `;
 
   const balanceCheck = allowNegative

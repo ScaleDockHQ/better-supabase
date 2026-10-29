@@ -286,7 +286,12 @@ export interface Expenses<F extends object = Record<never, never>> {
    */
   decide(
     reportId: string,
-    decision: { readonly approved: boolean; readonly note?: string },
+    decision: {
+      readonly approved: boolean;
+      readonly note?: string;
+      /** The user the service role decides for, kept as `decidedBy`. */
+      readonly decidedBy?: string;
+    },
   ): AsyncResult<ExpenseReport<F>>;
   get(reportId: string): AsyncResult<ExpenseReport<F>>;
   list(
@@ -304,7 +309,12 @@ export interface Expenses<F extends object = Record<never, never>> {
   deleteExpense(expenseId: string): AsyncResult<boolean>;
   decideExpense(
     expenseId: string,
-    decision: { readonly approved: boolean; readonly note?: string },
+    decision: {
+      readonly approved: boolean;
+      readonly note?: string;
+      /** The user the service role decides for, kept as `decidedBy`. */
+      readonly decidedBy?: string;
+    },
   ): AsyncResult<Expense<F>>;
   reimburseExpense(
     expenseId: string,
@@ -683,6 +693,9 @@ export function createExpenses<
           report_id: reportId,
           approved: decision.approved,
           note: decision.note ?? null,
+          ...(decision.decidedBy === undefined
+            ? {}
+            : { decided_by: decision.decidedBy }),
         },
         report("decide_expense_report"),
       ).andThen(fields.row),
@@ -786,6 +799,9 @@ export function createExpenses<
           expense_id: expenseId,
           approved: decision.approved,
           note: decision.note ?? null,
+          ...(decision.decidedBy === undefined
+            ? {}
+            : { decided_by: decision.decidedBy }),
         },
         expense("decide_expense"),
       ).andThen(fields.row),

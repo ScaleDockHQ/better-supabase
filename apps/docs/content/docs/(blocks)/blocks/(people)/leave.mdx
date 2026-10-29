@@ -114,7 +114,7 @@ blocks: {
 
 ### Without the approvals block
 
-`options.approvals: false` keeps the decision on the request, so leave runs without the [approvals block](/docs/blocks/approvals) (an `approval` column mapped to `null` does the same). A request stays `pending` until `decide(requestId, { approved, note? })` approves or rejects it: the service role, or a member with `leave.approve` who didn't ask for it. Approval books the leave like a final approval; rejection sets `rejected_at` and records `leave.rejected`. The requests table takes optional `rejectedAt`, `decidedBy` and `decisionNote` columns; without `rejectedAt` a rejection fails with `LEAVE_REJECTION_UNSUPPORTED`. An app that decides elsewhere calls `decide_leave_request` from its own flow.
+`options.approvals: false` keeps the decision on the request, so leave runs without the [approvals block](/docs/blocks/approvals) (an `approval` column mapped to `null` does the same). A request stays `pending` until `decide(requestId, { approved, note? })` approves or rejects it: the service role, or a member with `leave.approve` who didn't ask for it. Approval books the leave like a final approval; rejection sets `rejected_at` and records `leave.rejected`. The requests table takes optional `rejectedAt`, `decidedBy` and `decisionNote` columns; without `rejectedAt` a rejection fails with `LEAVE_REJECTION_UNSUPPORTED`. An app that decides elsewhere calls `decide_leave_request` from its own flow. The service role decides for a user with `decidedBy` (`decided_by` in SQL), which is kept in the `decidedBy` column instead of an empty value; a member passing someone else, or `decidedBy` naming the requester, fails with the forbidden error.
 
 ### Your own tables without a key or part-of-day column
 
