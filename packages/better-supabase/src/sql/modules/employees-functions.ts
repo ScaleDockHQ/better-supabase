@@ -112,7 +112,7 @@ export function employeeFunctions(
     select 1 from up join ${table} me on me.${e("id")} = up.id where me.${e("user")} = auth.uid())`;
 
   const payload = (alias: string, extra: string): string =>
-    `jsonb_build_object('organizationId', ${alias}.${e("tenant")}, 'employeeId', ${alias}.${e("id")}, 'subjectType', 'employee', 'subjectId', ${alias}.${e("id")}::text, 'name', ${n.name(alias)}${extra})`;
+    `jsonb_build_object('organizationId', ${alias}.${e("tenant")}, 'employeeId', ${alias}.${e("id")}, 'subjectType', 'employee', 'subjectId', ${alias}.${e("id")}::text, 'name', ${n.name(alias)}, 'userId', ${alias}.${e("user")}${extra})`;
 
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
@@ -334,7 +334,7 @@ begin
     when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
       ${fail("EMPLOYEE_ATTRS_INVALID", "an employee field has an invalid value", "22023")}
   end;${typeCheck("v_row")}${member(`v_row.${e("tenant")}`, `v_row.${e("user")}`)}${link}
-  ${record("employee.created", "v_row", `, 'userId', v_row.${e("user")}, 'managerId', v_row.${e("manager")}, 'status', v_row.${e("status")}`)}
+  ${record("employee.created", "v_row", `, 'managerId', v_row.${e("manager")}, 'status', v_row.${e("status")}`)}
   ${ctx.hook("after_employee_create", [["uuid", `v_row.${e("id")}`]])}
   return ${n.json("v_row")};
 end;

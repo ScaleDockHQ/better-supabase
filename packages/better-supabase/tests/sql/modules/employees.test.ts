@@ -189,4 +189,18 @@ describe("employees module", () => {
       'update "better_supabase"."time_entries" t set employee_id',
     );
   });
+
+  it("puts the employee's user on every employee event", () => {
+    const sql = body(["outbox", "employees"]);
+
+    const events = [
+      ...sql.matchAll(/emit_event\('employee\.[a-z_]+', ([^\n]+)/gu),
+    ];
+
+    expect(events.length).toBeGreaterThan(0);
+
+    for (const [, payload] of events) {
+      expect(payload).toContain("'userId'");
+    }
+  });
 });
