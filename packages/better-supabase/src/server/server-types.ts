@@ -522,10 +522,11 @@ export interface BetterServer<
   snapshot(request: Request): Promise<SessionSnapshot<C> | null>;
   /**
    * The context of a session snapshot: stateless clients and the claims, with
-   * no cookie access and no network call. A snapshot this process didn't build
-   * (one that crossed serialization) is verified again through the memo; one
-   * whose token doesn't verify, or names another user, gets an `invalid`
-   * context. `null` (no session) gets an anonymous one.
+   * no cookie access and no network call. The token is never verified again: a
+   * snapshot this process didn't build (one that crossed serialization or was
+   * built by hand) gets an `invalid` context, so resolve the request again with
+   * `context()` or `snapshot()`. An expired snapshot gets a signed-out context,
+   * and `null` (no session) an anonymous one.
    */
   contextFromSession(
     snapshot: SessionSnapshot<C> | null,

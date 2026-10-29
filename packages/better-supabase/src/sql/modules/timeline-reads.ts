@@ -25,6 +25,11 @@ export interface ActivityReads {
    * and messages, unioned into the timeline.
    */
   readonly sourceBranches: string;
+  /**
+   * `and not (...)` for the event branch: drops the stored entries a read-time
+   * branch returns for this call, so a status change or message shows once.
+   */
+  readonly eventDedupe: string;
   /** Activity_subject_deliveries, or the statement that drops it. */
   readonly helpers: string;
   /** The sources list_activity can return, in order. */
@@ -38,6 +43,17 @@ export type ActivitySourceName =
   | "run"
   | "transition"
   | "message";
+
+/**
+ * A read-time branch of list_activity, and the condition under which it returns
+ * rows for the call (empty when the branch is off).
+ */
+interface ReadBranch {
+  readonly sql: string;
+  readonly covers: string;
+}
+
+const NO_BRANCH: ReadBranch = { sql: "", covers: "" };
 
 const DELIVERIES_SIGNATURE = (ctx: BlockSqlContext): string =>
   `${ctx.fn("activity_subject_deliveries")}(${ctx.idType}, text, text, timestamptz, integer)`;
@@ -59,6 +75,7 @@ export function activityReads(ctx: BlockSqlContext): ActivityReads {
     auditSetup: "",
     auditBranch: "",
     sourceBranches: "",
+    eventDedupe: "",
     helpers: `\ndrop function if exists ${DELIVERIES_SIGNATURE(ctx)};`,
     sources: ["event"],
   };
@@ -88,6 +105,19 @@ export function activityReads(ctx: BlockSqlContext): ActivityReads {
   const runs = runBranch(ctx, types);
   const transitions = transitionBranch(ctx, types);
   const messages = messageBranch(ctx, types);
+  const type = `y.${ctx.col("activity", "type")}`;
+
+  const covered = [
+    ...(transitions.covers === ""
+      ? []
+      : [`(${type} = 'status.changed' and ${transitions.covers})`]),
+    ...(messages.covers === ""
+      ? []
+      : [
+          `(${type} in ('message.sent', 'comment.posted') and ${messages.covers})`,
+        ]),
+  ];
+
   const deliveries = deliveryHelper(ctx, types);
 
   return {
@@ -127,7 +157,7 @@ ${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlStr
   end if;`
       : "",
     auditBranch: auditOn ? auditBranch(ctx, audit) : "",
-    sourceBranches: `${runs}${transitions}${messages}${
+    sourceBranches: `${runs}${transitions.sql}${messages.sql}${
       deliveries === undefined
         ? ""
         : `
@@ -137,6 +167,11 @@ ${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlStr
     where list_activity.subject_id is not null
       and (list_activity.sources is null or 'delivery' = any (list_activity.sources)))`
     }`,
+    eventDedupe:
+      covered.length === 0
+        ? ""
+        : `
+      and not (${covered.join("\n        or ")})`,
     helpers:
       deliveries ?? `\ndrop function if exists ${DELIVERIES_SIGNATURE(ctx)};`,
     sources: [
@@ -144,8 +179,8 @@ ${registry.map((subject) => `      when ${sqlString(subject.type)} then ${sqlStr
       ...(auditOn ? (["audit"] as const) : []),
       ...(deliveries === undefined ? [] : (["delivery"] as const)),
       ...(runs === "" ? [] : (["run"] as const)),
-      ...(transitions === "" ? [] : (["transition"] as const)),
-      ...(messages === "" ? [] : (["message"] as const)),
+      ...(transitions.sql === "" ? [] : (["transition"] as const)),
+      ...(messages.sql === "" ? [] : (["message"] as const)),
     ],
   };
 }
@@ -241,15 +276,15 @@ function runBranch(ctx: BlockSqlContext, types: string): string {
  * the machines that write it (a machine with its own `history` table is
  * skipped). As the caller, so the history's read policy applies.
  */
-function transitionBranch(ctx: BlockSqlContext, types: string): string {
+function transitionBranch(ctx: BlockSqlContext, types: string): ReadBranch {
   if (ctx.scope.kind !== "tenant" || !ctx.installed("state-machine")) {
-    return "";
+    return NO_BRANCH;
   }
 
   const sm = ctx.of("state-machine");
 
   if (sm.mode === "custom") {
-    return "";
+    return NO_BRANCH;
   }
 
   const names = machines(sm)
@@ -257,7 +292,7 @@ function transitionBranch(ctx: BlockSqlContext, types: string): string {
     .map((item) => item.name);
 
   if (names.length === 0) {
-    return "";
+    return NO_BRANCH;
   }
 
   const h = (logical: string): string => `h.${sm.col("history", logical)}`;
@@ -281,30 +316,34 @@ function transitionBranch(ctx: BlockSqlContext, types: string): string {
     occurredAt: h("createdAt"),
   };
 
-  return `
+  const covers = `list_activity.subject_id is not null
+      and list_activity.subject_type = any (${types})
+      and list_activity.subject_type = any (${sqlString(`{${names.join(",")}}`)}::text[])
+      and (list_activity.sources is null or 'transition' = any (list_activity.sources))`;
+
+  const sql = `
     union all
     (select jsonb_build_object(${entry(ctx, values, "transition")}) as entry,
       ${h("createdAt")} as at, ${h("id")}::text as id
     from ${sm.table("history")} h
-    where list_activity.subject_id is not null
-      and list_activity.subject_type = any (${types})
-      and list_activity.subject_type = any (${sqlString(`{${names.join(",")}}`)}::text[])
-      and (list_activity.sources is null or 'transition' = any (list_activity.sources))
+    where ${covers}
       and ${h("tenant")} = list_activity.tenant
       and ${h("subjectType")} = list_activity.subject_type
       and ${h("subjectId")} = list_activity.subject_id
       and (list_activity.before is null or ${h("createdAt")} < list_activity.before)
     order by ${h("createdAt")} desc, ${h("id")} desc
     limit v_limit)`;
+
+  return { sql, covers };
 }
 
 /**
  * The sent messages of the subject's conversation in messaging. As the caller,
  * so the conversation's access decides which the caller sees.
  */
-function messageBranch(ctx: BlockSqlContext, types: string): string {
+function messageBranch(ctx: BlockSqlContext, types: string): ReadBranch {
   if (ctx.scope.kind !== "tenant" || !ctx.installed("messaging")) {
-    return "";
+    return NO_BRANCH;
   }
 
   const ms = ctx.of("messaging");
@@ -315,7 +354,7 @@ function messageBranch(ctx: BlockSqlContext, types: string): string {
     ms.has("conversations", "subjectId");
 
   if (!ready) {
-    return "";
+    return NO_BRANCH;
   }
 
   const m = (logical: string): string => `m.${ms.col("messages", logical)}`;
@@ -334,7 +373,7 @@ function messageBranch(ctx: BlockSqlContext, types: string): string {
     id: `${m("id")}::text`,
     tenant: m("tenant"),
     event: "null::text",
-    type: "'message.sent'",
+    type: `case when ${c("kind")} = 'subject' then 'comment.posted' else 'message.sent' end`,
     actor: m("author"),
     subjectType: "list_activity.subject_type",
     subjectId: "list_activity.subject_id",
@@ -343,15 +382,17 @@ function messageBranch(ctx: BlockSqlContext, types: string): string {
     occurredAt: m("sentAt"),
   };
 
-  return `
+  const covers = `list_activity.subject_id is not null
+      and list_activity.subject_type = any (${types})
+      and (list_activity.sources is null or 'message' = any (list_activity.sources))`;
+
+  const sql = `
     union all
     (select jsonb_build_object(${entry(ctx, values, "message")}) as entry,
       ${m("sentAt")} as at, ${m("id")}::text as id
     from ${ms.table("messages")} m
     join ${ms.table("conversations")} c on ${c("id")} = ${m("conversation")}
-    where list_activity.subject_id is not null
-      and list_activity.subject_type = any (${types})
-      and (list_activity.sources is null or 'message' = any (list_activity.sources))
+    where ${covers}
       and ${c("tenant")} = list_activity.tenant
       and ${c("subjectType")} = list_activity.subject_type
       and ${c("subjectId")} = list_activity.subject_id
@@ -360,6 +401,8 @@ function messageBranch(ctx: BlockSqlContext, types: string): string {
       and (list_activity.before is null or ${m("sentAt")} < list_activity.before)
     order by ${m("sentAt")} desc, ${m("id")} desc
     limit v_limit)`;
+
+  return { sql, covers };
 }
 
 /**

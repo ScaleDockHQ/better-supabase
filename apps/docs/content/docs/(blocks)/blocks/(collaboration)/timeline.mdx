@@ -158,19 +158,25 @@ With the [state-machine](/docs/blocks/state-machine) module, a record of
 a machine that writes the shared `status_history` returns its status
 changes with `source: "transition"`, `status.changed` as `type`, the
 actor, and `from`, `to` and `reason` in `data`. A machine with its own
-`history` table adds none. When `activitySink` also records
-`status.changed`, the change is in the feed twice, so pass `sources` when a
-view should show it once.
+`history` table adds none.
 
 With the [messaging](/docs/blocks/messaging) module and a conversation
 about the record, it returns the conversation's sent messages with
-`source: "message"`, `message.sent` as `type`, the author as actor, the
-first 280 characters of the body as `summary`, and `messageId`,
-`conversationId`, `threadId` and `kind` in `data`. Deleted messages and
-drafts are left out. Comments are messages, so a feed whose `activitySink`
-records `message.sent` lists each comment twice; pass `sources: ["event"]`
-or `sources: ["message"]` to keep one. Both are read as the caller, so the history's and
-the conversation's policies apply, and the tenant feed lists neither.
+`source: "message"`, the author as actor, the first 280 characters of the
+body as `summary`, and `messageId`, `conversationId`, `threadId` and `kind`
+in `data`. The `type` follows the conversation: `comment.posted` for a
+comment thread (a `subject` conversation from the
+[comments](/docs/blocks/comments) block) and `message.sent` for any other.
+Deleted messages and drafts are left out. Both are read as the caller, so the
+history's and the conversation's policies apply, and the tenant feed lists
+neither.
+
+A feed can install the sink and both sources together. When a record's
+timeline reads status changes, it leaves out the `status.changed` rows the
+sink stored for that record, and when it reads messages, it leaves out the
+stored `message.sent` and `comment.posted` rows, so each change and each
+comment shows once. The tenant feed and `sources: ["event"]` still return the
+stored rows, since no read-time source runs for them.
 
 ## A list query
 

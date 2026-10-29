@@ -294,10 +294,10 @@ export interface BetterNext<
    */
   getClaims(): Promise<SessionSnapshot<C> | null>;
   /**
-   * The context of a session snapshot from `getClaims()`, or of an
-   * `AuthSession` and its token, without reading the request. The token is
-   * verified again (memoized, no network call); a token for another user than
-   * `session` gives an `invalid` context.
+   * The context of a session snapshot from `getClaims()`, without reading the
+   * request or verifying the token again. A snapshot this process didn't build
+   * (one that crossed serialization or was built by hand) gets an `invalid`
+   * context, so call `getClaims()` again in the scope that needs it.
    */
   contextFromSession(
     snapshot: SessionSnapshot<C> | null,
