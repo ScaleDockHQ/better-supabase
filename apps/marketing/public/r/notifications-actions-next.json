@@ -4,7 +4,7 @@
   "title": "Notification server actions (Next.js)",
   "description": "Server actions that list, count and mark the caller's notifications, for useNotifications on the web.",
   "dependencies": [
-    "better-supabase@^0.41.0"
+    "better-supabase@^0.42.0"
   ],
   "registryDependencies": [
     "@better-supabase/blocks"
