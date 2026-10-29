@@ -1,5 +1,55 @@
 # Changelog
 
+## 0.44.0 (2026-10-29)
+
+- The `oauth-server` block's creator is now `createOauthServer`, so it follows the `create<Name>` rule every other block uses, and its types write `Oauth` the same way. The old names keep working as deprecated aliases until the next minor release.
+
+  | Old                     | New                     |
+  | ----------------------- | ----------------------- |
+  | `createOAuthServer`     | `createOauthServer`     |
+  | `OAuthServer`           | `OauthServer`           |
+  | `OAuthServerOptions`    | `OauthServerOptions`    |
+  | `OAuthServerEvents`     | `OauthServerEvents`     |
+  | `OAuthClient`           | `OauthClient`           |
+  | `OAuthClientAuthMethod` | `OauthClientAuthMethod` |
+  | `OAuthClientMetadata`   | `OauthClientMetadata`   |
+  | `OAuthClientEventData`  | `OauthClientEventData`  |
+  | `RegisteredOAuthClient` | `RegisteredOauthClient` |
+  | `OAuthAuthorization`    | `OauthAuthorization`    |
+  | `OAuthGrant`            | `OauthGrant`            |
+  | `OAuthGrantType`        | `OauthGrantType`        |
+  | `OAuthGrantEventData`   | `OauthGrantEventData`   |
+
+  These names come from `better-supabase/blocks/oauth-server`. The `OAuthClient` type in `better-supabase/client/native` and `OAuthGrant` in `better-supabase/blocks/sessions` keep their names.
+- Native apps follow role changes, PowerSync reconnects on them, and bootstrap reports the live authorization version. The [0.43 to 0.44 guide](https://bettersupabase.com/docs/migration/0.43-to-0.44) lists what to check.
+
+  Bootstrap version fields, old to new:
+
+  | 0.43                                      | 0.44                                     |
+  | ----------------------------------------- | ---------------------------------------- |
+  | `boot.authzVersion` (the token's version) | `boot.tokenAuthzVersion`                 |
+  | no field                                  | `boot.authzVersion` (the live version)   |
+  | no field                                  | `boot.stale` (the live version is ahead) |
+
+  - Bootstrap: the `bootstrap_<rpc>` wrappers read `better_supabase.caller_authz_version()` and return the live version next to the token's. `getAccess(boot)` seeds the version cache with the live version, so a role taken away since sign-in is gone on the next render. Run `better-supabase upgrade` and generate a migration.
+  - Servers: `bootstrapFor` and `accessFor` on every server, and a `bootstrapSchema` option. `createNext` builds on them.
+  - Expo: `bsb.bootstrap(request, { rpc })`, `bsb.getAccess(request, { bootstrap })`, and `bsb.cached(request, { tables })` with the tags an app cache stores the result under (`sessionTag` and the tag helpers are exported from `better-supabase/server`).
+  - Native: `SessionProvider` from `better-supabase/react/native` takes React Native's `AppState`, resubscribes when the app becomes active, catches up on a missed change, and reconnects PowerSync after the refresh. `startNativeAuthzRefresh` from `better-supabase/client/native` does the same without React.
+  - PowerSync: `syncWithAuth` reconnects when a new token for the same user carries another tenant or `authz_ver`, and returns an `AuthSync` with `reconnect()`, queued behind sign-in and sign-out. `tenantClaim` and `fingerprint` adjust what counts as a change.
+  - CLI: `better-supabase powersync streams` writes streams for blocks over the app's own tables, reading their columns from the saved snapshot.
+  - Authorization providers: `versions: { function }` names the provider's version function; the sessions module then creates no version table.
+  - Auth: for a local project URL the default issuer check accepts the loopback and emulator hosts, and `auth.loopbackAliases` adds more, such as a phone's LAN address.
+  - Approvals: a tenant step that names only users rejects a numeric `required` above the number of users, as the config does, and saves `"all"` as that number.
+  - Timeline: messages in a record's comment thread have the type `comment.posted`, and a stored entry that a read-time source also returns appears once.
+- Relation kinds can name the subject types each end accepts, and other blocks can contribute kinds.
+
+  - `blocks.relations.options.kinds.<kind>.types` takes `{ source, target }`, lists of subject types in the stored direction. `link` refuses other types with the hint `RELATION_TYPE_NOT_ALLOWED` (sqlstate `22023`); a symmetric kind accepts either order. The `kinds` option is now typed in the config.
+  - Blocks contribute kinds to `relations` through `contributes.relations`. A contributed kind is added next to the app's kinds, and an app kind with the same name replaces it.
+- Approvals: the authorization provider's `isApprover` template can use `{approvers}`, and a manager step reads the employees block's status mapping.
+
+  - `authorization.functions.isApprover` takes `{approvers}`, a `jsonb` value with the approvers the request waits on now. `approval_eligible` passes the current step's `approvers` with its `required` count, or the step's `escalateTo` while the step is escalated, for example `{"users": ["<uuid>"], "manager": true, "required": 1}`. AI tool calls and support sessions pass `null`. A provider that keeps covers uses it to let an out-of-office cover decide for the approvers a policy names.
+  - A `manager: true` step no longer lets a manager decide whose employee row holds the app's mapped `offboarded` value (`values.employees.status`); it compared against the literal `offboarded` before.
+
 ## 0.43.0 (2026-10-29)
 
 - Adopter gaps, round 43: quotes whose totals the app keeps, app columns on version lines, fixed deposits and header discounts on invoices from quotes, finer quote keys, sending a declined quote again in one call, and actors on every quote status change.
