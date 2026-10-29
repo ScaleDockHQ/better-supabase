@@ -440,6 +440,8 @@ export default defineConfig({
     // Rosters: shifts from templates, assignments checked for leave,
     // qualifications and rest time, open shift requests and swaps.
     shifts: {},
+    // Double-entry books with a chart, journals, periods and reports.
+    accounting: {},
     incidents: {},
     reminders: {},
     "drive-files": {},
