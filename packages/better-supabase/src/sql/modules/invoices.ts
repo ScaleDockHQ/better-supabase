@@ -109,6 +109,8 @@ const NAMES: BlockSqlNames = {
     "linePositionKey",
     "paymentsAfterWriteOff",
     "depositKind",
+    "depositLine",
+    "quoteLineValues",
   ],
   tables: {
     invoices: {
@@ -389,6 +391,72 @@ function depositKind(ctx: BlockSqlContext): string | undefined {
   return kind;
 }
 
+const isObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+function depositLine(ctx: BlockSqlContext): InvoiceNames["depositLine"] {
+  const value = ctx.option("depositLine") ?? {};
+  const at = "blocks.invoices.options.depositLine";
+
+  if (!isObject(value)) {
+    throw new TypeError(`${at} must be an object`);
+  }
+
+  const { description = "Deposit {identifier}", fields = {} } = value;
+
+  if (typeof description !== "string" || description.trim() === "") {
+    throw new TypeError(`${at}.description must be a non-empty string`);
+  }
+
+  const lineColumns = new Set(lineExtraColumns(ctx).map((extra) => extra.name));
+
+  if (
+    !isObject(fields) ||
+    !Object.keys(fields).every((key) => lineColumns.has(key))
+  ) {
+    throw new TypeError(
+      `${at}.fields must be an object of blocks.invoices.options.lineExtraColumns`,
+    );
+  }
+
+  return { description, fields };
+}
+
+function quoteLineValues(
+  ctx: BlockSqlContext,
+): InvoiceNames["quoteLineValues"] {
+  const value = ctx.option("quoteLineValues") ?? {};
+
+  const invalid = new TypeError(
+    "blocks.invoices.options.quoteLineValues must map column names to objects of string values",
+  );
+
+  if (!isObject(value)) {
+    throw invalid;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).map(([column, map]) => {
+      if (!isObject(map)) {
+        throw invalid;
+      }
+
+      return [
+        column,
+        Object.fromEntries(
+          Object.entries(map).map(([from, to]) => {
+            if (typeof to !== "string") {
+              throw invalid;
+            }
+
+            return [from, to];
+          }),
+        ),
+      ];
+    }),
+  );
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -448,6 +516,8 @@ function build(ctx: BlockSqlContext): string {
     chargeExtras: chargeExtraColumns(ctx),
     appTotals: invoiceTotals(ctx) === "app",
     depositKind: depositKind(ctx),
+    depositLine: depositLine(ctx),
+    quoteLineValues: quoteLineValues(ctx),
   };
 
   return `${schemaPreamble(ctx)}
@@ -529,7 +599,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ? [
           {
             name: "invoice_from_quote",
-            args: ["uuid", "integer", "bigint"],
+            args: ["uuid", "integer", "bigint", "text"],
             returns: "jsonb",
           },
         ]

@@ -1,10 +1,36 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:60fca3837d36d43bd26435d98ec4ab99226462c814490e6e7431cab0ff16c5b3
+-- @bsb-hash sha256:dcc4059d52c3047ab9d8d094f9398cdcec6a3e3266ed85c2dad21f6da7d87973
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
+grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -194,7 +220,7 @@ begin
     insert into "better_supabase"."saved_views" ("tenant_id", "list", "scope", "owner_id", "team_id", "name", "kind", "state", "rank", "app_note")
     values (save_view.tenant, save_view.list, save_view.scope, auth.uid(),
       case when save_view.scope = 'team' then save_view.team end,
-      save_view.name, save_view.kind, save_view.state, v_rank, (jsonb_populate_record(null::"better_supabase"."saved_views", jsonb_build_object('app_note', save_view.fields -> 'app_note')))."app_note")
+      save_view.name, save_view.kind, save_view.state, v_rank, case when save_view.fields ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."saved_views", jsonb_build_object('app_note', save_view.fields -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."saved_views"', 'app_note', (null::"better_supabase"."saved_views")."app_note") end)
     returning "id" into v_id;
   else
     update "better_supabase"."saved_views" set

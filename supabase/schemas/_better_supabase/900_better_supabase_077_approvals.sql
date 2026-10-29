@@ -1,9 +1,35 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:4a7e5e3c8afa420d61765cf7f27e53fcddac5f9c77fbc0de6dba5a2740710c0a
+-- @bsb-hash sha256:6ecde2eb22e692cfb060be73bca8b3ec24adea3d06ea8eedf9738e73f24dea04
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
+grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -650,7 +676,7 @@ begin
     values (save_approval_policy.tenant, v_type, v_action, btrim(save_approval_policy.policy ->> 'name'), v_conditions, v_effect,
       coalesce(save_approval_policy.policy ->> 'mode', 'authorize'), v_steps,
       coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, false), (save_approval_policy.policy ->> 'expiresIn')::interval,
-      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true), auth.uid(), (jsonb_populate_record(null::"better_supabase"."approval_policies", jsonb_build_object('description', coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb) -> 'description')))."description")
+      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true), auth.uid(), case when coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb) ? 'description' then (jsonb_populate_record(null::"better_supabase"."approval_policies", jsonb_build_object('description', coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb) -> 'description')))."description" else better_supabase.column_default('"better_supabase"."approval_policies"', 'description', (null::"better_supabase"."approval_policies")."description") end)
     returning * into v_row;
   else
     update "better_supabase"."approval_policies" x set
@@ -1680,6 +1706,15 @@ drop function if exists "api"."request_approval"(uuid, text, text, text, text, j
 drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, text);
 drop function if exists "api"."request_approval"(uuid, text, text, text, text, jsonb, jsonb, text, jsonb, uuid);
 drop function if exists "api"."decide_approval"(uuid, text, text);
+
+create or replace function "api"."column_default"(relation text, name text, target anyelement)
+returns anyelement
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."column_default"($1, $2, $3) $$;
+revoke execute on function "api"."column_default"(text, text, anyelement) from public;
+grant execute on function "api"."column_default"(text, text, anyelement) to anon, authenticated, service_role;
 
 create or replace function "api"."actor_may_write"()
 returns boolean

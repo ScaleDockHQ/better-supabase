@@ -13,7 +13,7 @@ import {
   insertExtraColumns,
   lockTable,
   triggerGrant,
-  writeExtraColumns,
+  updateExtraColumns,
 } from "./shared.ts";
 
 /**
@@ -142,7 +142,7 @@ export function countedLine(
  * A line's amount before discounts: quantity times unit amount, times its
  * periods when the line table counts them, rounded once.
  */
-function lineAmount(
+export function lineAmount(
   ctx: BlockSqlContext,
   lines: string,
   alias: string,
@@ -377,11 +377,10 @@ export function lineItemsSql(
 
   const extras = items.extras ?? [];
 
-  const extrasInsert = insertExtraColumns(
-    t,
-    extras,
-    "(case when jsonb_typeof(x.value -> 'fields') = 'object' then x.value -> 'fields' end)",
-  );
+  const fieldsOf = (line: string): string =>
+    `(case when jsonb_typeof(${line} -> 'fields') = 'object' then ${line} -> 'fields' end)`;
+
+  const extrasInsert = insertExtraColumns(t, extras, fieldsOf("x.value"));
 
   const manages = ctx.manages
     ? `create table if not exists ${t} (
@@ -528,7 +527,7 @@ as $$
 declare
   v_parent uuid := ${name}.parent;
   v_tenant ${ctx.idType};
-  v_currency text;${extras.length === 0 ? "" : "\n  v_line record;"}
+  v_currency text;
 begin
   select x.${pc("tenant")}, x.${pc("currency")} into v_tenant, v_currency from ${p} x where x.${pc("id")} = v_parent${frozen === undefined ? "" : ` and not (${frozen.replaceAll("p.", "x.")})`};
   if v_tenant is null then
@@ -549,11 +548,11 @@ begin
     update ${t} l set ${written
       .filter(([column]) => !["tenant", "parent", "position"].includes(column))
       .map(([column, value]) => `${c(column)} = ${value}`)
-      .join(", ")}
+      .join(", ")}${updateExtraColumns(t, extras, fieldsOf("x.value"), "l")}
     from jsonb_array_elements(coalesce(${name}.lines, '[]')) with ordinality x
     where l.${c("parent")} = v_parent and l.${c("position")} = x.ordinality;`
   }
-    insert into ${t} (${written.map(([column]) => c(column)).join(", ")}${extrasInsert.columns})
+    insert into ${t}${replaces || !positionKey ? "" : " as l"} (${written.map(([column]) => c(column)).join(", ")}${extrasInsert.columns})
     select ${written.map(([, value]) => value).join(",\n      ")}${extrasInsert.values}
     from jsonb_array_elements(coalesce(${name}.lines, '[]')) with ordinality x${
       replaces
@@ -565,18 +564,17 @@ begin
                   !["tenant", "parent", "position"].includes(column),
               )
               .map(([column]) => `${c(column)} = excluded.${c(column)}`)
-              .join(", ")}`
+              .join(", ")}${extras
+              .map(
+                (extra) =>
+                  `, ${extra.ident} = case when ${fieldsOf(`${name}.lines -> (excluded.${c("position")} - 1)`)} ? ${sqlString(extra.name)} then excluded.${extra.ident} else l.${extra.ident} end`,
+              )
+              .join("")}`
           : `\n    where not exists (select 1 from ${t} l where l.${c("parent")} = v_parent and l.${c("position")} = x.ordinality)`
     };
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     ${fail("LINES_INVALID", "every line needs a description, a positive quantity and a unit amount", "22023")}
-  end;${
-    extras.length === 0
-      ? ""
-      : `
-  for v_line in select x.value -> 'fields' as fields, x.ordinality::integer as position from jsonb_array_elements(coalesce(${name}.lines, '[]')) with ordinality x where jsonb_typeof(x.value -> 'fields') = 'object' loop${writeExtraColumns(t, extras, "v_line.fields", `x.${c("parent")} = v_parent and x.${c("position")} = v_line.position`).replaceAll("\n", "\n  ")}
-  end loop;`
-  }
+  end;
 ${recounted ? `  perform ${recount}(v_parent);\n` : ""}  return (select jsonb_build_object(
     ${totalsJson},
     'currency', x.${pc("currency")})

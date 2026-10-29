@@ -1,10 +1,36 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:8e8c6e0ede00354851cc3ce51d85c591d41c56d47af12233d74104fcbc019769
+-- @bsb-hash sha256:bfff398f19d8e6cbb304d74fe1fd64d81caa3d1b5032d302d533e63731acd1dd
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
+grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -555,7 +581,7 @@ begin
     from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
     where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when save_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind", "app_note")
-      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(save_product.kind, 'physical'), (jsonb_populate_record(null::"better_supabase"."products", jsonb_build_object('app_note', coalesce(save_product.fields, '{}'::jsonb) -> 'app_note')))."app_note")
+      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(save_product.kind, 'physical'), case when coalesce(save_product.fields, '{}'::jsonb) ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."products", jsonb_build_object('app_note', coalesce(save_product.fields, '{}'::jsonb) -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."products"', 'app_note', (null::"better_supabase"."products")."app_note") end)
       returning "id", "status" into v_id, v_status;
     else
       update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now(), "app_note" = case when save_product.fields ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."products", jsonb_build_object('app_note', save_product.fields -> 'app_note')))."app_note" else x."app_note" end

@@ -22,6 +22,16 @@ blocks: {
 }
 ```
 
+`permissions.accept`, `permissions.reject` and `permissions.requestChanges` split `decide` by answer, each falling back to `decide`, so a member can record that a customer said no while only an admin records a yes:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  quotes: {
+    permissions: { decide: "quote.decide", accept: "quote.markAccepted", reject: "quote.markRejected" },
+  },
+}
+```
+
 ```bash
 better-supabase add quotes
 ```
@@ -260,7 +270,7 @@ await quotes.withdraw(otherId, { reason: "Prices changed" }).orThrow();
 
 ## In your own portal
 
-An app with its own customer portal, without the [guests](/docs/blocks/guests) block, reads and answers on the customer's behalf with the service role. `portalView` returns the customer's view of any quote that isn't a draft to the service role, and `decide` takes the customer as `actor`: their name, email, IP address and user agent go to `decidedBy`, `decidedIp` and `decidedUserAgent`, an `id` to `decidedUserId`, and a quote past its valid-until date expires instead, as with the link.
+An app with its own customer portal, without the [guests](/docs/blocks/guests) block, reads and answers on the customer's behalf with the service role. `portalView` returns the customer's view of any quote that isn't a draft to the service role, and `decide` takes the customer as `actor`: their name, email, IP address and user agent go to `decidedBy`, `decidedIp` and `decidedUserAgent`, an `id` to `decidedUserId`, and a quote past its valid-until date expires instead, as with the link. `decide` then returns the expired quote, so check its `status` before you treat the answer as recorded.
 
 ```ts
 await quotes
@@ -327,6 +337,9 @@ export default defineConfig({
 name with their SQL type: each line's `fields` writes them, and lines come back with them under `fields` (untyped,
 since `fields` validates the record's own columns). A line table of yours
 runs the same way; see [line tables](/docs/blocks/own-schemas#line-tables).
+`setLines` and the restore on acceptance write each line's own columns and its extra columns in
+one statement, so a check across both holds, such as `check (pricing_mode <> 'fixed' or quantity = 1)`.
+A new line without a key in `fields` gets the column's default, and an existing line keeps its value.
 
 ```ts
 const client = createQuotes({

@@ -139,10 +139,11 @@ const CONSTRAINT_WORD =
 /**
  * The extra columns an insert sets itself: every one, read from `source` (a
  * `jsonb` object keyed by column name), and the column's `default` when
- * `source` leaves its key out. Writing them in the insert keeps a check across
- * columns, or a `not null` column without a default, from failing before the
- * update `writeExtraColumns` runs. `columns` and `values` are `, a, b` lists
- * for the insert; both are empty without extra columns.
+ * `source` leaves its key out: the type's, or else the table's at run time.
+ * Writing them in the insert keeps a check across columns, or a `not null`
+ * column without a default, from failing before the update `writeExtraColumns`
+ * runs. `columns` and `values` are `, a, b` lists for the insert; both are
+ * empty without extra columns.
  */
 export const insertExtraColumns = (
   table: string,
@@ -151,11 +152,12 @@ export const insertExtraColumns = (
 ): { readonly columns: string; readonly values: string } => {
   const value = (extra: ExtraColumn): string => {
     const read = `(jsonb_populate_record(null::${table}, jsonb_build_object(${sqlString(extra.name)}, ${source} -> ${sqlString(extra.name)}))).${extra.ident}`;
-    const fallback = extraColumnDefault(extra.type);
 
-    return fallback === undefined
-      ? read
-      : `case when ${source} ? ${sqlString(extra.name)} then ${read} else ${fallback} end`;
+    const fallback =
+      extraColumnDefault(extra.type) ??
+      `better_supabase.column_default(${sqlString(table)}, ${sqlString(extra.name)}, (null::${table}).${extra.ident})`;
+
+    return `case when ${source} ? ${sqlString(extra.name)} then ${read} else ${fallback} end`;
   };
 
   return {

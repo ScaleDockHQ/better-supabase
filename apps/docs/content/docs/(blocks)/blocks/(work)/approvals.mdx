@@ -136,6 +136,17 @@ A tenant policy still needs a floor it tightens: one for its subject type, actio
 
 With `options.platformPolicies: true` (next to `tenantPolicies`), rows of `approval_policies` without an organization are platform policies: platform staff with `approvals.manage` edit them at runtime with `savePolicy(input, { platform: true })`, `listPolicies({ platform: true })` lists them, and they apply to every organization before its own policies. A platform policy also stands in for a floor the config doesn't have, so a subject type and action can need approval without a deploy, and tenant policies can tighten it.
 
+`permissions.platform` gives platform policies their own platform key: reading and editing them then needs that key at platform level, and an organization's managers and platform staff with only `approvals.manage` are refused (`APPROVAL_FORBIDDEN`). Without it, edits need `approvals.manage` and reads `approvals.read`, at platform level.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  approvals: {
+    permissions: { platform: "platform.approvalPolicy.manage" },
+    options: { tenantPolicies: true, platformPolicies: true },
+  },
+}
+```
+
 ```ts
 await db.approvals
   .savePolicy({

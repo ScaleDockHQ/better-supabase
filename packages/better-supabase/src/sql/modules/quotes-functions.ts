@@ -37,6 +37,11 @@ export interface QuoteNames {
   readonly send: string;
   /** `permissions.decide`, else `write`: record the customer's answer. */
   readonly decide: string;
+  readonly answers: {
+    readonly accepted: string;
+    readonly rejected: string;
+    readonly changes_requested: string;
+  };
   /** `permissions.withdraw`, else `write`. */
   readonly withdraw: string;
   readonly company: string;

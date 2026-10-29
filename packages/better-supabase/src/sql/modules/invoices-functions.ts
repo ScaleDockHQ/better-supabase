@@ -63,6 +63,13 @@ export interface InvoiceNames {
   readonly appTotals: boolean;
   /** `options.depositKind`: the kind value that marks a deposit invoice. */
   readonly depositKind: string | undefined;
+  readonly depositLine: {
+    readonly description: string;
+    readonly fields: Readonly<Record<string, unknown>>;
+  };
+  readonly quoteLineValues: Readonly<
+    Record<string, Readonly<Record<string, string>>>
+  >;
 }
 
 /**

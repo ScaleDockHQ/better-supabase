@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:1b48ba09b1eee4857fb8682c69d7dde14eb5c4938ffaa3d8c71ba91eeb5692bc
+-- @bsb-hash sha256:dd9028fe9277d8cc7629cc7dc436c7e8a3ddfd9955b845c2c36272a900d976bf
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1426,10 +1426,13 @@ grant execute on function "better_supabase"."invoice_aging"(uuid, text, date) to
 -- An invoice from an accepted quote. With deposit_bps (2000 for 20%) it is
 -- a deposit invoice for that share of the quote, and with deposit_amount
 -- one for that amount, tax included; without, the full invoice,
--- which subtracts the deposits already issued and is made once per quote.
+-- which subtracts the deposits already issued, one line per deposit and tax
+-- rate described by deposit_description ({identifier} is the deposit's), and
+-- is made once per quote.
 -- The quote's document discount stays on the invoice's header.
 drop function if exists "better_supabase"."invoice_from_quote"(uuid, integer);
-create or replace function "better_supabase"."invoice_from_quote"(quote uuid, deposit_bps integer, deposit_amount bigint default null)
+drop function if exists "better_supabase"."invoice_from_quote"(uuid, integer, bigint);
+create or replace function "better_supabase"."invoice_from_quote"(quote uuid, deposit_bps integer, deposit_amount bigint default null, deposit_description text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1486,11 +1489,16 @@ begin
         into v_lines
       from "better_supabase"."quote_tax_lines" x where x."parent_id" = v_quote."id" and x."discount" <> 0;
     end if;
-    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', 'Deposit ' || d."identifier", 'quantity', 1, 'unitAmount', (-(case when v_quote."prices_include_tax" then d."total" else d."subtotal" end))::text,
-        'taxRateBps', case when d."subtotal" = 0 then 0 else round(d."tax_total" * 10000.0 / d."subtotal")::integer end)), '[]'::jsonb)
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', replace(coalesce(nullif(trim(invoice_from_quote.deposit_description), ''), 'Deposit {identifier}'), '{identifier}', d."identifier"), 'quantity', 1, 'unitAmount', (-y.amount)::text,
+        'taxRateBps', y.rate) order by d."identifier", y.rate), '[]'::jsonb)
       into v_lines
     from "better_supabase"."invoices" d
-    where d."origin_type" = 'quote' and d."origin_id"::text = v_quote."id"::text and (d."deposit_bps" is not null or d."deposit_amount" is not null) and d."status" not in ('draft', 'void');
+    cross join lateral (
+      select dl."tax_rate_bps" as rate, sum(round(dl."quantity" * dl."unit_amount") - round(round(dl."quantity" * dl."unit_amount") * dl."discount_bps" / 10000.0))::bigint as amount
+      from "better_supabase"."invoice_lines" dl where dl."parent_id" = d."id" and true
+      group by 1
+    ) y
+    where d."origin_type" = 'quote' and d."origin_id"::text = v_quote."id"::text and (d."deposit_bps" is not null or d."deposit_amount" is not null) and d."status" not in ('draft', 'void') and y.amount <> 0;
   elsif invoice_from_quote.deposit_amount is not null then
     v_lines := jsonb_build_array(jsonb_build_object(
       'description', 'Deposit of ' || v_quote."identifier",
@@ -1513,8 +1521,8 @@ begin
     'origin', jsonb_build_object('type', 'quote', 'id', v_quote."id"::text)) || v_header, v_lines);
 end;
 $$;
-revoke execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint) from public, anon;
-grant execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint) to authenticated, service_role;
+revoke execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint, text) from public, anon;
+grant execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1613,6 +1621,7 @@ drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text, jso
 drop function if exists "api"."add_invoice_charge"(uuid, bigint, text, text);
 drop function if exists "api"."remove_invoice_charge"(uuid);
 drop function if exists "api"."invoice_from_quote"(uuid, integer);
+drop function if exists "api"."invoice_from_quote"(uuid, integer, bigint);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1758,14 +1767,14 @@ as $$ select "better_supabase"."invoice_aging"($1, $2, $3) $$;
 revoke execute on function "api"."invoice_aging"(uuid, text, date) from public, anon;
 grant execute on function "api"."invoice_aging"(uuid, text, date) to authenticated, service_role;
 
-create or replace function "api"."invoice_from_quote"(quote uuid, deposit_bps integer, deposit_amount bigint default null)
+create or replace function "api"."invoice_from_quote"(quote uuid, deposit_bps integer, deposit_amount bigint default null, deposit_description text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."invoice_from_quote"($1, $2, $3) $$;
-revoke execute on function "api"."invoice_from_quote"(uuid, integer, bigint) from public, anon;
-grant execute on function "api"."invoice_from_quote"(uuid, integer, bigint) to authenticated, service_role;
+as $$ select "better_supabase"."invoice_from_quote"($1, $2, $3, $4) $$;
+revoke execute on function "api"."invoice_from_quote"(uuid, integer, bigint, text) from public, anon;
+grant execute on function "api"."invoice_from_quote"(uuid, integer, bigint, text) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

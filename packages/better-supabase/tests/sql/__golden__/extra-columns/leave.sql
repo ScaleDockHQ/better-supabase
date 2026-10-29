@@ -1,10 +1,36 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:a52a225adb4b886ae7ae47d097a626ffd9b84b094588ce5c862cb875b2acee7b
+-- @bsb-hash sha256:6c2915847d8f1e0208613e07e95301e238beefec61ca2ac1620cae79e975abfd
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function better_supabase.column_default(relation text, name text, target anyelement)
+returns anyelement
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  result alias for $0;
+  v_default text;
+begin
+  select pg_catalog.pg_get_expr(d.adbin, d.adrelid) into v_default
+  from pg_catalog.pg_attribute a
+  join pg_catalog.pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
+  where a.attrelid = pg_catalog.to_regclass(column_default.relation) and a.attname = column_default.name and not a.attisdropped;
+  if v_default is not null then
+    execute 'select ' || v_default into result;
+  end if;
+  return result;
+end;
+$$;
+revoke execute on function better_supabase.column_default(text, text, anyelement) from public;
+grant execute on function better_supabase.column_default(text, text, anyelement) to anon, authenticated, service_role;
 
 create or replace function better_supabase.actor_may_write()
 returns boolean
@@ -609,7 +635,7 @@ begin
     end if;
   end;
   insert into "better_supabase"."leave_requests" ("tenant_id", "user_id", "type_id", "starts_on", "ends_on", "partial", "amount", "note", "app_note")
-  values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''), (jsonb_populate_record(null::"better_supabase"."leave_requests", jsonb_build_object('app_note', coalesce(request_leave.fields, '{}'::jsonb) -> 'app_note')))."app_note")
+  values (request_leave.tenant, v_me, v_type."id", request_leave.starts_on, request_leave.ends_on, v_partial, v_amount, nullif(trim(request_leave.note), ''), case when coalesce(request_leave.fields, '{}'::jsonb) ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."leave_requests", jsonb_build_object('app_note', coalesce(request_leave.fields, '{}'::jsonb) -> 'app_note')))."app_note" else better_supabase.column_default('"better_supabase"."leave_requests"', 'app_note', (null::"better_supabase"."leave_requests")."app_note") end)
   returning * into v_row;
   if not v_type."auto_approve" then
     v_request := "better_supabase"."open_approval"(

@@ -448,6 +448,14 @@ function build(ctx: BlockSqlContext): string {
       ctx.config.permissions[action] ?? ctx.permissionKey("write", keys.write),
     );
 
+  const decide = finer("decide");
+
+  const answer = (action: string): string => {
+    const key = ctx.config.permissions[action];
+
+    return key === undefined ? decide : sqlString(key);
+  };
+
   const validDays = ctx.number("validDays", 30);
 
   if (!Number.isInteger(validDays) || validDays < 1) {
@@ -464,7 +472,12 @@ function build(ctx: BlockSqlContext): string {
     write: ctx.permission("write", keys.write),
     manage: ctx.permission("manage", keys.manage),
     send: finer("send"),
-    decide: finer("decide"),
+    decide,
+    answers: {
+      accepted: answer("accept"),
+      rejected: answer("reject"),
+      changes_requested: answer("requestChanges"),
+    },
     withdraw: finer("withdraw"),
     company: ctx.text("company", "company"),
     contact: ctx.text("contact", "person"),
