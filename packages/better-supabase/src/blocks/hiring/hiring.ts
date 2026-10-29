@@ -95,6 +95,8 @@ export interface Application {
   readonly rejectionReason?: string;
   readonly hiredAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
+  /** With `options.applicationExtraColumns`: those columns, by name. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export interface ScorecardScore {
@@ -137,7 +139,12 @@ export interface Hiring<F extends object = Record<never, never>> {
   apply(
     jobId: string,
     candidate: Candidate | { readonly id: string },
-    options?: { readonly source?: string; readonly ownerId?: string },
+    options?: {
+      readonly source?: string;
+      readonly ownerId?: string;
+      /** With `options.applicationExtraColumns`: values for those columns. */
+      readonly fields?: Readonly<Record<string, unknown>>;
+    },
   ): AsyncResult<Application>;
   /** Moves it to the job pipeline's Hired stage; `application.hired` follows. */
   hire(applicationId: string): AsyncResult<Application>;
@@ -219,6 +226,7 @@ function applicationOf(value: unknown): Application {
     rejectionReason: optionalText(row["rejection_reason"]),
     hiredAt: optionalInstant(row["hired_at"]),
     createdAt: requiredInstant(row["created_at"], "createdAt"),
+    fields: isRecord(row["fields"]) ? row["fields"] : undefined,
   });
 }
 
@@ -320,6 +328,7 @@ export function createHiring<
           candidate: { ...candidate },
           source: apply.source ?? null,
           owner: apply.ownerId ?? null,
+          ...(apply.fields !== undefined && { fields: { ...apply.fields } }),
         },
         applicationOf,
       ),

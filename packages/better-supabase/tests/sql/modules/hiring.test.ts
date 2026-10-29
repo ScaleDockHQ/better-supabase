@@ -63,6 +63,26 @@ describe("hiring module", () => {
     expect(update).toContain("'hiring.manage'");
   });
 
+  it("writes application extra columns through apply_to_job", () => {
+    const sql = body("hiring", {
+      modules: {
+        hiring: { options: { applicationExtraColumns: { referral: "text" } } },
+      },
+    });
+
+    expect(sql).toContain(
+      '"applications" add column if not exists "referral" text',
+    );
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."apply_to_job"(uuid, jsonb, text, uuid);',
+    );
+    expect(sql).toContain(
+      "source text, owner uuid, fields jsonb default null)",
+    );
+    expect(sql).toContain("'fields', jsonb_build_object('referral'");
+    expect(body("hiring")).not.toContain("fields jsonb default null)");
+  });
+
   it("takes another candidate type and renders nothing in custom mode", () => {
     expect(
       body("hiring", {

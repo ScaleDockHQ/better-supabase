@@ -2,6 +2,7 @@ import type { HiringEvents } from "../../blocks/hiring/events.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
+  ExtraColumn,
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
@@ -14,6 +15,7 @@ import { asColumnType } from "../column-type.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
+  extraFieldsArg,
   fail,
   insertExtraColumns,
   schemaPreamble,
@@ -98,6 +100,7 @@ const NAMES: BlockSqlNames = {
   options: [
     "candidate",
     "extraColumns",
+    "applicationExtraColumns",
     "stages",
     "scorecardKey",
     "hiringManager",
@@ -258,8 +261,17 @@ function build(ctx: BlockSqlContext): string {
   const jobsUpdate = ctx.config.permissions["jobsUpdate"];
   const candidate = ctx.text("candidate", "person");
   const extras = ctx.extraColumns("jobs");
+  const appExtras = applicationExtras(ctx);
+  const appFields = extraFieldsArg(appExtras);
   const fn = (name: string): string => ctx.fn(name);
   const t = (table: string): string => ctx.table(table);
+
+  const appInsert = insertExtraColumns(
+    t("applications"),
+    appExtras,
+    "apply_to_job.fields",
+  );
+
   const j = (column: string): string => ctx.col("jobs", column);
   const a = (column: string): string => ctx.col("applications", column);
   const s = (column: string): string => ctx.col("scorecards", column);
@@ -300,9 +312,13 @@ function build(ctx: BlockSqlContext): string {
       : value;
 
   const applicationJson = (alias: string): string =>
-    fixedCandidate
-      ? `(${ctx.rowJson("applications", alias, { as: { candidateId: (value) => `${value}::text` } })} || jsonb_build_object('candidate_type', ${sqlString(candidate)}, ${sqlString(ctx.colName("applications", "candidateId"))}, ${alias}.${a("candidateId")}::text))`
-      : ctx.rowJson("applications", alias);
+    withExtraFields(
+      fixedCandidate
+        ? `(${ctx.rowJson("applications", alias, { as: { candidateId: (value) => `${value}::text` } })} || jsonb_build_object('candidate_type', ${sqlString(candidate)}, ${sqlString(ctx.colName("applications", "candidateId"))}, ${alias}.${a("candidateId")}::text))`
+        : ctx.rowJson("applications", alias),
+      alias,
+      appExtras,
+    );
 
   const interviewerOf = (row: string, user: string): string | undefined => {
     const checks = [
@@ -477,7 +493,7 @@ create table if not exists ${t("applications")} (
   unique (${a("job")}, ${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")})
 );
 create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${pipelined ? a("pipeline") : a("job")}, ${a("stage")}, ${a("rank")});
-create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")});
+create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")});${addExtraColumns(t("applications"), appExtras)}
 ${lockModuleTable(ctx, "applications", { read: true })}
 ${renderPolicy(makePolicy({ table: t("applications"), name: ctx.naming.rename("applications_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(a("tenant"), read) }), { drop: true, target: t("applications") })}
 
@@ -656,8 +672,9 @@ $$;
 ${userGrant(`${fn("save_job")}(${ctx.idType}, uuid, jsonb)`)}
 
 -- An application of a candidate (a record in config.subjects, a person by
--- default) to an open job. Applying again returns the same application.
-create or replace function ${fn("apply_to_job")}(job uuid, candidate jsonb, source text, owner uuid)
+-- default) to an open job. Applying again returns the same application.${appExtras.length > 0 ? "\n-- fields sets the applicationExtraColumns by name." : ""}
+${appFields.drop(fn("apply_to_job"), "uuid, jsonb, text, uuid")}
+create or replace function ${fn("apply_to_job")}(job uuid, candidate jsonb, source text, owner uuid${appFields.param})
 returns jsonb
 language plpgsql
 security definer
@@ -691,14 +708,14 @@ begin
   if v_row.${a("id")} is not null then
     return ${applicationJson("v_row")};
   end if;${refuse("applications", "source", "nullif(trim(apply_to_job.source), '')", "HIRING_SOURCE_UNSUPPORTED", "this applications table has no source column")}${refuse("applications", "owner", "apply_to_job.owner", "HIRING_OWNER_UNSUPPORTED", "this applications table has no owner column")}
-  insert into ${t("applications")} (${a("tenant")}, ${a("job")}, ${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")}${also("applications", "source")}${also("applications", "owner")})
-  values (v_job.${j("tenant")}, v_job.${j("id")}, ${fixedCandidate ? "" : "v_type, "}${candidateValue("v_id")}${alsoValue("applications", "source", ctx.cast("applications", "source", "nullif(trim(apply_to_job.source), '')"))}${alsoValue("applications", "owner", "coalesce(apply_to_job.owner, auth.uid())")})
+  insert into ${t("applications")} (${a("tenant")}, ${a("job")}, ${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")}${also("applications", "source")}${also("applications", "owner")}${appInsert.columns})
+  values (v_job.${j("tenant")}, v_job.${j("id")}, ${fixedCandidate ? "" : "v_type, "}${candidateValue("v_id")}${alsoValue("applications", "source", ctx.cast("applications", "source", "nullif(trim(apply_to_job.source), '')"))}${alsoValue("applications", "owner", "coalesce(apply_to_job.owner, auth.uid())")}${appInsert.values})
   returning * into v_row;
   ${record("application.created", "v_row")}
   return ${applicationJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("apply_to_job")}(uuid, jsonb, text, uuid)`)}
+${userGrant(`${fn("apply_to_job")}(uuid, jsonb, text, uuid${appFields.type})`)}
 
 -- Ends an application: hired, rejected (with a reason) or withdrawn. It
 -- moves to the job pipeline's first stage of that category.
@@ -887,7 +904,13 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "save_job", args: ["{id}", "uuid", "jsonb"], returns: "jsonb" },
     {
       name: "apply_to_job",
-      args: ["uuid", "jsonb", "text", "uuid"],
+      args: [
+        "uuid",
+        "jsonb",
+        "text",
+        "uuid",
+        ...extraFieldsArg(applicationExtras(ctx)).contract,
+      ],
       returns: "jsonb",
     },
     {
@@ -1013,3 +1036,8 @@ export const HIRING: BlockSqlDefinition = {
       entity: "employee",
     }),
 };
+
+/** `applicationExtraColumns`: the app's own columns on applications. */
+function applicationExtras(ctx: BlockSqlContext): readonly ExtraColumn[] {
+  return ctx.extraColumns("applications", [], "applicationExtraColumns");
+}

@@ -55,6 +55,7 @@ const EVENTS: BlockSqlEvents<EmployeesEvents> = {
     subject: "employees",
     payload: [...EMPLOYEE, "fromManagerId", "toManagerId"],
   },
+  "employee.deleted": { subject: "employees", payload: EMPLOYEE },
 };
 
 /** The statuses, in the order an employee usually moves through them. */
@@ -89,6 +90,8 @@ const NAMES: BlockSqlNames = {
     "after_employee_update",
     "before_employee_offboard",
     "after_employee_offboard",
+    "before_employee_delete",
+    "after_employee_delete",
   ],
   options: [
     "employmentTypes",
@@ -100,6 +103,7 @@ const NAMES: BlockSqlNames = {
     "contracts",
     "salaryUnits",
     "contractOverlap",
+    "offboarding",
   ],
   tables: {
     employees: {
@@ -595,7 +599,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
   return [
     { name: "create_employee", args: ["{id}", "jsonb"], returns: "jsonb" },
-    { name: "update_employees", args: ["jsonb"], returns: "jsonb" },
+    { name: "update_employees", args: ["jsonb", "boolean"], returns: "jsonb" },
+    { name: "delete_employee", args: ["uuid"], returns: "jsonb" },
     {
       name: "offboard_employee",
       args: ["uuid", "date", "text"],

@@ -92,6 +92,8 @@ export interface Employee<F extends object = Record<never, never>> {
   /** The record it was made from, such as `{ type: "application", id }`. */
   readonly origin?: RecordRef;
   readonly createdAt?: Temporal.Instant;
+  /** When the table has `updated_at`; pass it back as `expectedUpdatedAt`. */
+  readonly updatedAt?: Temporal.Instant;
   /** The app's extra columns (`options.extraColumns`), by column name. */
   readonly fields: Readonly<Record<string, unknown>> & F;
 }
@@ -144,6 +146,11 @@ export interface EmployeeChange {
   readonly employeeId: string;
   readonly field: EmployeeField | (string & {});
   readonly value: unknown;
+  /**
+   * The `updatedAt` the edit was made against. When the employee changed since,
+   * the change fails with `EMPLOYEE_STALE`. Needs an `updated_at` column.
+   */
+  readonly expectedUpdatedAt?: Temporal.Instant;
 }
 
 export interface EmployeeChangeResult {
@@ -231,11 +238,17 @@ export interface Employees<F extends object = Record<never, never>> {
     organizationId: string,
     input: EmployeeInput<F>,
   ): AsyncResult<Employee<F>>;
-  /** Applies each change on its own; one that fails doesn't stop the others. */
-  update(changes: readonly EmployeeChange[]): AsyncResult<EmployeeChangeResult>;
+  /**
+   * Applies each change on its own; one that fails doesn't stop the others.
+   * With `atomic`, the first failure returns its error and no change stays.
+   */
+  update(
+    changes: readonly EmployeeChange[],
+    options?: { readonly atomic?: boolean },
+  ): AsyncResult<EmployeeChangeResult>;
   /**
    * Sets the end date (today by default) and moves the reports to the
-   * employee's manager.
+   * employee's manager, unless `options.offboarding.reports` is `"keep"`.
    */
   offboard(
     employeeId: string,
@@ -244,6 +257,12 @@ export interface Employees<F extends object = Record<never, never>> {
       readonly reason?: string;
     },
   ): AsyncResult<Employee<F>>;
+  /**
+   * Deletes the employee, for one created by mistake, and moves the reports as
+   * `offboard` does. Fails with `EMPLOYEE_IN_USE` while other rows point at
+   * it.
+   */
+  delete(employeeId: string): AsyncResult<Employee<F>>;
   /** The chart under `rootId`, or under everyone without a manager. */
   orgChart(
     organizationId: string,
@@ -270,7 +289,11 @@ export interface Employees<F extends object = Record<never, never>> {
   ): AsyncResult<PrivateDetails>;
   /** The newest first. */
   contracts(employeeId: string): AsyncResult<readonly Contract[]>;
-  /** Starts after the latest contract, which ends the day before. */
+  /**
+   * Starts after the latest contract, which ends the day before. With
+   * `options.contractOverlap` set to `"allow"` the latest one keeps its end,
+   * and with `"deny"` an overlap fails with `EMPLOYEE_CONTRACT_OVERLAP`.
+   */
   addContract(employeeId: string, input: ContractInput): AsyncResult<Contract>;
   updateContract(
     contractId: string,
@@ -376,6 +399,7 @@ function employeeOf(value: unknown): Employee {
     offboardReason: optionalText(row["offboard_reason"]),
     origin: refOf(row["origin_type"], row["origin_id"]),
     createdAt: optionalInstant(row["created_at"]),
+    updatedAt: optionalInstant(row["updated_at"]),
     fields: Object.fromEntries(
       Object.entries(row).filter(([key]) => !COLUMNS.has(key)),
     ),
@@ -519,7 +543,7 @@ export function createEmployees<
           ),
         )
         .andThen(parsed),
-    update: (changes) =>
+    update: (changes, update = {}) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
           if (BUILT_IN.has(change.field)) {
@@ -542,7 +566,11 @@ export function createEmployees<
               employeeId: change.employeeId,
               field: change.field,
               value: argOf(change.value),
+              ...(change.expectedUpdatedAt !== undefined && {
+                expectedUpdatedAt: change.expectedUpdatedAt.toString(),
+              }),
             })),
+            ...(update.atomic === true && { atomic: true }),
           },
           (value) => {
             const row = recordOf(value, "update_employees");
@@ -574,6 +602,10 @@ export function createEmployees<
         },
         employeeOf,
       ).andThen(parsed),
+    delete: (employeeId) =>
+      call("delete_employee", { employee: employeeId }, employeeOf).andThen(
+        parsed,
+      ),
     orgChart: (organizationId, rootId) =>
       chart("org_chart", { tenant: organizationId, root: rootId ?? null }),
     reportsOf: (managerId, reports = {}) =>

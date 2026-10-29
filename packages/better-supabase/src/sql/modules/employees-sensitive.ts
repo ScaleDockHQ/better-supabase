@@ -11,6 +11,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import {
+  denyOverlaps,
   editableContracts,
   FLAT_DETAILS,
   flatDetails,
@@ -408,13 +409,13 @@ declare
   v_employee ${n.t("employees")};
   v_row ${table};
   v_starts date;
-begin${load("add_employee_contract", "employee", contractWriter(ctx, n, "v_employee"))}
+begin${load("add_employee_contract", "employee", contractWriter(ctx, n, "v_employee"))}${denyOverlaps(ctx) ? lockEmployee(n, "v_employee") : ""}
   begin
     v_starts := (${arg("startsOn")})::date;
     if v_starts is null then
       ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract needs a start date", "22023")}
     end if;${
-      overlappingContracts(ctx)
+      overlappingContracts(ctx) || denyOverlaps(ctx)
         ? ""
         : `
     if exists (select 1 from ${table} x where x.${k("employee")} = v_employee.${e("id")} and x.${k("startsOn")} >= v_starts) then
@@ -423,7 +424,7 @@ begin${load("add_employee_contract", "employee", contractWriter(ctx, n, "v_emplo
     update ${table} x set ${k("endsOn")} = v_starts - 1
     where x.${k("employee")} = v_employee.${e("id")} and (x.${k("endsOn")} is null or x.${k("endsOn")} >= v_starts);`
     }
-    ${insert}${writeExtraColumns(table, extras, fields, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
+    ${insert}${writeExtraColumns(table, extras, fields, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}${overlapCheck(ctx, n, table, "v_row")}
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract field has an invalid value", "22023")}
   end;
@@ -434,6 +435,35 @@ $$;
 ${userGrant(`${n.fn("add_employee_contract")}(uuid, jsonb)`)}
 ${editableContracts(ctx) ? editContractsSql(ctx, n, { table, k, has, row, updated, extras, salaryValue }) : ""}`;
 }
+
+/**
+ * With contractOverlap "deny": locks the employee, then fails when the contract
+ * in alias overlaps another of theirs.
+ */
+function overlapCheck(
+  ctx: BlockSqlContext,
+  n: EmployeeNames,
+  table: string,
+  alias: string,
+): string {
+  if (!denyOverlaps(ctx)) {
+    return "";
+  }
+
+  const k = (column: string): string => n.c("contracts", column);
+
+  const range = (row: string): string =>
+    `daterange(${row}.${k("startsOn")}, ${row}.${k("endsOn")}, '[]')`;
+
+  return `
+    if exists (select 1 from ${table} x where x.${k("employee")} = ${alias}.${k("employee")} and x.${k("id")} <> ${alias}.${k("id")} and ${range("x")} && ${range(alias)}) then
+      ${fail("EMPLOYEE_CONTRACT_OVERLAP", "the contract overlaps another one", "22023")}
+    end if;`;
+}
+
+const lockEmployee = (n: EmployeeNames, alias: string): string =>
+  `
+  perform 1 from ${n.t("employees")} x where x.${n.c("employees", "id")} = ${alias}.${n.c("employees", "id")} for update;`;
 
 function contractWriter(
   ctx: BlockSqlContext,
@@ -530,7 +560,7 @@ as $$
 declare
   v_employee ${n.t("employees")};
   v_row ${table};
-begin${load("update_employee_contract")}
+begin${load("update_employee_contract")}${denyOverlaps(ctx) ? lockEmployee(n, "v_employee") : ""}
   if jsonb_typeof(coalesce(${attrs}, '{}')) <> 'object' then
     ${fail("EMPLOYEE_CONTRACT_INVALID", "attrs must be an object", "22023")}
   end if;
@@ -540,7 +570,7 @@ begin${load("update_employee_contract")}
   begin
     update ${table} x set ${sets.join(",\n      ")}
     where x.${k("id")} = v_row.${k("id")}
-    returning * into v_row;${writeExtraColumns(table, extras, `(${attrs} -> 'fields')`, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}
+    returning * into v_row;${writeExtraColumns(table, extras, `(${attrs} -> 'fields')`, `x.${k("id")} = v_row.${k("id")}`, "v_row").replaceAll("\n  ", "\n    ")}${overlapCheck(ctx, n, table, "v_row")}
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("EMPLOYEE_CONTRACT_INVALID", "a contract field has an invalid value", "22023")}
   end;

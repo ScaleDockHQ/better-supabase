@@ -9,6 +9,7 @@ const SUBJECT_EVENTS = [
   "employee.created",
   "employee.updated",
   "employee.offboarded",
+  "employee.deleted",
   "employee.manager_changed",
   "application.created",
   "application.hired",

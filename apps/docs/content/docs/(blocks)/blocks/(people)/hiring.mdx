@@ -87,6 +87,17 @@ await hiring.saveJob(organizationId, {
 });
 ```
 
+`blocks.hiring.options.applicationExtraColumns` does the same for the
+applications table: `apply` writes them from `fields` in the insert that
+creates the application, and every application the client returns carries
+them under `fields`:
+
+```ts
+await hiring
+  .apply(job.id, { id: personId }, { fields: { referral: "Sam" } })
+  .orThrow();
+```
+
 ## Applications
 
 `apply(jobId, candidate, { source, ownerId })` adds a candidate to an open job (`JOB_OPENING_NOT_OPEN`); applying again returns the same application. The candidate must be in the organization and readable by the caller (`HIRING_CANDIDATE_FORBIDDEN`). Move it between stages with a stage update or [rank](/docs/blocks/rank) on a board, as any pipeline record.

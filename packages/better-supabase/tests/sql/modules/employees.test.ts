@@ -132,6 +132,7 @@ describe("employees module", () => {
     expect(names).toEqual([
       "create_employee",
       "update_employees",
+      "delete_employee",
       "offboard_employee",
       "org_chart",
       "reports_of",
@@ -151,6 +152,33 @@ describe("employees module", () => {
     expect(names).toContain("employee_from_application");
     expect(names).toContain("save_employee_private_details");
     expect(names).toContain("add_employee_contract");
+  });
+
+  it("denies contract overlaps and keeps reports on offboarding when asked", () => {
+    const sql = body(["employees"], {
+      modules: {
+        employees: {
+          options: {
+            contractOverlap: "deny",
+            offboarding: { reports: "keep" },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain("&& daterange(");
+    expect(sql).toContain(
+      'create or replace function "better_supabase"."delete_employee"',
+    );
+    expect(sql).toContain("EMPLOYEE_IN_USE");
+    expect(body(["employees"])).not.toContain("&& daterange(");
+    expect(() =>
+      body(["employees"], {
+        modules: {
+          employees: { options: { offboarding: { reports: "drop" } } },
+        },
+      }),
+    ).toThrow(/reports/u);
   });
 
   it("renders nothing in custom mode", () => {

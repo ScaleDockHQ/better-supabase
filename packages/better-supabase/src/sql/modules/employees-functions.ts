@@ -4,7 +4,7 @@ import { sqlString } from "../../core/template.ts";
 import { fail, insertExtraColumns, userGrant } from "../shared.ts";
 import { subjectTitle } from "../subject-check-sql.ts";
 import { hasValueEntry } from "../value-maps.ts";
-import { splitName } from "./employees-options.ts";
+import { reportsMoveUp, splitName } from "./employees-options.ts";
 import { hiringCandidate } from "./hiring-adoption.ts";
 import { asText } from "./over-app.ts";
 import { createdFromLink } from "./quotes-functions.ts";
@@ -291,6 +291,30 @@ export function employeeFunctions(
       : []),
   ].join(", ");
 
+  const moveUp = reportsMoveUp(ctx);
+
+  // Moves the reports of employee to manager, recording each move.
+  const moveReports = (employee: string, manager: string): string => `
+  for v_report in select * from ${table} x where x.${e("manager")} = ${employee} loop
+    update ${table} x set ${e("manager")} = ${manager}${touched}
+    where x.${e("id")} = v_report.${e("id")}
+    returning * into v_report;
+    ${managerChanged("v_report", employee)}
+  end loop;`;
+
+  const expected = has("updatedAt")
+    ? `
+      if not v_seen ? v_id::text then
+        v_seen := v_seen || jsonb_build_object(v_id::text, v_was.${e("updatedAt")});
+      end if;
+      if v_change ? 'expectedUpdatedAt' and (v_seen ->> v_id::text)::timestamptz is distinct from (v_change ->> 'expectedUpdatedAt')::timestamptz then
+        ${fail("EMPLOYEE_STALE", "the employee changed since it was read", "40001")}
+      end if;`
+    : `
+      if v_change ? 'expectedUpdatedAt' then
+        ${fail("EMPLOYEE_CHANGES_INVALID", "the employees table has no updated_at to compare", "22023")}
+      end if;`;
+
   const rowWith = (alias: string, depth: string): string =>
     `${n.json(alias)} || jsonb_build_object('depth', ${depth}, 'direct_reports', (select count(*) from ${table} r where r.${e("manager")} = ${alias}.${e("id")} and ${ctx.is("employees", "status", `r.${e("status")}`, ["offboarded"], true)}))`;
 
@@ -341,12 +365,16 @@ end;
 $$;
 ${userGrant(`${fn("create_employee")}(${ctx.idType}, jsonb)`)}
 
--- Applies a batch of { employeeId, field, value } changes, each on its own:
--- a change that fails is rejected with its reason and the others stay.
--- status takes preboarding, active or on_leave; setting it on an
--- offboarded employee rehires them. Returns { accepted: [{ employeeId,
--- field }], rejected: [{ employeeId, field, hint, reason }] }.
-create or replace function ${fn("update_employees")}(changes jsonb)
+-- Applies a batch of { employeeId, field, value, expectedUpdatedAt }
+-- changes, each on its own: a change that fails is rejected with its reason
+-- and the others stay. With atomic, the first failure raises and no change
+-- stays. A change with expectedUpdatedAt fails with EMPLOYEE_STALE when the
+-- employee's updated_at before the batch differs. status takes
+-- preboarding, active or on_leave; setting it on an offboarded employee
+-- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
+-- [{ employeeId, field, hint, reason }] }.
+drop function if exists ${fn("update_employees")}(jsonb);
+create or replace function ${fn("update_employees")}(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -364,6 +392,7 @@ declare
   v_reason text;
   v_state text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if jsonb_typeof(coalesce(update_employees.changes, '[]')) <> 'array' then
     ${fail("EMPLOYEE_CHANGES_INVALID", "changes must be a list of { employeeId, field, value }", "22023")}
@@ -372,10 +401,10 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_id := (v_change ->> ${employeeId})::uuid;
-      select * into v_was from ${table} x where x.${e("id")} = v_id and ${editable("x")};
+      select * into v_was from ${table} x where x.${e("id")} = v_id and ${editable("x")} for update;
       if v_was.${e("id")} is null then
         ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can edit", "P0002")}
-      end if;
+      end if;${expected}
       ${ctx.hook("before_employee_update", [
         ["uuid", "v_id"],
         ["text", "v_field"],
@@ -421,6 +450,9 @@ ${
         ["text", "v_field"],
       ])}
     exception when others then
+      if update_employees.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text, v_state = returned_sqlstate;
       if v_state = '23505' then
         v_hint := 'EMPLOYEE_USER_TAKEN';
@@ -436,11 +468,12 @@ ${
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-${userGrant(`${fn("update_employees")}(jsonb)`)}
+${userGrant(`${fn("update_employees")}(jsonb, boolean)`)}
 
 -- Ends an employment: the status becomes offboarded and the end date is
--- set (today by default). The employee's reports move to their manager.
--- Offboarding an offboarded employee returns them unchanged.
+-- set (today by default). With offboarding.reports "manager", the
+-- employee's reports move to their manager. Offboarding an offboarded
+-- employee returns them unchanged.
 create or replace function ${fn("offboard_employee")}(employee uuid, end_date date, reason text)
 returns jsonb
 language plpgsql
@@ -466,18 +499,44 @@ begin
   exception when check_violation then
     ${fail("EMPLOYEE_ATTRS_INVALID", "the end date is before the start date", "22023")}
   end;
-  for v_report in select * from ${table} x where x.${e("manager")} = v_row.${e("id")} loop
-    update ${table} x set ${e("manager")} = v_row.${e("manager")}${touched}
-    where x.${e("id")} = v_report.${e("id")}
-    returning * into v_report;
-    ${managerChanged("v_report", `v_row.${e("id")}`)}
-  end loop;${offboardedAt("now()", `v_row.${e("id")}`)}
+${moveUp ? moveReports(`v_row.${e("id")}`, `v_row.${e("manager")}`) : ""}${offboardedAt("now()", `v_row.${e("id")}`)}
   ${record("employee.offboarded", "v_row", `, 'endDate', ${has("endDate") ? `v_row.${e("endDate")}` : "current_date"}, 'reason', ${has("offboardReason") ? `v_row.${e("offboardReason")}` : "nullif(trim(offboard_employee.reason), '')"}`)}
   ${ctx.hook("after_employee_offboard", [["uuid", `v_row.${e("id")}`]])}
   return ${n.json("v_row")};
 end;
 $$;
 ${userGrant(`${fn("offboard_employee")}(uuid, date, text)`)}
+
+-- Deletes an employee with their private details and contracts. With
+-- offboarding.reports "manager", their reports move to the employee's
+-- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
+-- while another block's rows still refer to the employee.
+create or replace function ${fn("delete_employee")}(employee uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${table};
+  v_report ${table};
+begin
+  select * into v_row from ${table} x where x.${e("id")} = delete_employee.employee for update;
+  if v_row.${e("id")} is null or not ${editable("v_row")} then
+    ${fail("EMPLOYEE_NOT_FOUND", "no such employee you can delete", "P0002")}
+  end if;
+  ${ctx.hook("before_employee_delete", [["uuid", `v_row.${e("id")}`]])}${moveReports(`v_row.${e("id")}`, moveUp ? `v_row.${e("manager")}` : "null")}
+  begin
+    delete from ${table} x where x.${e("id")} = v_row.${e("id")};
+  exception when foreign_key_violation then
+    ${fail("EMPLOYEE_IN_USE", "other records still refer to this employee", "23503")}
+  end;
+  ${record("employee.deleted", "v_row")}
+  ${ctx.hook("after_employee_delete", [["uuid", `v_row.${e("id")}`]])}
+  return ${n.json("v_row")};
+end;
+$$;
+${userGrant(`${fn("delete_employee")}(uuid)`)}
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct
