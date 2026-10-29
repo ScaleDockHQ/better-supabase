@@ -177,6 +177,8 @@ ${userGrant(`${fn("submit_timesheet")}(${ctx.idType}, date, text)`)}
 
 -- Locks the week once the approval is final. Approvals calls it; it isn't
 -- granted to anyone.
+drop function if exists ${fn("approve_timesheet")}(uuid, uuid);
+drop function if exists ${fn("reject_timesheet")}(uuid, text, uuid);
 create or replace function ${fn("approve_timesheet")}(timesheet_id uuid)
 returns void
 language plpgsql

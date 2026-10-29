@@ -40,6 +40,10 @@ create function authz.holders_of(permission text, tenant uuid) returns setof uui
   language sql stable as $$
     select g.user_id from authz.grants g where g.permission = holders_of.permission and g.tenant = holders_of.tenant
   $$;
+create function authz.member_ids_for(member uuid) returns setof uuid
+  language sql stable as $$
+    select distinct g.tenant from authz.grants g where g.user_id = member_ids_for.member and g.tenant is not null
+  $$;
 grant usage on schema authz to authenticated;
 `;
 
@@ -63,6 +67,7 @@ const PROVIDER: BlockSqlAccessProvider = {
     idsWith: "authz.ids_with({permission})",
     isPlatform: "authz.is_platform({permission})",
     holdersOf: "authz.holders_of({permission}, {tenant})",
+    memberIdsFor: "authz.member_ids_for({user})",
   },
 };
 
@@ -86,6 +91,11 @@ const BLOCKS: AnyBlocksConfig = {
                 required: "all",
               },
             ],
+          },
+        },
+        contract: {
+          sign: {
+            steps: [{ approvers: { users: [ANN, BEN] }, required: "all" }],
           },
         },
         ai_tool: { "*": MONEY },
@@ -364,6 +374,29 @@ begin
   ${as(STAFF)}
   if better_supabase.decide_approval(v_chat, 'approved') ->> 'status' <> 'approved' then
     raise exception 'the fallback could not decide';
+  end if;
+end;
+$$;`),
+      ).resolves.toBeUndefined();
+    });
+
+    it("finishes an all step only once each named approver or their delegate approved", async () => {
+      await expect(
+        run(`do $$
+declare
+  v_id uuid;
+begin
+  ${SERVICE}
+  v_id := (better_supabase.request_approval('${TENANT}', 'contract', 'c-1', 'sign') ->> 'id')::uuid;
+  ${as(ANN)}
+  perform better_supabase.delegate_approval(v_id, '${ADMIN}');
+  ${as(ADMIN)}
+  if better_supabase.decide_approval(v_id, 'approved') ->> 'status' <> 'pending' then
+    raise exception 'Ann''s delegate finished it without Ben';
+  end if;
+  ${as(BEN)}
+  if better_supabase.decide_approval(v_id, 'approved') ->> 'status' <> 'approved' then
+    raise exception 'Ben and Ann''s delegate did not finish it';
   end if;
 end;
 $$;`),

@@ -18,6 +18,7 @@ import {
   updateExtraColumns,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import { managerDecides } from "./direct-approver.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
 import { ownerIsEmployee, recordOwner } from "./record-owner.ts";
@@ -623,7 +624,15 @@ as $$
 declare
   v_row ${table}%rowtype;
 begin${load("decide_expense.expense_id")}
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${e("tenant")}`, approve)} and ${owner.requester("v_row")} is distinct from auth.uid())) then
+  if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${e("tenant")}`, approve)}${managerDecides(
+    ctx,
+    "blocks.expenses.options",
+    {
+      requester: owner.requester("v_row"),
+      tenant: `v_row.${e("tenant")}`,
+      ...(employee ? { employee: `v_row.${e("employee")}::text` } : {}),
+    },
+  )}) and ${owner.requester("v_row")} is distinct from auth.uid())) then
     ${forbidden("not allowed to decide this expense")}
   end if;
   if decide_expense.decided_by is not null and (not ${SERVICE_CALLER} and decide_expense.decided_by is distinct from auth.uid()

@@ -30,6 +30,12 @@ export interface ApprovalStep {
    * is filed.
    */
   readonly required: number | "all";
+  /**
+   * Set for `"all"`: the step completes only when each named approver, or a
+   * delegate acting for that approver, has approved. Other deciders don't
+   * count.
+   */
+  readonly all?: true;
   /** An ISO 8601 duration after which `escalateTo` may decide the step too. */
   readonly escalateAfter?: string;
   readonly escalateTo?: ApprovalApprovers;
@@ -155,7 +161,12 @@ function stepOf(value: unknown, where: string): ApprovalStep {
       );
     }
 
-    return { approvers, required: approvers.users.length, ...escalation };
+    return {
+      approvers,
+      required: approvers.users.length,
+      all: true,
+      ...escalation,
+    };
   }
 
   if (

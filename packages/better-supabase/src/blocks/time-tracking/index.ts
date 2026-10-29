@@ -7,6 +7,7 @@ export {
   type TimeEntryPatch,
   type Timesheet,
   type TimesheetDetail,
+  type TimesheetDecisionOptions,
   type TimesheetListOptions,
   type TimesheetStatus,
   type TimesheetTotals,

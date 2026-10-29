@@ -58,6 +58,12 @@ export type LeaveSqlOptions = {
    * instead of the filer's. Needs `owner: "employee"`. Default `"filer"`.
    */
   readonly approvalOwner?: "filer" | "employee";
+  /**
+   * With `approvals: false`, `"manager"` lets the requester's manager (the
+   * employees block) decide through `decide_leave_request` too, next to holders
+   * of the approve permission. Default `"permission"`.
+   */
+  readonly approver?: "permission" | "manager";
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -73,4 +79,7 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     owner: option.string<"user" | "employee">({ default: "user" }),
     reapprove: option.boolean({ default: false }),
     approvalOwner: option.string<"filer" | "employee">({ default: "filer" }),
+    approver: option.string<"permission" | "manager">({
+      default: "permission",
+    }),
   });

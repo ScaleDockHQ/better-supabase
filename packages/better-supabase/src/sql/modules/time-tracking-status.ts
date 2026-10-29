@@ -159,6 +159,12 @@ export function statusTimesheetFunctions(
       ? `(${owner.sheetUser ? `coalesce(${row}.${t("user")} = auth.uid(), false) or ` : ""}${row}.${owner.timesheets} = ${owner.mine(`${row}.${t("tenant")}`)})`
       : `coalesce(${row}.${t("user")} = auth.uid(), false)`;
 
+  // Whether week row `row` belongs to `user`.
+  const sheetOf = (row: string, user: string): string =>
+    by
+      ? `(${owner.sheetUser ? `coalesce(${row}.${t("user")} = ${user}, false) or ` : ""}coalesce(${row}.${owner.timesheets} = ${owner.ofUser(`${row}.${t("tenant")}`, user)}, false))`
+      : `coalesce(${row}.${t("user")} = ${user}, false)`;
+
   const ownerParam = by ? ", employee_id uuid default null" : "";
   const ownerType = by ? ", uuid" : "";
   const fn = (name: string): string => ctx.fn(name);
@@ -180,10 +186,10 @@ export function statusTimesheetFunctions(
   const json = (row: string): string =>
     `jsonb_build_object('id', ${row}.${t("id")}, 'organizationId', ${row}.${t("tenant")}, ${owner.json(row)}, 'week', ${row}.${t("week")}, 'status', ${label(row)}, 'approvalId', null, 'note', ${row}.${t("note")}, 'submittedAt', ${row}.${t("submittedAt")}, 'approvedAt', ${row}.${t("approvedAt")}, 'createdAt', ${row}.${t("createdAt")}${optional("decidedBy", row)}${optional("decidedAt", row)}${optional("decisionNote", row)})`;
 
-  const decide = (note: string): string =>
+  const decide = (note: string, decider: string): string =>
     [
       ...(ctx.has("timesheets", "decidedBy")
-        ? [`${t("decidedBy")} = auth.uid()`]
+        ? [`${t("decidedBy")} = coalesce(${decider}, auth.uid())`]
         : []),
       ...(ctx.has("timesheets", "decidedAt")
         ? [`${t("decidedAt")} = now()`]
@@ -206,7 +212,8 @@ export function statusTimesheetFunctions(
     event: string,
     summary: string,
   ): string => `
-create or replace function ${fn(name)}(timesheet_id uuid${name === "reject_timesheet" ? ", note text default null" : ""})
+drop function if exists ${fn(name)}(uuid${name === "reject_timesheet" ? ", text" : ""});
+create or replace function ${fn(name)}(timesheet_id uuid${name === "reject_timesheet" ? ", note text default null" : ""}, decided_by uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -225,6 +232,10 @@ begin
   if not ${SERVICE_CALLER} and ${sheetMine("v_sheet")} then
     ${forbidden("you can't decide your own timesheet")}
   end if;
+  if ${name}.decided_by is not null and (not ${SERVICE_CALLER} and ${name}.decided_by is distinct from auth.uid()
+    or ${sheetOf("v_sheet", `${name}.decided_by`)}) then
+    ${forbidden("only the service role decides for another user, never for the owner")}
+  end if;
   if not ${is("v_sheet", ["submitted"])} then
     ${fail("TIMESHEET_NOT_SUBMITTED", "only a submitted week can be decided", "55000")}
   end if;${
@@ -235,14 +246,14 @@ begin
     ${fail("TIMESHEET_IN_APPROVAL", "this week is decided through its approval request", "55000")}
   end if;`
   }
-  update ${timesheets} s set ${t("status")} = ${value(status)}${status === "approved" ? `, ${t("approvedAt")} = now()` : ""}${decide(name === "reject_timesheet" ? "reject_timesheet.note" : "null")}
+  update ${timesheets} s set ${t("status")} = ${value(status)}${status === "approved" ? `, ${t("approvedAt")} = now()` : ""}${decide(name === "reject_timesheet" ? "reject_timesheet.note" : "null", `${name}.decided_by`)}
     where s.${t("id")} = v_sheet.${t("id")}
     returning * into v_sheet;
   ${timesheetRecord(event, "v_sheet", summary)}
   return ${json("v_sheet")};
 end;
 $$;
-${userGrant(`${fn(name)}(uuid${name === "reject_timesheet" ? ", text" : ""})`)}
+${userGrant(`${fn(name)}(uuid${name === "reject_timesheet" ? ", text" : ""}, uuid)`)}
 `;
 
   return `-- One member's week: the timesheet (status open when there is none yet),
@@ -376,7 +387,6 @@ end;
 $$;
 ${userGrant(`${fn("submit_timesheet")}(${ctx.idType}, date, text${ownerType})`)}
 
-drop function if exists ${fn("approve_timesheet")}(uuid);
 ${decision("approve_timesheet", "approved", "timesheet.approved", "approved a timesheet")}${
     linked === undefined
       ? ""

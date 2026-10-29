@@ -183,6 +183,12 @@ export interface TimesheetDetail<
   readonly totals: TimesheetTotals;
 }
 
+/** `approve` and `reject` options. */
+export interface TimesheetDecisionOptions {
+  /** The user who decided, for a service role client. */
+  readonly decidedBy?: string;
+}
+
 export interface TimesheetListOptions {
   /** Another member's timesheets; needs `time_tracking.read`. */
   readonly userId?: string;
@@ -239,14 +245,23 @@ export interface TimeTracking<F extends object = Record<never, never>> {
   reopen(timesheetId: string): AsyncResult<Timesheet>;
   /**
    * With `options.approvals: false`: approves a submitted week; needs
-   * `time_tracking.approve`, and nobody approves their own.
+   * `time_tracking.approve`, and nobody approves their own. A service role
+   * client may pass `decidedBy` to record the user who decided, never the
+   * week's owner.
    */
-  approve(timesheetId: string): AsyncResult<Timesheet>;
+  approve(
+    timesheetId: string,
+    options?: TimesheetDecisionOptions,
+  ): AsyncResult<Timesheet>;
   /**
    * With `options.approvals: false`: sends a submitted week back with a note,
-   * which unlocks it.
+   * which unlocks it. `decidedBy` works as in `approve`.
    */
-  reject(timesheetId: string, note?: string): AsyncResult<Timesheet>;
+  reject(
+    timesheetId: string,
+    note?: string,
+    options?: TimesheetDecisionOptions,
+  ): AsyncResult<Timesheet>;
   /** Newest week first. */
   timesheets(options?: TimesheetListOptions): AsyncResult<readonly Timesheet[]>;
 }
@@ -564,14 +579,23 @@ export function createTimeTracking<
           (value) => timesheetOf(value, "submit_timesheet"),
         ),
       ),
-    approve: (timesheetId) =>
-      call("approve_timesheet", { timesheet_id: timesheetId }, (value) =>
-        timesheetOf(value, "approve_timesheet"),
+    approve: (timesheetId, decision = {}) =>
+      call(
+        "approve_timesheet",
+        {
+          timesheet_id: timesheetId,
+          ...optional("decided_by", decision.decidedBy),
+        },
+        (value) => timesheetOf(value, "approve_timesheet"),
       ),
-    reject: (timesheetId, note) =>
+    reject: (timesheetId, note, decision = {}) =>
       call(
         "reject_timesheet",
-        { timesheet_id: timesheetId, note: note ?? null },
+        {
+          timesheet_id: timesheetId,
+          note: note ?? null,
+          ...optional("decided_by", decision.decidedBy),
+        },
         (value) => timesheetOf(value, "reject_timesheet"),
       ),
     reopen: (timesheetId) =>

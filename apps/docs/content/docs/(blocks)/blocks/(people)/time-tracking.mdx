@@ -122,7 +122,10 @@ A timesheet keeps its state in a `status` column (`open`, `submitted`,
 `submit(week, note)` sets `submitted` and locks the week; a member with
 `time_tracking.approve` calls `approve(id)` or `reject(id, note)`
 (`approve_timesheet` and `reject_timesheet` in SQL), never on their own week,
-and a rejection unlocks it again and records `timesheet.rejected`.
+and a rejection unlocks it again and records `timesheet.rejected`. The service
+role decides for a user with `{ decidedBy }` (`decided_by` in SQL), which is
+kept in the `decidedBy` column; a member passing someone else, or `decidedBy`
+naming the week's owner, fails with the forbidden error.
 `reopen(id)` turns an approved or rejected week back to `open`. Over your own
 timesheets table, map `approval` to `null`.
 

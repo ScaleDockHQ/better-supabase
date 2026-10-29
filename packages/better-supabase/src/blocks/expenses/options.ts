@@ -36,6 +36,12 @@ export type ExpensesSqlOptions = {
    * of the approve permission.
    */
   readonly policy?: unknown;
+  /**
+   * `"manager"`: the owner's manager (the employees block) decides through
+   * `decideExpense` and `decideExpenseReport` too, next to holders of the
+   * approve permission. Default `"permission"`.
+   */
+  readonly approver?: "permission" | "manager";
 };
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
@@ -48,4 +54,7 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
     withdrawApproved: option.boolean({ default: false }),
     standaloneApprovals: option.boolean({ default: false }),
     policy: option.unknown(),
+    approver: option.string<"permission" | "manager">({
+      default: "permission",
+    }),
   });

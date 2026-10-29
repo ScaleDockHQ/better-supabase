@@ -95,6 +95,8 @@ policies: {
 
 With `required: "all"` and only `approvers.permission`, the request asks every holder of the permission in the organization (the requester only with `selfApproval`), resolved to `users` when it is filed; nobody holding it fails with `APPROVAL_APPROVERS_EMPTY`. It needs an access model that lists holders (the roles or catalog model, or a provider or custom model with `holdersOf`).
 
+A `required: "all"` step completes once each listed user has approved, either themselves or through a delegate they handed their place to. Approvals by anyone else don't count toward it, so a delegate's approval stands in for the user who delegated and never for another listed user. After the step escalates, the fallback approvers' approvals count toward the number of listed users instead.
+
 Policies are fixed per subject type and action. To pick one by the record's values, such as the finance chain for an expense over 500, give each chain its own action and let a tenant-edited [rule](/docs/blocks/automations#actions) choose it: `approvalsAction` from `better-supabase/blocks/automations` files the request for the action in the matching rule's `config.action`.
 
 ## Confirm or authorize
@@ -176,7 +178,7 @@ const needed = await db.approvals
   .orThrow();
 ```
 
-Each step of a tenant policy has its own quorum, checked the same way as the config: `required` is a whole number of at least 1 or `"all"`. On a step that only lists `users`, a number above the number of users fails with `APPROVAL_POLICY_INVALID`, and `"all"` is saved as that number, so `listPolicies` returns `required: 2` for two users.
+Each step of a tenant policy has its own quorum, checked the same way as the config: `required` is a whole number of at least 1 or `"all"`. On a step that only lists `users`, a number above the number of users fails with `APPROVAL_POLICY_INVALID`, and `"all"` is saved as that number with `all: true`, so `listPolicies` returns `required: 2, all: true` for two users. A tenant can't set `all` itself; the save strips it from every other step.
 
 Saving and removing a policy needs `approvals.manage` and goes to the audit log; `listPolicies` needs `approvals.read`. `requirement(subjectType, action, payload)` returns the merged policy for a payload, or `null` when nothing is required, so the app can run the action without a request. `request` refuses a request nothing requires with `APPROVAL_NOT_REQUIRED`.
 

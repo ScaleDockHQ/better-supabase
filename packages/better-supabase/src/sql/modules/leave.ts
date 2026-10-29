@@ -16,6 +16,7 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
+import { managerDecides } from "./direct-approver.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
   LEAVE_CONTRIBUTES,
@@ -121,17 +122,23 @@ function build(ctx: BlockSqlContext): string {
   const invalid = (message: string): string =>
     fail("LEAVE_INVALID", message, "22023");
 
+  // Without approvals, the block's own requests table has no approval column.
+  const missing = approvals === undefined ? "requests.approval" : "";
+
+  const has = (table: string, logical: string): boolean =>
+    ctx.has(table, logical) && `${table}.${logical}` !== missing;
+
   // A column of row, or null when the app maps it to null.
   const or = (table: string, row: string, logical: string): string =>
-    ctx.has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
+    has(table, logical) ? `${row}.${ctx.col(table, logical)}` : "null";
 
   // ", <column>" for an insert's column list, when the column exists.
   const also = (table: string, logical: string): string =>
-    ctx.has(table, logical) ? `, ${ctx.col(table, logical)}` : "";
+    has(table, logical) ? `, ${ctx.col(table, logical)}` : "";
 
   // ", <value>" matching also().
   const alsoValue = (table: string, logical: string, value: string): string =>
-    ctx.has(table, logical) ? `, ${value}` : "";
+    has(table, logical) ? `, ${value}` : "";
 
   // A column definition, left out when the app maps the column to null.
   const column = (
@@ -243,9 +250,17 @@ function build(ctx: BlockSqlContext): string {
   const decision = (column: string, value: string): string =>
     ctx.has("requests", column) ? `, ${q(column)} = ${value}` : "";
 
+  const manager = managerDecides(ctx, "blocks.leave.options", {
+    requester: owner.requester("v_row"),
+    tenant: `v_row.${q("tenant")}`,
+    ...(ctx.has("requests", "employee")
+      ? { employee: `v_row.${q("employee")}::text` }
+      : {}),
+  });
+
   const decide = `
 -- Approves or rejects a pending request without the approvals block, as the
--- service role or an approver who didn't ask; approval books the leave.
+-- service role or an approver who didn't ask; approval books the leave.${manager ? "\n-- The requester's manager decides as well (options.approver)." : ""}
 drop function if exists ${fn("decide_leave_request")}(uuid, boolean, text);
 create or replace function ${fn("decide_leave_request")}(request_id uuid, approved boolean, note text default null, decided_by uuid default null)
 returns jsonb
@@ -260,7 +275,7 @@ begin
   if not found then
     ${fail("LEAVE_REQUEST_NOT_FOUND", "leave request not found", "P0002")}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${q("tenant")}`, approve)} and ${owner.requester("v_row")} is distinct from auth.uid())) or (decide_leave_request.decided_by is not null and (not ${SERVICE_CALLER} and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = ${owner.requester("v_row")})) then
+  if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${q("tenant")}`, approve)}${manager}) and ${owner.requester("v_row")} is distinct from auth.uid())) or (decide_leave_request.decided_by is not null and (not ${SERVICE_CALLER} and decide_leave_request.decided_by is distinct from auth.uid() or decide_leave_request.decided_by = ${owner.requester("v_row")})) then
     ${forbidden("not allowed to decide this leave request; only the service role decides for another user, never for the requester")}
   end if;
   if not (${pendingIn("v_row", "")}) then
@@ -528,7 +543,7 @@ ${
 
   // ", v_old.<column>" when the requests table has the column.
   const copied = (logical: string): string =>
-    ctx.has("requests", logical) ? `, v_old.${q(logical)}` : "";
+    has("requests", logical) ? `, v_old.${q(logical)}` : "";
 
   const ownerFromRow = owner.employee
     ? `

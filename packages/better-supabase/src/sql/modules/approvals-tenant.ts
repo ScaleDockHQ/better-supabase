@@ -335,12 +335,13 @@ revoke execute on function ${signature} from public, anon, authenticated;${paylo
 
 /**
  * `steps` with `required: "all"` on a step that only lists users replaced by
- * their count, as the config parser does.
+ * their count and marked `all`, as the config parser does. A tenant can't set
+ * `all` itself.
  */
 const allUsersCounted = (
   steps: string,
 ): string => `(select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
-    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) || '{"all": true}'::jsonb else s - 'all' end order by o), '[]'::jsonb)
     from jsonb_array_elements(${steps}) with ordinality e(s, o))`;
 
 /**

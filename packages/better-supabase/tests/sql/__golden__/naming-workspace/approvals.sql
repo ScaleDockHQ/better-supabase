@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:3afb3e8ad99eeb4a6213a5e4237ac20b6fbeada644db190457846dca2602d3c6
+-- @bsb-hash sha256:a902a186262cac4f5133314cf604fca3dd2228cd4c6282f4a87c4c67fe4ef2cd
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -266,7 +266,7 @@ begin
   if exists (select 1 from jsonb_array_elements(coalesce(v_policy -> 'steps', '[]'::jsonb)) e where e.value -> 'required' = '"all"'::jsonb) then
     v_policy := jsonb_set(v_policy, '{steps}', (
       select jsonb_agg(case when e.value -> 'required' = '"all"'::jsonb
-        then e.value || jsonb_build_object('approvers', jsonb_build_object('users', h.users), 'required', jsonb_array_length(h.users), 'permission', e.value -> 'approvers' ->> 'permission')
+        then e.value || jsonb_build_object('approvers', jsonb_build_object('users', h.users), 'required', jsonb_array_length(h.users), 'all', true, 'permission', e.value -> 'approvers' ->> 'permission')
         else e.value end order by e.ordinality)
       from jsonb_array_elements(v_policy -> 'steps') with ordinality e
       left join lateral (
@@ -395,7 +395,7 @@ begin
     end if;
   end loop;
   v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
-    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) || '{"all": true}'::jsonb else s - 'all' end order by o), '[]'::jsonb)
     from jsonb_array_elements(v_steps) with ordinality e(s, o));
   v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
   if approval_policy_tighten.base is null then
@@ -525,7 +525,9 @@ revoke execute on function "better_supabase"."consume_approval"(uuid, text) from
 grant execute on function "better_supabase"."consume_approval"(uuid, text) to authenticated, service_role;
 
 -- Approves or rejects the current step. Enough approvals move the request
--- to the next step, and the last step runs the policy's action. The service
+-- to the next step, and the last step runs the policy's action. A step marked
+-- all needs an approval from each named approver or their delegate until it
+-- escalates. The service
 -- role decides for the user in decided_by, who is recorded as the approver;
 -- it skips the approver check, never the requester's.
 drop function if exists "better_supabase"."decide_approval"(uuid, text, text);
@@ -597,7 +599,22 @@ begin
       update "better_supabase"."approval_requests" r set "status" = 'approved', "decided_at" = now()
         where r."id" = v_req."id" returning * into v_req;
       perform "better_supabase"."approval_finalize"(v_req."id");
-    elsif v_count >= coalesce((v_req."policy" -> 'steps' -> v_req."step" ->> 'required')::integer, 1) then
+    elsif (case when coalesce((v_req."policy" -> 'steps' -> v_req."step" ->> 'all')::boolean, false)
+        and not coalesce((v_req."policy" -> 'steps' -> v_req."step" ->> 'escalated')::boolean, false)
+      then jsonb_array_length(coalesce(v_req."policy" -> 'steps' -> v_req."step" -> 'approvers' -> 'users', '[]'::jsonb)) > 0
+        and not exists (
+          select 1 from jsonb_array_elements_text(v_req."policy" -> 'steps' -> v_req."step" -> 'approvers' -> 'users') u(id)
+          where not exists (
+            select 1 from "better_supabase"."approval_decisions" x
+            where x."request_id" = v_req."id" and x."step" = v_req."step" and x."decision" = 'approved'
+              and (x."approver" = u.id::uuid or exists (
+                select 1 from "better_supabase"."approval_decisions" y
+                where y."request_id" = x."request_id" and y."step" = x."step" and y."decision" = 'delegated'
+                  and y."approver" = u.id::uuid and y."delegate_to" = x."approver"
+              ))
+          )
+        )
+      else v_count >= coalesce((v_req."policy" -> 'steps' -> v_req."step" ->> 'required')::integer, 1) end) then
       if v_req."step" + 1 >= jsonb_array_length(v_req."policy" -> 'steps') then
         update "better_supabase"."approval_requests" r set "status" = 'approved', "decided_at" = now()
           where r."id" = v_req."id" returning * into v_req;

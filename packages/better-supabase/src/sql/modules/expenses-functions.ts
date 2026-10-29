@@ -14,6 +14,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import { managerDecides } from "./direct-approver.ts";
 import {
   expenseKey,
   expenseStandaloneSql,
@@ -183,7 +184,11 @@ as $$
 declare
   v_row ${reports}%rowtype;
 begin${loadReport("decide_expense_report.report_id", true)}
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${r("tenant")}`, approve)} and v_row.${r("user")} is distinct from auth.uid())) then
+  if not (${SERVICE_CALLER} or ((${ctx.can("tenant", `v_row.${r("tenant")}`, approve)}${managerDecides(
+    ctx,
+    "blocks.expenses.options",
+    { requester: `v_row.${r("user")}`, tenant: `v_row.${r("tenant")}` },
+  )}) and v_row.${r("user")} is distinct from auth.uid())) then
     ${forbidden("not allowed to decide this expense report")}
   end if;
   if decide_expense_report.decided_by is not null and (not ${SERVICE_CALLER} and decide_expense_report.decided_by is distinct from auth.uid()
