@@ -108,9 +108,9 @@ msgid "Compliance"
 msgstr "Compliance"
 
 #: src/app/[locale]/(app)/compliance/page.tsx
-msgctxt "compliance.aN_4X-"
-msgid "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
-msgstr "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
+msgctxt "compliance.My7cmz"
+msgid "What you are asked to read, how each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
+msgstr "What you are asked to read, how each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
 
 #: src/app/[locale]/(app)/courses/[courseId]/page.tsx
 #: src/features/courses/components/course-outline.tsx
@@ -1085,6 +1085,71 @@ msgstr "Balance"
 msgctxt "accounting.MJ2jZQ"
 msgid "Total"
 msgstr "Total"
+
+#: src/features/acknowledgements/components/acknowledge-button.tsx
+msgctxt "acknowledgements.wTNNiL"
+msgid "Acknowledged {title}"
+msgstr "Acknowledged {title}"
+
+#: src/features/acknowledgements/components/acknowledge-button.tsx
+msgctxt "acknowledgements.6MSwYP"
+msgid "I've read it"
+msgstr "I've read it"
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.4266QP"
+msgid "Your reading list didn't load"
+msgstr "Your reading list didn't load"
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.hNh-jK"
+msgid "Nothing to read"
+msgstr "Nothing to read"
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.x-knY3"
+msgid "When an admin asks you to acknowledge a policy, it shows here until you confirm you read its current version."
+msgstr "When an admin asks you to acknowledge a policy, it shows here until you confirm you read its current version."
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.3txESY"
+msgid "Read the acknowledgements guide"
+msgstr "Read the acknowledgements guide"
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.cCJqyU"
+msgid "To read"
+msgstr "To read"
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.nPC1ME"
+msgid "{count, plural, one {# record waits} other {# records wait}} for you to confirm you read the current version."
+msgstr "{count, plural, one {# record waits} other {# records wait}} for you to confirm you read the current version."
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.hhBMH5"
+msgid "Untitled {type}"
+msgstr "Untitled {type}"
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.f-CjYA"
+msgid "Overdue since {date}"
+msgstr "Overdue since {date}"
+
+#: src/features/acknowledgements/components/acknowledgement-inbox.tsx
+msgctxt "acknowledgements.5vDqi-"
+msgid "Due {date}"
+msgstr "Due {date}"
 
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.or3Lzc"

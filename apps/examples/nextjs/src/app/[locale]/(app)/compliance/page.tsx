@@ -3,6 +3,10 @@ import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import {
+  AcknowledgementInbox,
+  AcknowledgementInboxSkeleton,
+} from "@/features/acknowledgements/components/acknowledgement-inbox";
+import {
   ContractRenewals,
   ContractRenewalsSkeleton,
 } from "@/features/compliance/components/contract-renewals";
@@ -20,9 +24,14 @@ export default function CompliancePage() {
       <PageHeader
         title={t("Compliance")}
         description={t(
-          "How each framework's controls stand, the evidence that is due, and the contracts coming up for renewal.",
+          "What you are asked to read, how each framework's controls stand, the evidence that is due, and the contracts coming up for renewal.",
         )}
       />
+      <Suspense fallback={<AcknowledgementInboxSkeleton />}>
+        <PermissionGate permission="acknowledgements.acknowledge">
+          <AcknowledgementInbox />
+        </PermissionGate>
+      </Suspense>
       <Suspense fallback={<ControlPostureSkeleton />}>
         <PermissionGate permission="compliance.read">
           <ControlPosture />

@@ -442,6 +442,18 @@ export default defineConfig({
     shifts: {},
     // Double-entry books with a chart, journals, periods and reports.
     accounting: {},
+    // Members acknowledge the current version of each policy they are
+    // assigned, directly, through a team or through their role.
+    acknowledgements: {
+      on: {
+        policy: {
+          table: "better_supabase.policies",
+          idType: "uuid",
+          tenant: "tenant_id",
+          versionColumn: "current_version_id",
+        },
+      },
+    },
     incidents: {},
     reminders: {},
     "drive-files": {},
