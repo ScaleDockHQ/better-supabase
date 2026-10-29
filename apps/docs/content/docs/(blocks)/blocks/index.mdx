@@ -111,10 +111,11 @@ whose `uses` names none.
 
 ### Contributions
 
-Five generic blocks take work from the blocks around them: `approvals`
-(subjects to approve), `bulk` (named actions), `pipelines` (record
-types with stages), `share-links` (subjects to share) and `subjects` (summary
-counts and my-work rows). The block that has the records declares what it
+Seven generic blocks take work from the blocks around them: `approvals`
+(subjects to approve), `bulk` (named actions), `numbering` (number
+sequences), `pipelines` (record types with stages), `relations` (kinds of
+link), `share-links` (subjects to share) and `subjects` (summary counts and
+my-work rows). The block that has the records declares what it
 gives in its definition's `contributes`, so the generic block never names its
 consumers. `leave`, for example, contributes the `leave_request` subject and
 its approve function to `approvals`.

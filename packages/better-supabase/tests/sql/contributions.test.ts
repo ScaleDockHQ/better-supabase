@@ -1,7 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import type { BlockContributes } from "../../src/sql/contributions.ts";
 
 import { resolveConfig } from "../../src/config/resolve.ts";
 import { moduleLayout } from "../../src/sql/layout.ts";
+import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
 type Blocks = NonNullable<Parameters<typeof resolveConfig>[0]["blocks"]>;
@@ -80,6 +83,62 @@ describe("block contributions", () => {
 
     expect(pipelines).toContain("'work_item'");
     expect(pipelines).toContain("'ticket'");
+  });
+
+  describe("relation kinds", () => {
+    const tags = SQL_MODULES["tags"];
+    const original = tags?.contributes;
+
+    beforeEach(() => {
+      const contributes: BlockContributes = {
+        ...original,
+        relations: (own) => [
+          {
+            kind: "tagged_from",
+            inverse: "tagged_into",
+            types: { source: [own.naming.rename("tag")] },
+          },
+          { kind: "blocks", symmetric: true },
+        ],
+      };
+
+      Reflect.set(tags ?? {}, "contributes", contributes);
+    });
+
+    afterEach(() => {
+      Reflect.set(tags ?? {}, "contributes", original);
+    });
+
+    const relations = (options: Record<string, unknown> = {}): string =>
+      sqlOf(render({ relations: { options }, tags: {} }), "relations");
+
+    it("adds a contributed kind next to the app's kinds", () => {
+      const sql = relations();
+
+      expect(sql).toContain(
+        `('tagged_from', 'tagged_from', false, false, false, false, 'tagged_into')`,
+      );
+      expect(sql).toContain(
+        `('tagged_into', 'tagged_from', true, false, false, false, 'tagged_from')`,
+      );
+      expect(sql).toContain(
+        `if v_kind = 'tagged_from' and not (v_source_type in ('tag')) then`,
+      );
+      expect(sqlOf(render({ relations: {} }), "relations")).not.toContain(
+        "tagged_from",
+      );
+    });
+
+    it("keeps the app's kind of the same name", () => {
+      expect(relations()).toContain(
+        `('blocks', 'blocks', false, true, false, false, 'blocked_by')`,
+      );
+      expect(
+        relations({ kinds: { tagged_from: { cardinality: "one" } } }),
+      ).toContain(
+        `('tagged_from', 'tagged_from', false, false, true, false, 'tagged_from')`,
+      );
+    });
   });
 
   it("refuses two contributions of one subject type", () => {

@@ -104,6 +104,50 @@ describe("relations module", () => {
     );
   });
 
+  it("checks the subject types a kind names, in the stored direction", () => {
+    expect(sqlOf()).not.toContain("RELATION_TYPE_NOT_ALLOWED");
+
+    const sql = sqlOf(
+      withOptions({
+        kinds: {
+          affects: { inverse: "affected_by", types: { source: ["case"] } },
+          mitigated_by: {
+            types: { source: ["risk"], target: ["control", "task"] },
+          },
+          pairs: { symmetric: true, types: { source: ["a"], target: ["b"] } },
+        },
+      }),
+    );
+
+    expect(sql).toContain(
+      `if v_kind = 'affects' and not (v_source_type in ('case')) then`,
+    );
+    expect(sql).toContain(
+      `if v_kind = 'mitigated_by' and not (v_source_type in ('risk') and v_target_type in ('control', 'task')) then`,
+    );
+    expect(sql).toContain(
+      `if v_kind = 'pairs' and not ((v_source_type in ('a') and v_target_type in ('b')) or (v_target_type in ('a') and v_source_type in ('b'))) then`,
+    );
+    expect(sql).toContain(
+      "using errcode = '22023', hint = 'RELATION_TYPE_NOT_ALLOWED';",
+    );
+  });
+
+  it("rejects malformed types", () => {
+    expect(() =>
+      sqlOf(withOptions({ kinds: { x: { types: ["case"] } } })),
+    ).toThrow(/source and target/);
+    expect(() =>
+      sqlOf(withOptions({ kinds: { x: { types: { from: ["case"] } } } })),
+    ).toThrow(/not an option. Options: source, target/);
+    expect(() =>
+      sqlOf(withOptions({ kinds: { x: { types: { source: [] } } } })),
+    ).toThrow(/non-empty list/);
+    expect(() =>
+      sqlOf(withOptions({ kinds: { x: { types: { target: ["Case"] } } } })),
+    ).toThrow(/non-empty list/);
+  });
+
   it("guards the definer writes and renders nothing in custom mode", () => {
     expect(sqlOf()).toContain("actor_may_write");
     expect(sqlOf({ modules: { relations: { mode: "custom" } } })).toBe("");

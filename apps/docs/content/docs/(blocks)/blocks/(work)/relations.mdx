@@ -46,6 +46,20 @@ blocks: {
 | `acyclic`     | Refuses a link whose target already reaches its source through links of the same kind            |
 | `cardinality` | `one`: a source has at most one target; a new link replaces the old one                          |
 | `symmetric`   | The link reads the same from both ends and is stored once                                        |
+| `types`       | `{ source, target }`: the subject types each end accepts. A left-out end accepts any type        |
+
+`types` names the ends in the stored direction, so `link` checks them after
+an inverse name has swapped the ends. A symmetric kind accepts either order.
+A link whose ends don't match fails with `RELATION_TYPE_NOT_ALLOWED`:
+
+```ts title="better-supabase.config.ts"
+kinds: {
+  mitigated_by: {
+    inverse: "mitigates",
+    types: { source: ["risk"], target: ["control", "task"] },
+  },
+},
+```
 
 A link reads "source kind target": `link("parent", issue, epic)` makes the
 epic the issue's parent, and `link("blocks", design, build)` means design
@@ -57,6 +71,17 @@ The subjects come from `config.subjects`, or from `on` with the
 same shape. Both ends must exist in the organization and be readable by the
 caller, and linking needs `relations.manage`. A subject with `cascade: true`
 deletes its links when its row is deleted.
+
+## Kinds from other blocks
+
+A block that needs its own kind of link contributes it to `relations`, the
+same way blocks contribute number sequences to `numbering`. Installing both
+adds the kind next to yours (or next to the four defaults when you don't set
+`kinds`), with the subject types the block names after its entity names.
+Declare a kind with the same name in `kinds` to replace the contributed one;
+your entry wins as a whole, including its `types`. Two blocks that contribute
+the same kind to one `relations` instance fail at render time; point one
+instance's `uses.relations` at another `relations` instance.
 
 ## Link and unlink
 
@@ -109,6 +134,7 @@ that reverses the change, including putting a replaced parent back. See
 | `RELATION_FORBIDDEN`         | The caller lacks `relations.manage`                      |
 | `RELATION_SUBJECT_FORBIDDEN` | An end is missing, in another organization or unreadable |
 | `RELATION_KIND_UNKNOWN`      | The kind is not declared                                 |
+| `RELATION_TYPE_NOT_ALLOWED`  | An end's subject type is not in the kind's `types`       |
 | `RELATION_SELF`              | Both ends are the same record                            |
 | `RELATION_CYCLE`             | The link would close a cycle of an acyclic kind          |
 | `RELATION_INVALID`           | `data` is not an object                                  |
