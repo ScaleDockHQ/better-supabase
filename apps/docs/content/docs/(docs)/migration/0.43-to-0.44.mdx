@@ -1,0 +1,113 @@
+---
+title: From 0.43 to 0.44
+description: What to check when upgrading from better-supabase 0.43 to 0.44, where bootstrap reports the live authorization version, native apps follow role changes and PowerSync reconnects on them.
+---
+
+0.44.0 lets iOS and Android apps follow a role change the way an open browser
+tab already does, and reconnects PowerSync so the device drops the rows the
+user lost. The bootstrap call now reports the user's live authorization
+version instead of the token's, which is the one change that can need code.
+The rest adds options.
+
+| Section                                                       | Needs code                                  |
+| ------------------------------------------------------------- | ------------------------------------------- |
+| [Bootstrap versions](#bootstrap-versions)                     | When you read `authzVersion` as the token's |
+| [The SQL modules](#the-sql-modules)                           | Run `upgrade` and generate a migration      |
+| [Native apps](#native-apps)                                   | Optional                                    |
+| [PowerSync](#powersync)                                       | Only for a connector that caches its token  |
+| [Expo loaders](#expo-loaders)                                 | Optional                                    |
+| [Emulators on the local stack](#emulators-on-the-local-stack) | Optional                                    |
+| [Approvals and timeline](#approvals-and-timeline)             | Check tenant policies and timeline filters  |
+
+## Bootstrap versions
+
+`bsb.bootstrap()` and `bsb.getAccess(boot)` returned the token's `authz_ver`
+as `authzVersion`. They now return the live version, read in the same query,
+and add the token's next to it.
+
+| 0.43                                      | 0.44                                     |
+| ----------------------------------------- | ---------------------------------------- |
+| `boot.authzVersion` (the token's version) | `boot.tokenAuthzVersion`                 |
+| no field                                  | `boot.authzVersion` (the live version)   |
+| no field                                  | `boot.stale` (the live version is ahead) |
+
+Permission checks from `getAccess(boot)` use the live version, so a role taken away since sign-in is gone on the next render. Code
+that compared `authzVersion` with the token's claim to detect a change can read
+`stale` instead.
+
+An authorization provider that keeps its own versions can now name its
+function in `versions: { function }`. The sessions module reads it and creates
+no `user_authz_versions` table.
+
+## The SQL modules
+
+The bootstrap wrappers read `better_supabase.caller_authz_version()`, which
+returns only the caller's version. Approvals and timeline functions change too
+(below). Regenerate the module SQL and the migration:
+
+```sh
+npx better-supabase@latest upgrade
+npx better-supabase@latest db diff -f upgrade_0_44
+```
+
+## Native apps
+
+Render the native `SessionProvider` inside `<BetterSupabaseProvider>`:
+
+```tsx title="src/app/_layout.native.tsx"
+import { SessionProvider } from "better-supabase/react/native";
+import { AppState } from "react-native";
+
+<SessionProvider appState={AppState} powersync={sync}>
+  <Stack />
+</SessionProvider>;
+```
+
+It needs `blocks.sessions.options.authzVersions`. Apps without React call
+`startNativeAuthzRefresh` from `better-supabase/client/native`.
+[Authorization refresh on native](/docs/frontend/authorization-refresh-native)
+covers both.
+
+## PowerSync
+
+`syncWithAuth` now reconnects when a new token for the same user carries
+another tenant or `authz_ver`, and returns an `AuthSync`: the same cleanup
+function, with a `reconnect()` method. Code that called the return value keeps
+working.
+
+A connector whose `fetchCredentials` caches the first token reconnects with the
+old claims. Read the current session on every call, as
+`createUploadConnector` does. Pass `tenantClaim` when `config.claims.tenant` is
+renamed.
+
+`better-supabase powersync streams` writes streams for blocks that run over
+the app's own tables (`blocks.<name>.tables`). It reads their columns from
+the saved snapshot, so run `better-supabase gen --save-snapshot` first.
+
+## Expo loaders
+
+`createExpo` gains `bsb.bootstrap(request, { rpc })`, `bsb.getAccess(request,
+{ bootstrap })` and `bsb.cached(request, { tables })`. Every server gains
+`bootstrapFor` and `accessFor`, and the `bootstrapSchema` option. See
+[Expo Router](/docs/frameworks/expo#reading-the-session-and-the-page-data-in-one-call).
+
+## Emulators on the local stack
+
+When the project URL is local, the default issuer check accepts `127.0.0.1`,
+`localhost`, `[::1]`, `10.0.2.2` and `10.0.3.2` on the same scheme, port and
+path. Remove an `issuer: false` you added for the Android emulator, and list a
+phone's LAN address in `auth.loopbackAliases`.
+
+## Approvals and timeline
+
+A tenant approval step that names only users now rejects a numeric `required`
+above the number of users, the same check the config makes, and saves `"all"`
+as that number. A saved policy that breaks the rule keeps working; saving it
+again returns the error.
+
+Timeline entries for messages in a record's comment thread have the type
+`comment.posted`; other conversations stay `message.sent`. With the read-time
+`state-machine` or `messaging` sources on, a stored `status.changed`,
+`message.sent` or `comment.posted` entry that the same source also returns is
+left out, so it appears once. Update filters that matched `message.sent` for
+comments.
