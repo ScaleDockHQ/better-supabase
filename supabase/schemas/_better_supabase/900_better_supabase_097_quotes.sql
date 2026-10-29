@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:0f7f681fffe6891267ef029e42287852a040e0eb7bc54beca446c4cb23e78224
+-- @bsb-hash sha256:0dda20cd8b981b0fabe695ee6feede4bfc34b84eb46ead03fab3087722908cab
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -751,7 +751,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
-  if not (v_row."status" in ('draft', 'changes_requested')) then
+  if not (v_row."status" in ('draft', 'changes_requested') or v_row."status" in ('rejected', 'withdrawn', 'expired')) then
     raise exception 'the quote was already sent; revise it to send a new version' using errcode = '55000', hint = 'QUOTE_NOT_EDITABLE';
   end if;
   if not exists (select 1 from "better_supabase"."quote_lines" x where x."parent_id" = v_row."id") then
@@ -778,7 +778,7 @@ begin
   end;
   update "better_supabase"."quotes" x set "status" = 'sent', "sent_at" = now(), "token_hash" = encode(extensions.digest(v_token, 'sha256'), 'hex'),
     "revision" = case when exists (select 1 from "better_supabase"."quote_versions" v where v."quote_id" = x."id" and v."revision" = x."revision") then x."revision" + 1 else x."revision" end,
-    "decided_at" = null, "decided_by" = null, "decision_note" = null, "decided_user_id" = null, "decided_ip" = null, "decided_user_agent" = null, "updated_at" = now()
+    "decided_at" = null, "decided_by" = null, "decision_note" = null, "decided_user_id" = null, "decided_ip" = null, "decided_user_agent" = null, "valid_until" = case when x."status" in ('rejected', 'withdrawn', 'expired') then greatest(x."valid_until", current_date + 30) else x."valid_until" end, "viewed_at" = case when x."status" in ('rejected', 'withdrawn', 'expired') then null else x."viewed_at" end, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   insert into "better_supabase"."quote_versions" ("tenant_id", "quote_id", "revision", "snapshot", "total", "currency", "published_by")
@@ -849,8 +849,8 @@ $$;
 revoke execute on function "better_supabase"."revise_quote"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."revise_quote"(uuid, jsonb) to authenticated, service_role;
 
--- Takes back a sent quote the customer hasn't accepted: it can't be answered
--- any more until it is revised and sent again.
+-- Takes back a sent or expired quote the customer hasn't accepted: it can't
+-- be answered any more until it is revised and sent again.
 create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -867,7 +867,7 @@ begin
   if v_row."id" is null then
     raise exception 'no such quote you can edit' using errcode = 'P0002', hint = 'QUOTE_NOT_FOUND';
   end if;
-  if v_row."status" not in ('sent', 'viewed', 'changes_requested') then
+  if v_row."status" not in ('sent', 'viewed', 'changes_requested', 'expired') then
     raise exception 'only a sent quote that wasn''t answered is withdrawn' using errcode = '55000', hint = 'QUOTE_NOT_OPEN';
   end if;
   if withdraw_quote.actor is not null then
@@ -1015,6 +1015,8 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."quotes";
+  v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_ip inet;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1023,6 +1025,12 @@ begin
   if v_row."id" is null then
     raise exception 'this link is not valid' using errcode = 'P0002', hint = 'QUOTE_LINK_INVALID';
   end if;
+  begin
+    v_ip := left(nullif(trim(reverse(split_part(reverse(v_headers ->> 'x-forwarded-for'), ',', 1))), ''), 64)::inet;
+  exception when invalid_text_representation then
+    v_ip := null;
+  end;
+  perform set_config('better_supabase.transition_actor', jsonb_strip_nulls(jsonb_build_object('email', auth.jwt() ->> 'email', 'ip', v_ip::text, 'userAgent', left(v_headers ->> 'user-agent', 512)))::text, true);
   if v_row."status" = 'sent' then
     update "better_supabase"."quotes" x set "status" = 'viewed', "viewed_at" = now() where x."id" = v_row."id"
     returning * into v_row;
@@ -1161,8 +1169,10 @@ grant execute on function "better_supabase"."respond_to_quote"(text, text, text,
 -- A quote shared with the signed-in guest, as the customer sees it: through
 -- a grant on the quote or as a guest of its company or contact. Opening a
 -- sent quote marks it viewed. No link token is needed. The service role
--- reads it too, for an app's own portal.
-create or replace function "better_supabase"."portal_quote"(quote uuid)
+-- reads it too, for an app's own portal; actor is then the customer who
+-- opened it, for the state machine's history.
+drop function if exists "better_supabase"."portal_quote"(uuid);
+create or replace function "better_supabase"."portal_quote"(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1170,9 +1180,33 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."quotes";
+  v_headers jsonb := nullif(current_setting('request.headers', true), '')::jsonb;
+  v_ip inet;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if portal_quote.actor is not null and not (auth.role() = 'service_role') then
+    raise exception 'only the service role names who opened a quote' using errcode = '42501', hint = 'QUOTE_ACTOR_FORBIDDEN';
+  end if;
+  if portal_quote.actor is not null then
+    if jsonb_typeof(portal_quote.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(portal_quote.actor ->> 'ip', '')::inet, nullif(portal_quote.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'QUOTE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(portal_quote.actor::text, ''), true);
+  if portal_quote.actor is null then
+    begin
+      v_ip := left(nullif(trim(reverse(split_part(reverse(v_headers ->> 'x-forwarded-for'), ',', 1))), ''), 64)::inet;
+    exception when invalid_text_representation then
+      v_ip := null;
+    end;
+    perform set_config('better_supabase.transition_actor', jsonb_strip_nulls(jsonb_build_object('email', auth.jwt() ->> 'email', 'ip', v_ip::text, 'userAgent', left(v_headers ->> 'user-agent', 512)))::text, true);
   end if;
   select * into v_row from "better_supabase"."quotes" x where x."id" = portal_quote.quote and ((x."status" <> 'draft' and (((x."tenant_id")::text, ('quote')::text, (x."id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or ((x."tenant_id")::text, (x."company_type")::text, (x."company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or ((x."tenant_id")::text, (x."contact_type")::text, (x."contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) or ((auth.role() = 'service_role') and x."status" <> 'draft'));
   if v_row."id" is null then
@@ -1196,8 +1230,8 @@ begin
     'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."portal_quote"(uuid) from public, anon;
-grant execute on function "better_supabase"."portal_quote"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."portal_quote"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."portal_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- The signed-in guest's answer to a quote shared with them, like
 -- respond_to_quote without a token. name defaults to their email; the
@@ -1370,6 +1404,7 @@ declare
   v_row "better_supabase"."quotes";
   v_count integer := 0;
 begin
+  perform set_config('better_supabase.transition_actor', '', true);
   for v_row in
     update "better_supabase"."quotes" x set "status" = 'expired', "updated_at" = now()
     where x."status" in ('sent', 'viewed') and x."valid_until" < current_date
@@ -1538,6 +1573,7 @@ drop function if exists "api"."revise_quote"(uuid);
 drop function if exists "api"."decide_quote"(uuid, text, text, text);
 drop function if exists "api"."decide_quote"(uuid, text, text, text, jsonb);
 drop function if exists "api"."respond_to_quote"(text, text, text, text);
+drop function if exists "api"."portal_quote"(uuid);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -1638,14 +1674,14 @@ as $$ select "better_supabase"."respond_to_quote"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."respond_to_quote"(text, text, text, text, jsonb) from public;
 grant execute on function "api"."respond_to_quote"(text, text, text, text, jsonb) to anon, authenticated, service_role;
 
-create or replace function "api"."portal_quote"(quote uuid)
+create or replace function "api"."portal_quote"(quote uuid, actor jsonb default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."portal_quote"($1) $$;
-revoke execute on function "api"."portal_quote"(uuid) from public, anon;
-grant execute on function "api"."portal_quote"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."portal_quote"($1, $2) $$;
+revoke execute on function "api"."portal_quote"(uuid, jsonb) from public, anon;
+grant execute on function "api"."portal_quote"(uuid, jsonb) to authenticated, service_role;
 
 create or replace function "api"."respond_to_portal_quote"(quote uuid, decision text, name text, note text, selected jsonb default null)
 returns jsonb

@@ -344,7 +344,8 @@ export default defineConfig({
     // Call recordings on ai-files, with transcripts and notes. Confirmed
     // bookings show up as meetings on the booker's contact.
     activities: { options: { recordings: true, bookings: true } },
-    quotes: {},
+    // A rejected, withdrawn or expired quote is sent again in one call.
+    quotes: { options: { resend: true } },
     goals: {},
     "state-machine": {
       options: {
@@ -394,7 +395,16 @@ export default defineConfig({
     employees: { names: { employee: { url: "/people" } } },
     hiring: {},
     "time-tracking": {},
-    invoices: {},
+    // Fixed deposit invoices and a discount on the invoice header.
+    invoices: {
+      columns: {
+        invoices: {
+          depositAmount: "deposit_amount",
+          discountBps: "discount_bps",
+          discountAmount: "discount_amount",
+        },
+      },
+    },
     catalog: { names: { product: { url: "/shop" } } },
     inventory: {},
     // The kitchen display and order board under /shop/kitchen.
