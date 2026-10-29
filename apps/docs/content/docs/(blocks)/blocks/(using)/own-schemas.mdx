@@ -66,6 +66,10 @@ may be your own enum or domain.
   - `better_supabase.accounting_dimension_values`: `id`, `tenant_id`, `dimension_id`, `code`, `name`, `archived_at`
   - `better_supabase.accounting_fx_rates`: `tenant_id`, `base`, `quote`, `on_date`, `rate`, `created_at`
   - `better_supabase.accounting_tax_codes`: `id`, `tenant_id`, `code`, `name`, `rate_bps`, `kind`, `account_id`, `report_boxes`, `archived_at`, `created_at`, `updated_at`
+- `acknowledgements`
+  - `better_supabase.acknowledgement_assignments`: `id`, `tenant_id`, `subject_type`, `subject_id`, `principal_type`, `principal_id`, `due_in_days`
+  - `better_supabase.acknowledgements`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `user_id`, `acknowledged_at`
+  - `better_supabase.acknowledgement_notices`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version_id`, `user_id`, `notified_at`
 - `activities`
   - `better_supabase.engagements`: `id`, `tenant_id`, `type`, `title`, `body`, `outcome`, `owner_user_id`, `due_at`, `done_at`, `created_at`; typed: `type`
   - `better_supabase.engagement_subjects`: `tenant_id`, `engagement_id`, `subject_type`, `subject_id`
