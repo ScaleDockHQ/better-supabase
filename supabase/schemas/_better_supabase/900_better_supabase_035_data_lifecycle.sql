@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:8e8d0b135189bb4b00a669706cc7735e580bee16b0605cb33d7682474e862a30
+-- @bsb-hash sha256:80f174698934303d3ab17bc5edd2e24b90ed22f18b6014e76e75d4a3579179ae
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -537,6 +537,9 @@ as $$
     ('user', 'better_supabase.post_boards', '"better_supabase"."post_boards"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.posts', '"better_supabase"."posts"', 'author_id', true, '{}'::text[], true),
     ('user', 'better_supabase.content_entries', '"better_supabase"."content_entries"', 'author_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.cases', '"better_supabase"."cases"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.acknowledgement_assignments', '"better_supabase"."acknowledgement_assignments"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'organization_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'public.memberships', '"public"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true),
@@ -844,7 +847,12 @@ as $$
     ('organization', 'better_supabase.lead_score_checks', '"better_supabase"."lead_score_checks"', 'tenant_id', true, '{}'::text[], false),
     ('organization', 'better_supabase.post_boards', '"better_supabase"."post_boards"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.posts', '"better_supabase"."posts"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.content_entries', '"better_supabase"."content_entries"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.content_entries', '"better_supabase"."content_entries"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.case_kinds', '"better_supabase"."case_kinds"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.cases', '"better_supabase"."cases"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.case_actions', '"better_supabase"."case_actions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.acknowledgement_assignments', '"better_supabase"."acknowledgement_assignments"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
@@ -946,7 +954,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -976,7 +984,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -1190,7 +1198,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'data_lifecycle.delete'), false) then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -1243,7 +1251,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'data_lifecycle.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()

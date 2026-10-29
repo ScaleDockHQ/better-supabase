@@ -3,6 +3,7 @@
 export { applicationRecord } from "./application.ts";
 export { bookingRecord } from "./booking.ts";
 export { calendarEventRecord } from "./calendar-event.ts";
+export { caseRecord } from "./case.ts";
 export { changeRequestRecord } from "./change-request.ts";
 export { channelRecord } from "./channel.ts";
 export { companyRecord } from "./company.ts";

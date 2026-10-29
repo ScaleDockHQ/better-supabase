@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:2055a2182db6c5838c2397f57ea89739af2b58d0d33dc95caabff1f020be61ca
+-- @bsb-hash sha256:de73fc10b9ff85729dce20db9e0f02d01b3a5b92475fda0221da476a76f6a88e
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -85,7 +85,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -455,7 +455,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -485,7 +485,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -665,7 +665,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'data_lifecycle.delete'), false) then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -710,7 +710,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'data_lifecycle.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
@@ -955,7 +955,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:1ae66a15cf1b71f61d54df342c625c5894c179f8556bfd8bcdb6712d2e494e96
+-- @bsb-hash sha256:629612e4a096696910e327f95934197ece05c5b41330f1f8d6184934d46ab101
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1039,7 +1039,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -1485,6 +1485,9 @@ as $$
     ('user', 'better_supabase.post_boards', '"better_supabase"."post_boards"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.posts', '"better_supabase"."posts"', 'author_id', true, '{}'::text[], true),
     ('user', 'better_supabase.content_entries', '"better_supabase"."content_entries"', 'author_id', true, '{}'::text[], true),
+    ('user', 'better_supabase.cases', '"better_supabase"."cases"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.acknowledgement_assignments', '"better_supabase"."acknowledgement_assignments"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'organization_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'organization_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true),
@@ -1806,7 +1809,12 @@ as $$
     ('organization', 'better_supabase.lead_score_checks', '"better_supabase"."lead_score_checks"', 'tenant_id', true, '{}'::text[], false),
     ('organization', 'better_supabase.post_boards', '"better_supabase"."post_boards"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.posts', '"better_supabase"."posts"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.content_entries', '"better_supabase"."content_entries"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.content_entries', '"better_supabase"."content_entries"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.case_kinds', '"better_supabase"."case_kinds"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.cases', '"better_supabase"."cases"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.case_actions', '"better_supabase"."case_actions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.acknowledgement_assignments', '"better_supabase"."acknowledgement_assignments"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
@@ -1907,7 +1915,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -1937,7 +1945,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -2151,7 +2159,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'data_lifecycle.delete'), false) then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -2205,7 +2213,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'data_lifecycle.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
@@ -2474,7 +2482,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:02a989d70143c05e1d7f196e84324a8c7a2e497bb4007690be662446cc360c02
+-- @bsb-hash sha256:9a17dc50d981f59786f66f036cb070b91c83b0cadeaa7a48712ca4b36ac79e00
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2563,7 +2571,7 @@ grant all on "app_private"."data_exports" to service_role;
 drop policy if exists data_exports_read on "app_private"."data_exports";
 create policy data_exports_read on "app_private"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -2933,7 +2941,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "app_private"."data_export_object_allowed"(text) from public, anon;
@@ -2963,7 +2971,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "app_private"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -3143,7 +3151,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'data_lifecycle.delete'), false) then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -3188,7 +3196,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'data_lifecycle.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "app_private"."organization_deletions" x set "cancelled_at" = now()
@@ -3433,7 +3441,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:ec3bff004737a2995457880e054bcafc9559e6572cccbfb8948f63ce72f2e856
+-- @bsb-hash sha256:4174bf3e794e3eb04396ab19bd6edf077cf2fb64076c4c827780f2548223542f
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3517,7 +3525,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -3887,7 +3895,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -3917,7 +3925,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -4097,7 +4105,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'data_lifecycle.delete'), false) then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -4142,7 +4150,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'data_lifecycle.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
@@ -4667,7 +4675,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:cd99103e2218072c6280bc18e0b4cf13a4a25b86e35c2ef73c7a963201c9a7e8
+-- @bsb-hash sha256:7dbc20e4fd321fcc9ca0cc53e3c0c1c2397d7102c262260d48baf9bd6ff52dc8
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4763,7 +4771,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists bsb_data_exports_select on "better_supabase"."data_exports";
 create policy bsb_data_exports_select on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -5127,7 +5135,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -5157,7 +5165,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -5337,7 +5345,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'data_lifecycle.delete'), false) then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -5382,7 +5390,7 @@ begin
   if v_row."organization_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'data_lifecycle.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
@@ -5627,7 +5635,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:b043c1baafd1bf929635cf59c86b7d089a5481238d1dd286d81306993e9b24b9
+-- @bsb-hash sha256:692952f84e9ab74978829e6adfa553b391191884a463394616ec8f50eb64f39d
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5711,7 +5719,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -6081,7 +6089,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."org_id" is not null and coalesce(better_supabase.can('tenant', x."org_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."org_id" is not null and coalesce(better_supabase.can('tenant', x."org_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -6111,7 +6119,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."org_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -6291,7 +6299,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'organization.delete'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', request_organization_deletion.tenant, 'data_lifecycle.delete'), false) then
     raise exception 'You may not delete this organization' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   if request_organization_deletion.grace < interval '0' then
@@ -6336,7 +6344,7 @@ begin
   if v_row."org_id" is null then
     return null;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'organization.delete'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_organization_deletion.tenant, 'data_lifecycle.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."organization_deletions" x set "cancelled_at" = now()
