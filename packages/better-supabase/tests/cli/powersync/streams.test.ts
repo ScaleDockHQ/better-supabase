@@ -185,3 +185,51 @@ describe("powersyncOutput refusals", () => {
     ).toThrow(/needs the memberships block/);
   });
 });
+
+describe("powersyncOutput over the app's tables", () => {
+  const adopted = powersyncOutput({
+    files: [],
+    instances: [{ key: "memberships", block: "memberships" }],
+    own: new Map([
+      [
+        "memberships",
+        new Map([
+          [
+            "public.memberships",
+            new Map([
+              ["organization_id", "uuid"],
+              ["user_id", "uuid"],
+              ["role", "text"],
+            ]),
+          ],
+        ]),
+      ],
+      [
+        "organizations",
+        new Map([
+          [
+            "public.organizations",
+            new Map([
+              ["id", "uuid"],
+              ["name", "text"],
+              ["seats", "int4"],
+            ]),
+          ],
+        ]),
+      ],
+    ]),
+    importFrom: "@powersync/common",
+  });
+
+  it("streams an adopted memberships table and its organizations", () => {
+    expect(adopted.streams).toContain(
+      `query: "SELECT organization_id || ':' || user_id AS id, * FROM public.memberships WHERE user_id = auth.user_id()"`,
+    );
+    expect(adopted.streams).toContain(
+      'query: "SELECT id, name FROM public.organizations WHERE id IN (SELECT organization_id FROM public.memberships WHERE user_id = auth.user_id())"',
+    );
+    expect(adopted.publication).toContain(
+      "('public.memberships'), ('public.organizations')",
+    );
+  });
+});

@@ -319,6 +319,69 @@ export function writtenByBlocks(source: {
  * module migration created, mapped to `database`. Without a snapshot, the app's
  * schema files and migrations stand in for it.
  */
+/** The config's snapshot as a catalog, or `undefined` without one. */
+async function snapshotCatalog(
+  config: ResolvedConfig,
+): Promise<ReturnType<typeof toCatalog> | undefined> {
+  const path = config.source.snapshot;
+
+  if (path === undefined || !existsSync(resolve(config.root, path))) {
+    return undefined;
+  }
+
+  try {
+    return toCatalog(
+      await parseSnapshot(
+        JSON.parse(await readFile(resolve(config.root, path), "utf-8")),
+        path,
+      ),
+    );
+  } catch (cause) {
+    // Reading a snapshot's metadata needs the optional typegen peer; without
+    // it, the migrations still name the app's tables.
+    if (cause instanceof TypegenMissingError) {
+      return undefined;
+    }
+
+    throw cause;
+  }
+}
+
+/**
+ * The column types of `tables` (`schema.table`) in the config's snapshot, by
+ * table and column: `uuid`, `int4`, `text[]`. A table the snapshot lacks is
+ * left out.
+ */
+export async function snapshotColumnTypes(
+  config: ResolvedConfig,
+  tables: readonly string[],
+): Promise<ReadonlyMap<string, ReadonlyMap<string, string>>> {
+  const wanted = new Set(tables);
+  const found = new Map<string, ReadonlyMap<string, string>>();
+
+  if (wanted.size === 0) {
+    return found;
+  }
+
+  for (const table of (await snapshotCatalog(config))?.tables ?? []) {
+    const name = `${table.schema}.${table.name}`;
+
+    if (wanted.has(name)) {
+      found.set(
+        name,
+        new Map(
+          table.columns.map((column) => [
+            column.name,
+            column.isArray ? `${column.udt}[]` : column.udt,
+          ]),
+        ),
+      );
+    }
+  }
+
+  return found;
+}
+
 async function databaseTables(
   config: ResolvedConfig,
 ): Promise<{
@@ -338,27 +401,10 @@ async function databaseTables(
     indexes: {},
   };
 
-  const path = config.source.snapshot;
+  const catalog = await snapshotCatalog(config);
 
-  if (path === undefined || !existsSync(resolve(config.root, path))) {
+  if (catalog === undefined) {
     return none;
-  }
-
-  let snapshot;
-
-  try {
-    snapshot = await parseSnapshot(
-      JSON.parse(await readFile(resolve(config.root, path), "utf-8")),
-      path,
-    );
-  } catch (cause) {
-    // Reading a snapshot's metadata needs the optional typegen peer; without
-    // it, the migrations still name the app's tables.
-    if (cause instanceof TypegenMissingError) {
-      return none;
-    }
-
-    throw cause;
   }
 
   const created = blockDeclaredTables(
@@ -382,7 +428,7 @@ async function databaseTables(
   const policies: Record<string, readonly CatalogPolicy[]> = {};
   const indexes: Record<string, readonly OwnIndex[]> = {};
 
-  for (const table of toCatalog(snapshot).tables) {
+  for (const table of catalog.tables) {
     const name = `${table.schema}.${table.name}`;
 
     if (config.schemas.includes(table.schema) && !created.has(name)) {
