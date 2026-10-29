@@ -1,5 +1,54 @@
 # better-supabase
 
+## 0.45.0
+
+### Minor Changes
+
+- [#549](https://github.com/ScaleDockHQ/better-supabase/pull/549) [`5fbf545`](https://github.com/ScaleDockHQ/better-supabase/commit/5fbf545c7f63c427765213ed46cd1fbea0a16a7b) Thanks [@mick340](https://github.com/mick340)! - Adopter gaps, round 45: quotes over an app table with a fixed customer column and no list or discount totals, product ids of the column's own type, reasons on quote and payment status changes, a switch for the quote owner notification, and a text or inet IP column in an app's state machine history.
+  
+  - Quotes: with `columns.quotes.companyType: null` (or `contactType: null`), the id column holds one fixed type, `options.company` (or `contact`). `create` and `update` write the id in the column's own type and refuse another type (`QUOTE_COMPANY_UNSUPPORTED`), reads return the type, and invoices' `fromQuote` carries the customer to the invoice.
+  - Quotes: `listTotal` and `discountTotal` may map to `null`, as on invoices; reads return the subtotal and a zero discount.
+  - Quotes: `withdraw(quoteId, { reason })` (SQL: `withdraw_quote(quote, actor, reason)`) and the note of `decide` go to the state machine's history as the reason.
+  - Quotes: `decide` without `by` or an actor leaves `decidedBy` empty instead of the caller's user id.
+  - Quotes: `options.notifications: false` turns off the `quote.decided` owner notification; when sent, it carries the quote as its `subject_label`.
+  - Quotes and other line tables: a line table without a product type column keeps the product id when a version is restored, and `setLines` writes the id in the column's own type, such as `uuid`.
+  - Invoices: `recordPayment(invoiceId, { reason })` (SQL: a trailing `reason` on `record_invoice_payment`) is the history's reason for the status change a payment or refund causes.
+  - State machine: an app history table's `ip` column may be `text` or `inet`; a mapped `ip` no longer makes every transition fail.
+
+- [#540](https://github.com/ScaleDockHQ/better-supabase/pull/540) [`ca99403`](https://github.com/ScaleDockHQ/better-supabase/commit/ca994037ba6cd83b85164d32b034b702e425c4a6) Thanks [@martijn00](https://github.com/martijn00)! - Small block additions for quality management:
+  
+  - `settings`: `better_supabase.organization_setting(tenant, key)` returns one organization setting to other modules' security definer functions. Only `service_role` and the module schema's owner may execute it.
+  - `employees`: every employee event carries `userId` (null for an employee without an account), `employee.offboarded` included. `EmployeeEventData.userId` is now `string | null` instead of optional.
+  - `courses`: a course takes `validForMonths` (1 to 240), and its certificates get `expiresAt`. `verifyCertificate` returns `expired` and `expiresAt`, and an expired certificate is no longer `valid`. `course_certificate.issued` carries `expiresAt`.
+  - `signatures`: `request` takes a `meaning`, one of `blocks.signatures.options.meanings` (default `authored`, `reviewed`, `approved`, `released`, `acknowledged`). Requests return it and `signature.completed` carries it; another value fails with `SIGNATURE_REQUEST_MEANING_UNKNOWN`.
+  - `compliance`: a framework has a `kind` (`standard`, `legal`, `internal` or `contract`), and a control takes a `source` and a `jurisdiction`, for legal registers.
+  
+  Run `better-supabase upgrade` and generate a migration to add the columns and the new function signatures.
+
+- [#543](https://github.com/ScaleDockHQ/better-supabase/pull/543) [`5bb7018`](https://github.com/ScaleDockHQ/better-supabase/commit/5bb70186a8138b4f278378ea91896d560e44318b) Thanks [@martijn00](https://github.com/martijn00)! - Encrypted app table columns can be searched by an exact value, and the `bsn`, `iban` and `phone_e164` formats check identifiers as they are written. Run `better-supabase upgrade` and generate a migration.
+  
+  - Lookups: `lookup: true` on an encrypted column (or the `@bsb lookup <column>` tag) adds a `<column>_lookup bytea` column with an index. The seal trigger fills it with an HMAC-SHA256 of the value, trimmed of spaces and lowercased, under a per-owner lookup key kept in Vault next to the data key. `public.<table>_find(column, value)` returns the ids of the rows the caller reaches whose value matches, and `better_supabase.field_lookup(owner, value)` gives the service role the hash to compare itself.
+  - Crypto-shredding: `drop_field_key(owner)` deletes the owner's lookup key with the data key, so no lookup finds the shredded values.
+  - Formats: `bsn` (9 digits that pass the elfproef), `iban` (ISO 13616, mod 97) and `phone_e164` join the format registry for app table columns and custom fields. App tables check them in the column check or the seal trigger; `set_field_value` raises `FIELD_VALUE_INVALID` for a custom field value that fails. The SQL functions `bsb_valid_bsn(text)` and `bsb_valid_iban(text)` are created where they are used.
+  - `SPEC_PINS.iso13616` pins the ISO 13616-1 edition the IBAN check follows.
+
+- [#546](https://github.com/ScaleDockHQ/better-supabase/pull/546) [`c11b54c`](https://github.com/ScaleDockHQ/better-supabase/commit/c11b54c5c397230c1db10416d97b4f7d81eced3f) Thanks [@martijn00](https://github.com/martijn00)! - With `relations` installed, the `contacts` block contributes the relation kind `represents` (inverse `represented_by`) from a person to any record: a guardian, parent, mentor or emergency contact. Each link carries a `role` and an `authority` (`inform` or `act`) in its data, with optional `valid_from` and `valid_until` dates, and `link` refuses other data with `RELATION_DATA_INVALID`. `db.contacts.representativesOf(type, id)` lists a record's representatives, and `representedByMe(organizationId)` lists the records a guest's person represents.
+  
+  The `guests` block takes `options.representation: { subjects: ["client"] }`. A guest who acts for a person then reaches the records of those types that the person actively represents: `read` with `authority: "inform"`, plus `comment` and `upload` with `authority: "act"`. The access follows the links live, so a link that ends closes the record without touching your grants.
+  
+  Blocks that contribute a relation kind can now attach a check on the link's data; declaring a kind of the same name in `kinds` replaces the check too.
+
+### Patch Changes
+
+- [#542](https://github.com/ScaleDockHQ/better-supabase/pull/542) [`2454002`](https://github.com/ScaleDockHQ/better-supabase/commit/24540028726deaf7bce24199423f30fc61c63db6) Thanks [@martijn00](https://github.com/martijn00)! - Block docs pages and catalog entries now use the block names. The
+  `service-principals-table` UI recipe is now `service-accounts-table`, and the
+  old docs and recipe URLs redirect. The `idempotency`, `rate-limit` and
+  `webhook-inbox` blocks move from the developer category to automation, next
+  to `queue`, which ships them. Every block now has a docs page, including
+  `grants`, `mfa`, `subjects`, `reserved-slugs`, `jsonb-schemas`, `pgtap`,
+  `realtime-tables`, `rls-guard`, `permissions`, `sessions`, `impersonation`,
+  `read-sets` and `credentials`.
+
 ## 0.44.0
 
 ### Minor Changes
