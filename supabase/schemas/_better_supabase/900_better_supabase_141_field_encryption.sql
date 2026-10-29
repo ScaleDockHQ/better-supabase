@@ -1,7 +1,7 @@
 -- better-supabase module: field-encryption
 -- @bsb-block field-encryption@1 managed
--- @bsb-hash sha256:403b62f9be8a6efeed0612b75630129ed156a98eab7cfcd87a818e91cdd85c43
--- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; drop_field_key deletes a key so its values can no longer be read.
+-- @bsb-hash sha256:b8e55f6bb9ee5d4bcaa15161120eba3ad496688fc29e9090c9cd1abbace494ac
+-- Encrypts app table columns and custom field values at rest with a data key per tenant, user or app, kept in Supabase Vault as bs:field-key:<owner>. Only security definer read paths that check the caller's scope decrypt; a lookup column keeps an HMAC of the value under the owner's lookup key for equality searches; drop_field_key deletes both keys so the values can no longer be read or found.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -10,9 +10,10 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 create extension if not exists pgcrypto with schema extensions;
 
 -- Field data keys live only in Vault, one per owner (tenant:<id>, user:<id>
--- or app), as bs:field-key:<owner>. No API role calls field_key, field_seal
--- or field_open; security definer functions of app tables and custom fields
--- do, after they check the caller's scope.
+-- or app), as bs:field-key:<owner>, and the lookup keys next to them as
+-- bs:field-lookup-key:<owner>. No API role calls field_key, field_lookup_key,
+-- field_seal, field_open or field_hash; security definer functions of app
+-- tables and custom fields do, after they check the caller's scope.
 create or replace function "better_supabase"."field_key"(owner text, make boolean default true)
 returns text
 language plpgsql
@@ -41,6 +42,35 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."field_key"(text, boolean) from public, anon, authenticated, service_role;
+
+create or replace function "better_supabase"."field_lookup_key"(owner text, make boolean default true)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_key text;
+begin
+  if field_lookup_key.owner is null or length(field_lookup_key.owner) = 0 then
+    raise exception 'a field key needs an owner' using errcode = '22023', hint = 'FIELD_KEY_OWNER';
+  end if;
+  select ds.decrypted_secret into v_key from vault.decrypted_secrets ds
+  where ds.name = 'bs:field-lookup-key:' || field_lookup_key.owner;
+  if v_key is not null or not field_lookup_key.make then
+    return v_key;
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('bs:field-lookup-key:' || field_lookup_key.owner, 0));
+  select ds.decrypted_secret into v_key from vault.decrypted_secrets ds
+  where ds.name = 'bs:field-lookup-key:' || field_lookup_key.owner;
+  if v_key is null then
+    v_key := encode(extensions.gen_random_bytes(32), 'base64');
+    perform vault.create_secret(v_key, 'bs:field-lookup-key:' || field_lookup_key.owner, 'better-supabase field lookup key');
+  end if;
+  return v_key;
+end;
+$$;
+revoke execute on function "better_supabase"."field_lookup_key"(text, boolean) from public, anon, authenticated, service_role;
 
 -- Encrypts a value with a data key: bsf1: then base64 of an OpenPGP message.
 create or replace function "better_supabase"."field_seal"(key text, value text)
@@ -71,6 +101,20 @@ as $$
   end
 $$;
 revoke execute on function "better_supabase"."field_open"(text, text) from public, anon, authenticated, service_role;
+
+-- The lookup hash of a value: HMAC-SHA256 of the value, lowercased and
+-- without whitespace, under a lookup key. null without a key or a value.
+create or replace function "better_supabase"."field_hash"(key text, value text)
+returns bytea
+language sql
+immutable
+set search_path = ''
+as $$
+  select case when field_hash.key is null or field_hash.value is null then null
+    else extensions.hmac(convert_to(lower(regexp_replace(field_hash.value, '\s', '', 'g')), 'UTF8'), decode(field_hash.key, 'base64'), 'sha256')
+  end
+$$;
+revoke execute on function "better_supabase"."field_hash"(text, text) from public, anon, authenticated, service_role;
 
 -- Encrypts a value with the owner's key, creating the key on first use.
 create or replace function "better_supabase"."field_encrypt"(owner text, value text)
@@ -106,8 +150,28 @@ $$;
 revoke execute on function "better_supabase"."field_decrypt"(text, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."field_decrypt"(text, text) to service_role;
 
--- Deletes an owner's key, so every value encrypted with it reads as null
--- (crypto-shredding, for example after a tenant is erased).
+-- The lookup hash of a value under the owner's lookup key, to compare with a
+-- <column>_lookup column; null when the owner has no lookup key.
+create or replace function "better_supabase"."field_lookup"(owner text, value text)
+returns bytea
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if field_lookup.value is null then
+    return null;
+  end if;
+  return "better_supabase"."field_hash"("better_supabase"."field_lookup_key"(field_lookup.owner, false), field_lookup.value);
+end;
+$$;
+revoke execute on function "better_supabase"."field_lookup"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."field_lookup"(text, text) to service_role;
+
+-- Deletes an owner's data key and lookup key, so every value encrypted with
+-- them reads as null and no lookup finds it (crypto-shredding, for example
+-- after a tenant is erased).
 create or replace function "better_supabase"."drop_field_key"(owner text)
 returns boolean
 language plpgsql
@@ -118,7 +182,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role drops field keys' using errcode = '42501', hint = 'FIELD_KEY_FORBIDDEN';
   end if;
-  delete from vault.secrets s where s.name = 'bs:field-key:' || drop_field_key.owner;
+  delete from vault.secrets s where s.name in ('bs:field-key:' || drop_field_key.owner, 'bs:field-lookup-key:' || drop_field_key.owner);
   if not found then
     return false;
   end if;
@@ -157,6 +221,15 @@ set search_path = ''
 as $$ select "better_supabase"."field_decrypt"($1, $2) $$;
 revoke execute on function "api"."field_decrypt"(text, text) from public, anon, authenticated;
 grant execute on function "api"."field_decrypt"(text, text) to service_role;
+
+create or replace function "api"."field_lookup"(owner text, value text)
+returns bytea
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."field_lookup"($1, $2) $$;
+revoke execute on function "api"."field_lookup"(text, text) from public, anon, authenticated;
+grant execute on function "api"."field_lookup"(text, text) to service_role;
 
 create or replace function "api"."drop_field_key"(owner text)
 returns boolean

@@ -1452,7 +1452,7 @@ Turns a per-table feature on or off with its @bsb tag in the table comment, in t
 Arguments
   <table>    The table, as name or schema.name
   <action>   enable or disable
-  <feature>  The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, server, events or vector-search
+  <feature>  The feature: realtime, audit, audit-reads, subject, json, expose, encrypted, lookup, server, events or vector-search
 
 Options
   --dry-run  Print what would change, with a diff, and write nothing

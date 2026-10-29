@@ -58,10 +58,11 @@ function text(value: string | true | undefined): string | undefined {
  * `config` with the per-table features the schema's `@bsb` table comments turn
  * on (ADR 0102): `subject`, `realtime`, `vector-search`, `json` (`column=Type`,
  * or `column=import:module#Name`), `encrypted` (`column=type`, a bare column is
- * text) and `events` (`on`, `include`). `audit`, `audit-reads` and `expose`
- * change the table's SQL only, so `gen` has nothing to read from them. A key
- * the config sets itself wins, so a project can move to tags one table at a
- * time. Tables outside `config.schemas` are ignored.
+ * text), `lookup` (bare encrypted columns) and `events` (`on`, `include`).
+ * `audit`, `audit-reads` and `expose` change the table's SQL only, so `gen` has
+ * nothing to read from them. A key the config sets itself wins, so a project
+ * can move to tags one table at a time. Tables outside `config.schemas` are
+ * ignored.
  */
 export function withTableTags(
   config: ResolvedConfig,
@@ -152,6 +153,30 @@ export function withTableTags(
               ...existing,
               type,
               encrypted: true,
+            };
+
+            appTables[table.name] = {
+              ...own,
+              columns: { ...own?.columns, [column]: entry },
+            };
+
+            changed = true;
+          }
+        }
+      } else if (tag.name === "lookup" && table.schema === "public") {
+        for (const column of Object.keys(tag.args)) {
+          const own = appTables[table.name];
+          const existing = own?.columns?.[column];
+
+          const key = `${table.name}.${column}`;
+
+          if (existing === undefined || fromTags.has(key)) {
+            fromTags.add(key);
+
+            const entry: AppColumnConfig = {
+              type: "text",
+              ...existing,
+              lookup: true,
             };
 
             appTables[table.name] = {

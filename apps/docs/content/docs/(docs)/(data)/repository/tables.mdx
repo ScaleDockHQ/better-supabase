@@ -49,6 +49,7 @@ enable <feature>` writes a tag for you (see [table](/docs/cli/table)).
 | `json`          | Types the table's jsonb columns, `json meta=Type`.                                                       |
 | `expose`        | Exposes the table through the Data API.                                                                  |
 | `encrypted`     | Names the columns stored with field encryption, `encrypted diagnosis=text birth_date=date`.              |
+| `lookup`        | Names the encrypted columns that keep a lookup hash for equality searches, `lookup bsn email`.           |
 | `server`        | Names the columns signed-in users can't select, so `gen` types them as not selectable.                   |
 | `events`        | Writes `<type>.created`, `.updated` and `.deleted` to the outbox, `events include="status, project_id"`. |
 
@@ -83,6 +84,31 @@ leave it out of the readable shape.
 `encrypted` names the columns the [field encryption](/docs/blocks/field-encryption)
 block seals, each with its decrypted type. Add `audit-reads` to the tag
 list to audit reads of those columns.
+
+`lookup` names the encrypted columns that also keep `<column>_lookup bytea`,
+an HMAC of the value under the owner's lookup key, so
+`public.<table>_find(column, value)` finds rows with an equal value (see
+[Searching encrypted values](/docs/blocks/field-encryption#searching-encrypted-values)).
+Add the column and an index on it to the table file.
+
+## Identifier formats
+
+The `bsn`, `iban` and `phone_e164` formats check a column's value as it is
+written. `phone_e164` is the `bsb.phone_e164` domain, a `+`, a country code
+and at most 15 digits. `bsn` and `iban` need more than a pattern, so the
+column keeps a check that calls `public.bsb_valid_bsn(text)` (9 digits that
+pass the elfproef) or `public.bsb_valid_iban(text)` (the ISO 13616 electronic
+form, uppercase without spaces, whose mod 97 check is 1). `migrate
+schema-first` writes both functions to `_custom/app_tables.sql`.
+
+```sql title="supabase/schemas/public/tables/patients.sql"
+create table public.patients (
+  id uuid primary key default gen_random_uuid(),
+  bsn text check (public.bsb_valid_bsn(bsn)),
+  iban text check (public.bsb_valid_iban(iban)),
+  phone bsb.phone_e164
+);
+```
 
 ## Events
 

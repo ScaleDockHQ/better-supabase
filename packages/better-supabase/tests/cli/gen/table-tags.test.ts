@@ -195,6 +195,17 @@ describe("withTableTags", () => {
       access: "server",
     });
 
+    const looked = withTableTags(
+      config,
+      await tagged(name, "@bsb lookup bsn; encrypted bsn=text"),
+    );
+
+    expect(looked.appTables[name]?.columns?.["bsn"]).toEqual({
+      type: "text",
+      encrypted: true,
+      lookup: true,
+    });
+
     const named = withTableTags(
       config,
       await tagged(name, "@bsb subject type=thing; events"),

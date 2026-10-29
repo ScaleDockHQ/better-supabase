@@ -35,7 +35,15 @@ describe("field formats", () => {
       FIELD_FORMAT_NAMES.some((format) => format === type),
     );
 
-    expect(shared).toEqual(["email", "url", "rating", "currency"]);
+    expect(shared).toEqual([
+      "email",
+      "url",
+      "rating",
+      "currency",
+      "bsn",
+      "iban",
+      "phone_e164",
+    ]);
   });
 
   it("checks emails and urls with patterns Postgres and JavaScript agree on", () => {
