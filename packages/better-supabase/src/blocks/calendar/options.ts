@@ -52,6 +52,11 @@ export type CalendarSqlOptions = {
   readonly calendarDetails?: boolean;
   readonly ruleDialect?: CalendarRuleDialect;
   readonly readOnly?: CalendarReadOnly;
+  /**
+   * Alarms per calendar (`calendar_default_alarms`) that `save_calendar_event`
+   * copies onto a new event that sets no `alarms`. Needs the alarms table.
+   */
+  readonly defaultAlarms?: boolean;
 };
 
 export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
@@ -68,4 +73,5 @@ export const calendarSqlOptions: BlockOptionsSchema<CalendarSqlOptions> =
     calendarDetails: option.boolean({ default: false }),
     ruleDialect: option.unknown<CalendarRuleDialect>(),
     readOnly: option.unknown<CalendarReadOnly>(),
+    defaultAlarms: option.boolean({ default: false }),
   });

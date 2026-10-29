@@ -130,7 +130,26 @@ export type WorkItemField =
   | "dueAt"
   | "stageId"
   | "closeReason"
-  | "attachments";
+  | "attachments"
+  | "window";
+
+/**
+ * The value of a `window` change: both ends written in one update, so moving
+ * the window never fails the end-after-start check halfway. A key left out
+ * keeps its value, and `null` clears it.
+ */
+export interface WorkItemWindow {
+  readonly startAt?: Temporal.Instant | null;
+  readonly endAt?: Temporal.Instant | null;
+}
+
+export interface WorkItemUpdateOptions {
+  /**
+   * Keep every change or none: the first change that fails rolls the batch back
+   * and comes back as the error, instead of a `rejected` entry.
+   */
+  readonly atomic?: boolean;
+}
 
 /** A work item's repeat rule: an RFC 5545 RRULE from `dtstart` in `tzid`. */
 export interface WorkItemRecurrence {
@@ -248,6 +267,7 @@ export interface Tasks<F extends object = Record<never, never>> {
   /** Extra column changes are validated with the `fields` schema first. */
   update(
     changes: readonly WorkItemChange<F>[],
+    options?: WorkItemUpdateOptions,
   ): AsyncResult<WorkItemChangeResult>;
   /** Replaces the assignees; new ones are notified and every one watches. */
   assign(workItemId: string, userIds: readonly string[]): AsyncResult<number>;
@@ -333,6 +353,7 @@ const BUILT_IN: ReadonlySet<string> = new Set<WorkItemField>([
   "dueAt",
   "stageId",
   "closeReason",
+  "window",
 ]);
 
 const KNOWN = new Set([
@@ -600,7 +621,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           ).andThen(fields.row),
         );
     },
-    update: (changes) =>
+    update: (changes, updateOptions = {}) =>
       AsyncResult.from(async () => {
         for (const change of changes) {
           if (BUILT_IN.has(change.field)) {
@@ -622,8 +643,12 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             changes: checked.map((change) => ({
               workItemId: change.workItemId,
               field: change.field,
-              value: valueArg(change.value),
+              value:
+                change.field === "window" && isRecord(change.value)
+                  ? args(change.value)
+                  : valueArg(change.value),
             })),
+            ...(updateOptions.atomic === true ? { atomic: true } : {}),
           },
           (value) => {
             const row = recordOf(value, "update_work_items");

@@ -56,6 +56,7 @@ export const CALENDAR_NAMES: BlockSqlNames = {
     "calendarDetails",
     "ruleDialect",
     "readOnly",
+    "defaultAlarms",
   ],
   tables: {
     calendars: {
@@ -201,6 +202,23 @@ export const CALENDAR_NAMES: BlockSqlNames = {
         "summary",
         "createdAt",
       ],
+      typed: ["method"],
+    },
+    defaultAlarms: {
+      name: "calendar_default_alarms",
+      app: { onlyWhenMapped: true },
+      optionalTable: true,
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        calendar: "calendar_id",
+        allDay: "all_day",
+        method: "method",
+        offsetMinutes: "offset_minutes",
+        anchor: "anchor_time",
+        createdAt: "created_at",
+      },
+      optional: ["method", "anchor", "createdAt"],
       typed: ["method"],
     },
     workingHours: WORKING_HOURS_TABLE,

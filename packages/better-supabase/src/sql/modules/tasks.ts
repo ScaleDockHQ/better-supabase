@@ -468,7 +468,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "jsonb", "uuid[]"],
       returns: "jsonb",
     },
-    { name: "update_work_items", args: ["jsonb"], returns: "jsonb" },
+    { name: "update_work_items", args: ["jsonb", "boolean"], returns: "jsonb" },
     {
       name: "set_work_item_assignees",
       args: ["uuid", "uuid[]"],

@@ -1,11 +1,63 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { fail, serviceGrant } from "../shared.ts";
 
 interface Recorded {
   readonly logical: string;
   readonly arg: string;
   readonly cast?: (value: string) => string;
+}
+
+/**
+ * Whether the runs table keeps who a run's steps act as. An adopted table may
+ * leave both principal columns out; the run then reports the principal from its
+ * `bsb.principal_kind` and `bsb.principal` attributes.
+ */
+function principalColumns(ctx: BlockSqlContext): boolean {
+  return ctx.has("runs", "principalKind") && ctx.has("runs", "principalId");
+}
+
+export const WORKFLOW_RUN_STATUSES = [
+  "queued",
+  "running",
+  "waiting",
+  "completed",
+  "failed",
+  "cancelled",
+] as const;
+
+/** Who a run's steps act as: `principal_kind` on `workflow_runs`. */
+const PRINCIPAL_KINDS = [
+  "user",
+  "service_principal",
+  "system",
+  "external",
+] as const;
+
+/** The principal column statements of the runs table, empty without them. */
+export function principalColumnsSql(ctx: BlockSqlContext): string {
+  if (!principalColumns(ctx)) {
+    return "";
+  }
+
+  const r = ctx.table("runs");
+  const kind = ctx.col("runs", "principalKind");
+  const id = ctx.col("runs", "principalId");
+
+  return `alter table ${r} add column if not exists ${kind} text check (${kind} in (${PRINCIPAL_KINDS.map(sqlString).join(", ")}));
+alter table ${r} add column if not exists ${id} text check (length(${id}) between 1 and 200);`;
+}
+
+/** The `principalKind` and `principalId` pairs of a run's JSON. */
+export function principalJson(ctx: BlockSqlContext, alias: string): string {
+  const cr = (column: string): string => `${alias}.${ctx.col("runs", column)}`;
+
+  return principalColumns(ctx)
+    ? `'principalKind', ${cr("principalKind")},
+    'principalId', ${cr("principalId")}`
+    : `'principalKind', ${cr("attributes")} ->> 'bsb.principal_kind',
+    'principalId', ${cr("attributes")} ->> 'bsb.principal'`;
 }
 
 /**
@@ -18,6 +70,7 @@ export function recordWorkflowRunSql(ctx: BlockSqlContext): string {
   const r = ctx.table("runs");
   const cr = (column: string): string => ctx.col("runs", column);
   const linked = ctx.has("runs", "subjectType") && ctx.has("runs", "subjectId");
+  const principaled = principalColumns(ctx);
   const moded = ctx.has("runs", "mode");
   const nodded = ctx.has("runs", "triggerNode");
   const app = ctx.appOwned.includes("runs");
@@ -43,8 +96,12 @@ export function recordWorkflowRunSql(ctx: BlockSqlContext): string {
           { logical: "subjectId", arg: "subject_id" },
         ]
       : []),
-    { logical: "principalKind", arg: "principal_kind" },
-    { logical: "principalId", arg: "principal_id" },
+    ...(principaled
+      ? [
+          { logical: "principalKind", arg: "principal_kind" },
+          { logical: "principalId", arg: "principal_id" },
+        ]
+      : []),
     ...(moded
       ? [
           {
@@ -125,9 +182,13 @@ begin${
     ${cr("subjectType")} = case when x.${cr("subjectType")} is null then excluded.${cr("subjectType")} else x.${cr("subjectType")} end,
     ${cr("subjectId")} = case when x.${cr("subjectType")} is null then excluded.${cr("subjectId")} else x.${cr("subjectId")} end,`
         : ""
-    }
+    }${
+      principaled
+        ? `
     ${cr("principalKind")} = case when x.${cr("principalKind")} is null then excluded.${cr("principalKind")} else x.${cr("principalKind")} end,
-    ${cr("principalId")} = case when x.${cr("principalKind")} is null then excluded.${cr("principalId")} else x.${cr("principalId")} end,${nodded ? `\n    ${cr("triggerNode")} = coalesce(x.${cr("triggerNode")}, excluded.${cr("triggerNode")}),` : ""}
+    ${cr("principalId")} = case when x.${cr("principalKind")} is null then excluded.${cr("principalId")} else x.${cr("principalId")} end,`
+        : ""
+    }${nodded ? `\n    ${cr("triggerNode")} = coalesce(x.${cr("triggerNode")}, excluded.${cr("triggerNode")}),` : ""}
     ${cr("updatedAt")} = now()
   returning x.${cr("id")}${
     app

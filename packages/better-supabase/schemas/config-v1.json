@@ -4332,7 +4332,11 @@
                 "default": false
               },
               "ruleDialect": {},
-              "readOnly": {}
+              "readOnly": {},
+              "defaultAlarms": {
+                "type": "boolean",
+                "default": false
+              }
             }
           }
         }

@@ -130,6 +130,26 @@ ifAbsent? })`, `readFields(record)` and `deleteValue(id)`. Writing needs
 declares one (such as `fields: "product.update"`); a value that doesn't fit its type fails with
 `FIELD_VALUE_INVALID`.
 
+A record type can name its own tenant keys in `on.<type>.keys`, so the people
+who edit products also edit product fields without holding
+`custom_fields.manage`. `manage` replaces the key that writing and deleting
+the type's values ask for, and `read` the key that reading them asks for.
+Either can be left out, and types without `keys` keep the module's keys:
+
+```ts title="better-supabase.config.ts"
+on: {
+  product: {
+    table: "public.products",
+    idType: "uuid",
+    column: "product_id",
+    keys: { manage: "products.update", read: "products.read" },
+  },
+},
+```
+
+`keys` applies only to the keyed layout. A type with `readAccess: "record"`
+reads through the record instead, so its `keys.read` is not checked.
+
 A record type can keep its id in its own column of the values table instead
 of `subject_type` and `subject_id`, so the table keeps a real foreign key per
 record type. Name it in `on.<type>.column`; when every type in `on` names one,

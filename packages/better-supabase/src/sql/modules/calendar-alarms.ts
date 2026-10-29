@@ -7,13 +7,13 @@ import { calendarFeatures, eventAccessCall } from "./calendar-features.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /** RFC 5545 `ACTION` values the alarms table stores, in lowercase. */
-const ALARM_ACTIONS = ["display", "email", "audio"] as const;
+export const ALARM_ACTIONS = ["display", "email", "audio"] as const;
 
 /** A year either way, the bound `reminders` puts on its offsets too. */
-const TRIGGER_BOUND = 525_600;
+export const TRIGGER_BOUND = 525_600;
 
 /** At most this many alarms per event. */
-const ALARM_LIMIT = 20;
+export const ALARM_LIMIT = 20;
 
 const list = (values: readonly string[]): string =>
   `(${values.map((value) => `'${value}'`).join(", ")})`;

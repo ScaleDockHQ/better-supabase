@@ -163,6 +163,44 @@ export function alarmItem(alarm: CalendarAlarm): Record<string, unknown> {
 }
 
 /**
+ * A calendar's default alarm (`calendar_default_alarms`, with
+ * `options.defaultAlarms`): `save_calendar_event` copies the defaults onto a
+ * new event whose input sets no `alarms`.
+ */
+export interface CalendarDefaultAlarm {
+  readonly id?: string;
+  /** For all-day events; else for timed ones. Default `false`. */
+  readonly allDay?: boolean;
+  /** The `ACTION`. Default `display`. */
+  readonly method?: CalendarAlarmAction;
+  /**
+   * Minutes before the start of a timed event, or before `anchor` on an all-day
+   * event's day: `0` alarms at the anchor on the day, `1440` at the anchor the
+   * day before. Negative counts after.
+   */
+  readonly offsetMinutes: number;
+  /** `HH:MM`, the time of day an all-day alarm counts from. Default `09:00`. */
+  readonly anchor?: string;
+}
+
+/** A `list_calendar_default_alarms` row. */
+export function defaultAlarmOf(
+  value: Readonly<Record<string, unknown>>,
+): CalendarDefaultAlarm {
+  const id = optionalText(value["id"]);
+  const anchor = optionalText(value["anchor"]);
+  const allDay = value["allDay"] === true;
+
+  return {
+    ...(id === undefined ? {} : { id }),
+    allDay,
+    method: oneOf(value["method"], ACTIONS, "display"),
+    offsetMinutes: whole(value["offsetMinutes"]) ?? 0,
+    ...(allDay && anchor !== undefined ? { anchor } : {}),
+  };
+}
+
+/**
  * The properties of one `VALARM` as an alarm, or `undefined` for one the
  * calendar block doesn't store: an unknown `ACTION`, a missing or unreadable
  * `TRIGGER`, or a reminder of the reminders block (`X-BSB-METHOD`).

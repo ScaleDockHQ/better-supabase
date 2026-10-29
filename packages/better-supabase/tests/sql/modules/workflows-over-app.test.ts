@@ -244,6 +244,49 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("records runs in a table without principal columns, reading the principal from attributes", async () => {
+    await expect(
+      run(
+        `do $$
+declare
+  v_id uuid;
+  v_list jsonb;
+begin
+  ${SERVICE}
+  v_id := better_supabase.record_workflow_run('vercel', 'run-1', 'onboard', 'running', '${TENANT}', attributes => '{"bsb.principal_kind": "service_principal", "bsb.principal": "sp-1"}'::jsonb, principal_kind => 'user', principal_id => 'ignored');
+  perform better_supabase.record_workflow_run('vercel', 'run-1', 'onboard', 'completed', '${TENANT}', completed_at => now());
+  v_list := better_supabase.workflow_runs_list('${TENANT}');
+  if jsonb_array_length(v_list) <> 1
+    or v_list -> 0 ->> 'principalKind' <> 'service_principal'
+    or v_list -> 0 ->> 'principalId' <> 'sp-1'
+    or v_list -> 0 ->> 'status' <> 'completed' then
+    raise exception 'listed %', v_list;
+  end if;
+end;
+$$;`,
+        SAME_NAMES.replace(
+          "  principal_kind text,\n  principal_id text\n",
+          "  notes text\n",
+        ),
+        {
+          workflows: {
+            tables: { runs: "public.jobs" },
+            columns: {
+              runs: {
+                subjectType: null,
+                subjectId: null,
+                principalKind: null,
+                principalId: null,
+                mode: null,
+                triggerNode: null,
+              },
+            },
+          },
+        },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("refuses test runs and record links the app's table has no columns for", async () => {
     await expect(
       run(`do $$

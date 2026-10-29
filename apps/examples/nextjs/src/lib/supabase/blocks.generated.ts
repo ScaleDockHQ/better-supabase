@@ -26,8 +26,10 @@ import {
   type WorkItemRecurrence,
   type WorkItemRecurrenceSinkOptions,
   type WorkItemState,
+  type WorkItemUpdateOptions,
   type WorkItemWatcher,
   type WorkItemWatchLevel,
+  type WorkItemWindow,
   type TasksEvents as DefaultTasksEvents,
   tasksBlock as defaultTasksBlock,
 } from "better-supabase/blocks/tasks";
@@ -1010,10 +1012,16 @@ export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<WorkItemRecurr
 export type MaintenanceRequestState = RenamedType<WorkItemState, MaintenanceRenames>;
 
 /** @public */
+export type MaintenanceRequestUpdateOptions = RenamedType<WorkItemUpdateOptions, MaintenanceRenames>;
+
+/** @public */
 export type MaintenanceRequestWatcher = RenamedType<WorkItemWatcher, MaintenanceRenames>;
 
 /** @public */
 export type MaintenanceRequestWatchLevel = RenamedType<WorkItemWatchLevel, MaintenanceRenames>;
+
+/** @public */
+export type MaintenanceRequestWindow = RenamedType<WorkItemWindow, MaintenanceRenames>;
 
 /** @public */
 export type MaintenanceEvents = RenamedEvents<DefaultTasksEvents, MaintenanceRenames>;

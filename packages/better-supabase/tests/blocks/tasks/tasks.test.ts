@@ -173,6 +173,31 @@ describe("tasks block", () => {
         { workItemId: "w1", field: "endAt", value: "2026-10-23T09:00:00Z" },
       ],
     });
+    await items
+      .update(
+        [
+          {
+            workItemId: "w1",
+            field: "window",
+            value: {
+              startAt: Temporal.Instant.from("2026-10-22T09:00:00Z"),
+              endAt: null,
+            },
+          },
+        ],
+        { atomic: true },
+      )
+      .orThrow();
+    expect(t.calls[1]?.[1]).toEqual({
+      changes: [
+        {
+          workItemId: "w1",
+          field: "window",
+          value: { startAt: "2026-10-22T09:00:00Z", endAt: null },
+        },
+      ],
+      atomic: true,
+    });
     expect(await items.assign("w1", ["u1", "u2"]).orThrow()).toBe(2);
     expect(await items.archive("w1").orThrow()).toBe(true);
     expect(await items.remove("w1").orThrow()).toBe(true);

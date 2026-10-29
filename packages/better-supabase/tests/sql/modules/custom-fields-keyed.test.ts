@@ -371,6 +371,92 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("checks a record type's own keys and the module's keys for the rest", async () => {
+    const entry = BLOCKS["custom-fields"]!;
+
+    const files = sqlOf({
+      "custom-fields": {
+        ...entry,
+        on: {
+          product: {
+            table: "public.products",
+            idType: "uuid",
+            column: "product_id",
+            keys: { manage: "products.fields", read: "products.read" },
+          },
+          asset: { table: "public.assets", idType: "uuid", column: "asset_id" },
+        },
+      },
+    });
+
+    expect(files.map((file) => file.contents).join("\n")).toContain(
+      "case set_field_value.subject_type when 'product' then",
+    );
+
+    const deny = ALLOW.replace(
+      "returns boolean language sql stable as $$ select true $$;",
+      () =>
+        "returns boolean language sql stable as $$ select permission not in ('products.fields', 'products.read') $$;",
+    );
+
+    await expect(
+      run(
+        `do $$
+declare
+  v_hint text;
+  v_row jsonb;
+begin
+  insert into public.attributes (organization_id, product_id, key, label, value_type, text_value)
+  values ('${TENANT}', '${PRODUCT}', 'color', 'Color', 'text', 'red');
+  ${AS_ALICE}
+  begin
+    perform better_supabase.set_field_value('${TENANT}', 'product', '${PRODUCT}', 'size', 'Size', 'text', '"L"');
+    v_hint := 'none';
+  exception when others then
+    get stacked diagnostics v_hint = pg_exception_hint;
+  end;
+  if v_hint <> 'FIELD_FORBIDDEN' then
+    raise exception 'product write %', v_hint;
+  end if;
+  begin
+    perform better_supabase.delete_field_value((select id from public.attributes where key = 'color'));
+    v_hint := 'none';
+  exception when others then
+    get stacked diagnostics v_hint = pg_exception_hint;
+  end;
+  if v_hint <> 'FIELD_FORBIDDEN' then
+    raise exception 'product delete %', v_hint;
+  end if;
+  if jsonb_array_length(better_supabase.read_field_values('${TENANT}', 'product', '${PRODUCT}')) <> 0 then
+    raise exception 'read a product value';
+  end if;
+  v_row := better_supabase.set_field_value('${TENANT}', 'asset', '${ASSET}', 'serial', 'Serial', 'text', '"A1"');
+  if jsonb_array_length(better_supabase.read_field_values('${TENANT}', 'asset', '${ASSET}')) <> 1 then
+    raise exception 'asset %', v_row;
+  end if;
+end;
+$$;`,
+        files,
+        deny,
+      ),
+    ).resolves.toBeUndefined();
+    expect(() =>
+      sqlOf({
+        "custom-fields": {
+          ...entry,
+          on: {
+            product: {
+              table: "public.products",
+              idType: "uuid",
+              column: "product_id",
+              keys: { write: "x" },
+            },
+          },
+        },
+      }),
+    ).toThrow(/keys\.write is not an option/u);
+  });
+
   it("reports no sensitive key in keyed layout and no read key with readAccess record", () => {
     const actions = (options: Record<string, unknown>) =>
       modulePermissionKeys({ "custom-fields": { options } }, [

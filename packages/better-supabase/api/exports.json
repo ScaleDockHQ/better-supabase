@@ -6760,6 +6760,7 @@
       "CalendarAttributes",
       "CalendarController",
       "CalendarControllerOptions",
+      "CalendarDefaultAlarm",
       "CalendarEvent",
       "CalendarEventInput",
       "CalendarEventKind",
@@ -6774,6 +6775,7 @@
       "CalendarOccurrenceRef",
       "CalendarOptions",
       "CalendarReminder",
+      "CalendarSaveOptions",
       "CalendarSnapshot",
       "CalendarTransparency",
       "CalendarUserFeedData",
@@ -7641,8 +7643,10 @@
       "WorkItemRecurrence",
       "WorkItemRecurrenceSinkOptions",
       "WorkItemState",
+      "WorkItemUpdateOptions",
       "WorkItemWatcher",
-      "WorkItemWatchLevel"
+      "WorkItemWatchLevel",
+      "WorkItemWindow"
     ]
   },
   "./blocks/quotes": {

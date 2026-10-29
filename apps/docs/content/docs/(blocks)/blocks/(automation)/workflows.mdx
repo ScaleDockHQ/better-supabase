@@ -52,7 +52,11 @@ A run also records who its steps act as: `principal_kind` is `user`,
 `service_principal`, `system` or `external`, and `principal_id` names the
 user or service principal. `actor_id` stays the user who triggered the run,
 so a schedule's creator or an event's actor sees the run they caused, while
-the steps run as the publisher. `run.principal` returns both.
+the steps run as the publisher. `run.principal` returns both. Over your own
+runs table, `principal_kind` and `principal_id` are optional as a pair: map
+both to `null` and the block keeps the principal in `attributes`
+(`bsb.principal_kind` and `bsb.principal`), and `run.principal` reads it
+from there.
 
 `mode` is `live` or `test`. Test runs come from the
 [workflow builder's](/docs/blocks/workflow-editor#test-runs) test button:

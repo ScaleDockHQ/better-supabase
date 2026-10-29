@@ -20,7 +20,12 @@ import {
 } from "../shared.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
-import { recordWorkflowRunSql } from "./workflows-record.ts";
+import {
+  principalColumnsSql,
+  principalJson,
+  recordWorkflowRunSql,
+  WORKFLOW_RUN_STATUSES,
+} from "./workflows-record.ts";
 
 const EVENTS: BlockSqlEvents<WorkflowsEvents> = {
   "workflow_run.completed": {
@@ -99,7 +104,14 @@ const NAMES: BlockSqlNames = {
         mode: "mode",
         triggerNode: "trigger_node",
       },
-      optional: ["subjectType", "subjectId", "mode", "triggerNode"],
+      optional: [
+        "subjectType",
+        "subjectId",
+        "principalKind",
+        "principalId",
+        "mode",
+        "triggerNode",
+      ],
       typed: ["status", "mode"],
     },
     schedules: {
@@ -159,23 +171,6 @@ const NAMES: BlockSqlNames = {
     },
   },
 };
-
-const WORKFLOW_RUN_STATUSES = [
-  "queued",
-  "running",
-  "waiting",
-  "completed",
-  "failed",
-  "cancelled",
-] as const;
-
-/** Who a run's steps act as: `principal_kind` on `workflow_runs`. */
-const PRINCIPAL_KINDS = [
-  "user",
-  "service_principal",
-  "system",
-  "external",
-] as const;
 
 const TERMINAL = "('completed', 'failed', 'cancelled')";
 
@@ -241,8 +236,7 @@ grant execute on function ${signature} to authenticated, service_role;`;
     'cancelRequestedAt', ${alias}.${cr("cancelRequestedAt")},
     'subjectType', ${subjectOf(alias, "subjectType")},
     'subjectId', ${subjectOf(alias, "subjectId")},
-    'principalKind', ${alias}.${cr("principalKind")},
-    'principalId', ${alias}.${cr("principalId")},
+    ${principalJson(ctx, alias)},
     'mode', ${moded ? `${alias}.${cr("mode")}` : "'live'"},
     'triggerNode', ${nodded ? `${alias}.${cr("triggerNode")}` : `${alias}.${cr("attributes")} ->> 'bsb.trigger_node'`}
   )`;
@@ -321,8 +315,7 @@ ${
 alter table ${r} add column if not exists ${cr("subjectId")} text check (length(${cr("subjectId")}) between 1 and 200);
 `
     : ""
-}alter table ${r} add column if not exists ${cr("principalKind")} text check (${cr("principalKind")} in (${PRINCIPAL_KINDS.map(sqlString).join(", ")}));
-alter table ${r} add column if not exists ${cr("principalId")} text check (length(${cr("principalId")}) between 1 and 200);${moded ? `\nalter table ${r} add column if not exists ${cr("mode")} text not null default 'live' check (${cr("mode")} in ('live', 'test'));` : ""}${nodded ? `\nalter table ${r} add column if not exists ${cr("triggerNode")} text check (length(${cr("triggerNode")}) between 1 and 100);` : ""}${
+}${principalColumnsSql(ctx)}${moded ? `\nalter table ${r} add column if not exists ${cr("mode")} text not null default 'live' check (${cr("mode")} in ('live', 'test'));` : ""}${nodded ? `\nalter table ${r} add column if not exists ${cr("triggerNode")} text check (length(${cr("triggerNode")}) between 1 and 100);` : ""}${
     linked
       ? `${app ? "" : `\n${ensureCheck(r, "workflow_runs_subject_check", `(${cr("subjectType")} is null) = (${cr("subjectId")} is null)`)}`}
 create index if not exists workflow_runs_subject_idx on ${r} (${cr("tenant")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("createdAt")} desc) where ${cr("subjectType")} is not null;`
