@@ -107,4 +107,17 @@ describe("settings module", () => {
       }),
     ).toThrow(/permission must be a permission key/);
   });
+
+  it("reads one organization setting for other security definer functions", () => {
+    const sql = sqlOf(["settings"]);
+    expect(sql).toMatch(
+      /create or replace function \S+\."organization_setting"\(tenant uuid, key text\)\nreturns jsonb\nlanguage sql\nstable\nsecurity definer\nset search_path = ''/u,
+    );
+    expect(sql).toMatch(
+      /revoke execute on function \S+\."organization_setting"\(uuid, text\) from public, anon, authenticated;/u,
+    );
+    expect(sql).toMatch(
+      /grant execute on function \S+\."organization_setting"\(uuid, text\) to service_role;/u,
+    );
+  });
 });

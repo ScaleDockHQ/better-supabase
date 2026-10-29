@@ -66,6 +66,8 @@ export interface SignatureRequest<F extends object = Record<never, never>> {
   readonly status: SignatureRequestStatus;
   readonly approvalRequestId?: string;
   readonly message?: string;
+  /** What signing means, such as `approved` (`options.meanings`). */
+  readonly meaning?: string;
   readonly requestedBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly completedAt?: Temporal.Instant;
@@ -129,6 +131,12 @@ export interface SignatureRequestInput<
   /** An approval request on the same record that a signer's signature decides. */
   readonly approvalRequestId?: string;
   readonly message?: string;
+  /**
+   * What signing means, one of `blocks.signatures.options.meanings`. The
+   * defaults are `authored`, `reviewed`, `approved`, `released` and
+   * `acknowledged`.
+   */
+  readonly meaning?: string;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
 }
@@ -206,6 +214,7 @@ function requestOf(value: unknown, fn: string): SignatureRequest {
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     ...optional("approvalRequestId", optionalText(row["approvalRequestId"])),
     ...optional("message", optionalText(row["message"])),
+    ...optional("meaning", optionalText(row["meaning"])),
     ...optional("requestedBy", optionalText(row["requestedBy"])),
     ...optional("completedAt", optionalInstant(row["completedAt"])),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
@@ -275,6 +284,7 @@ export function createSignatures<
               sign_order: input.order ?? "parallel",
               approval_request_id: input.approvalRequestId ?? null,
               message: input.message ?? null,
+              meaning: input.meaning ?? null,
               fields: checked,
             },
             (value) => requestOf(value, "create_signature_request"),

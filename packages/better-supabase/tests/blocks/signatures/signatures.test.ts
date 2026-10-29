@@ -35,6 +35,7 @@ const REQUEST = {
   status: "pending",
   approvalRequestId: "a1",
   message: "Please sign",
+  meaning: "approved",
   requestedBy: "u0",
   createdAt: AT,
   completedAt: null,
@@ -95,6 +96,7 @@ describe("signatures client", () => {
       order: "sequential",
       signers: ["u1", "u2"],
       approvalRequestId: "a1",
+      meaning: "approved",
     });
     expect(request.completedAt).toBeUndefined();
     await signatures
@@ -105,6 +107,7 @@ describe("signatures client", () => {
         order: "sequential",
         approvalRequestId: "a1",
         message: "Sign",
+        meaning: "approved",
       })
       .orThrow();
 
@@ -158,6 +161,7 @@ describe("signatures client", () => {
           sign_order: "parallel",
           approval_request_id: null,
           message: null,
+          meaning: null,
         },
       ],
       [
@@ -171,6 +175,7 @@ describe("signatures client", () => {
           sign_order: "sequential",
           approval_request_id: "a1",
           message: "Sign",
+          meaning: "approved",
         },
       ],
       [

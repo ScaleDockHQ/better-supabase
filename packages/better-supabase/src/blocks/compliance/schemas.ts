@@ -16,6 +16,11 @@ export const controlFrameworkInputSchema: EntitySchema<ControlFrameworkInput> =
     fields: {
       key: { kind: "string", minLength: 1, maxLength: 64 },
       name: { kind: "string", minLength: 1, maxLength: 200 },
+      kind: {
+        kind: "enum",
+        optional: true,
+        values: ["standard", "legal", "internal", "contract"],
+      },
       version: { kind: "string", optional: true, maxLength: 64 },
       description: { kind: "string", optional: true, maxLength: 10_000 },
     },
@@ -33,6 +38,13 @@ export const controlInputSchema: EntitySchema<ControlInput> =
       ownerId: { kind: "uuid", optional: true },
       applicable: { kind: "boolean", optional: true },
       controlId: { kind: "uuid", optional: true },
+      source: { kind: "string", optional: true, minLength: 1, maxLength: 200 },
+      jurisdiction: {
+        kind: "string",
+        optional: true,
+        minLength: 1,
+        maxLength: 200,
+      },
       fields: {
         kind: "json",
         optional: true,

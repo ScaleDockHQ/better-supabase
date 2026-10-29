@@ -38,7 +38,7 @@ const EVENTS: BlockSqlEvents<SignaturesEvents> = {
   },
   "signature.completed": {
     subject: "signature-requests",
-    payload: [...SUBJECT_PAYLOAD, "id", "versionId"],
+    payload: [...SUBJECT_PAYLOAD, "id", "versionId", "meaning"],
   },
   "signature.declined": {
     subject: "signature-requests",
@@ -65,12 +65,13 @@ const NAMES: BlockSqlNames = {
     "before_signature_sign",
     "after_signature_sign",
   ],
-  options: ["extraColumns"],
+  options: ["extraColumns", "meanings"],
   tables: {
     requests: {
       name: "signature_requests",
       app: {},
       lifecycle: { tenant: "tenant", user: "requestedBy", export: true },
+      optional: ["meaning"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -83,6 +84,7 @@ const NAMES: BlockSqlNames = {
         status: "status",
         approval: "approval_request_id",
         message: "message",
+        meaning: "meaning",
         requestedBy: "requested_by",
         createdAt: "created_at",
         completedAt: "completed_at",
@@ -111,6 +113,33 @@ const NAMES: BlockSqlNames = {
 
 /** How many people one request can ask to sign. */
 const MAX_SIGNERS = 20;
+
+/** What a signature can mean when `options.meanings` is unset. */
+const SIGNATURE_MEANINGS: readonly string[] = [
+  "authored",
+  "reviewed",
+  "approved",
+  "released",
+  "acknowledged",
+];
+
+const MEANING = /^[a-z][a-z0-9_]{0,62}$/;
+
+/** `blocks.signatures.options.meanings`: what a signature can mean. */
+function meaningsOf(ctx: BlockSqlContext): readonly string[] {
+  const meanings = ctx.list("meanings", SIGNATURE_MEANINGS);
+
+  if (meanings.length === 0 || meanings.some((item) => !MEANING.test(item))) {
+    throw new TypeError(
+      "blocks.signatures.options.meanings must be a non-empty list of lowercase names such as approved",
+    );
+  }
+
+  return meanings;
+}
+
+/** The arguments of create_signature_request before it took a meaning. */
+const PREVIOUS_REQUEST_ARGS = "text, text, uuid[], uuid, text, uuid, text";
 
 /** The hash `versions` stores for a version's content. */
 const versionHash = (content: string, storagePath: string): string =>
@@ -184,10 +213,16 @@ function build(ctx: BlockSqlContext): string {
   const extra = extraFieldsArg(extras);
 
   const requestJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'versionId', ${row}.${r("version")}, 'contentHash', ${row}.${r("contentHash")}, 'signers', to_jsonb(${row}.${r("signers")}), 'order', ${row}.${r("order")}, 'status', ${row}.${r("status")}, 'approvalRequestId', ${row}.${r("approval")}, 'message', ${row}.${r("message")}, 'requestedBy', ${row}.${r("requestedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'completedAt', ${row}.${r("completedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'versionId', ${row}.${r("version")}, 'contentHash', ${row}.${r("contentHash")}, 'signers', to_jsonb(${row}.${r("signers")}), 'order', ${row}.${r("order")}, 'status', ${row}.${r("status")}, 'approvalRequestId', ${row}.${r("approval")}, 'message', ${row}.${r("message")}, 'meaning', ${meaning(row)}, 'requestedBy', ${row}.${r("requestedBy")}, 'createdAt', ${row}.${r("createdAt")}, 'completedAt', ${row}.${r("completedAt")}${extraFieldsJson(row, extras)})`;
 
   const signatureJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${s("id")}, 'requestId', ${row}.${s("request")}, 'signer', ${row}.${s("signer")}, 'method', ${row}.${s("method")}, 'typedName', ${row}.${s("typedName")}, 'imageAttachmentId', ${row}.${s("image")}, 'signedHash', ${row}.${s("signedHash")}, 'ip', ${row}.${s("ip")}, 'userAgent', ${row}.${s("userAgent")}, 'signedAt', ${row}.${s("signedAt")})`;
+
+  const hasMeaning = ctx.has("requests", "meaning");
+  const meanings = meaningsOf(ctx);
+
+  const meaning = (row: string): string =>
+    hasMeaning ? `${row}.${r("meaning")}` : "null::text";
 
   const requestRecord = (
     type: string,
@@ -272,10 +307,13 @@ function build(ctx: BlockSqlContext): string {
   ${r("status")} text not null default 'pending' check (${r("status")} in ('pending', 'completed', 'declined', 'cancelled')),
   ${r("approval")} uuid,
   ${r("message")} text check (${r("message")} is null or length(${r("message")}) <= 2000),
+  ${r("meaning")} text,
   ${r("requestedBy")} uuid,
   ${r("createdAt")} timestamptz not null default now(),
   ${r("completedAt")} timestamptz
-);${addExtraColumns(requests, extras)}
+);
+-- What signing means (blocks.signatures.options.meanings), such as approved.
+alter table ${requests} add column if not exists ${r("meaning")} text;${addExtraColumns(requests, extras)}
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_subject_idx`)} on ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_version_idx`)} on ${requests} (${r("version")});
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_signers_idx`)} on ${requests} using gin (${r("signers")});
@@ -318,10 +356,13 @@ ${renderPolicy(makePolicy({ table: signatures, name: ctx.naming.rename("signatur
 ${tables}
 -- Asks members to sign one version of a record. The version is frozen, so
 -- retention and delete_version keep it; without one, the record's columns
--- are snapshotted first. fields: the extra columns
+-- are snapshotted first. meaning says what signing means, one of
+-- blocks.signatures.options.meanings. fields: the extra columns
 -- (blocks.signatures.options.extraColumns) to set.
-${extra.drop(fn("create_signature_request"), `${ctx.idType}, text, text, uuid[], uuid, text, uuid, text`)}
-create or replace function ${fn("create_signature_request")}(tenant ${ctx.idType}, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null${extra.param})
+drop function if exists ${fn("create_signature_request")}(${ctx.idType}, ${PREVIOUS_REQUEST_ARGS});
+drop function if exists ${fn("create_signature_request")}(${ctx.idType}, ${PREVIOUS_REQUEST_ARGS}, jsonb);
+${extra.drop(fn("create_signature_request"), `${ctx.idType}, ${PREVIOUS_REQUEST_ARGS}, text`)}
+create or replace function ${fn("create_signature_request")}(tenant ${ctx.idType}, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -343,6 +384,9 @@ begin
     },
   )})) then
     ${forbidden("not allowed to request signatures on this record")}
+  end if;
+  if create_signature_request.meaning is not null and create_signature_request.meaning not in (${meanings.map((item) => `'${item}'`).join(", ")}) then
+    ${fail("SIGNATURE_REQUEST_MEANING_UNKNOWN", `meaning must be one of ${meanings.join(", ")}`, "22023")}
   end if;
   if create_signature_request.sign_order not in ('parallel', 'sequential') then
     ${fail("SIGNATURE_ORDER_INVALID", "sign_order must be parallel or sequential", "22023")}
@@ -381,15 +425,15 @@ begin
     ["uuid", "v_version"],
   ])}
   update ${vt} x set ${v("frozen")} = true where x.${v("id")} = v_version and not x.${v("frozen")};
-  insert into ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("version")}, ${r("contentHash")}, ${r("signers")}, ${r("order")}, ${r("approval")}, ${r("message")}, ${r("requestedBy")})
-  values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), ''), auth.uid())
+  insert into ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("version")}, ${r("contentHash")}, ${r("signers")}, ${r("order")}, ${r("approval")}, ${r("message")}${hasMeaning ? `, ${r("meaning")}` : ""}, ${r("requestedBy")})
+  values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), '')${hasMeaning ? ", create_signature_request.meaning" : ""}, auth.uid())
   returning * into v_row;${writeExtraColumns(requests, extras, "create_signature_request.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
   ${requestRecord("signature.requested", "v_row", `, 'versionId', v_row.${r("version")}`, `'requested signatures on ' || v_row.${r("subjectType")} || ' ' || v_row.${r("subjectId")}`)}
   ${ctx.hook("after_signature_request", [["uuid", `v_row.${r("id")}`]])}
   return ${requestJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("create_signature_request")}(${ctx.idType}, text, text, uuid[], uuid, text, uuid, text${extra.type})`)}
+${userGrant(`${fn("create_signature_request")}(${ctx.idType}, text, text, uuid[], uuid, text, uuid, text, text${extra.type})`)}
 
 -- Recomputes the signed version's hash from its content and each signature's
 -- hash, and reports whether the record has a newer version since.
@@ -513,7 +557,7 @@ begin
     update ${requests} x set ${r("status")} = 'completed', ${r("completedAt")} = v_at
       where x.${r("id")} = v_req.${r("id")}
       returning * into v_req;
-    ${requestRecord("signature.completed", "v_req", `, 'versionId', v_req.${r("version")}`, false)}
+    ${requestRecord("signature.completed", "v_req", `, 'versionId', v_req.${r("version")}, 'meaning', ${meaning("v_req")}`, false)}
   end if;
   ${ctx.hook("after_signature_sign", [
     ["uuid", `v_row.${s("id")}`],
@@ -654,6 +698,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "uuid",
         "text",
         "uuid",
+        "text",
         "text",
         ...extraFieldsArg(ctx.extraColumns("requests", ["fields"])).contract,
       ],

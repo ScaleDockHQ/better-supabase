@@ -3,6 +3,14 @@ import type { BlockSqlContext } from "../context.ts";
 /** The keys the control reads return next to the extra columns. */
 export const CONTROL_RESERVED = ["fields", "status"] as const;
 
+/** What a framework is: a standard, a law, the organization's own or a contract. */
+export const FRAMEWORK_KINDS = [
+  "standard",
+  "legal",
+  "internal",
+  "contract",
+] as const;
+
 /** The attachments module, when its table is there to reference. */
 export function evidenceAttachments(
   ctx: BlockSqlContext,

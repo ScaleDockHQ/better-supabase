@@ -44,7 +44,7 @@ const EVENTS: BlockSqlEvents<CoursesEvents> = {
   },
   "course_certificate.issued": {
     subject: "course-certificates",
-    payload: COURSE_ITEM_PAYLOAD,
+    payload: [...COURSE_ITEM_PAYLOAD, "expiresAt"],
   },
   "course_certificate.revoked": {
     subject: "course-certificates",
@@ -81,6 +81,7 @@ const NAMES: BlockSqlNames = {
       optional: [
         "summary",
         "certificate",
+        "validForMonths",
         "createdBy",
         "createdAt",
         "updatedAt",
@@ -94,6 +95,7 @@ const NAMES: BlockSqlNames = {
         summary: "summary",
         status: "status",
         certificate: "issues_certificate",
+        validForMonths: "valid_for_months",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -169,7 +171,7 @@ const NAMES: BlockSqlNames = {
       name: "course_certificates",
       app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
-      optional: ["issuedAt"],
+      optional: ["issuedAt", "expiresAt"],
       columns: {
         id: "id",
         tenant: "tenant_id",
@@ -178,6 +180,7 @@ const NAMES: BlockSqlNames = {
         user: "user_id",
         code: "code",
         issuedAt: "issued_at",
+        expiresAt: "expires_at",
         revokedAt: "revoked_at",
       },
     },
@@ -214,6 +217,21 @@ function courseTables(ctx: BlockSqlContext): string {
   ): string =>
     ctx.has(table, column) ? `\n  ${definition(ctx.col(table, column))},` : "";
 
+  // Columns added after the first release, for tables created before them.
+  const added = (
+    table: string,
+    column: string,
+    definition: (ident: string) => string,
+  ): string =>
+    ctx.has(table, column)
+      ? `\nalter table ${ctx.table(table)} add column if not exists ${definition(ctx.col(table, column))};`
+      : "";
+
+  const validFor = (x: string): string =>
+    `${x} integer check (${x} is null or ${x} between 1 and 240)`;
+
+  const expires = (x: string): string => `${x} timestamptz`;
+
   const stamps = (table: string): string =>
     ["createdAt", "updatedAt"]
       .filter((column) => ctx.has(table, column))
@@ -234,9 +252,9 @@ function courseTables(ctx: BlockSqlContext): string {
   ${c("tenant")} ${ctx.idType} not null,
   ${c("key")} text not null check (${c("key")} ~ '^[a-z][a-z0-9-]{0,62}$'),
   ${c("title")} text not null check (length(${c("title")}) between 1 and 200),${optional("courses", "summary", (x) => `${x} text check (${x} is null or length(${x}) <= 2000)`)}
-  ${c("status")} text not null default 'draft' check (${c("status")} in ('draft', 'published', 'archived')),${optional("courses", "certificate", (x) => `${x} boolean not null default true`)}${optional("courses", "createdBy", (x) => `${x} uuid`)}${optional("courses", "createdAt", (x) => `${x} timestamptz not null default now()`)}${optional("courses", "updatedAt", (x) => `${x} timestamptz not null default now()`)}
+  ${c("status")} text not null default 'draft' check (${c("status")} in ('draft', 'published', 'archived')),${optional("courses", "certificate", (x) => `${x} boolean not null default true`)}${optional("courses", "validForMonths", validFor)}${optional("courses", "createdBy", (x) => `${x} uuid`)}${optional("courses", "createdAt", (x) => `${x} timestamptz not null default now()`)}${optional("courses", "updatedAt", (x) => `${x} timestamptz not null default now()`)}
   unique (${c("tenant")}, ${c("key")})
-);${key("courses", "key_key", `${c("tenant")}, ${c("key")}`)}${addExtraColumns(courses, extras)}
+);${key("courses", "key_key", `${c("tenant")}, ${c("key")}`)}${added("courses", "validForMonths", validFor)}${addExtraColumns(courses, extras)}
 
 create table if not exists ${modules} (
   ${m("id")} uuid primary key default gen_random_uuid(),
@@ -298,10 +316,10 @@ create table if not exists ${certificates} (
   ${k("course")} uuid not null references ${courses} (${c("id")}) on delete cascade,
   ${k("enrollment")} uuid not null references ${enrollments} (${enrollmentId}) on delete cascade,
   ${k("user")} uuid not null references auth.users (id) on delete cascade,
-  ${k("code")} text not null unique check (${k("code")} ~ '^[0-9a-f]{32}$'),${optional("certificates", "issuedAt", (x) => `${x} timestamptz not null default now()`)}
+  ${k("code")} text not null unique check (${k("code")} ~ '^[0-9a-f]{32}$'),${optional("certificates", "issuedAt", (x) => `${x} timestamptz not null default now()`)}${optional("certificates", "expiresAt", expires)}
   ${k("revokedAt")} timestamptz,
   constraint ${name("certificates", "enrollment_key")} unique (${k("enrollment")})
-);${key("certificates", "enrollment_key", k("enrollment"))}
+);${key("certificates", "enrollment_key", k("enrollment"))}${added("certificates", "expiresAt", expires)}
 create index if not exists ${name("certificates", "parent_idx")} on ${certificates} (${k("course")});
 create index if not exists ${name("certificates", "user_idx")} on ${certificates} (${k("user")});
 

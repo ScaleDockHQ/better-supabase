@@ -3,7 +3,7 @@
 -- collects evidence and acknowledges the policy, and the Globex owner (…a3)
 -- sees none of it. Run with `supabase test db`.
 begin;
-select plan(17);
+select plan(20);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
@@ -133,5 +133,35 @@ select throws_ok(
   'the Globex owner cannot add evidence to an Acme control'
 );
 
+-- A legal register: a framework of kind legal whose controls are obligations.
+reset role;
+select set_config(
+  'request.jwt.claims',
+  '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}',
+  true
+);
+set local role authenticated;
+
+select is(
+  (select better_supabase.save_control(
+    (better_supabase.save_control_framework(
+      '00000000-0000-4000-8000-000000000001', 'gdpr', 'GDPR register', kind => 'legal') ->> 'id')::uuid,
+    'ART30', 'Records of processing',
+    source => 'GDPR article 30', jurisdiction => 'EU') - 'id' - 'organizationId' - 'frameworkId' - 'createdAt' - 'updatedAt' - 'fields' - 'status' - 'description' - 'ownerId' - 'applicable' - 'code' - 'title'),
+  '{"source":"GDPR article 30","jurisdiction":"EU"}'::jsonb,
+  'a control keeps where its obligation comes from and where it applies'
+);
+select is(
+  (select f ->> 'kind' from jsonb_array_elements(better_supabase.list_control_frameworks('00000000-0000-4000-8000-000000000001')) f
+   where f ->> 'key' = 'gdpr'),
+  'legal',
+  'a legal register is a framework of kind legal'
+);
+select throws_ok(
+  $$select better_supabase.save_control_framework('00000000-0000-4000-8000-000000000001', 'odd', 'Odd', kind => 'treaty')$$,
+  '22023',
+  'kind must be one of standard, legal, internal, contract',
+  'a framework kind outside the list is refused'
+);
 select * from finish();
 rollback;

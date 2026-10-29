@@ -5,6 +5,7 @@ export {
   type ControlEvidence,
   type ControlEvidenceInput,
   type ControlFramework,
+  type ControlFrameworkKind,
   type ControlFrameworkInput,
   type ControlInput,
   type ControlListOptions,

@@ -74,4 +74,26 @@ describe("controls module", () => {
       ]),
     );
   });
+
+  it("keeps a framework's kind and a control's source and jurisdiction", () => {
+    const sql = sqlOf();
+    expect(sql).toContain(
+      `"kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'))`,
+    );
+    expect(sql).toContain(
+      `alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);`,
+    );
+    expect(sql).toContain(
+      `add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);`,
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);`,
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);`,
+    );
+    expect(sql).toContain(
+      "kind must be one of standard, legal, internal, contract",
+    );
+  });
 });

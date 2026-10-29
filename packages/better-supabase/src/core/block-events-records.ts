@@ -272,8 +272,9 @@ export interface EmployeeEventData extends SubjectEventData {
   readonly organizationId: string;
   readonly employeeId: string;
   readonly name: string;
+  /** The employee's user account, or null when the employee has none. */
+  readonly userId: string | null;
   /** For `employee.created`. */
-  readonly userId?: string | null;
   readonly managerId?: string | null;
   readonly status?: string;
   /** For `employee.updated`: the fields the batch changed, or `contract`. */

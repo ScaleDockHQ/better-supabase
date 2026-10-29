@@ -369,7 +369,7 @@ function contractsSql(
 
   const updated = ctx.record({
     type: "employee.updated",
-    payload: `jsonb_build_object('organizationId', v_employee.${e("tenant")}, 'employeeId', v_employee.${e("id")}, 'subjectType', 'employee', 'subjectId', v_employee.${e("id")}::text, 'name', ${n.name("v_employee")}, 'fields', jsonb_build_array('contract'))`,
+    payload: `jsonb_build_object('organizationId', v_employee.${e("tenant")}, 'employeeId', v_employee.${e("id")}, 'subjectType', 'employee', 'subjectId', v_employee.${e("id")}::text, 'name', ${n.name("v_employee")}, 'userId', v_employee.${e("user")}, 'fields', jsonb_build_array('contract'))`,
     subject: `'employees/' || v_employee.${e("id")}::text`,
     tenant: `v_employee.${e("tenant")}::text`,
     audit: false,

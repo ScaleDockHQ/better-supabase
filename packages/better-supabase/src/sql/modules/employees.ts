@@ -35,12 +35,13 @@ const EMPLOYEE = [
   "subjectType",
   "subjectId",
   "name",
+  "userId",
 ] as const;
 
 const EVENTS: BlockSqlEvents<EmployeesEvents> = {
   "employee.created": {
     subject: "employees",
-    payload: [...EMPLOYEE, "userId", "managerId", "status"],
+    payload: [...EMPLOYEE, "managerId", "status"],
   },
   "employee.updated": {
     subject: "employees",

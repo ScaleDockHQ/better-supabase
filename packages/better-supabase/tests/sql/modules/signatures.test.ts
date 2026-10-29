@@ -98,4 +98,31 @@ describe("signatures module", () => {
     expect(sql).toContain(`"app"."sign_requests"`);
     expect(sql).toContain(`"app"."sign_marks"`);
   });
+
+  it("checks a request's meaning against options.meanings", () => {
+    const sql = sqlOf(BASE);
+    expect(sql).toContain(`"meaning" text,`);
+    expect(sql).toContain(
+      `alter table "better_supabase"."signature_requests" add column if not exists "meaning" text;`,
+    );
+    expect(sql).toContain(
+      "not in ('authored', 'reviewed', 'approved', 'released', 'acknowledged')",
+    );
+    expect(sql).toContain("SIGNATURE_REQUEST_MEANING_UNKNOWN");
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);`,
+    );
+    expect(sql).toContain("'meaning', v_req.\"meaning\"");
+
+    const custom = sqlOf(BASE, {
+      modules: { signatures: { options: { meanings: ["agreed"] } } },
+    });
+
+    expect(custom).toContain("not in ('agreed')");
+    expect(() =>
+      sqlOf(BASE, {
+        modules: { signatures: { options: { meanings: ["Signed off"] } } },
+      }),
+    ).toThrow(/options\.meanings/u);
+  });
 });

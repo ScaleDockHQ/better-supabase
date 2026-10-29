@@ -152,6 +152,46 @@ describe.skipIf(!live)("settings", () => {
     }
   });
 
+  it("reads one organization setting for the service role only", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "settings"]);
+      const owner = await s.user("owner");
+      const organization = await s.organization(owner);
+
+      const client = createSettings({
+        settings,
+        transport: sqlTransport(s.sql),
+      });
+
+      await s.asRole(owner);
+      await client.setOrganization(organization, "seats", 12).orThrow();
+      expect(
+        await s.hint("better_supabase.organization_setting($1, 'seats')", [
+          organization,
+        ]),
+      ).toMatch(/permission denied/u);
+
+      await s.service();
+      await s.client.query("set local role service_role");
+      expect(
+        await s.value<number>(
+          "better_supabase.organization_setting($1, 'seats')",
+          [organization],
+        ),
+      ).toBe(12);
+      expect(
+        await s.value<unknown>(
+          "better_supabase.organization_setting($1, 'missing')",
+          [organization],
+        ),
+      ).toBeNull();
+    } finally {
+      await s.close();
+    }
+  });
+
   it("records who set a setting on its first write, without a column default", async () => {
     const s = await BlockSession.open(pool);
 
