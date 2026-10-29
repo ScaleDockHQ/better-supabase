@@ -4,7 +4,7 @@
   "title": "Jobs drain cron route (Next.js)",
   "description": "lib/jobs.ts and app/api/jobs/drain/route.ts: the queues and the cron route that runs schedules and drains them.",
   "dependencies": [
-    "better-supabase@^0.38.0",
+    "better-supabase@^0.39.0",
     "server-only"
   ],
   "registryDependencies": [
