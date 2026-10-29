@@ -23,8 +23,10 @@ import {
   type WorkItemRecurrence,
   type WorkItemRecurrenceSinkOptions,
   type WorkItemState,
+  type WorkItemUpdateOptions,
   type WorkItemWatcher,
   type WorkItemWatchLevel,
+  type WorkItemWindow,
   type TasksEvents as DefaultTasksEvents,
   tasksBlock as defaultTasksBlock,
 } from "better-supabase/blocks/tasks";
@@ -255,10 +257,16 @@ export type TicketRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOpti
 export type TicketState = RenamedType<WorkItemState, TasksRenames>;
 
 /** @public */
+export type TicketUpdateOptions = RenamedType<WorkItemUpdateOptions, TasksRenames>;
+
+/** @public */
 export type TicketWatcher = RenamedType<WorkItemWatcher, TasksRenames>;
 
 /** @public */
 export type TicketWatchLevel = RenamedType<WorkItemWatchLevel, TasksRenames>;
+
+/** @public */
+export type TicketWindow = RenamedType<WorkItemWindow, TasksRenames>;
 
 /** @public */
 export type TasksEvents = RenamedEvents<DefaultTasksEvents, TasksRenames>;
