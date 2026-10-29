@@ -327,7 +327,9 @@ export const blockConfig = {
   catalog: {
     schema: "better_supabase",
     api: "api",
-    options: {},
+    options: {
+      rankType: "text",
+    },
   },
   comments: {
     schema: "better_supabase",

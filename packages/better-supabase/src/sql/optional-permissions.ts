@@ -59,5 +59,7 @@ export const OPTIONAL_MODULE_PERMISSIONS: Readonly<
     delete: "tenant",
     reimburse: "tenant",
     categories: "tenant",
+    withdraw: "tenant",
+    deleteSubmitted: "tenant",
   },
 };

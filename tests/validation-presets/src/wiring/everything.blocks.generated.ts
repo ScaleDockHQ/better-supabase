@@ -310,7 +310,9 @@ export const blockConfig = {
   },
   catalog: {
     schema: "better_supabase",
-    options: {},
+    options: {
+      rankType: "text",
+    },
   },
   collections: {
     schema: "better_supabase",
