@@ -197,27 +197,27 @@ function directly.
 Each function is a SQL template. better-supabase fills the placeholders and
 puts the result into a policy or a module function:
 
-| Template         | Placeholders                                                | Returns                                                                                    |
-| ---------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
-| `idsWith`        | `{permission}`, `{scope}`                                   | a set of the `{scope}` ids where the caller holds the key                                  |
-| `isPlatform`     | `{permission}`                                              | `boolean`: the caller holds the key platform-wide                                          |
-| `idsWithFor`     | `{user}`, `{permission}`, `{scope}`                         | as `idsWith`, for another user                                                             |
-| `isPlatformFor`  | `{user}`, `{permission}`                                    | as `isPlatform`, for another user                                                          |
-| `memberIds`      | `{scope}`                                                   | the `{scope}` ids the caller is a member of                                                |
-| `memberIdsFor`   | `{user}`, `{scope}`                                         | as `memberIds`, for another user                                                           |
-| `teamIdsOf`      | `{user}`                                                    | a set of the team ids `{user}` belongs to                                                  |
-| `canAssign`      | `{role}`, `{roles}`, `{tenant}`, `{scope}`                  | `boolean`: the caller may give `{role}` in `{tenant}`                                      |
-| `canAssignFor`   | `{user}`, `{role}`, `{roles}`, `{tenant}`, `{scope}`        | as `canAssign`, for another user                                                           |
-| `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                             | `text[]`: the permission keys `{user}` holds in `{tenant}`                                 |
-| `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`                     |
-| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`                             | deprecated: `isApprover` with `{kind}` `'ai-tool'`                                         |
-| `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`                       | a set of user ids that hold `{permission}` on `{tenant}`                                   |
-| `actorMayWrite`  | none                                                        | `boolean`: the caller's session may write                                                  |
-| `permitted`      | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}` | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`              |
-| `rowsWith`       | `{permission}`, `{resource}`, `{ids}`                       | a set of the ids (text) of `{resource}` rows the caller holds `{permission}` on            |
-| `rowsWithFor`    | `{user}`, `{permission}`, `{resource}`, `{ids}`             | as `rowsWith`, for another user                                                            |
-| `portalSubjects` | `{action}`                                                  | a set of `(tenant, subject_type, subject_id)` the caller reaches as a guest for `{action}` |
-| `portalParties`  | none                                                        | a set of `(tenant, party_type, party_id)` the caller acts for as a guest                   |
+| Template         | Placeholders                                                               | Returns                                                                                    |
+| ---------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `idsWith`        | `{permission}`, `{scope}`                                                  | a set of the `{scope}` ids where the caller holds the key                                  |
+| `isPlatform`     | `{permission}`                                                             | `boolean`: the caller holds the key platform-wide                                          |
+| `idsWithFor`     | `{user}`, `{permission}`, `{scope}`                                        | as `idsWith`, for another user                                                             |
+| `isPlatformFor`  | `{user}`, `{permission}`                                                   | as `isPlatform`, for another user                                                          |
+| `memberIds`      | `{scope}`                                                                  | the `{scope}` ids the caller is a member of                                                |
+| `memberIdsFor`   | `{user}`, `{scope}`                                                        | as `memberIds`, for another user                                                           |
+| `teamIdsOf`      | `{user}`                                                                   | a set of the team ids `{user}` belongs to                                                  |
+| `canAssign`      | `{role}`, `{roles}`, `{tenant}`, `{scope}`                                 | `boolean`: the caller may give `{role}` in `{tenant}`                                      |
+| `canAssignFor`   | `{user}`, `{role}`, `{roles}`, `{tenant}`, `{scope}`                       | as `canAssign`, for another user                                                           |
+| `permissionsFor` | `{user}`, `{tenant}`, `{scope}`                                            | `text[]`: the permission keys `{user}` holds in `{tenant}`                                 |
+| `isApprover`     | `{kind}`, `{subject}`, `{tenant}`, `{requester}`, `{approvers}`, `{scope}` | `boolean`: the caller may approve request `{subject}` of kind `{kind}`                     |
+| `canApprove`     | `{tool}`, `{tenant}`, `{scope}`                                            | deprecated: `isApprover` with `{kind}` `'ai-tool'`                                         |
+| `holdersOf`      | `{permission}`, `{tenant}`, `{scope}`                                      | a set of user ids that hold `{permission}` on `{tenant}`                                   |
+| `actorMayWrite`  | none                                                                       | `boolean`: the caller's session may write                                                  |
+| `permitted`      | `{permission}`, `{id}`, `{tenant}`, `{resource}`, `{scope}`                | `boolean`: the caller holds `{permission}` on instance `{id}` of `{resource}`              |
+| `rowsWith`       | `{permission}`, `{resource}`, `{ids}`                                      | a set of the ids (text) of `{resource}` rows the caller holds `{permission}` on            |
+| `rowsWithFor`    | `{user}`, `{permission}`, `{resource}`, `{ids}`                            | as `rowsWith`, for another user                                                            |
+| `portalSubjects` | `{action}`                                                                 | a set of `(tenant, subject_type, subject_id)` the caller reaches as a guest for `{action}` |
+| `portalParties`  | none                                                                       | a set of `(tenant, party_type, party_id)` the caller acts for as a guest                   |
 
 `rowsWith` answers a `config.subjects.<type>.permissions.<action>` entry with
 `rows` ([Actions granted per row](/docs/blocks/sql#actions-granted-per-row)).
@@ -362,7 +362,14 @@ someone else: AI tool calls in the [ai-chat block](/docs/blocks/ai-chat)
 required. `{requester}` is optional: the uuid of the user who asked (the
 approval's `requested_by`, the support admin, the chat's owner). A provider
 that resolves out-of-office covers inside `isApprover` reads it so a cover
-never lets the requester's own delegator approve. Under the `provider` model,
+never lets the requester's own delegator approve. `{approvers}` is optional:
+a `jsonb` value with the approvers the request waits on now. The approvals
+block passes its current step's `approvers` (`users`, `permission`, `role`,
+`team`, `manager`, whichever the policy names) with the step's `required`
+count, or the step's `escalateTo` once the step is escalated, for example
+`{"users": ["<uuid>"], "manager": true, "required": 1}`. A provider reads it to
+let a cover approve only where the absent user is a named approver. AI tool
+calls and support sessions pass `null`. Under the `provider` model,
 `decide_ai_tool_approval` lets the service role and any caller `isApprover`
 allows decide the call. `approvals.distinctApprover: true` keeps the
 requester from deciding their own request, for four-eyes approval. Without
@@ -408,7 +415,9 @@ Configure covers in one place only. An app without such a provider calls
 PermDock keeps covers in its `approval_delegations` table and resolves them
 in `permdock_is_approver`, one hop deep, never for the requester's own
 delegator. Its [better-supabase adapter](https://permdock.com/docs/adapters/better-supabase#approval-delegation)
-passes `{requester}` for that check.
+passes `{requester}` for that check, and with `requestApprovers: true` also
+`{approvers}`, so a cover reaches the users and managers a block policy
+names.
 
 ### Delegated tokens
 

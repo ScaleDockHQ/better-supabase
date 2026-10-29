@@ -201,6 +201,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     subject: `v_req.${c("subjectId")}::text`,
     tenant: `v_req.${c("tenant")}`,
     requester: `v_req.${c("requestedBy")}`,
+    approvers:
+      "(coalesce(v_approvers, '{}'::jsonb) || jsonb_build_object('required', coalesce(v_step -> 'required', '1'::jsonb)))",
   });
 
   const subjects = subjectsOption(ctx);
