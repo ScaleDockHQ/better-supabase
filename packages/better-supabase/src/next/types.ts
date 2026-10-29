@@ -25,6 +25,11 @@ import type { CountRunner, LiveCountSeed } from "../realtime/live.ts";
 import type { BindingName } from "../records/bindings.ts";
 import type { RecordType, RecordTypeBlocks } from "../records/record-type.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type {
+  Access,
+  Bootstrap,
+  BootstrapCallOptions,
+} from "../server/bootstrap.ts";
 import type { AuthOutageHook } from "../server/entries/session.ts";
 import type {
   ActionInput,
@@ -81,12 +86,6 @@ export interface NextOptions extends ServerOptions {
    * ```
    */
   readonly rootParams?: NextRootParams;
-  /**
-   * The schema `bsb.bootstrap()` calls. Defaults to the one `gen` records from
-   * the sessions block (`blocks.sessions.api`, then `sql.api`, then its
-   * `schema`), else `better_supabase`.
-   */
-  readonly bootstrapSchema?: string;
 }
 
 export interface NextDebugOptions {
@@ -889,62 +888,17 @@ export type CachedOptions<T extends string = string> =
   | PrivateCachedOptions<T>
   | RemoteCachedOptions<T>;
 
-export type BootstrapOptions<T extends string = string> = CachedOptions<T> & {
-  /**
-   * The name in `blocks.sessions.options.bootstrap`; the call runs
-   * `bootstrap_<rpc>` in the sessions schema (its API schema when there is
-   * one).
-   */
-  readonly rpc: string;
-  /** Passed to the app's function as its one `jsonb` argument. */
-  readonly args?: Readonly<Record<string, unknown>>;
-  /**
-   * The schema to call. Defaults to `NextOptions.bootstrapSchema`, then the
-   * schema `gen` records for the sessions block, else `better_supabase`.
-   */
-  readonly schema?: string;
-  /**
-   * Where to send the caller when `session_active()` is false, with
-   * `?reason=session_not_found`. Without it the result has `sessionActive:
-   * false`, and the entry isn't kept.
-   */
-  readonly redirect?: string;
-};
+export type BootstrapOptions<T extends string = string> = CachedOptions<T> &
+  Omit<BootstrapCallOptions, "tenant"> & {
+    /**
+     * Where to send the caller when `session_active()` is false, with
+     * `?reason=session_not_found`. Without it the result has `sessionActive:
+     * false`, and the entry isn't kept.
+     */
+    readonly redirect?: string;
+  };
 
-/** What `bsb.bootstrap()` returns: plain data, safe across a cache boundary. */
-export interface Bootstrap<C = unknown, P = unknown, T = unknown> {
-  readonly session: AuthSession<C, P>;
-  readonly tenant: string | null;
-  /**
-   * The caller's live authorization version when the database keeps one
-   * (`blocks.sessions.options.authzVersions` or `authorization.versions`), else
-   * the token's.
-   */
-  readonly authzVersion: number | null;
-  /** The `authz_ver` claim of the caller's access token. */
-  readonly tokenAuthzVersion: number | null;
-  /**
-   * The live version is ahead of the token's: permissions changed after the
-   * token was issued. The proxy's next refresh picks them up; a client
-   * `SessionProvider` refreshes on the broadcast.
-   */
-  readonly stale: boolean;
-  readonly sessionActive: boolean;
-  readonly data: T | null;
-}
-
-/**
- * What `bsb.getAccess()` returns: one context and its checks, bound to one
- * version.
- */
-export interface Access<Ctx, C = unknown, P = unknown, Ref = string> {
-  readonly context: Ctx;
-  readonly session: AuthSession<C, P>;
-  readonly tenant: string | null;
-  readonly authzVersion: number | null;
-  /** Whether the caller holds `permission` in the tenant; `false` signed out. */
-  can(permission: Ref): Promise<boolean>;
-}
+export type { Access, Bootstrap } from "../server/bootstrap.ts";
 
 export interface NextRootParams {
   /** `locale` from `next/root-params`. */

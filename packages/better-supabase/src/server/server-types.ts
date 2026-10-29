@@ -34,6 +34,12 @@ import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
 import type {
+  Access,
+  AccessForOptions,
+  Bootstrap,
+  BootstrapCallOptions,
+} from "./bootstrap.ts";
+import type {
   DeleteAccountOptions,
   DeleteAccountResult,
 } from "./delete-account.ts";
@@ -203,6 +209,12 @@ export interface ServerOptions<
    * token on every call.
    */
   readonly sessions?: SessionMemoOptions | false;
+  /**
+   * The schema bootstrap calls run in. Defaults to the one `gen` records from
+   * the sessions block (`blocks.sessions.api`, then `sql.api`, then its
+   * `schema`), else `better_supabase`.
+   */
+  readonly bootstrapSchema?: string;
 }
 
 /** How the server reads the approval id a client resumes with. */
@@ -521,6 +533,25 @@ export interface BetterServer<
   ): Promise<ServerContext<M, F, E, C, P, B>>;
   /** The verified-session memo behind `snapshot()`. */
   readonly sessions: ServerSessions<C, P>;
+  /**
+   * One call for a request's user data: runs the sessions module's
+   * `bootstrap_<rpc>` wrapper as the caller, which checks `session_active()`
+   * and returns the live authorization version with the app function's data.
+   * Calls with the same key share one query per request. A false
+   * `sessionActive` evicts the user.
+   */
+  bootstrapFor<T = unknown>(
+    request: Request,
+    options: BootstrapCallOptions,
+  ): Promise<Bootstrap<C, P, T>>;
+  /**
+   * The context, tenant and permission checks for a request or a snapshot,
+   * bound to one authorization version (the bootstrap's when you pass it).
+   */
+  accessFor(
+    source: Request | SessionSnapshot<C> | null,
+    options?: AccessForOptions<C, P>,
+  ): Promise<Access<ServerContext<M, F, E, C, P, B>, C, P>>;
 
   /**
    * Evicts the user from the session memo and `versions`. Adapters with a cache

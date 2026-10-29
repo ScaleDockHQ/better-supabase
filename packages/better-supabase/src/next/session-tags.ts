@@ -1,15 +1,10 @@
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthorizationHooks } from "../core/contracts/authorization-hooks.ts";
 
-import { invalidateAll, sessionIdTag, sessionTag } from "./cache.ts";
+import { userSessionTags } from "../server/cache-tags.ts";
+import { invalidateAll, sessionIdTag } from "./cache.ts";
 
-/** The user's session tag and the authorization provider's tags for them. */
-export function userSessionTags(
-  hooks: AuthorizationHooks | undefined,
-  userId: string,
-): readonly string[] {
-  return [sessionTag(userId), ...(hooks?.sessionTags?.(userId) ?? [])];
-}
+export { userSessionTags } from "../server/cache-tags.ts";
 
 /**
  * Drops the caller's own cached entries and evicts them from the version cache.
