@@ -1,4 +1,5 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { QuoteKit } from "./quotes-kit.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
@@ -6,6 +7,7 @@ import {
   declared,
   lineColumn,
   lineItemsSql,
+  TOTAL_COLUMNS,
 } from "../line-items-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
@@ -14,6 +16,7 @@ import {
   serviceGrant,
   sha256Hex,
   transitionActorSql,
+  triggerGrant,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
@@ -29,6 +32,12 @@ export interface QuoteNames {
   readonly read: string;
   readonly write: string;
   readonly manage: string;
+  /** `permissions.send`, else `write`: send and publish. */
+  readonly send: string;
+  /** `permissions.decide`, else `write`: record the customer's answer. */
+  readonly decide: string;
+  /** `permissions.withdraw`, else `write`. */
+  readonly withdraw: string;
   readonly company: string;
   readonly contact: string;
   readonly prefix: string;
@@ -38,6 +47,12 @@ export interface QuoteNames {
   /** `options.extraColumns` of the quotes table, written from `attrs.fields`. */
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];
+  /** `options.versionLineExtraColumns`, copied from the line of the same name. */
+  readonly versionLineExtras: readonly ExtraColumn[];
+  /** `options.totals: "app"`: the app keeps the totals, the block reads them. */
+  readonly appTotals: boolean;
+  /** `options.resend`: send takes a rejected, withdrawn or expired quote. */
+  readonly resend: boolean;
 }
 
 /**
@@ -150,6 +165,17 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
   const actor = (name: string): string =>
     `\n  ${transitionActorSql(`${name}.actor`, "QUOTE_ACTOR_INVALID")}`;
 
+  // A declined quote sent again (options.resend) is revised in the same call:
+  // a fresh valid-until date and, without a working copy, no view yet.
+  const resent =
+    k.declined.length === 0
+      ? ""
+      : `${q("validUntil")} = case when ${st(`x.${q("status")}`, k.declined)} then greatest(x.${q("validUntil")}, current_date + ${String(n.validDays)}) else x.${q("validUntil")} end, ${
+          has("viewedAt") && !k.workingCopy
+            ? `${q("viewedAt")} = case when ${st(`x.${q("status")}`, k.declined)} then null else x.${q("viewedAt")} end, `
+            : ""
+        }`;
+
   const publishedBy = `coalesce(auth.uid(), nullif(send_quote.actor ->> 'id', '')::uuid)`;
 
   // The published lines as rows with their own ids, when versionLines is on.
@@ -184,9 +210,15 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
         ? ctx.cast("versionLines", column, `ql.${l(column)}::text`)
         : `ql.${l(column)}`;
 
+    const lineExtraNames = new Set(n.lineExtras.map((extra) => extra.name));
+
+    const extras = n.versionLineExtras
+      .filter((extra) => lineExtraNames.has(extra.name))
+      .map((extra) => extra.ident);
+
     return `
-  insert into ${t("versionLines")} (${vl("tenant")}, ${vl("version")}, ${copied.map(vl).join(", ")})
-  select v_row.${q("tenant")}, v_version, ${copied.map(value).join(", ")}
+  insert into ${t("versionLines")} (${vl("tenant")}, ${vl("version")}, ${[...copied.map(vl), ...extras].join(", ")})
+  select v_row.${q("tenant")}, v_version, ${[...copied.map(value), ...extras.map((ident) => `ql.${ident}`)].join(", ")}
   from ${t("lines")} ql where ql.${l("parent")} = v_row.${q("id")};`;
   })();
 
@@ -413,8 +445,12 @@ begin
     }
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
-  end;${oneDeposit}
-  perform ${fn("set_quote_lines_recount")}(v_row.${q("id")});
+  end;${oneDeposit}${
+    n.appTotals
+      ? ""
+      : `
+  perform ${fn("set_quote_lines_recount")}(v_row.${q("id")});`
+  }
   select * into v_row from ${t("quotes")} x where x.${q("id")} = v_row.${q("id")};
   ${record("quote.updated", "v_row")}
   return ${row("v_row")};
@@ -429,6 +465,7 @@ ${lineItemsSql(
     frozen: `not (${open("p")})`,
     extras: n.lineExtras,
     taxLines: "taxLines",
+    totals: !n.appTotals,
     ...(k.depositDue === undefined ? {} : { afterTotals: k.depositDue }),
   },
   {
@@ -463,11 +500,11 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_version uuid;${k.workingCopy ? "\n  v_linked boolean;" : ""}
 begin
-  select * into v_row from ${t("quotes")} x where x.${q("id")} = send_quote.quote and ${editable("x")} for update;
+  select * into v_row from ${t("quotes")} x where x.${q("id")} = send_quote.quote and ${editable("x", n.send)} for update;
   if v_row.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
   end if;
-  if not (${open("v_row")}) then
+  if not (${open("v_row")}${k.declined.length > 0 && !k.workingCopy ? ` or ${st(`v_row.${q("status")}`, k.declined)}` : ""}) then
     ${fail("QUOTE_NOT_EDITABLE", "the quote was already sent; revise it to send a new version", "55000")}
   end if;
   if not exists (select 1 from ${t("lines")} x where x.${l("parent")} = v_row.${q("id")}) then
@@ -476,7 +513,7 @@ begin
   ${ctx.hook("before_quote_send", [["uuid", `v_row.${q("id")}`]])}${k.workingCopy ? `\n  v_linked := v_row.${q("tokenHash")} is not null;` : ""}
   update ${t("quotes")} x set ${q("status")} = ${sv("sent")}, ${q("sentAt")} = now(), ${q("tokenHash")} = ${k.workingCopy ? `coalesce(x.${q("tokenHash")}, ${sha256Hex("v_token")})` : sha256Hex("v_token")},
     ${q("revision")} = case when exists (select 1 from ${t("versions")} v where v.${v("quote")} = x.${q("id")} and v.${v("revision")} = x.${q("revision")}) then x.${q("revision")} + 1 else x.${q("revision")} end,
-    ${decisionReset}${k.workingCopy ? `${q("unpublishedChanges")} = false, ` : ""}${q("updatedAt")} = now()
+    ${decisionReset}${resent}${k.workingCopy ? `${q("unpublishedChanges")} = false, ` : ""}${q("updatedAt")} = now()
   where x.${q("id")} = v_row.${q("id")}
   returning * into v_row;
   insert into ${t("versions")} (${v("tenant")}, ${v("quote")}, ${v("revision")}, ${v("snapshot")}, ${v("total")}, ${v("currency")}${ctx.has("versions", "publishedBy") ? `, ${v("publishedBy")}` : ""})
@@ -530,8 +567,8 @@ end;
 $$;
 ${userGrant(`${fn("revise_quote")}(uuid, jsonb)`)}
 
--- Takes back a sent quote the customer hasn't accepted: it can't be answered
--- any more until it is revised and sent again.
+-- Takes back a sent or expired quote the customer hasn't accepted: it can't
+-- be answered any more until it is revised and sent again.
 create or replace function ${fn("withdraw_quote")}(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
@@ -541,11 +578,11 @@ as $$
 declare
   v_row ${t("quotes")};
 begin
-  select * into v_row from ${t("quotes")} x where x.${q("id")} = withdraw_quote.quote and ${editable("x")} for update;
+  select * into v_row from ${t("quotes")} x where x.${q("id")} = withdraw_quote.quote and ${editable("x", n.withdraw)} for update;
   if v_row.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
   end if;
-  if ${st(`v_row.${q("status")}`, ["sent", "viewed", "changes_requested"], true)} then
+  if ${st(`v_row.${q("status")}`, ["sent", "viewed", "changes_requested", "expired"], true)} then
     ${fail("QUOTE_NOT_OPEN", "only a sent quote that wasn't answered is withdrawn", "55000")}
   end if;${actor("withdraw_quote")}
   update ${t("quotes")} x set ${q("status")} = ${sv("withdrawn")}, ${q("updatedAt")} = now()
@@ -568,6 +605,7 @@ declare
   v_row ${t("quotes")};
   v_count integer := 0;
 begin
+  perform set_config('better_supabase.transition_actor', '', true);
   for v_row in
     update ${t("quotes")} x set ${q("status")} = ${sv("expired")}, ${q("updatedAt")} = now()
     where ${st(`x.${q("status")}`, ["sent", "viewed"])} and x.${q("validUntil")} < current_date
@@ -580,5 +618,55 @@ begin
 end;
 $$;
 ${serviceGrant(`${fn("expire_quotes")}()`)}
-${fromDeal}`;
+${appTotalsGuard(ctx, n, k)}${fromDeal}`;
+}
+
+/**
+ * With `options.totals: "app"`, a trigger on the quotes table that refuses a
+ * change to the totals once a quote is answered, expired or withdrawn, and
+ * keeps the deposit due on the app's total.
+ */
+function appTotalsGuard(
+  ctx: BlockSqlContext,
+  n: QuoteNames,
+  k: QuoteKit,
+): string {
+  if (!n.appTotals) {
+    return "";
+  }
+
+  const { q, has, st } = k;
+  const trigger = ctx.trigger("quotes_app_totals");
+  const fn = `better_supabase.${trigger.replaceAll('"', "")}()`;
+
+  const totals = Object.keys(TOTAL_COLUMNS).filter(has).map(q);
+
+  const changeable = [...new Set([...k.openStatuses, "sent", "viewed"])];
+
+  const depositDue = has("depositDue")
+    ? `
+  new.${q("depositDue")} := case${has("depositAmount") ? ` when new.${q("depositAmount")} is not null then least(greatest(new.${q("total")}, 0), new.${q("depositAmount")})` : ""}${has("depositBps") ? ` when new.${q("depositBps")} is not null then round(new.${q("total")} * new.${q("depositBps")} / 10000.0)::bigint` : ""} else 0 end;`
+    : "";
+
+  return `
+-- The app keeps the quote's totals: once a quote is answered, expired or
+-- withdrawn they no longer change, and the deposit due follows the total.
+create or replace function ${fn}
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and ${st(`old.${q("status")}`, changeable, true)}
+    and (${totals.map((column) => `new.${column}`).join(", ")}) is distinct from (${totals.map((column) => `old.${column}`).join(", ")}) then
+    ${fail("QUOTE_TOTALS_FROZEN", "the totals of an answered, expired or withdrawn quote don't change", "55000")}
+  end if;${depositDue}
+  return new;
+end;
+$$;
+${triggerGrant(fn)}
+drop trigger if exists ${trigger} on ${n.t("quotes")};
+create trigger ${trigger} before insert or update on ${n.t("quotes")}
+for each row execute function ${fn};
+`;
 }

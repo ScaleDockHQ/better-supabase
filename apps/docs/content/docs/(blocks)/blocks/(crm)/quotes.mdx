@@ -7,6 +7,21 @@ description: Quotes with line items, sections and optional lines, document disco
 
 Reading needs `quotes.read`, and creating, sending and recording decisions needs `quotes.write`. Admins get every permission, and members get `quotes.read` and `quotes.write`.
 
+`permissions.send` (send and publish), `permissions.decide` and `permissions.withdraw` take their own keys, each falling back to `write`, so members can edit quotes while only some roles send them:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  quotes: {
+    permissions: {
+      write: "quote.update",
+      send: "quote.send",
+      decide: "quote.markAccepted",
+      withdraw: "quote.withdraw",
+    },
+  },
+}
+```
+
 ```bash
 better-supabase add quotes
 ```
@@ -65,7 +80,7 @@ const rows = useQuotes({ limit: 50 });
 | `accepted`, `rejected` | the customer answered through the link, or `decide` recorded their answer   |
 | `changes_requested`    | the customer asked for changes; it can be edited and sent again, or revised |
 | `expired`              | its valid-until date passed (`expire_quotes`, or an answer after the date)  |
-| `withdrawn`            | `withdraw`; the customer can't answer until it is revised and sent again    |
+| `withdrawn`            | `withdraw` of a sent or expired quote; it isn't answered until sent again   |
 
 `create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.subjects` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
@@ -79,6 +94,16 @@ The database takes the variant's price in the quote's currency (from
 a price in that currency fails with `LINES_INVALID`.
 
 `send` needs at least one line (`QUOTE_EMPTY`). It returns the link's token once; only its hash is stored.
+
+With `options.resend: true`, `send` and `publish` also take a `rejected`, `withdrawn` or `expired` quote and send it again in one call: the next revision, a fresh valid-until date and a cleared decision, without a `draft` step in between, so a [state machine](/docs/blocks/state-machine) over quotes records one change from `rejected` to `sent`. With `workingCopy`, such a quote can also be edited before it goes out again. Without the option, those statuses answer `QUOTE_NOT_EDITABLE` as before.
+
+```ts
+blocks: { quotes: { options: { workingCopy: true, resend: true } } }
+```
+
+```ts
+await db.quotes.send(rejectedQuoteId, { actor: { name: "Sam" } }).orThrow();
+```
 
 ## Versions
 
@@ -112,6 +137,21 @@ await db.quotes.publish(quote.id, { actor: { name: "Sam" } }).orThrow(); // revi
 
 With `options.versionLines: true`, each publish also copies the quote's lines to `quote_version_lines`: one row per line with its own id, the version's id and the line's position, amounts, rates, section and option flags. The rows never change (`QUOTE_VERSION_FROZEN`), so a stock hold or the optional lines a customer took can point at them. `view`, `portalView` and `version` return each line's `versionLineId`, and a decision's `selected` takes those ids as well as positions. Map `tables.versionLines` and its `columns` to keep the rows in your own table, as with the other quote tables.
 
+`options.versionLineExtraColumns` names the version lines' own columns, with their SQL type. Each publish copies the line column of the same name from `lineExtraColumns` into it, in the same insert, so a check or a reference on your version lines table holds. A version line column without a line column of that name keeps its default.
+
+```ts
+blocks: {
+  quotes: {
+    options: {
+      workingCopy: true,
+      versionLines: true,
+      lineExtraColumns: { line_type: "public.quote_line_type", variant_id: "uuid", stock_mode: "text" },
+      versionLineExtraColumns: { line_type: "public.quote_line_type", variant_id: "uuid", stock_mode: "text" },
+    },
+  },
+}
+```
+
 ## Pricing
 
 A quote can take prices that include tax, a discount on the whole document and a deposit:
@@ -132,6 +172,22 @@ With `pricesIncludeTax`, unit amounts are gross and the tax is counted out of th
 A subscription line counts its `periods` (default 1): `{ description: "Hosting", quantity: 2, periods: 12, unitAmount }` adds quantity times periods times the unit amount, and `invoices.fromQuote` copies it as that quantity.
 
 The database spreads the document discount over the tax rates in proportion to each rate's amount, then computes the tax per rate. `quote.taxLines` holds the result, one line per tax rate and tax code, with its `net`, `tax`, `gross` and its share of the `discount`. These lines add up exactly to `subtotal`, `taxTotal` and `total`, so an invoice can show the tax breakdown a VAT invoice needs. `pricing.depositDue` is `depositBps` of the total.
+
+### Totals your app keeps
+
+With `options.totals: "app"`, the block never counts or writes a quote's totals: your app does, for example with a fixed discount per line or a VAT regime such as reverse charge, exempt or a small-business scheme that keeps the line rates but counts no VAT. `setLines` returns the totals the quote holds after your triggers ran, and `depositDue` follows your `total`. The block still guards them: lines and pricing change only while the quote is open, a published version never changes, and a trigger refuses a change to `listTotal`, `discountTotal`, `subtotal`, `taxTotal` or `total` once the quote is accepted, rejected, expired or withdrawn (`QUOTE_TOTALS_FROZEN`). `quote_tax_lines` is then yours to fill.
+
+```ts
+blocks: {
+  quotes: {
+    options: {
+      totals: "app",
+      extraColumns: { vat_regime: "public.document_vat_regime not null default 'standard'" },
+      lineExtraColumns: { discount_amount_cents: "bigint not null default 0" },
+    },
+  },
+}
+```
 
 ## Sections and optional lines
 
@@ -187,7 +243,7 @@ await quotes
   .orThrow();
 ```
 
-`send`, `publish`, `revise` and `withdraw` take `{ actor }` too. The actor goes to the [state machine](/docs/blocks/state-machine#who-made-the-change)'s history when a machine runs over the quotes table, and the customer's own answers through the link or the portal pass their name, email, IP address and user agent there as well, so a machine can write its history rows itself.
+`portalView(quoteId, { actor })` passes the customer who opened the quote, so the `viewed` change keeps who they were; only the service role may name one (`QUOTE_ACTOR_FORBIDDEN`). `send`, `publish`, `revise` and `withdraw` take `{ actor }` too. The actor goes to the [state machine](/docs/blocks/state-machine#who-made-the-change)'s history when a machine runs over the quotes table, and the customer's own answers and views through the link or the portal pass their name, email, IP address and user agent there as well. `expire_quotes` clears the actor, so an expiry never inherits one from earlier in the transaction. Every status change the block makes carries its actor, so a machine can write its history rows itself (`history: { write: true }`).
 
 ## In the portal
 
@@ -264,6 +320,8 @@ The module calls `before_quote_send(quote uuid)`, `after_quote_send(quote uuid)`
 | `QUOTE_PRICING_UNSUPPORTED`, `QUOTE_DISCOUNT_UNSUPPORTED`, `QUOTE_DEPOSIT_UNSUPPORTED` | your quotes table has no column for that setting                         |
 | `QUOTE_DEPOSIT_REQUIRED`                                                               | the customer pays the deposit before accepting; the app calls `decide`   |
 | `QUOTE_ACTOR_INVALID`                                                                  | `actor` isn't an object, or its `ip` or `id` isn't valid                 |
+| `QUOTE_ACTOR_FORBIDDEN`                                                                | only the service role names who opened a quote                           |
+| `QUOTE_TOTALS_FROZEN`                                                                  | with `totals: "app"`, an answered, expired or withdrawn quote's totals   |
 | `QUOTE_EMPTY`                                                                          | a quote without lines can't be sent                                      |
 | `QUOTE_NOT_OPEN`                                                                       | the quote doesn't take an answer now                                     |
 | `QUOTE_NOT_SENT`                                                                       | a draft is edited, not revised                                           |

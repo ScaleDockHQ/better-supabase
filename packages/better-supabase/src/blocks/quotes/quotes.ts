@@ -282,7 +282,11 @@ export interface Quotes<F extends object = Record<never, never>> {
     quoteId: string,
     lines: readonly QuoteLineInput[],
   ): AsyncResult<Totals>;
-  /** Sends it: resolves to the quote and the link token, returned only now. */
+  /**
+   * Sends it: resolves to the quote and the link token, returned only now. With
+   * `options.resend`, a rejected, withdrawn or expired quote is sent again in
+   * the same call.
+   */
   send(
     quoteId: string,
     options?: QuoteActorOptions,
@@ -313,7 +317,7 @@ export interface Quotes<F extends object = Record<never, never>> {
    * `options.workingCopy` the link stays.
    */
   revise(quoteId: string, options?: QuoteActorOptions): AsyncResult<Quote<F>>;
-  /** Takes back a sent quote the customer hasn't accepted. */
+  /** Takes back a sent or expired quote the customer hasn't accepted. */
   withdraw(quoteId: string, options?: QuoteActorOptions): AsyncResult<Quote<F>>;
   /** The revisions sent so far, oldest first. */
   versions(quoteId: string): AsyncResult<readonly QuoteVersionSummary[]>;
@@ -331,9 +335,13 @@ export interface Quotes<F extends object = Record<never, never>> {
   ): AsyncResult<QuoteResponse>;
   /**
    * A quote shared with the signed-in guest (portal), as the customer sees it.
-   * Marks it viewed.
+   * Marks it viewed. The service role passes the customer as `actor` for an
+   * app's own portal.
    */
-  portalView(quoteId: string): AsyncResult<PublicQuote>;
+  portalView(
+    quoteId: string,
+    options?: QuoteActorOptions,
+  ): AsyncResult<PublicQuote>;
   /**
    * The signed-in guest's answer, with no token. The name defaults to the
    * guest's email.
@@ -757,7 +765,12 @@ export function createQuotes<
         },
         responseOf,
       ),
-    portalView: (quoteId) => call("portal_quote", { quote: quoteId }, publicOf),
+    portalView: (quoteId, viewOptions = {}) =>
+      call(
+        "portal_quote",
+        { quote: quoteId, ...actorArg(viewOptions) },
+        publicOf,
+      ),
     portalRespond: (quoteId, decision, answer = {}) =>
       call(
         "respond_to_portal_quote",
