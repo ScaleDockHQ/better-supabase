@@ -62,9 +62,10 @@ stay hidden.
 
 ## Workflow: after upgrading better-supabase
 
-1. Run `pnpm better-supabase codemod <version> --dry-run` for each minor
-   version you crossed (`codemod` without a name lists them), then without
-   `--dry-run`, and fix the lines it lists for review.
+1. Run `pnpm better-supabase codemod <version> --dry-run` for each version
+   that has one (`codemod` without a name lists them), then without
+   `--dry-run`, and fix the lines it lists for review. From 0.35, one
+   `codemod 0.37` covers 0.36 and 0.37; 0.38 and 0.39 have none.
 2. Run `pnpm better-supabase upgrade`, so the SQL modules get the
    release's SQL and any forward steps land in a migration, then write a
    migration from the changed files (under the `migrations` workflow it
@@ -75,11 +76,17 @@ stay hidden.
    the config to keep an old relation name.
 4. Run `pnpm better-supabase skills install --check` and reinstall the skills
    when it reports them stale.
-5. Read the release's guide: https://bettersupabase.com/docs/migration/0.5-to-0.6
-   for 0.6 (kits are blocks, feature modules import from
-   `better-supabase/blocks/<name>`), and the other versions at
-   https://bettersupabase.com/docs/migration. Every breaking change is in
-   https://github.com/ScaleDockHQ/better-supabase/blob/main/CHANGELOG.md. For 0.3: time values are
+5. Run `pnpm better-supabase doctor`. BS607 means `node_modules`, the
+   lockfile and the block SQL name different releases: run the install
+   command it prints, then `upgrade --check`.
+6. Read the release's guide at https://bettersupabase.com/docs/migration.
+   From 0.35, read https://bettersupabase.com/docs/migration/0.35-to-0.37:
+   the proxy refreshes the session through `@supabase/ssr`, `bsb.cached()`
+   entries stay fresh for 300 seconds, `bsb.supabaseFor` is
+   `bsb.contextClient`, and stock counts fractional units. Every breaking
+   change is in
+   https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md.
+   For 0.6, kits are blocks imported from `better-supabase/blocks/<name>`. For 0.3: time values are
    `Temporal` (see below), `--db-url` is gone, `doctor --format json` is
    `doctor --json`, `BetterResultShape` is `BetterResultValue`, and an
    exhaustive `switch` over the `invalid` auth reason needs an `'actor'` case.
@@ -102,6 +109,7 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 - Express: `res.locals.db`; Fastify: `request.locals.db`; Koa: `ctx.state.db`; NestJS: `@Ctx("db")`
 - SvelteKit: `event.locals.db`; H3, Nitro and Nuxt: `event.context.db`; TanStack Start: the middleware `context.db`
 - Astro: `bsb.locals(Astro).db`; SolidStart: `(await bsb.require()).db`
+- A supabase-js client on the server (Storage, Realtime, a call no repository covers): `bsb.contextClient(ctx.auth)` sends the caller's token to PostgREST, Storage and Realtime, so RLS applies. `bsb.admin().$client` is the shared secret-key client, for work no user owns
 - Browser: `bsb.db`, or the hooks from `createHooks<typeof bsb>()`
 - Vue, Solid and Svelte, TanStack DB collections and a local SQLite database: [references/frontend.md](references/frontend.md)
 - UI for a block (notification bell, notification list, command search, onboarding checklist): build it from the app's shadcn or React Native components and the block's hook, following [references/ui-recipes.md](references/ui-recipes.md). There is no better-supabase UI package; install glue with `npx shadcn add @better-supabase/<item>`.
@@ -124,6 +132,16 @@ the `better-supabase-auth` skill.
   `lib/supabase/providers.ts` and spread them:
   `defineBlocks(blockConfig, { ...blocks, ...providers })`. Doctor fails on a
   missing env key (BS504) or an unwired required provider (BS505).
+- Write a block's tables through its client, never with
+  `.from("<block table>").insert()` or another supabase-js write: that skips
+  the block's events, hooks and checks, and doctor warns BS351. Your own
+  columns on a block table go in the method's `fields` (the block's
+  `extraColumns` option lists them, `<table>ExtraColumns` for its other
+  tables); they are written in the same
+  insert or update, so a `not null` column or a check across columns holds.
+- A column of yours named like a secret (`access_token`, `client_secret`)
+  next to `field-encryption` or `credentials` is BS352: set `encrypted: true`
+  under `tables.<name>.columns`, or move the secret to Vault.
 - A preset can write instances too (`preset: { blocks, instances }`); your
   own `blocks` entry for the same key wins.
 - Keep your own tables in your own files in `supabase/schemas`. A block

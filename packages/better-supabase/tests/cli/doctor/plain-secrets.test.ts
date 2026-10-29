@@ -96,7 +96,7 @@ describe("BS352", () => {
         severity: "warning",
         object: { kind: "table", schema: "public", name: "integrations" },
         message: expect.stringContaining(
-          "set `encrypted: true` on appTables.integrations.columns.access_token",
+          "set `encrypted: true` on tables.integrations.columns.access_token",
         ),
       }),
     );
