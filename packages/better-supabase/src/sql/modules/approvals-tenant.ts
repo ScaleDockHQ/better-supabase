@@ -138,7 +138,7 @@ export function managerOf(
   return `(select mgr.${e("user")} from ${table} me
       join ${table} mgr on mgr.${e("id")} = me.${e("manager")}
       where me.${e("tenant")} = ${tenant} and ${who}
-        and mgr.${e("user")} is not null and mgr.${e("status")}::text <> 'offboarded'
+        and mgr.${e("user")} is not null and ${employees.is("employees", "status", `mgr.${e("status")}`, ["offboarded"], true)}
       limit 1)`;
 }
 
