@@ -1,0 +1,153 @@
+---
+title: Authorization refresh on native
+description: Refresh the token on iOS and Android when a user's roles change, and reconnect PowerSync so the device drops the rows they lost.
+---
+
+When an admin takes a role away, the user's token still carries the old
+claims until it expires. On iOS and Android, `SessionProvider` from
+`better-supabase/react/native` refreshes the token as soon as the database
+reports the change, and reconnects PowerSync, so the sync service evaluates
+its streams under the new token and removes the rows the user can no longer
+read. This page is the native counterpart of
+[Refresh when permissions change](/docs/frontend/react#refresh-when-permissions-change)
+for the browser.
+
+## Turn on authorization versions
+
+The sessions module's `authzVersions` option keeps one version number per
+user, bumps it whenever their memberships, roles or grants change, and adds it
+to the token as `authz_ver`. Each bump is broadcast on the private Realtime
+topic `authz:<uid>`, which only that user may join.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { sessions: { options: { authzVersions: true } } },
+});
+```
+
+An [authorization provider](/docs/extending/authorization-providers) that
+keeps its own versions names its function in `versions`, and the sessions
+module reads that function instead of creating the table.
+
+## Mount the provider
+
+Render `SessionProvider` inside `<BetterSupabaseProvider>` and pass React
+Native's `AppState`. It follows the signed-in user: it subscribes to their
+topic, and on a version newer than the token's it refreshes the session, then
+calls `onAuthzChange`.
+
+```tsx title="src/app/_layout.native.tsx"
+import { Stack } from "expo-router";
+import { SessionProvider } from "better-supabase/react/native";
+import { AppState } from "react-native";
+
+import { sync } from "../lib/powersync/sync";
+
+export default function RootLayout() {
+  return (
+    <SessionProvider appState={AppState} powersync={sync}>
+      <Stack />
+    </SessionProvider>
+  );
+}
+```
+
+The provider listens only while the app is in the foreground, because the OS
+closes the socket in the background anyway. Each time the app becomes active
+again it joins the topic, reads the live version and refreshes when the token
+is behind, so a change made while the phone was in a pocket applies on return.
+A version equal to the token's makes no call to Auth.
+
+| Prop            | What it does                                                               |
+| --------------- | -------------------------------------------------------------------------- |
+| `appState`      | React Native's `AppState`                                                  |
+| `powersync`     | The value `syncWithAuth` returned; it reconnects after each refresh        |
+| `onAuthzChange` | Runs after the refresh, such as invalidating the screen's queries          |
+| `topic`         | The topic for a user id, default `authz:<uid>`; pass a stable function     |
+| `event`         | The broadcast event, default `changed`                                     |
+| `source`        | Where versions come from, for a library that broadcasts on its own channel |
+| `client`        | A supabase-js client, for apps without `<BetterSupabaseProvider>`          |
+| `onError`       | Receives a failed subscription or refresh                                  |
+
+Outside React, `startNativeAuthzRefresh` from `better-supabase/client/native`
+takes the same options plus `client` and `userId`, and returns the cleanup.
+
+## Reconnect PowerSync
+
+PowerSync evaluates sync streams when a client connects, with the claims of
+the token the connector returned. A refreshed token alone changes nothing on
+the service until the client connects again. `syncWithAuth` handles that: it
+fingerprints the user, the active tenant and `authz_ver`, and reconnects when a
+new token for the same user changes the fingerprint.
+
+```ts title="src/lib/powersync/sync.ts"
+import type { AuthSync } from "better-supabase/powersync";
+import { syncWithAuth } from "better-supabase/powersync";
+
+import { bsb } from "../supabase/client.native";
+import { connector } from "./connector";
+import { powersync } from "./database";
+
+export const sync: AuthSync = syncWithAuth(powersync, bsb.auth, { connector });
+```
+
+`sync.reconnect()` reconnects without waiting for a new fingerprint, for a
+change the claims don't show, such as a stream that reads a grants table.
+Passing `sync` as `powersync` to `SessionProvider` calls it after every
+refresh. Calls made before the reconnect starts share one reconnect, and a
+sign-out or another user signing in skips it, so the provider and the
+fingerprint never reconnect twice.
+
+The connector's `fetchCredentials` must read the current session on every
+call (`createUploadConnector` does). A connector that caches the first token
+reconnects with the old claims.
+
+Pass `tenantClaim` when the app renamed the tenant claim
+(`config.claims.tenant`), or `fingerprint` to decide on other claims.
+
+## Switch tenants
+
+A tenant switch changes the claim the streams filter on. Refresh the session
+so the token carries the new tenant, then wait for the reconnect, so the next
+screen reads the new tenant's rows:
+
+```ts
+import type { SwitchResult } from "better-supabase/blocks/organizations";
+
+export async function afterSwitch(result: SwitchResult): Promise<void> {
+  if (result.refresh) {
+    const { error } = await supabase.auth.refreshSession();
+    if (error) throw error;
+  }
+  await sync.reconnect();
+}
+```
+
+Pass it to `useOrganizations({ onSwitched: afterSwitch })` or the switcher
+recipe's `onSwitched` prop.
+
+## Web routes in the same app
+
+An Expo app that renders web routes on the server reads permissions in its
+loaders. `bsb.bootstrap(request, { rpc })` returns the live version next to
+the token's (`authzVersion`, `tokenAuthzVersion` and `stale`), and
+`bsb.getAccess(request, { bootstrap })` checks against the live one, so a
+revoked role is gone from the next page load even before the browser refreshes
+its token. [Expo Router](/docs/frameworks/expo#reading-the-session-and-the-page-data-in-one-call)
+covers the loaders.
+
+## Emulators and devices on the local stack
+
+The Android emulator reaches the host as `10.0.2.2`, and a phone on the same
+network uses the host's LAN address. Tokens issued there carry that host in
+`iss`. The default issuer check accepts the emulator hosts for a local
+project URL; add a LAN address with
+[`auth.loopbackAliases`](/docs/auth/server#token-issuer).
+
+## Check it against a real sync service
+
+The library's tests run the flow against a fake sync service. The
+`expo-powersync` example's README lists the manual check against a real
+PowerSync instance: revoke a role, remove a member, return from the
+background, switch tenants and sign out, and confirm what the device database
+holds after each step.

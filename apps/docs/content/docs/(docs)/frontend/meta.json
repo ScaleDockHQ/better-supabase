@@ -6,6 +6,7 @@
     "block-controllers",
     "react",
     "react-native",
+    "authorization-refresh-native",
     "vue",
     "solid",
     "svelte",

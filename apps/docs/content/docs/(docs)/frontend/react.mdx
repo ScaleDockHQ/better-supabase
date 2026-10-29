@@ -284,7 +284,10 @@ the session tag, the session id tag and the authorization provider's
 other tabs over the `better-supabase:session` `BroadcastChannel` (`channel`,
 `false` for none), and they run `onAuthzChange` without a second refresh. A
 hidden tab that hears the broadcast itself waits until it becomes visible.
-`onError` receives a failed refresh.
+`onError` receives a failed refresh. On iOS and Android, use the
+`SessionProvider` from `better-supabase/react/native` instead: it follows the
+app's foreground and reconnects PowerSync after the refresh
+([Authorization refresh on native](/docs/frontend/authorization-refresh-native)).
 
 ## A tenant from the URL
 

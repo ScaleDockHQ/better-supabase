@@ -346,6 +346,31 @@ session claim or checks a permission the device can't. `teamsRoute` reads the
 team's name from `powersync` when a queued change kept it, because a `PATCH`
 carries only the changed columns.
 
+### Following the session
+
+`syncWithAuth(powersync, bsb.auth, { connector })` connects on sign-in, and
+on sign-out or another user disconnects and clears the device database. It
+also reconnects when a new token for the same user carries another tenant or
+`authz_ver`, because the sync service reads the claims only when a client
+connects; the reconnect makes it evaluate the streams again and remove the
+rows the user lost. `sync.reconnect()` forces one, such as after a tenant
+switch:
+
+```ts title="src/lib/powersync/sync.ts"
+export const sync = syncWithAuth(powersync, bsb.auth, { connector });
+
+export async function afterSwitch(result: SwitchResult): Promise<void> {
+  if (result.refresh) await supabase.auth.refreshSession();
+  await sync.reconnect();
+}
+```
+
+The connector's `fetchCredentials` must read the current session on every
+call, as `createUploadConnector` does, or the reconnect sends the old token.
+Pass `sync` to the native `SessionProvider` so a role change refreshes the
+token and reconnects without waiting for the token to expire
+([Authorization refresh on native](/docs/frontend/authorization-refresh-native)).
+
 ## Uploaded columns
 
 A generated column is in the row you sync down, but Postgres rejects an

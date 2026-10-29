@@ -766,6 +766,15 @@ export const versions = createVersionCache({ maxStaleMs: 30_000 });
 your library for its name. It bounds how long another instance can decide
 with an old version.
 
+Devices follow the same versions. The browser and native `SessionProvider`
+listen on `authz:<uid>` by default and refresh the token when the version is
+ahead of the token's `authz_ver`, and the native one reconnects PowerSync
+afterwards. A library that broadcasts on its own topic passes `topic` and
+`event`, or an `AuthzVersionSource` as `source` when it delivers versions
+another way; the token hook must still write `authz_ver`, because the
+providers compare against it
+([Authorization refresh on native](/docs/frontend/authorization-refresh-native)).
+
 ## Test a provider
 
 `testAuthorizationProvider` from `better-supabase/testing` checks API v1,

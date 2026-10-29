@@ -335,6 +335,33 @@ have no request URL; pass the tenant from route params with
 `bsb.context({ tenant })` or `bsb.cached({ tenant })` (see
 [The active tenant](/docs/repository/permissions#the-active-tenant)).
 
+## User data in one call
+
+`bsb.bootstrapFor(request, { rpc, args, tenant })` runs the
+`bootstrap_<rpc>` wrapper the sessions module renders for each entry in
+`sessions.options.bootstrap`. As the caller, it checks that the Auth session
+is still active, reads the user's live authorization version and calls the
+app function, in one query. Calls with the same key share one query per
+request, and a revoked session evicts the user from the session memo.
+
+```ts
+const boot = await bsb.bootstrapFor<Counts>(request, { rpc: "islands" });
+const access = await bsb.accessFor(request, { bootstrap: boot });
+
+if (boot.stale) {
+  // The live version is ahead of the token's: a role changed since sign-in.
+}
+await access.can("customers.write"); // checked against the live version
+```
+
+`authzVersion` is the live version and `tokenAuthzVersion` the token's `authz_ver`;
+`stale` is true when the first is ahead. `accessFor` returns the context, the
+tenant and `can(permission)` bound to one version: the bootstrap's when you
+pass it, else the token's. `gen` records the schema the wrappers live in;
+`bootstrapSchema` overrides it for every call, and `schema` for one.
+`createNext` and `createExpo` build their `bsb.bootstrap` and `bsb.getAccess`
+on these two.
+
 ## Machine callers
 
 Secret keys sent as `apikey` are rejected unless you enable them. Give a list

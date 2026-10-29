@@ -180,8 +180,9 @@ membership lasts until the next refresh. When that window matters:
 - For a page whose islands all need the session and some data, read them in
   one query: name an app function in `blocks.sessions.options.bootstrap` and
   call `bsb.bootstrap({ rpc, tenant, redirect })` in each island. It checks
-  `session_active()`, returns the token's authorization version, the tenant
-  and the data, and runs once per request for the same arguments. With it,
+  `session_active()`, returns the live authorization version
+  (`authzVersion`) next to the token's (`tokenAuthzVersion`, `stale` when the
+  live one is ahead), the tenant and the data, and runs once per request for the same arguments. With it,
   `bsb.proxy(request, { verifySession: "bootstrap" })` skips the proxy's
   Auth call.
 - `bsb.getAccess(boot)` gives `context`, `session`, `tenant`,
@@ -221,6 +222,27 @@ membership lasts until the next refresh. When that window matters:
   `<SessionProvider session={...}>` and read it with `useSession()`. The
   provider holds the session in a store; `sessionPromise` is the 0.34 name.
 
+## Native and Expo
+
+On iOS, Android and Expo web routes, read
+[references/native.md](references/native.md) first. The short version:
+
+1. Turn on `blocks.sessions.options.authzVersions`.
+2. Render `<SessionProvider appState={AppState} powersync={sync}>` from
+   `better-supabase/react/native` inside `<BetterSupabaseProvider>`. It
+   listens on `authz:<uid>` in the foreground, catches up when the app
+   becomes active, refreshes the token and reconnects PowerSync.
+3. Keep one `syncWithAuth(powersync, bsb.auth, { connector })` for the app.
+   It reconnects when the token's tenant or `authz_ver` changes; after a
+   tenant switch, call `supabase.auth.refreshSession()`, then
+   `await sync.reconnect()`.
+4. In Expo web loaders, read the session, the live version and the page data
+   with `bsb.bootstrap(request, { rpc })`, check permissions with
+   `bsb.getAccess(request, { bootstrap })`, and tag app-side caches with
+   `bsb.cached(request, { tables })`.
+5. On an emulator or a phone against the local stack, add the LAN address to
+   `auth.loopbackAliases`; `10.0.2.2` and `10.0.3.2` are accepted already.
+
 ## Authorization providers
 
 When `better-supabase.config.ts` has an `authorization` key, another package
@@ -251,5 +273,7 @@ https://bettersupabase.com/docs/frameworks/next-auth.md (sign-in and sign-out),
 https://bettersupabase.com/docs/auth/account-deletion.md,
 https://bettersupabase.com/docs/frameworks/next-cache-components.md,
 https://bettersupabase.com/docs/frameworks/next-islands.md,
+https://bettersupabase.com/docs/frontend/authorization-refresh-native.md,
+https://bettersupabase.com/docs/frameworks/expo.md,
 https://bettersupabase.com/docs/migration/0.35-to-0.37.md and
 https://bettersupabase.com/docs/extending/authorization-providers.md.
