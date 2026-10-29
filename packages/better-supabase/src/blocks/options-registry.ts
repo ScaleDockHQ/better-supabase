@@ -62,7 +62,7 @@ import type { MetricsSqlOptions } from "./metrics/options.ts";
 import type { ModerationSqlOptions } from "./moderation/options.ts";
 import type { NotificationsSqlOptions } from "./notifications/options.ts";
 import type { NumberingSqlOptions } from "./numbering/options.ts";
-import type { OAuthServerSqlOptions } from "./oauth-server/options.ts";
+import type { OauthServerSqlOptions } from "./oauth-server/options.ts";
 import type { OnboardingSqlOptions } from "./onboarding/options.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { OrdersSqlOptions } from "./orders/options.ts";
@@ -340,7 +340,7 @@ export interface BlockOptionsRegistry {
   readonly moderation: ModerationSqlOptions;
   readonly notifications: NotificationsSqlOptions;
   readonly numbering: NumberingSqlOptions;
-  readonly "oauth-server": OAuthServerSqlOptions;
+  readonly "oauth-server": OauthServerSqlOptions;
   readonly onboarding: OnboardingSqlOptions;
   readonly orders: OrdersSqlOptions;
   readonly organizations: OrganizationsSqlOptions;

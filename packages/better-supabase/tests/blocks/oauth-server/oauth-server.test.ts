@@ -3,7 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import type { BlockTransport } from "../../../src/core/block-transport.ts";
 
 import { accessTokenResolver } from "../../../src/auth/access-token.ts";
-import { createOAuthServer } from "../../../src/blocks/oauth-server/oauth-server.ts";
+import { createOAuthServer } from "../../../src/blocks/oauth-server/deprecated.ts";
+import { createOauthServer } from "../../../src/blocks/oauth-server/oauth-server.ts";
 
 const sha256 = async (value: string): Promise<string> =>
   [
@@ -35,10 +36,15 @@ const CLIENT_ROW = {
   updatedAt: "2026-10-18T10:00:00Z",
 };
 
-describe("createOAuthServer", () => {
+describe("createOauthServer", () => {
+  it("keeps createOAuthServer as a deprecated alias", () => {
+    // oxlint-disable-next-line typescript/no-deprecated -- the alias is what this checks (1 finding).
+    expect(createOAuthServer).toBe(createOauthServer);
+  });
+
   it("registers a public client without a secret", async () => {
     const { call, transport } = fake({ register_oauth_client: CLIENT_ROW });
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     const registered = await oauth
       .registerClient({
@@ -55,7 +61,7 @@ describe("createOAuthServer", () => {
 
   it("requires a redirect URI for the authorization code grant", async () => {
     const { call, transport } = fake({});
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     expect(await oauth.registerClient({})).toMatchObject({
       ok: false,
@@ -70,7 +76,7 @@ describe("createOAuthServer", () => {
       verify_oauth_registration_token: true,
     });
 
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     expect(
       await oauth.verifyClient("bsc_client", "s3cret").orThrow(),
@@ -89,9 +95,9 @@ describe("createOAuthServer", () => {
   });
 
   it("returns the new secret only when the rotation matched a client", async () => {
-    const oauth = createOAuthServer(fake({ rotate_oauth_client_secret: true }));
+    const oauth = createOauthServer(fake({ rotate_oauth_client_secret: true }));
 
-    const missing = createOAuthServer(
+    const missing = createOauthServer(
       fake({ rotate_oauth_client_secret: false }),
     );
 
@@ -106,7 +112,7 @@ describe("createOAuthServer", () => {
       create_oauth_authorization_code: { grantId: "grant-1" },
     });
 
-    const oauth = createOAuthServer({ transport, codeSeconds: 30 });
+    const oauth = createOauthServer({ transport, codeSeconds: 30 });
 
     const issued = await oauth
       .createAuthorizationCode({
@@ -139,7 +145,7 @@ describe("createOAuthServer", () => {
       },
     });
 
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     const issued = await oauth
       .createAuthorizationCode({
@@ -172,7 +178,7 @@ describe("createOAuthServer", () => {
 
   it("registers a client under a chosen id", async () => {
     const { call, transport } = fake({ register_oauth_client: CLIENT_ROW });
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     await oauth
       .registerClient(
@@ -189,7 +195,7 @@ describe("createOAuthServer", () => {
   });
 
   it("returns null for a replayed or mismatched code", async () => {
-    const oauth = createOAuthServer(
+    const oauth = createOauthServer(
       fake({ redeem_oauth_authorization_code: { status: "replayed" } }),
     );
 
@@ -205,7 +211,7 @@ describe("createOAuthServer", () => {
   });
 
   it("maps an approved device code to its authorization", async () => {
-    const oauth = createOAuthServer(
+    const oauth = createOauthServer(
       fake({
         poll_oauth_device_code: {
           status: "ok",
@@ -238,7 +244,7 @@ describe("createOAuthServer", () => {
       is_oauth_token_revoked: true,
     });
 
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
     const expiresAt = Temporal.Instant.from("2026-10-18T11:00:00Z");
 
     expect(
@@ -269,7 +275,7 @@ describe("createOAuthServer", () => {
       delete_oauth_client: true,
     });
 
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     expect(await oauth.readClient("bsc_client").orThrow()).toMatchObject({
       name: "CLI",
@@ -289,7 +295,7 @@ describe("createOAuthServer", () => {
 
   it("checks a public client without hashing", async () => {
     const { call, transport } = fake({ verify_oauth_client: null });
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     expect(await oauth.verifyClient("bsc_client", null).orThrow()).toBeNull();
     expect(call.mock.calls[0]?.[2]).toEqual({
@@ -299,7 +305,7 @@ describe("createOAuthServer", () => {
   });
 
   it("refuses a challenge that is not a SHA-256 digest", async () => {
-    const oauth = createOAuthServer(fake({}));
+    const oauth = createOauthServer(fake({}));
 
     expect(
       await oauth.createAuthorizationCode({
@@ -321,8 +327,8 @@ describe("createOAuthServer", () => {
       decide_oauth_device_code: true,
     });
 
-    const oauth = createOAuthServer({ transport });
-    const none = createOAuthServer(fake({ oauth_device_request: null }));
+    const oauth = createOauthServer({ transport });
+    const none = createOauthServer(fake({ oauth_device_request: null }));
 
     expect(await oauth.deviceRequest("bdfg-hjkl").orThrow()).toMatchObject({
       clientId: "bsc_client",
@@ -340,7 +346,7 @@ describe("createOAuthServer", () => {
   });
 
   it("maps invalid_grant from a device poll", async () => {
-    const oauth = createOAuthServer(
+    const oauth = createOauthServer(
       fake({ poll_oauth_device_code: { status: "invalid_grant" } }),
     );
 
@@ -367,7 +373,7 @@ describe("createOAuthServer", () => {
       purge_oauth_server: 4,
     });
 
-    const oauth = createOAuthServer({ transport });
+    const oauth = createOauthServer({ transport });
 
     expect(
       await oauth.listGrants("user-1", { includeRevoked: true }).orThrow(),

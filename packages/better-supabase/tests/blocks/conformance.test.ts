@@ -20,10 +20,7 @@ const SRC_DIR = join(import.meta.dirname, "../../src");
 const RECIPES_DIR = join(import.meta.dirname, "../../../../scripts/recipes");
 
 /** Blocks whose creator is not `create<Name>(options)`. */
-const CREATOR_NAME: readonly string[] = [
-  // createOAuthServer keeps the OAuth casing every other export uses.
-  "oauth-server",
-];
+const CREATOR_NAME: readonly string[] = [];
 
 /** Blocks with a TypeScript side but no `create`, or a positional creator. */
 const NO_CREATOR: readonly string[] = [
