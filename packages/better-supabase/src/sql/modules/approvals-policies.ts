@@ -24,8 +24,15 @@ export type ApprovalMode = "confirm" | "authorize";
 
 export interface ApprovalStep {
   readonly approvers: ApprovalApprovers;
-  /** Approvals the step needs before the request moves on. */
-  readonly required: number;
+  /**
+   * Approvals the step needs before the request moves on. `"all"` with only
+   * `approvers.permission` asks every holder of the permission when the request
+   * is filed.
+   */
+  readonly required: number | "all";
+  /** An ISO 8601 duration after which `escalateTo` may decide the step too. */
+  readonly escalateAfter?: string;
+  readonly escalateTo?: ApprovalApprovers;
 }
 
 /** What the final approval runs. */
@@ -43,7 +50,12 @@ export interface ApprovalPolicy {
   readonly expiresIn?: string;
   readonly selfApproval: boolean;
   readonly run?: ApprovalRun;
+  /** Tags such as `money-movement` that tenant and platform policies match. */
+  readonly effects?: readonly string[];
 }
+
+/** The action of a floor that covers every action of its subject type. */
+const ANY_ACTION = "*";
 
 const KEY = /^[a-z][a-z0-9_-]*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -122,17 +134,22 @@ function stepOf(value: unknown, where: string): ApprovalStep {
 
   const approvers = approversOf(value["approvers"], where);
   const required = value["required"] ?? 1;
+  const escalation = escalationOf(value, where);
 
   if (required === "all") {
     const only = Object.keys(approvers);
 
+    if (only.length === 1 && approvers.permission !== undefined) {
+      return { approvers, required: "all", ...escalation };
+    }
+
     if (only.length !== 1 || approvers.users === undefined) {
       throw new TypeError(
-        `${where}.required "all" needs approvers.users and nothing else`,
+        `${where}.required "all" needs approvers.users or approvers.permission and nothing else`,
       );
     }
 
-    return { approvers, required: approvers.users.length };
+    return { approvers, required: approvers.users.length, ...escalation };
   }
 
   if (
@@ -151,7 +168,45 @@ function stepOf(value: unknown, where: string): ApprovalStep {
     throw new TypeError(`${where}.required is more than approvers.users`);
   }
 
-  return { approvers, required };
+  return { approvers, required, ...escalation };
+}
+
+function escalationOf(
+  value: Fields,
+  where: string,
+): Pick<ApprovalStep, "escalateAfter" | "escalateTo"> {
+  const after = value["escalateAfter"];
+  const to = value["escalateTo"];
+
+  if (after === undefined && to === undefined) {
+    return {};
+  }
+
+  if (typeof after !== "string" || !DURATION.test(after) || to === undefined) {
+    throw new TypeError(
+      `${where} needs escalateAfter (an ISO 8601 duration such as PT4H) and escalateTo together`,
+    );
+  }
+
+  return {
+    escalateAfter: after,
+    escalateTo: approversOf(to, `${where}.escalateTo`),
+  };
+}
+
+function effectsOf(value: unknown, where: string): readonly string[] {
+  if (value === undefined) {
+    return [];
+  }
+
+  if (
+    !Array.isArray(value) ||
+    !value.every((item) => typeof item === "string" && KEY.test(item))
+  ) {
+    throw new TypeError(`${where}.effects must be a list of names`);
+  }
+
+  return [...new Set(value.map(String))];
 }
 
 function runOf(value: unknown, where: string): ApprovalRun | undefined {
@@ -187,7 +242,7 @@ export function policyOf(
   where = `${WHERE}.${subjectType}.${action}`,
   floor = false,
 ): ApprovalPolicy {
-  if (!KEY.test(action)) {
+  if (!KEY.test(action) && action !== ANY_ACTION) {
     throw new TypeError(`${where} has an invalid name`);
   }
 
@@ -225,6 +280,7 @@ export function policyOf(
   }
 
   const run = runOf(value["run"], where);
+  const effects = effectsOf(value["effects"], where);
 
   return {
     subjectType,
@@ -236,6 +292,7 @@ export function policyOf(
     selfApproval,
     ...(typeof expiresIn === "string" ? { expiresIn } : {}),
     ...(run === undefined ? {} : { run }),
+    ...(effects.length === 0 ? {} : { effects }),
   };
 }
 
@@ -287,17 +344,22 @@ export function policySnapshot(policy: ApprovalPolicy): string {
     expiresIn: policy.expiresIn ?? null,
     run: policy.run ?? null,
     ...(policy.mode === "confirm" ? { mode: policy.mode } : {}),
+    ...(policy.effects === undefined ? {} : { effects: policy.effects }),
   });
 }
 
-/** The policy snapshot for the requested subject type and action, as SQL. */
+/**
+ * The policy snapshot for the requested subject type and action, as SQL. A
+ * floor for action `*` covers the subject type's other actions.
+ */
 export function policyCase(policies: readonly ApprovalPolicy[]): string {
   if (policies.length === 0) {
     return "null::jsonb";
   }
 
-  return `case approval_policy.subject_type || ':' || approval_policy.action
-${policies
+  const cases = (key: string, items: readonly ApprovalPolicy[]): string =>
+    `case ${key}
+${items
   .map(
     (policy) =>
       `    when ${sqlString(`${policy.subjectType}:${policy.action}`)} then ${sqlString(policySnapshot(policy))}::jsonb`,
@@ -305,6 +367,33 @@ ${policies
   .join("\n")}
     else null::jsonb
   end`;
+
+  const exact = cases(
+    "approval_policy.subject_type || ':' || approval_policy.action",
+    policies,
+  );
+
+  const any = policies.filter((policy) => policy.action === ANY_ACTION);
+
+  return any.length === 0
+    ? exact
+    : `coalesce(${exact}, ${cases("approval_policy.subject_type || ':*'", any)})`;
+}
+
+/**
+ * The floors as a jsonb list of `{ subjectType, action, effects }`, for the
+ * checks that a tenant or platform policy tightens one.
+ */
+export function floorsJson(policies: readonly ApprovalPolicy[]): string {
+  return `${sqlString(
+    JSON.stringify(
+      policies.map((policy) => ({
+        subjectType: policy.subjectType,
+        action: policy.action,
+        effects: policy.effects ?? [],
+      })),
+    ),
+  )}::jsonb`;
 }
 
 /**

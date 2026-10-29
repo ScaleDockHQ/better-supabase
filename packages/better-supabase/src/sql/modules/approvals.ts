@@ -1,6 +1,7 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
+import type { ApprovalSqlKit } from "./approvals-steps.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
@@ -33,15 +34,24 @@ import {
   validateRuns,
 } from "./approvals-policies.ts";
 import {
+  allHoldersSql,
+  decideSql,
+  escalateSql,
+  validateSteps,
+} from "./approvals-steps.ts";
+import {
   approvalsTenantContract,
   approvalsTenantSql,
   managerMatch,
   managerOf,
+  platformPoliciesOn,
+  tenantlessTypes,
   tenantPoliciesOn,
 } from "./approvals-tenant.ts";
 import { approverCheck } from "./approver.ts";
 import { driveSubjectGuard } from "./drive-kit.ts";
 import { providerMembers } from "./memberships.ts";
+import { permissionHolders } from "./notifications-audience.ts";
 import { roleValue } from "./organizations-roles.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -163,6 +173,18 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       "blocks.approvals.options.tenantPolicies needs a policy column on the approval requests table",
     );
   }
+
+  const tenantless = tenantlessTypes(ctx).length > 0;
+  platformPoliciesOn(ctx);
+
+  const holders = permissionHolders(
+    ctx,
+    layout,
+    "(e.value -> 'approvers' ->> 'permission')",
+    "open_approval.tenant",
+  );
+
+  validateSteps(policies, has("policy"), holders !== undefined);
 
   const provider = approverCheck(ctx, layout, {
     kind: { sql: `v_req.${c("subjectType")} || '.' || v_req.${c("action")}` },
@@ -303,6 +325,24 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       union
       select ${manager} where coalesce((v_approvers ->> 'manager')::boolean, false)`;
 
+  // Whether v_me is one of the approvers in v_approvers.
+  const permissionMatch = tenantless
+    ? `case when v_req.${c("tenant")} is null then ${ctx.staff("v_approvers ->> 'permission'")} else ${ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'")} end`
+    : ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'");
+
+  const approverMatch = `((coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
+    or (v_approvers ->> 'permission' is not null and ${permissionMatch})
+    or (v_approvers ->> 'role' is not null and exists (
+      select 1 from ${members.table("memberships")} m
+      where m.${mt} = v_req.${c("tenant")} and m.${mu} = v_me and m.${mr} = ${approverRole}
+    ))
+    or (v_approvers ->> 'team' is not null and ${teamMatch("v_me")})${
+      manager === undefined
+        ? ""
+        : `
+    or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${managerMatch(ctx, { requester: `v_req.${c("requestedBy")}`, tenant: `v_req.${c("tenant")}`, user: "v_me" })})`
+    })`;
+
   const notFound = fail(
     "APPROVAL_NOT_FOUND",
     "approval request not found",
@@ -396,17 +436,39 @@ ${indent}end if;`;
     )
     .join("");
 
+  const kit: ApprovalSqlKit = {
+    requests,
+    decisions,
+    c,
+    d,
+    has,
+    fn,
+    policyOf,
+    stepOf,
+    record,
+    json,
+    also,
+    alsoValue,
+    decided,
+    notFound,
+    stepsRefusal,
+    linkedReject,
+    commentRefusal,
+  };
+
+  const allHolders = allHoldersSql(kit, holders);
+
   const notifyBody = ctx.installed("notifications")
     ? `
   select * into v_req from ${requests} r where r.${c("id")} = approval_notify.request_id;
-  if not found then
+  if not found${tenantless ? ` or v_req.${c("tenant")} is null` : ""} then
     return;
   end if;
   if approval_notify.kind in ('approved', 'rejected', 'expired') then
     v_recipients := array[v_req.${c("requestedBy")}];
     v_permission := null;
   else
-    v_approvers := ${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} -> 'approvers';
+    v_approvers := ${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} -> case when approval_notify.kind = 'escalated' then 'escalateTo' else 'approvers' end;
     v_permission := v_approvers ->> 'permission';
     v_recipients := array(
       select x::uuid from jsonb_array_elements_text(coalesce(v_approvers -> 'users', '[]'::jsonb)) x
@@ -474,7 +536,7 @@ ${indent}end if;`;
   const tables = ctx.manages
     ? `create table if not exists ${requests} (
   ${c("id")} uuid primary key default gen_random_uuid(),
-  ${c("tenant")} ${ctx.idType} not null,
+  ${c("tenant")} ${ctx.idType}${tenantless ? "" : " not null"},
   ${c("subjectType")} text not null,
   ${c("subjectId")} text not null,
   ${c("action")} text not null,${column("requests", "policy", (name) => `${name} jsonb not null`)}${column("requests", "step", (name) => `${name} integer not null default 0 check (${name} >= 0)`)}
@@ -482,7 +544,7 @@ ${indent}end if;`;
   ${c("requestedBy")} uuid,${column("requests", "reason", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}${column("requests", "payload", (name) => `${name} jsonb not null default '{}'::jsonb`)}${column("requests", "expiresAt", (name) => `${name} timestamptz`)}${column("requests", "remindedAt", (name) => `${name} timestamptz`)}${column("requests", "decidedAt", (name) => `${name} timestamptz`)}${column("requests", "fingerprint", (name) => `${name} text check (${name} is null or ${name} ~ '^[0-9a-f]{64}$')`)}${column("requests", "consumedAt", (name) => `${name} timestamptz`)}
   ${c("createdAt")} timestamptz not null default now()
 );${has("fingerprint") ? `\nalter table ${requests} add column if not exists ${c("fingerprint")} text check (${c("fingerprint")} is null or ${c("fingerprint")} ~ '^[0-9a-f]{64}$');` : ""}${has("consumedAt") ? `\nalter table ${requests} add column if not exists ${c("consumedAt")} timestamptz;` : ""}
-create unique index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_pending_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending';
+${tenantless ? `alter table ${requests} alter column ${c("tenant")} drop not null;\n` : ""}create unique index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_pending_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending';
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("status")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
 ${lockModuleTable(ctx, "requests", { read: true })}
 ${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("approval_requests_read"), command: "select", roles: ["authenticated"], using: `${linked.length === 0 ? ctx.scope.check(c("tenant"), read) : `(${ctx.scope.check(c("tenant"), read)} and not ${linkedRow(c("subjectType"))})`} or ${c("requestedBy")} = (select auth.uid())` }), { drop: true, target: requests })}
@@ -490,14 +552,14 @@ ${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("approval_r
 create table if not exists ${decisions} (
   ${d("id")} uuid primary key default gen_random_uuid(),
   ${d("request")} uuid not null references ${requests} (${c("id")}) on delete cascade,
-  ${d("tenant")} ${ctx.idType} not null,
+  ${d("tenant")} ${ctx.idType}${tenantless ? "" : " not null"},
   ${d("step")} integer not null,
   ${d("approver")} uuid,
   ${d("decision")} text not null check (${d("decision")} in ('approved', 'rejected', 'delegated')),${column("decisions", "delegateTo", (name) => `${name} uuid`)}${column("decisions", "comment", (name) => `${name} text check (${name} is null or length(${name}) <= 2000)`)}
   ${d("createdAt")} timestamptz not null default clock_timestamp(),${delegation ? `\n  check ((${d("decision")} = 'delegated') = (${d("delegateTo")} is not null)),` : ""}
   unique (${d("request")}, ${d("step")}, ${d("approver")})
 );${appUniqueIndex(ctx, "decisions", ["request", "step", "approver"])}${delegation ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("decisions").name}_delegate_idx`)} on ${decisions} (${d("delegateTo")}) where ${d("delegateTo")} is not null;` : ""}
-${lockModuleTable(ctx, "decisions", { read: true })}
+${tenantless ? `alter table ${decisions} alter column ${d("tenant")} drop not null;\n` : ""}${lockModuleTable(ctx, "decisions", { read: true })}
 ${renderPolicy(makePolicy({ table: decisions, name: ctx.naming.rename("approval_decisions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(d("tenant"), read) }), { drop: true, target: decisions })}
 `
     : "";
@@ -533,6 +595,7 @@ set search_path = ''
 as $$
 declare
   v_req ${requests}%rowtype;
+  v_step jsonb;
   v_approvers jsonb;
   v_me uuid := auth.uid();
 begin
@@ -554,39 +617,46 @@ begin
       return false;
     end if;
   end if;${linkedEligible}
-  v_approvers := ${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} -> 'approvers';
-  return (coalesce(v_approvers -> 'users', '[]'::jsonb) ? v_me::text)
-    or (v_approvers ->> 'permission' is not null and ${ctx.can("tenant", `v_req.${c("tenant")}`, "v_approvers ->> 'permission'")})
-    or (v_approvers ->> 'role' is not null and exists (
-      select 1 from ${members.table("memberships")} m
-      where m.${mt} = v_req.${c("tenant")} and m.${mu} = v_me and m.${mr} = ${approverRole}
-    ))
-    or (v_approvers ->> 'team' is not null and ${teamMatch("v_me")})${
-      manager === undefined
-        ? ""
-        : `
-    or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${managerMatch(ctx, { requester: `v_req.${c("requestedBy")}`, tenant: `v_req.${c("tenant")}`, user: "v_me" })})`
-    }${
-      delegation
-        ? `
-    or exists (
+  v_step := ${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")};
+  v_approvers := v_step -> 'approvers';
+  if ${approverMatch} then
+    return true;
+  end if;${
+    has("policy")
+      ? `
+  if coalesce((v_step ->> 'escalated')::boolean, false) then
+    v_approvers := v_step -> 'escalateTo';
+    if ${approverMatch} then
+      return true;
+    end if;
+  end if;`
+      : ""
+  }
+  return ${
+    [
+      ...(delegation
+        ? [
+            `exists (
       select 1 from ${decisions} x
       where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = ${stepOf("v_req")}
         and x.${d("decision")} = 'delegated' and x.${d("delegateTo")} = v_me
-    )`
-        : ""
-    }${
-      provider
-        ? `
-    or (v_me is distinct from v_req.${c("requestedBy")} and coalesce((${provider.sql}), false))`
-        : ""
-    };
+    )`,
+          ]
+        : []),
+      ...(provider
+        ? [
+            `(v_me is distinct from v_req.${c("requestedBy")} and coalesce((${provider.sql}), false))`,
+          ]
+        : []),
+    ].join("\n    or ") || "false"
+  };
 end;
 $$;
 ${userGrant(`${fn("approval_eligible")}(uuid)`)}
 
--- Notifies the current step's approvers (requested, reminder), a delegate
--- (delegated) or the requester (approved, rejected, expired).
+-- Notifies the current step's approvers (requested, reminder), its fallback
+-- approvers (escalated), a delegate (delegated) or the requester (approved,
+-- rejected, expired).
 create or replace function ${fn("approval_notify")}(request_id uuid, kind text)
 returns void
 language plpgsql
@@ -635,15 +705,16 @@ as $$
 #variable_conflict use_column
 declare
   v_req ${requests}%rowtype;
+  v_policy jsonb := open_approval.policy;
 begin
   ${ctx.hook("before_approval_request", [
     [ctx.idType, "open_approval.tenant"],
     ["text", "open_approval.subject_type"],
     ["text", "open_approval.subject_id"],
     ["text", "open_approval.action"],
-  ])}${openRefusals}
+  ])}${openRefusals}${allHolders}
   insert into ${requests} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("action")}${also("requests", "policy")}, ${c("requestedBy")}${also("requests", "reason")}${also("requests", "payload")}${also("requests", "expiresAt")})
-  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action${alsoValue("requests", "policy", "open_approval.policy")}, auth.uid()${alsoValue("requests", "reason", "open_approval.reason")}${alsoValue("requests", "payload", "coalesce(open_approval.payload, '{}'::jsonb)")}${has("expiresAt") ? `,\n    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end` : ""})
+  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action${alsoValue("requests", "policy", "v_policy")}, auth.uid()${alsoValue("requests", "reason", "open_approval.reason")}${alsoValue("requests", "payload", "coalesce(open_approval.payload, '{}'::jsonb)")}${has("expiresAt") ? `,\n    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end` : ""})
   on conflict (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending' do nothing
   returning * into v_req;
   if not found then
@@ -720,81 +791,7 @@ ${approvalsTenantSql(ctx, {
   extras,
 })}
 
--- Approves or rejects the current step. Enough approvals move the request
--- to the next step, and the last step runs the policy's action.
-create or replace function ${fn("decide_approval")}(request_id uuid, decision text, comment text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_req ${requests}%rowtype;
-  v_count integer;
-begin
-  if decide_approval.decision not in ('approved', 'rejected') then
-    ${fail("APPROVAL_DECISION_INVALID", "decision must be approved or rejected", "22023")}
-  end if;${commentRefusal("decide_approval.comment")}
-  select * into v_req from ${requests} r where r.${c("id")} = decide_approval.request_id for update;
-  if not found then
-    ${notFound}
-  end if;
-  if v_req.${c("status")} <> 'pending' then
-    ${fail("APPROVAL_CLOSED", "this request is no longer pending", "22023")}
-  end if;${
-    has("expiresAt")
-      ? `
-  if v_req.${c("expiresAt")} is not null and v_req.${c("expiresAt")} <= now() then
-    ${fail("APPROVAL_EXPIRED", "this request has expired", "22023")}
-  end if;`
-      : ""
-  }
-  if not ${fn("approval_eligible")}(v_req.${c("id")}) then
-    ${fail("APPROVAL_FORBIDDEN", "not an approver for this step")}
-  end if;
-  ${ctx.hook("before_approval_decide", [
-    ["uuid", `v_req.${c("id")}`],
-    ["text", "decide_approval.decision"],
-  ])}
-  insert into ${decisions} (${d("request")}, ${d("tenant")}, ${d("step")}, ${d("approver")}, ${d("decision")}${also("decisions", "comment")})
-  values (v_req.${c("id")}, v_req.${c("tenant")}, ${stepOf("v_req")}, auth.uid(), ${ctx.cast("decisions", "decision", "decide_approval.decision")}${alsoValue("decisions", "comment", "decide_approval.comment")});
-  if decide_approval.decision = 'rejected' then
-    update ${requests} r set ${c("status")} = 'rejected'${decided}
-      where r.${c("id")} = v_req.${c("id")} returning * into v_req;
-    ${record("approval.rejected", "v_req", true)}
-    perform ${fn("approval_notify")}(v_req.${c("id")}, 'rejected');${linkedReject}
-  else
-    select count(*) into v_count from ${decisions} x
-      where x.${d("request")} = v_req.${c("id")} and x.${d("step")} = ${stepOf("v_req")} and x.${d("decision")} = 'approved';
-    if ${policyOf("v_req")} ->> 'mode' = 'confirm' and v_req.${c("requestedBy")} = auth.uid() then
-      update ${requests} r set ${c("status")} = 'approved'${decided}
-        where r.${c("id")} = v_req.${c("id")} returning * into v_req;
-      perform ${fn("approval_finalize")}(v_req.${c("id")});
-    elsif v_count >= coalesce((${policyOf("v_req")} -> 'steps' -> ${stepOf("v_req")} ->> 'required')::integer, 1) then
-      if ${stepOf("v_req")} + 1 >= jsonb_array_length(${policyOf("v_req")} -> 'steps') then
-        update ${requests} r set ${c("status")} = 'approved'${decided}
-          where r.${c("id")} = v_req.${c("id")} returning * into v_req;
-        perform ${fn("approval_finalize")}(v_req.${c("id")});
-      else
-        ${
-          has("step")
-            ? `update ${requests} r set ${c("step")} = r.${c("step")} + 1${has("remindedAt") ? `, ${c("remindedAt")} = null` : ""}
-          where r.${c("id")} = v_req.${c("id")} returning * into v_req;
-        perform ${fn("approval_notify")}(v_req.${c("id")}, 'requested');`
-            : stepsRefusal
-        }
-      end if;
-    end if;
-  end if;
-  ${ctx.hook("after_approval_decide", [
-    ["uuid", `v_req.${c("id")}`],
-    ["text", `v_req.${c("status")}`],
-  ])}
-  return ${json("v_req")};
-end;
-$$;
-${userGrant(`${fn("decide_approval")}(uuid, text, text)`)}
+${decideSql(ctx, kit)}
 
 -- Hands the caller's place on the current step to another user.
 create or replace function ${fn("delegate_approval")}(request_id uuid, to_user uuid, comment text default null)
@@ -916,7 +913,7 @@ begin
   from (
     select ${json("x")} as j, x.${c("createdAt")} as at, x.${c("id")} as id
     from ${requests} x
-    where x.${c("tenant")} = list_approvals.tenant
+    where ${tenantless ? `(x.${c("tenant")} = list_approvals.tenant or (list_approvals.tenant is null and x.${c("tenant")} is null))` : `x.${c("tenant")} = list_approvals.tenant`}
       and (list_approvals.status is null or ${asText(ctx, "requests", `x.${c("status")}`)} = list_approvals.status)
       and (list_approvals.subject_type is null or x.${c("subjectType")} = list_approvals.subject_type)
       and (list_approvals.subject_id is null or x.${c("subjectId")} = list_approvals.subject_id)
@@ -1021,6 +1018,8 @@ begin${
 end;
 $$;
 ${serviceGrant(`${fn("remind_approvals")}(interval, integer)`)}
+
+${escalateSql(kit)}
 ${subjectCascades(ctx, subjects, `delete from ${requests} r where r.${c("subjectType")} = v_type and r.${c("subjectId")} = v_id;`)}
 `;
 }

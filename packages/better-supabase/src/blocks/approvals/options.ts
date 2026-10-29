@@ -10,6 +10,20 @@ export type ApprovalsSqlOptions = {
    * above with its own steps, conditions and mode (ADR 0119).
    */
   readonly tenantPolicies?: boolean;
+  /**
+   * Rows of `approval_policies` without an organization are platform policies:
+   * platform staff edit them at runtime, they apply to every organization and
+   * stand in for a missing config floor. Needs `tenantPolicies`.
+   */
+  readonly platformPolicies?: boolean;
+  /**
+   * `"rules"` matches tenant policy conditions through the automations block's
+   * rule fields; `"payload"` matches them against the request payload without
+   * automations.
+   */
+  readonly conditions?: "rules" | "payload";
+  /** Subject types whose requests may have no organization. */
+  readonly tenantless?: readonly string[];
   readonly extraColumns?: ExtraColumns;
 };
 
@@ -17,5 +31,8 @@ export const approvalsSqlOptions: BlockOptionsSchema<ApprovalsSqlOptions> =
   blockOptions<ApprovalsSqlOptions>({
     policies: option.unknown(),
     tenantPolicies: option.boolean({ default: false }),
+    platformPolicies: option.boolean({ default: false }),
+    conditions: option.string<"rules" | "payload">({ default: "rules" }),
+    tenantless: option.strings(),
     extraColumns: option.extraColumns(),
   });
