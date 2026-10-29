@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:35c33a31440c76c5826de1814169e30fdb3910190d0c2cf82f97d5e163064fd1
+-- @bsb-hash sha256:dae3a1dabe400c1449a26599c19803f4fcfba2f3d5318de422015748b3a75ed6
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -151,6 +151,7 @@ create table if not exists "better_supabase"."qualifications" (
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
 create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
 create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
 create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
@@ -847,7 +848,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:029f70a859f2ce40addac1e5d9e8182ba5ef5d88d1cc3b8b4ed337425780c359
+-- @bsb-hash sha256:f97815f6f808decaeedbab523063794f7fbfcce27b8232538aa5583cfb49d56f
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -997,8 +998,10 @@ create table if not exists "better_supabase"."qualifications" (
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
 create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
 create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
 create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
+create index if not exists "qualifications_evidence_idx" on "better_supabase"."qualifications" ("evidence_attachment_id") where "evidence_attachment_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
@@ -1842,7 +1845,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:6136a8afc5602294ce28daaf10ecf13c3aec99485b62864cea995b5e414cd58a
+-- @bsb-hash sha256:80246209bb0e91018559acd36da5132c98a1392fe1daa8486e6d495979ccda5b
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1997,6 +2000,7 @@ create table if not exists "app_private"."qualifications" (
   foreign key ("tenant_id", "type_id") references "app_private"."qualification_types" ("tenant_id", "id") on delete cascade
 );
 create index if not exists "qualifications_holder_idx" on "app_private"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index if not exists "qualifications_type_idx" on "app_private"."qualifications" ("tenant_id", "type_id");
 create index if not exists "qualifications_expiry_idx" on "app_private"."qualifications" ("type_id", "expires_on");
 create index if not exists "qualifications_source_idx" on "app_private"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "app_private"."qualifications" enable row level security;
@@ -2693,7 +2697,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:8bdc3f4a1d04abc4e8a708326d78b15c2c806a46d822bd82674b7ef6a0bcc360
+-- @bsb-hash sha256:a7e2ad3d03123c37d7047c95b0cf227284fb1d3a5451c0213a63496a6e78e7a9
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2843,6 +2847,7 @@ create table if not exists "better_supabase"."qualifications" (
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
 create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
 create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
 create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
@@ -3671,7 +3676,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:c2d3c7a55bee8644683f574e9032eec3236a1d3f15fb941154efcb5efdc1c596
+-- @bsb-hash sha256:6a1fbe7e90e55b70af660d9fe06c7226184d4aae9b2466ba5d94d4f7ec34eeb7
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3806,6 +3811,7 @@ alter table "better_supabase"."qualifications" add column if not exists "notifie
 alter table "better_supabase"."qualifications" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."qualifications" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
 create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
 create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
@@ -4501,7 +4507,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:f0f431bcd5155c3a55d3bee6248e78a0420de14d8af4d3b3a447637b5a0e849b
+-- @bsb-hash sha256:0de87a26e0f39a5ab5d9b70ea70a8d29cc4b8c672b3485e17e4cb30ead72f730
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4651,6 +4657,7 @@ create table if not exists "better_supabase"."qualifications" (
   foreign key ("org_id", "type_id") references "better_supabase"."qualification_types" ("org_id", "id") on delete cascade
 );
 create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("org_id", "holder_type", "holder_id");
+create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("org_id", "type_id");
 create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
 create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;

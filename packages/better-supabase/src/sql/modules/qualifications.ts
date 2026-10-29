@@ -289,8 +289,13 @@ create table if not exists ${holdings} (
   foreign key (${q("tenant")}, ${q("type")}) references ${types} (${t("tenant")}, ${t("id")}) on delete cascade
 );${addExtraColumns(holdings, extras)}
 create index if not exists ${name("qualifications", "holder_idx")} on ${holdings} (${q("tenant")}, ${q("holderType")}, ${q("holderId")});
+create index if not exists ${name("qualifications", "type_idx")} on ${holdings} (${q("tenant")}, ${q("type")});
 create index if not exists ${name("qualifications", "expiry_idx")} on ${holdings} (${q("type")}, ${q("expiresOn")});
-create index if not exists ${name("qualifications", "source_idx")} on ${holdings} (${q("source")}, ${q("sourceId")}) where ${q("sourceId")} is not null;
+create index if not exists ${name("qualifications", "source_idx")} on ${holdings} (${q("source")}, ${q("sourceId")}) where ${q("sourceId")} is not null;${
+    attachmentRef === ""
+      ? ""
+      : `\ncreate index if not exists ${name("qualifications", "evidence_idx")} on ${holdings} (${q("evidenceAttachment")}) where ${q("evidenceAttachment")} is not null;`
+  }
 ${lockModuleTable(ctx, "qualifications", { read: true })}
 ${readPolicy("qualifications", `(${q("holderType")} = 'member' and ${q("holderId")} = (select auth.uid())::text) or ${ctx.scope.check(q("tenant"), read)}`)}
 `;

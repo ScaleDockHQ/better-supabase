@@ -1,6 +1,6 @@
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:74cfb533ea8097e80baba232b0c73d64fda16cb34e8d527c46dd7cfc54cd1f5e
+-- @bsb-hash sha256:831cc53aaa1258ef7346ac261e02fa9596f5b08e3304492cab05500a3d246b7f
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,8 +150,10 @@ create table if not exists "better_supabase"."qualifications" (
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
 create index if not exists "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
+create index if not exists "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
 create index if not exists "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");
 create index if not exists "qualifications_source_idx" on "better_supabase"."qualifications" ("source", "source_id") where "source_id" is not null;
+create index if not exists "qualifications_evidence_idx" on "better_supabase"."qualifications" ("evidence_attachment_id") where "evidence_attachment_id" is not null;
 alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;

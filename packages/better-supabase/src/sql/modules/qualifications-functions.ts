@@ -36,7 +36,7 @@ const HOLDER_BLOCKS: Readonly<Record<string, string>> = {
 };
 
 /** The JSON of a qualification type row. */
-export function typeJson(ctx: BlockSqlContext, row: string): string {
+function typeJson(ctx: BlockSqlContext, row: string): string {
   const t = (column: string): string => `${row}.${ctx.col("types", column)}`;
 
   const field = (column: string): string =>
@@ -46,11 +46,7 @@ export function typeJson(ctx: BlockSqlContext, row: string): string {
 }
 
 /** The JSON of holding `row` of type `type` (a types row). */
-export function holdingJson(
-  ctx: BlockSqlContext,
-  row: string,
-  type: string,
-): string {
+function holdingJson(ctx: BlockSqlContext, row: string, type: string): string {
   const q = (column: string): string =>
     `${row}.${ctx.col("qualifications", column)}`;
 
