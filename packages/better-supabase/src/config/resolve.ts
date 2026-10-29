@@ -313,12 +313,17 @@ export function resolveConfig(
       config.postgrestVersion ?? CONFIG_DEFAULTS.postgrestVersion,
     recordTypes: config.recordTypes ?? true,
     hooks:
-      config.hooks ??
+      (typeof config.hooks === "object"
+        ? config.hooks.framework
+        : config.hooks) ??
       ((config.integrations ?? []).some((name) =>
         ["next", "react", "expo"].includes(name),
       )
         ? "react"
         : false),
+    ...(typeof config.hooks === "object" && config.hooks.select !== undefined
+      ? { hooksSelect: config.hooks.select }
+      : {}),
     json: config.json ?? {},
     codecs: {
       timestamptz:

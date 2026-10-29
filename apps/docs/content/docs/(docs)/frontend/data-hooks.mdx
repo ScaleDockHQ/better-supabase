@@ -25,6 +25,34 @@ export const { useList: useCustomers, useOne: useCustomer } = defineDataHooks(
 A table whose singular and plural names match gets `use<Name>List` and
 `use<Name>`.
 
+To run every generated select through your own function, such as one that
+scopes reads to the active tenant, pass `gen.hooks` as an object. `select`
+names a module and an export; the module path is written into `hooks.ts`
+as you give it, so a relative path resolves from the `hooks.ts` folder.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  gen: {
+    hooks: {
+      framework: "react",
+      select: { module: "./scope", export: "scoped" },
+    },
+  },
+});
+```
+
+```ts title="src/lib/supabase/hooks.ts"
+import { scoped } from "./scope";
+
+export const { useList: useCustomers, useOne: useCustomer } = defineDataHooks(
+  "customers",
+  scoped((db: AppDb) => db.customers),
+);
+```
+
+The export takes the select function `(db) => source` and returns one with
+the same shape.
+
 ## Reading
 
 Each hook reads `bsb.db` from the provider, so it acts as the signed-in user

@@ -14,6 +14,23 @@ export function sortImports(lines: readonly string[]): string[] {
   return lines.toSorted((a, b) => specifier(a).localeCompare(specifier(b)));
 }
 
+/**
+ * Where the formatter groups a value import: with the packages, with the repo's
+ * internal aliases (`@/`, `@better-supabase/`), or with the relative imports
+ * after them.
+ */
+export function importGroup(
+  from: string,
+): "external" | "internal" | "relative" {
+  if (from.startsWith(".")) {
+    return "relative";
+  }
+
+  return from.startsWith("@/") || from.startsWith("@better-supabase/")
+    ? "internal"
+    : "external";
+}
+
 /** `import { … } from "…";`, one name per line when it is wider than 80. */
 export function importStatement(
   names: readonly string[],

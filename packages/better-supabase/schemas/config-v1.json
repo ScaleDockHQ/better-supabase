@@ -2392,6 +2392,29 @@
             },
             {
               "const": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "framework": {
+                  "enum": ["react", "vue", "svelte", "solid"],
+                  "type": "string"
+                },
+                "select": {
+                  "type": "object",
+                  "properties": {
+                    "module": {
+                      "type": "string"
+                    },
+                    "export": {
+                      "type": "string"
+                    }
+                  },
+                  "required": ["module", "export"],
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
             }
           ]
         },

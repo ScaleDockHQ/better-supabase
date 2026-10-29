@@ -85,4 +85,23 @@ describe("generated files the formatter leaves alone", () => {
       file?.contents,
     );
   });
+
+  it.each(["./scope", "@/lib/scope", "app-scope", "zz-scope"])(
+    "places the gen.hooks.select import from %s where oxfmt sorts it",
+    (module) => {
+      const config = resolveConfig(
+        {
+          adapters: ["next"],
+          gen: { hooks: { select: { module, export: "scopedSelect" } } },
+        },
+        "/project",
+      );
+
+      const file = emitHooks(config, ["notes", "customersWithOwner"]);
+
+      expect(formatted(file?.path ?? "", file?.contents ?? "")).toBe(
+        file?.contents,
+      );
+    },
+  );
 });

@@ -24,7 +24,8 @@ import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import * as blockSchemas from "./block-config-schema.ts";
 import { movedKeyIssues } from "./config-moved.ts";
-import { GEN_TASKS, HOOK_FRAMEWORKS, INTEGRATIONS } from "./names.ts";
+import { hooksSchema, sourceSchema } from "./config-schema-gen.ts";
+import { GEN_TASKS, INTEGRATIONS } from "./names.ts";
 import { powersyncGenSchema } from "./powersync/config-schema.ts";
 
 const strings = v.array(v.string());
@@ -548,15 +549,7 @@ const designAppTables = v.record(
 );
 
 const FLAT = {
-  source: v.optional(
-    v.strictObject({
-      dbUrl: v.optional(v.string()),
-      projectRef: v.optional(v.string()),
-      accessToken: v.optional(v.string()),
-      snapshot: v.optional(v.string()),
-      lite: v.optional(v.boolean()),
-    }),
-  ),
+  source: v.optional(sourceSchema),
   schemas: v.optional(strings),
   casing: v.optional(v.picklist(["snake", "camel"])),
   tables: v.optional(
@@ -574,7 +567,7 @@ const FLAT = {
   output: v.optional(v.string()),
   postgrestVersion: v.optional(v.string()),
   recordTypes: v.optional(v.boolean()),
-  hooks: v.optional(v.union([v.picklist(HOOK_FRAMEWORKS), v.literal(false)])),
+  hooks: v.optional(hooksSchema),
   json: v.optional(
     v.record(
       v.string(),
