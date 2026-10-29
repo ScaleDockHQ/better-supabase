@@ -41,7 +41,7 @@ export const JOURNAL_TYPES = [
 ] as const;
 
 /** The subtypes `save_accounting_account` accepts when the config names none. */
-export const DEFAULT_SUBTYPES: readonly string[] = [
+const DEFAULT_SUBTYPES: readonly string[] = [
   "bank",
   "cash",
   "receivable",

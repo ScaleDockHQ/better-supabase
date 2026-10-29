@@ -12,7 +12,7 @@ import { requireSettings } from "./accounting-setup.ts";
 import { accountingSql, ENTRY_RESERVED } from "./accounting-shared.ts";
 
 /** The JSON of an entry (`row`), with its lines when `withLines`. */
-export function entryJson(
+function entryJson(
   ctx: BlockSqlContext,
   row: string,
   withLines: boolean,
