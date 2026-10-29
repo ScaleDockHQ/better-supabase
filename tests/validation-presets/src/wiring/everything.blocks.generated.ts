@@ -284,6 +284,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {
       publicBuckets: [],
+      topic: "attachments",
     },
   },
   audit: {
@@ -2652,6 +2653,7 @@ export const topics = {
   aiChat: () => "ai-chat",
   aiChatList: () => "ai-chats",
   announcements: () => "announcements",
+  attachments: () => "attachments",
   inbox: () => "inbox",
   messaging: () => "messages",
   notifications: (v: { readonly userId: string }) => `notifications:${String(v.userId)}`,
