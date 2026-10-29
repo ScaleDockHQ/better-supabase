@@ -315,6 +315,22 @@ key. `options.schemas` also takes plain `{ user, organization }` maps of key to
 JSON Schema. Keys whose schema has no JSON Schema (`digest` above) are
 validated in TypeScript only.
 
+## Reading a setting in SQL
+
+Other modules' security definer functions read one organization setting with
+`better_supabase.organization_setting(tenant, key)`. It returns the stored
+value as `jsonb`, or `null` when the key is not set, and checks no
+permission, so the calling function decides who may see the value. Only
+`service_role` and the module schema's owner may execute it; signed-in
+callers can't.
+
+```sql
+select better_supabase.organization_setting(v_tenant, 'drive.sharing') ->> 'links';
+```
+
+A block's SQL calls it through `ctx.of("settings").fn("organization_setting")`,
+so it follows the app's schema and naming.
+
 ## Options
 
 | Option     | Default                                                    | What it does                                                                   |

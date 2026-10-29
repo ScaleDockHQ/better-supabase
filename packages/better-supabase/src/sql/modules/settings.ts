@@ -18,6 +18,7 @@ import {
   ownRowPolicies,
   schemaPreamble,
   revokeTable,
+  serviceGrant,
 } from "../shared.ts";
 import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
 
@@ -565,6 +566,20 @@ as $$
   select exists (select 1 from removed)
 $$;
 
+-- One organization setting for other modules' security definer functions,
+-- which decide who may see it. Returns null when the key is not set.
+create or replace function ${fn("organization_setting")}(tenant ${id}, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s.${oc("value")}
+  from ${o} s
+  where s.${oc("tenant")} = organization_setting.tenant and s.${oc("key")} = organization_setting.key
+$$;
+
 create or replace function ${fn("get_platform_settings")}()
 returns jsonb
 language sql
@@ -620,6 +635,7 @@ grant execute on function ${fn("reset_user_setting")}(text) to authenticated, se
 grant execute on function ${fn("get_organization_settings")}(${id}) to authenticated, service_role;
 grant execute on function ${fn("set_organization_setting")}(${id}, text, jsonb) to authenticated, service_role;
 grant execute on function ${fn("reset_organization_setting")}(${id}, text) to authenticated, service_role;
+${serviceGrant(`${fn("organization_setting")}(${id}, text)`)}
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
@@ -654,6 +670,7 @@ function contract(): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text"],
       returns: "boolean",
     },
+    { name: "organization_setting", args: ["{id}", "text"], returns: "jsonb" },
     { name: "get_platform_settings", args: [], returns: "jsonb" },
     { name: "set_platform_setting", args: ["text", "jsonb"], returns: "jsonb" },
     { name: "reset_platform_setting", args: ["text"], returns: "boolean" },
