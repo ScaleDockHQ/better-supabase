@@ -23,7 +23,7 @@ interface SubjectEntry {
  * `lifecycle` entry that is exported and has `subjectType` and `subjectId`
  * columns.
  */
-export function subjectEntries(ctx: BlockSqlContext): readonly SubjectEntry[] {
+function subjectEntries(ctx: BlockSqlContext): readonly SubjectEntry[] {
   const list: SubjectEntry[] = [];
   const omits = tableOmits(ctx);
 
