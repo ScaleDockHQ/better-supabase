@@ -30,6 +30,7 @@ import { consoleLogger } from "../core/logger.ts";
 import { actorOf, invalidActorError } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
 import { clearHs256Keys, isSharedSecretToken, verifyHs256 } from "./hs256.ts";
+import { isLoopbackAlias } from "./issuer.ts";
 import {
   applyCookieWrites,
   parseCookies,
@@ -169,6 +170,13 @@ export interface ResolveAuthOptions {
    * claim, or `false` to skip the check.
    */
   readonly issuer?: string | string[] | false;
+  /**
+   * Hosts the default issuer check also accepts for a local project, next to
+   * `127.0.0.1`, `localhost`, `[::1]`, `10.0.2.2` and `10.0.3.2`: add the LAN
+   * IP a phone reaches the stack through (`["192.168.1.20"]`). The port and
+   * path must match the project URL's. A public project URL accepts none.
+   */
+  readonly loopbackAliases?: readonly string[];
   readonly cookie?: {
     readonly name?: string;
     readonly options?: CookieOptions;
@@ -316,7 +324,10 @@ function foreignIssuer(
     return undefined;
   }
 
-  return claims.iss === fromSupabaseUrl(options.env.url)
+  const expected = fromSupabaseUrl(options.env.url);
+
+  return claims.iss === expected ||
+    isLoopbackAlias(expected, claims.iss, options.loopbackAliases)
     ? undefined
     : {
         kind: "invalid",

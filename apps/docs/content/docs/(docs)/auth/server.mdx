@@ -192,7 +192,30 @@ export const bsb = createServer(betterSupabase, {
 });
 ```
 
-`issuer` works the same way for the `iss` claim.
+## Token issuer
+
+By default a token whose `iss` claim is not the project's Auth URL
+(`<url>/auth/v1`) is rejected with `INVALID_ISSUER`, so a token another
+project signed with a shared key never verifies. A token without `iss` still
+does. `issuer` replaces that check: set it to one issuer or a list to require
+the claim, or to `false` to skip it.
+
+A local stack is reached under more than one host. A phone or an emulator
+calls `http://10.0.2.2:54321` or the laptop's LAN IP while Auth signs
+`http://127.0.0.1:54321/auth/v1`, or the other way round. When the project URL's
+host is loopback or private, the default check also accepts `127.0.0.1`,
+`localhost`, `[::1]`, `10.0.2.2` (the Android emulator) and `10.0.3.2`
+(Genymotion), on the same scheme, port and path. `loopbackAliases` adds hosts,
+such as the LAN IP:
+
+```ts
+export const bsb = createExpo(betterSupabase, {
+  auth: { loopbackAliases: ["192.168.1.20"] },
+});
+```
+
+A public project URL accepts none of these hosts, and `loopbackAliases` has no
+effect when `issuer` is set.
 
 ## Shared-secret tokens
 
