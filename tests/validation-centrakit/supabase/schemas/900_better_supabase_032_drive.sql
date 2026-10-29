@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:5ea0a8f8a1e51a19bd84ee54da905dc359e4079eb9df18b0ec7f6c4f9165bac3
+-- @bsb-hash sha256:e9bee538de2313fc51cc562fd563493253f42442a42536e6cc1c97b74d070c2f
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -217,6 +217,79 @@ $$;
 revoke execute on function "better_supabase"."drive_node_writable"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_node_writable"(uuid) to authenticated, service_role;
 
+-- Whether the caller may comment on the node: options.commentRole (commenter).
+create or replace function "better_supabase"."drive_can_comment"(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select "better_supabase"."drive_can"(drive_can_comment.node, 'commenter')
+$$;
+revoke execute on function "better_supabase"."drive_can_comment"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_can_comment"(uuid) to authenticated, service_role;
+
+-- Whether downloads of the node's original are blocked on it, a folder above it
+-- or its drive. Share links honor the block whatever their role.
+create or replace function "better_supabase"."drive_download_blocked"(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select false or false
+$$;
+revoke execute on function "better_supabase"."drive_download_blocked"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_download_blocked"(uuid) to service_role;
+
+-- Whether the caller may download the node's original: read access, and no
+-- download block unless they hold the write role (editor). Previews only need
+-- read access.
+create or replace function "better_supabase"."drive_can_download"(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(drive_can_download.node, 'viewer')
+    and ("better_supabase"."drive_can"(drive_can_download.node, 'editor') or not "better_supabase"."drive_download_blocked"(drive_can_download.node)))
+$$;
+revoke execute on function "better_supabase"."drive_can_download"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_can_download"(uuid) to authenticated, service_role;
+
+-- create_share_link's check for a node: it exists in the tenant, the caller
+-- holds the share role (editor) on it, and an upload link names a folder.
+create or replace function "better_supabase"."drive_share_link_allowed"(node text, tenant text, role text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "centrakit"."file_node"%rowtype;
+begin
+  if drive_share_link_allowed.node !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return false;
+  end if;
+  select * into v_node from "centrakit"."file_node" x
+  where x."id" = drive_share_link_allowed.node::uuid and x."organization_id"::text = drive_share_link_allowed.tenant::text;
+  if not found or not "better_supabase"."drive_can"(v_node."id", 'editor') then
+    return false;
+  end if;
+  if drive_share_link_allowed.role = 'upload' and v_node."kind" <> 'folder' then
+    raise exception 'an upload link names a folder' using errcode = '22023', hint = 'DRIVE_LINK_ROLE_INVALID';
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_share_link_allowed"(text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_share_link_allowed"(text, text, text) to service_role;
+
 -- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
 -- runs it once per statement instead of once per row: every node in an organization
 -- the caller manages, and the subtree of each grant that names them.
@@ -252,7 +325,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."organization_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', null, 'source', null, 'externalId', null, 'externalMetadata', null, 'legalHoldUntil', null, 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', null)
+  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."organization_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', null, 'source', null, 'externalId', null, 'externalMetadata', null, 'legalHoldUntil', null, 'lockedBy', null, 'lockedUntil', null, 'lockNote', null, 'downloadBlocked', false, 'previewPages', null, 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', null)
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("centrakit"."file_node") from public, anon, authenticated;
 
@@ -605,6 +678,7 @@ begin
   if (false or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
+  
   if v_name = v_node."name" then
     return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (false or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
   end if;
@@ -678,6 +752,7 @@ begin
   if (false or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
+  
   
   v_previous := v_node."parent_id";
   if drive_move.parent is null then
@@ -764,6 +839,7 @@ begin
   if "better_supabase"."drive_node_held"(v_node."id") then
     raise exception 'this item is under a legal hold' using errcode = '42501', hint = 'DRIVE_HELD';
   end if;
+  
   delete from "centrakit"."file_node" x where x."id" in (select s.node_id from "better_supabase"."drive_subtree"(v_node."id") s);
   return true;
 end;

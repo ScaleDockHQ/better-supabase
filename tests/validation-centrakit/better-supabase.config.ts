@@ -380,8 +380,8 @@ export default defineConfig({
     },
     imports: { tables: { runs: "centrakit.import_runs" } },
     // CentraKit keeps no attachment rows, sort keys, soft deletes, drives,
-    // mirrors or legal holds on its tree, so the drive adopts the tree and
-    // grants and leaves uploads to it.
+    // mirrors, legal holds, locks, download blocks or previews on its tree, so
+    // the drive adopts the tree and grants and leaves uploads to it.
     drive: {
       tables: {
         nodes: "centrakit.file_node",
@@ -399,6 +399,11 @@ export default defineConfig({
           externalId: null,
           externalMetadata: null,
           legalHoldUntil: null,
+          lockedBy: null,
+          lockedUntil: null,
+          lockNote: null,
+          downloadBlocked: null,
+          previewPages: null,
         },
         grants: {
           tenant: "organization_id",
