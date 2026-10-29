@@ -83,6 +83,7 @@ export type {
 } from "./attachments.ts";
 
 export {
+  notificationPreferencesRoute,
   notificationRecipientsRoute,
   powersyncNotificationsTransport,
   powersyncTopicPort,
@@ -90,6 +91,7 @@ export {
 
 export type {
   LocalNotificationFunction,
+  NotificationPreferenceWrites,
   NotificationRecipientWrites,
   PowerSyncNotificationsOptions,
 } from "./notifications.ts";

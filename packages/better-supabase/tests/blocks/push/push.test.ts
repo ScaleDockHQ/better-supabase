@@ -722,6 +722,7 @@ describe("expoPushChannel", () => {
     email: null,
     notification: {
       id: "n1",
+      recipientId: "n1",
       eventId: "e1",
       type: "comment.created",
       data: {},

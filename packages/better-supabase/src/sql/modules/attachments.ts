@@ -161,6 +161,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   // The column comment records what the expression was built from, so a
   // changed template, or files without a tenant, rewrite the column.
+  const qualifiedTable = `${ctx.tableName("attachments").schema}.${ctx.tableName("attachments").name}`;
+  const pathColumn = c("path").replaceAll('"', "");
   const pathComment = `better-supabase path: ${pathTemplate(ctx)}${tenantless.length > 0 ? " (tenantless)" : ""}`;
 
   const access = subjectAccess(ctx, {
@@ -416,7 +418,7 @@ create table if not exists ${t} (
   ${c("subjectType")} text check (${c("subjectType")} ~ '^[a-z][a-z0-9_-]{0,62}$'),
   ${c("subjectId")} text check (length(${c("subjectId")}) between 1 and 200),
   ${c("bucket")} text not null default ${bucketLiteral},
-  ${c("path")} text generated always as (${pathExpression(ctx, tenantless.length > 0)}) stored,
+  ${c("path")} text,
   ${c("name")} text not null check (length(${c("name")}) between 1 and 255),
   ${c("mimeType")} text not null check (${c("mimeType")} ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   ${c("size")} bigint not null,
@@ -444,20 +446,47 @@ alter table ${t} add column if not exists ${c("metadata")} jsonb not null defaul
 -- re-run applies changed options to an existing table.${
     ctx.owns("attachments")
       ? `
--- options.path: the column comment records the template the expression was
--- built from, so a changed template rewrites the column (Postgres 17+).
+-- ${c("path")} is a plain column a trigger fills: logical replication (PowerSync)
+-- skips generated columns. An install from before keeps its values when the
+-- expression is dropped.
+do $$
+begin
+  if exists (
+    select 1 from pg_attribute
+    where attrelid = ${sqlString(qualifiedTable)}::regclass
+      and attname = ${sqlString(pathColumn)} and attgenerated <> ''
+  ) then
+    alter table ${t} alter column ${c("path")} drop expression;
+  end if;
+end;
+$$;
+create or replace function ${fn("attachment_object_path")}()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  select ${pathExpression(ctx, tenantless.length > 0)} into new.${c("path")} from (select new.*) as r;
+  return new;
+end;
+$$;
+revoke execute on function ${fn("attachment_object_path")}() from public, anon, authenticated;
+drop trigger if exists bsb_attachments_object_path on ${t};
+create trigger bsb_attachments_object_path
+  before insert or update on ${t}
+  for each row execute function ${fn("attachment_object_path")}();
+-- options.path: the column comment records the template the path was built
+-- from, so a changed template rewrites every row's path.
 do $$
 declare
   v_current text := coalesce(
-    col_description(${sqlString(`${ctx.tableName("attachments").schema}.${ctx.tableName("attachments").name}`)}::regclass,
-      (select attnum from pg_attribute where attrelid = ${sqlString(`${ctx.tableName("attachments").schema}.${ctx.tableName("attachments").name}`)}::regclass and attname = ${sqlString(c("path").replaceAll('"', ""))})::integer),
+    col_description(${sqlString(qualifiedTable)}::regclass,
+      (select attnum from pg_attribute where attrelid = ${sqlString(qualifiedTable)}::regclass and attname = ${sqlString(pathColumn)})::integer),
     'better-supabase path: {organization_id}/attachments/{id}');
 begin
   if v_current is distinct from ${sqlString(pathComment)} then
-    if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
-    end if;
-    execute ${sqlString(`alter table ${t} alter column ${c("path")} set expression as (${pathExpression(ctx, tenantless.length > 0)})`)};
+    update ${t} set ${c("path")} = null;
   end if;
 end;
 $$;`

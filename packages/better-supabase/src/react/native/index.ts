@@ -35,6 +35,10 @@ export type {
   WebBrowserLike,
 } from "../../client/native/auth-link.ts";
 
+export { AUTHZ_EVENT, authzUserTopic } from "../../core/authz-topic.ts";
+
+export type { AuthzVersionSource } from "../../core/authz-topic.ts";
+
 interface IdTokenClient {
   readonly auth: {
     signInWithIdToken(credentials: {

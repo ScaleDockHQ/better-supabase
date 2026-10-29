@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:f83a6419ca0aa5971652bcab31937c5ca5dc4fad92c3b9c5b0b4da0dc1a115e4
+-- @bsb-hash sha256:2173917eaee9a1594b39714d0c41a9222291aa9ab3b4fec25de6cb1338576d33
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,7 +74,7 @@ create table if not exists "better_supabase"."attachments" (
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text check (length("subject_id") between 1 and 200),
   "bucket" text not null default 'attachments',
-  "object_path" text generated always as ("organization_id"::text || '/attachments/' || "id"::text) stored,
+  "object_path" text,
   "name" text not null check (length("name") between 1 and 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
@@ -96,8 +96,38 @@ alter table "better_supabase"."attachments" add column if not exists "pages" int
 alter table "better_supabase"."attachments" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
--- options.path: the column comment records the template the expression was
--- built from, so a changed template rewrites the column (Postgres 17+).
+-- "object_path" is a plain column a trigger fills: logical replication (PowerSync)
+-- skips generated columns. An install from before keeps its values when the
+-- expression is dropped.
+do $$
+begin
+  if exists (
+    select 1 from pg_attribute
+    where attrelid = 'better_supabase.attachments'::regclass
+      and attname = 'object_path' and attgenerated <> ''
+  ) then
+    alter table "better_supabase"."attachments" alter column "object_path" drop expression;
+  end if;
+end;
+$$;
+create or replace function "better_supabase"."attachment_object_path"()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  select "organization_id"::text || '/attachments/' || "id"::text into new."object_path" from (select new.*) as r;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."attachment_object_path"() from public, anon, authenticated;
+drop trigger if exists bsb_attachments_object_path on "better_supabase"."attachments";
+create trigger bsb_attachments_object_path
+  before insert or update on "better_supabase"."attachments"
+  for each row execute function "better_supabase"."attachment_object_path"();
+-- options.path: the column comment records the template the path was built
+-- from, so a changed template rewrites every row's path.
 do $$
 declare
   v_current text := coalesce(
@@ -106,10 +136,7 @@ declare
     'better-supabase path: {organization_id}/attachments/{id}');
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
-    if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
-    end if;
-    execute 'alter table "better_supabase"."attachments" alter column "object_path" set expression as ("organization_id"::text || ''/attachments/'' || "id"::text)';
+    update "better_supabase"."attachments" set "object_path" = null;
   end if;
 end;
 $$;
@@ -758,7 +785,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:a06ef0160e811a0b8b8c508120de129b35f8af3bcacb7c66f8a61274a719b726
+-- @bsb-hash sha256:1a94619a34a7a039805cacc6639d3a6010f55b87634880bb41412a783f16c006
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -831,7 +858,7 @@ create table if not exists "better_supabase"."attachments" (
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text check (length("subject_id") between 1 and 200),
   "bucket" text not null default 'attachments',
-  "object_path" text generated always as ("organization_id"::text || '/attachments/' || "id"::text) stored,
+  "object_path" text,
   "name" text not null check (length("name") between 1 and 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
@@ -853,8 +880,38 @@ alter table "better_supabase"."attachments" add column if not exists "pages" int
 alter table "better_supabase"."attachments" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
--- options.path: the column comment records the template the expression was
--- built from, so a changed template rewrites the column (Postgres 17+).
+-- "object_path" is a plain column a trigger fills: logical replication (PowerSync)
+-- skips generated columns. An install from before keeps its values when the
+-- expression is dropped.
+do $$
+begin
+  if exists (
+    select 1 from pg_attribute
+    where attrelid = 'better_supabase.attachments'::regclass
+      and attname = 'object_path' and attgenerated <> ''
+  ) then
+    alter table "better_supabase"."attachments" alter column "object_path" drop expression;
+  end if;
+end;
+$$;
+create or replace function "better_supabase"."attachment_object_path"()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  select "organization_id"::text || '/attachments/' || "id"::text into new."object_path" from (select new.*) as r;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."attachment_object_path"() from public, anon, authenticated;
+drop trigger if exists bsb_attachments_object_path on "better_supabase"."attachments";
+create trigger bsb_attachments_object_path
+  before insert or update on "better_supabase"."attachments"
+  for each row execute function "better_supabase"."attachment_object_path"();
+-- options.path: the column comment records the template the path was built
+-- from, so a changed template rewrites every row's path.
 do $$
 declare
   v_current text := coalesce(
@@ -863,10 +920,7 @@ declare
     'better-supabase path: {organization_id}/attachments/{id}');
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
-    if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
-    end if;
-    execute 'alter table "better_supabase"."attachments" alter column "object_path" set expression as ("organization_id"::text || ''/attachments/'' || "id"::text)';
+    update "better_supabase"."attachments" set "object_path" = null;
   end if;
 end;
 $$;
@@ -1558,7 +1612,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:b193f8af6a7b854a7ccb9bb3c1fde580aad185955edcd030a2eb156cf1a28236
+-- @bsb-hash sha256:2fb9732144832d2c3d6226bead9a61dd15bcbde11680903574785a114e9978c3
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1636,7 +1690,7 @@ create table if not exists "app_private"."attachments" (
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text check (length("subject_id") between 1 and 200),
   "bucket" text not null default 'attachments',
-  "object_path" text generated always as ("organization_id"::text || '/attachments/' || "id"::text) stored,
+  "object_path" text,
   "name" text not null check (length("name") between 1 and 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
@@ -1658,8 +1712,38 @@ alter table "app_private"."attachments" add column if not exists "pages" integer
 alter table "app_private"."attachments" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
--- options.path: the column comment records the template the expression was
--- built from, so a changed template rewrites the column (Postgres 17+).
+-- "object_path" is a plain column a trigger fills: logical replication (PowerSync)
+-- skips generated columns. An install from before keeps its values when the
+-- expression is dropped.
+do $$
+begin
+  if exists (
+    select 1 from pg_attribute
+    where attrelid = 'app_private.attachments'::regclass
+      and attname = 'object_path' and attgenerated <> ''
+  ) then
+    alter table "app_private"."attachments" alter column "object_path" drop expression;
+  end if;
+end;
+$$;
+create or replace function "app_private"."attachment_object_path"()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  select "organization_id"::text || '/attachments/' || "id"::text into new."object_path" from (select new.*) as r;
+  return new;
+end;
+$$;
+revoke execute on function "app_private"."attachment_object_path"() from public, anon, authenticated;
+drop trigger if exists bsb_attachments_object_path on "app_private"."attachments";
+create trigger bsb_attachments_object_path
+  before insert or update on "app_private"."attachments"
+  for each row execute function "app_private"."attachment_object_path"();
+-- options.path: the column comment records the template the path was built
+-- from, so a changed template rewrites every row's path.
 do $$
 declare
   v_current text := coalesce(
@@ -1668,10 +1752,7 @@ declare
     'better-supabase path: {organization_id}/attachments/{id}');
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
-    if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
-    end if;
-    execute 'alter table "app_private"."attachments" alter column "object_path" set expression as ("organization_id"::text || ''/attachments/'' || "id"::text)';
+    update "app_private"."attachments" set "object_path" = null;
   end if;
 end;
 $$;
@@ -2320,7 +2401,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:9dff890c77a46944773b2d03f36118d7f3af038fc9810b829417e2a286b27a46
+-- @bsb-hash sha256:7e3502bfbf9dfa2f4c9da924f295824a8f55cf9bec0b4b4686b7c395f1517262
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2393,7 +2474,7 @@ create table if not exists "better_supabase"."attachments" (
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text check (length("subject_id") between 1 and 200),
   "bucket" text not null default 'attachments',
-  "object_path" text generated always as ("organization_id"::text || '/attachments/' || "id"::text) stored,
+  "object_path" text,
   "name" text not null check (length("name") between 1 and 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
@@ -2415,8 +2496,38 @@ alter table "better_supabase"."attachments" add column if not exists "pages" int
 alter table "better_supabase"."attachments" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
--- options.path: the column comment records the template the expression was
--- built from, so a changed template rewrites the column (Postgres 17+).
+-- "object_path" is a plain column a trigger fills: logical replication (PowerSync)
+-- skips generated columns. An install from before keeps its values when the
+-- expression is dropped.
+do $$
+begin
+  if exists (
+    select 1 from pg_attribute
+    where attrelid = 'better_supabase.attachments'::regclass
+      and attname = 'object_path' and attgenerated <> ''
+  ) then
+    alter table "better_supabase"."attachments" alter column "object_path" drop expression;
+  end if;
+end;
+$$;
+create or replace function "better_supabase"."attachment_object_path"()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  select "organization_id"::text || '/attachments/' || "id"::text into new."object_path" from (select new.*) as r;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."attachment_object_path"() from public, anon, authenticated;
+drop trigger if exists bsb_attachments_object_path on "better_supabase"."attachments";
+create trigger bsb_attachments_object_path
+  before insert or update on "better_supabase"."attachments"
+  for each row execute function "better_supabase"."attachment_object_path"();
+-- options.path: the column comment records the template the path was built
+-- from, so a changed template rewrites every row's path.
 do $$
 declare
   v_current text := coalesce(
@@ -2425,10 +2536,7 @@ declare
     'better-supabase path: {organization_id}/attachments/{id}');
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
-    if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
-    end if;
-    execute 'alter table "better_supabase"."attachments" alter column "object_path" set expression as ("organization_id"::text || ''/attachments/'' || "id"::text)';
+    update "better_supabase"."attachments" set "object_path" = null;
   end if;
 end;
 $$;
@@ -3209,7 +3317,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:0ad84d0000ad0bb12f0caa60931b4e601c8cb4ff1a206ce442b33ba470fa277c
+-- @bsb-hash sha256:a381e40dd2d94ac744812410ae8c4ff6121793480242bd5f8d4709410c7abd04
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3298,7 +3406,7 @@ alter table "better_supabase"."attachments" add column if not exists "organizati
 alter table "better_supabase"."attachments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."attachments" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
 alter table "better_supabase"."attachments" add column if not exists "bucket" text not null default 'attachments';
-alter table "better_supabase"."attachments" add column if not exists "object_path" text generated always as ("organization_id"::text || '/attachments/' || "id"::text) stored;
+alter table "better_supabase"."attachments" add column if not exists "object_path" text;
 alter table "better_supabase"."attachments" add column if not exists "name" text check (length("name") between 1 and 255);
 alter table "better_supabase"."attachments" add column if not exists "mime_type" text check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$');
 alter table "better_supabase"."attachments" add column if not exists "size" bigint;
@@ -3952,7 +4060,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@6 managed
--- @bsb-hash sha256:91eaaa17f3935be6419fea086fd99c5f4d2701c43719f2cbff528a8f57f4f4cd
+-- @bsb-hash sha256:7c4fc1d3869e465999c1fa0249d0a0baafc97934fecc4b31114ad13c0ae05e2f
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4025,7 +4133,7 @@ create table if not exists "better_supabase"."attachments" (
   "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "subject_id" text check (length("subject_id") between 1 and 200),
   "bucket" text not null default 'attachments',
-  "object_path" text generated always as ("org_id"::text || '/attachments/' || "id"::text) stored,
+  "object_path" text,
   "name" text not null check (length("name") between 1 and 255),
   "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
@@ -4047,8 +4155,38 @@ alter table "better_supabase"."attachments" add column if not exists "pages" int
 alter table "better_supabase"."attachments" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
--- options.path: the column comment records the template the expression was
--- built from, so a changed template rewrites the column (Postgres 17+).
+-- "object_path" is a plain column a trigger fills: logical replication (PowerSync)
+-- skips generated columns. An install from before keeps its values when the
+-- expression is dropped.
+do $$
+begin
+  if exists (
+    select 1 from pg_attribute
+    where attrelid = 'better_supabase.attachments'::regclass
+      and attname = 'object_path' and attgenerated <> ''
+  ) then
+    alter table "better_supabase"."attachments" alter column "object_path" drop expression;
+  end if;
+end;
+$$;
+create or replace function "better_supabase"."attachment_object_path"()
+returns trigger
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  select "org_id"::text || '/attachments/' || "id"::text into new."object_path" from (select new.*) as r;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."attachment_object_path"() from public, anon, authenticated;
+drop trigger if exists bsb_attachments_object_path on "better_supabase"."attachments";
+create trigger bsb_attachments_object_path
+  before insert or update on "better_supabase"."attachments"
+  for each row execute function "better_supabase"."attachment_object_path"();
+-- options.path: the column comment records the template the path was built
+-- from, so a changed template rewrites every row's path.
 do $$
 declare
   v_current text := coalesce(
@@ -4057,10 +4195,7 @@ declare
     'better-supabase path: {organization_id}/attachments/{id}');
 begin
   if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
-    if current_setting('server_version_num')::integer < 170000 then
-      raise exception 'blocks.attachments.options.path changed, which needs Postgres 17 to rewrite object_path; recreate the column in a migration instead';
-    end if;
-    execute 'alter table "better_supabase"."attachments" alter column "object_path" set expression as ("org_id"::text || ''/attachments/'' || "id"::text)';
+    update "better_supabase"."attachments" set "object_path" = null;
   end if;
 end;
 $$;

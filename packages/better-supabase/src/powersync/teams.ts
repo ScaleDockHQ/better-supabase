@@ -79,10 +79,8 @@ const isRow = (value: unknown): value is Row =>
  * });
  * ```
  *
- * The synced teams are the ones the signed-in user belongs to (the `powersync
- * streams` query filters by `auth.user_id()`), so `list` offline returns those,
- * not every team the user may read, and each team's `memberIds` holds only the
- * synced member rows.
+ * The synced teams are every team in the organizations the signed-in user is an
+ * active member of, with their members, the same rows RLS lets the user read.
  */
 export function powersyncTeamsTransport(
   database: PowerSyncDatabaseLike,

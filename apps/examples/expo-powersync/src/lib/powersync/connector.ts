@@ -6,11 +6,13 @@ import { createOrganizations } from "better-supabase/blocks/organizations";
 import {
   createUploadConnector,
   membershipsRoute,
+  notificationPreferencesRoute,
   notificationRecipientsRoute,
 } from "better-supabase/powersync";
 
 import { API_SCHEMA } from "../blocks";
 import { server, supabase } from "../supabase/supabase.native";
+import { powersync } from "./database";
 
 /** On the Data API, not the device database, so a replay reaches the server. */
 const notifications = createNotifications({
@@ -25,9 +27,9 @@ const organizations = createOrganizations({
 
 /**
  * Replays local changes through `server.db.customers`, so RLS and validation
- * run as they do online, marks read or dismissed through the notifications
- * functions, and replays leaving an organization through the organizations
- * functions. Transient errors retry, refused changes land in
+ * run as they do online, marks read or dismissed and preference changes through
+ * the notifications functions, and replays leaving an organization through the
+ * organizations functions. Transient errors retry, refused changes land in
  * `connector.rejected` for `useConflicts()`.
  */
 export const connector = createUploadConnector({
@@ -36,6 +38,10 @@ export const connector = createUploadConnector({
   tables: {
     customers: server.db.customers,
     notification_recipients: notificationRecipientsRoute(notifications),
+    notification_preferences: notificationPreferencesRoute(
+      notifications,
+      powersync,
+    ),
     memberships: membershipsRoute(organizations),
   },
 });

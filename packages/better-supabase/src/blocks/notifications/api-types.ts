@@ -158,7 +158,11 @@ export type AvatarUrls =
   | ((path: string) => string | null);
 
 export interface SentNotification {
+  /** The event id, the same as `eventId`. */
   readonly id: string;
+  /** The shared event id: the `eventId` of each recipient's `list()` item. */
+  readonly eventId: string;
+  /** The user ids that received it. */
   readonly recipients: readonly string[];
 }
 

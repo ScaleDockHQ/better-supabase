@@ -245,10 +245,12 @@ which block calls fail offline. An app that doesn't own the database can set
 publication migration; the `expo-powersync` example does this.
 
 `powersyncNotificationsTransport` runs the notifications feed on the synced
-tables: listing, paging, counts, and marking read, unread or dismissed. The
-local writes go into the upload queue, and `notificationRecipientsRoute`
-replays them through the server's functions, which check that the caller
-owns the row. Sending, preferences and resolving go to `server`.
+tables: listing, paging, counts, marking read, unread or dismissed, and
+listing and setting channel preferences. The local writes go into the upload
+queue, and `notificationRecipientsRoute` and `notificationPreferencesRoute`
+replay them through the server's functions, which check that the caller owns
+the row. Sending, resolving and removing a preference (`enabled: null`) go to
+`server`.
 
 ```ts title="src/lib/powersync/notifications.ts"
 import {
@@ -256,6 +258,7 @@ import {
   rpcTransport,
 } from "better-supabase/blocks/notifications";
 import {
+  notificationPreferencesRoute,
   notificationRecipientsRoute,
   powersyncNotificationsTransport,
 } from "better-supabase/powersync";
@@ -272,11 +275,14 @@ export const notifications = createNotifications({
 
 export const notificationRoutes = {
   notification_recipients: notificationRecipientsRoute(remote),
+  notification_preferences: notificationPreferencesRoute(remote, powersync),
 };
 ```
 
-The upload route takes the client on `rpcTransport`, not the local one: the
-local transport would write the change into SQLite again. Pass
+The upload routes take the client on `rpcTransport`, not the local one: the
+local transport would write the change into SQLite again. A preference
+update carries only `enabled`, so `notificationPreferencesRoute` reads the
+type, channel and organization from `powersync`. Pass
 `powersyncTopicPort(powersync)` as `ports.topic` to
 `createNotificationsController`: the feed reloads when a sync or a local write
 changes the notification tables, without a Realtime channel. Pass `functions`
@@ -323,7 +329,11 @@ export const teams = createTeams({
   transport: powersyncTeamsTransport(powersync, { server }),
 });
 export const profiles = createProfiles({
-  transport: powersyncProfilesTransport(powersync, { server }),
+  transport: powersyncProfilesTransport(powersync, {
+    server,
+    userId: async () =>
+      (await supabase.auth.getSession()).data.session?.user.id,
+  }),
 });
 
 const remoteTeams = createTeams({ transport: server });
@@ -336,10 +346,13 @@ export const organizationRoutes = {
 };
 ```
 
-The synced rows are the user's own: their memberships with the names of
-those organizations, the teams they belong to, and their profile. So offline,
-`teams.list()` returns the user's teams rather than every team they may read,
-and with `roles.many` a membership shows its `role` until the server answers.
+The synced rows are the ones RLS lets the user read: their active
+memberships (and their `membership_roles` rows with `roles.many`) with the
+names of those organizations, every team in those organizations with its
+members, and their profile. So offline, `teams.list()` returns the same teams
+as online. `userId` lets the profiles transport read the signed-in user's
+row by id, so a row another user left on the device before the next sync is
+never returned.
 Switching organizations, creating or deleting a team and changing another
 member's role need the network, because the server picks ids, refreshes the
 session claim or checks a permission the device can't. `teamsRoute` reads the

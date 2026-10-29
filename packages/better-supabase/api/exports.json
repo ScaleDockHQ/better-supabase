@@ -759,6 +759,8 @@
   },
   "./client": {
     "values": [
+      "AUTHZ_EVENT",
+      "authzUserTopic",
       "bindClient",
       "createClient",
       "defineController",
@@ -779,6 +781,7 @@
       "AuthPort",
       "AuthSnapshot",
       "AuthUser",
+      "AuthzVersionSource",
       "BetterClient",
       "BindClientOptions",
       "ClientAuth",
@@ -819,6 +822,8 @@
   },
   "./client/native": {
     "values": [
+      "AUTHZ_EVENT",
+      "authzUserTopic",
       "autoRefreshOnForeground",
       "contentTypeOf",
       "createNativeClient",
@@ -850,6 +855,7 @@
       "AuthSnapshot",
       "AuthStorage",
       "AuthUser",
+      "AuthzVersionSource",
       "AutoRefreshClient",
       "BetterClient",
       "BindClientOptions",
@@ -1013,6 +1019,8 @@
   "./react/native": {
     "values": [
       "AuthGate",
+      "AUTHZ_EVENT",
+      "authzUserTopic",
       "SessionProvider",
       "useAuthDeepLinks",
       "useOAuth",
@@ -1023,6 +1031,7 @@
       "AuthFailure",
       "AuthGateProps",
       "AuthLinkResult",
+      "AuthzVersionSource",
       "LinkingLike",
       "NativeSessionProviderProps",
       "OAuth",
@@ -1551,6 +1560,7 @@
       "fromSqliteError",
       "likeToGlob",
       "membershipsRoute",
+      "notificationPreferencesRoute",
       "notificationRecipientsRoute",
       "postgrestTimestamp",
       "powersyncEngine",
@@ -1585,6 +1595,7 @@
       "LocalProfileFunction",
       "LocalTeamFunction",
       "MembershipWrites",
+      "NotificationPreferenceWrites",
       "NotificationRecipientWrites",
       "PowerSyncDatabaseLike",
       "PowerSyncEngineOptions",
@@ -8059,6 +8070,7 @@
   },
   "./sql": {
     "values": [
+      "addedColumnTypes",
       "adoptedColumnProblems",
       "adoptedTables",
       "adoptedViews",
@@ -8067,6 +8079,7 @@
       "appTableEventTypes",
       "appTablePolicyNotes",
       "appTablesFiles",
+      "attachmentReadRoles",
       "AUDIT_CATEGORIES",
       "auditRegistrations",
       "BLOCK_OPTION_SCHEMAS",

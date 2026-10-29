@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:c87bb42c13d71c8b1d5d421dabc4217484816fcea607246505e6ad8d6bdb18bb
+-- @bsb-hash sha256:7dc3a97177c30eb26b62ad639c08cb193301fd3a8934aadcd3bb3485b6fc88ae
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1456,6 +1456,19 @@ drop trigger if exists "bsb_notifications_product_variant_cascade" on "better_su
 create trigger "bsb_notifications_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."notifications_subject_deleted"('product_variant', 'id', 'tenant_id');
+
+
+create or replace view "api"."notification_recipients" with (security_invoker = true) as
+  select * from "better_supabase"."notification_recipients";
+revoke all on "api"."notification_recipients" from public, anon;
+grant select on "api"."notification_recipients" to authenticated;
+grant all on "api"."notification_recipients" to service_role;
+
+create or replace view "api"."notification_preferences" with (security_invoker = true) as
+  select * from "better_supabase"."notification_preferences";
+revoke all on "api"."notification_preferences" from public, anon;
+grant select, insert, update, delete on "api"."notification_preferences" to authenticated;
+grant all on "api"."notification_preferences" to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

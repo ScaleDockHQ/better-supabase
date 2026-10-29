@@ -200,7 +200,7 @@ export interface BlockNameRegistry {
       readonly "scans": "bucket" | "path" | "status" | "detail" | "createdAt" | "scannedAt";
       readonly "cleanup": "bucket" | "path" | "queuedBy" | "queuedAt" | "attempts";
     };
-    readonly functions: "attachment_object_allowed" | "attachment_object_visible" | "attachment_subject_readable" | "confirm_attachment" | "create_attachment" | "delete_attachment" | "get_attachment" | "list_attachment_versions" | "list_attachments" | "object_clean" | "object_scan" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
+    readonly functions: "attachment_object_allowed" | "attachment_object_path" | "attachment_object_visible" | "attachment_subject_readable" | "confirm_attachment" | "create_attachment" | "delete_attachment" | "get_attachment" | "list_attachment_versions" | "list_attachments" | "object_clean" | "object_scan" | "replace_attachment" | "restore_attachment_version" | "set_attachment_status" | "set_object_scan";
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
