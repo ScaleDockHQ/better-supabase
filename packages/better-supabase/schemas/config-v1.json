@@ -5749,6 +5749,13 @@
               "maxContent": {
                 "type": "number",
                 "default": 100000
+              },
+              "tenant": {
+                "type": "boolean",
+                "default": true
+              },
+              "maxItems": {
+                "type": "number"
               }
             }
           }
