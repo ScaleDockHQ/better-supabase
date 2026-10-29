@@ -237,6 +237,29 @@ export function quoteDecisions(
     ${ctx.hook("after_quote_accept", [["uuid", `v_row.${q("id")}`]])}
   end if;`;
 
+  // The viewer the state machine's history keeps when opening marks a quote
+  // viewed: the app's actor, or the caller's email, address and browser.
+  const viewer = (actor?: string): string => {
+    const own = `begin
+    v_ip := ${ip}::inet;
+  exception when invalid_text_representation then
+    v_ip := null;
+  end;
+  perform set_config('better_supabase.transition_actor', jsonb_strip_nulls(jsonb_build_object('email', auth.jwt() ->> 'email', 'ip', v_ip::text, 'userAgent', left(v_headers ->> 'user-agent', 512)))::text, true);`;
+
+    return actor === undefined
+      ? `
+  ${own}`
+      : `
+  if ${actor} is not null and not ${n.service} then
+    ${fail("QUOTE_ACTOR_FORBIDDEN", "only the service role names who opened a quote", "42501")}
+  end if;
+  ${transitionActorSql(actor, "QUOTE_ACTOR_INVALID")}
+  if ${actor} is null then
+    ${own.replaceAll("\n", "\n  ")}
+  end if;`;
+  };
+
   const answered = `jsonb_build_object('status', ${ctx.label("quotes", "status", `v_row.${q("status")}`)}, 'identifier', v_row.${q("identifier")}, 'revision', v_row.${q("revision")})`;
 
   // What the customer sees: with a working copy, the last published version
@@ -272,7 +295,7 @@ declare
   v_row ${t("quotes")};
   v_claims text;${restoreVars}
 begin
-  select * into v_row from ${t("quotes")} x where x.${q("id")} = decide_quote.quote and ${editable("x")} for update;
+  select * into v_row from ${t("quotes")} x where x.${q("id")} = decide_quote.quote and ${editable("x", n.decide)} for update;
   if v_row.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
   end if;${answer({ name: "decide_quote", by: "coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)", customer: false, expires: "decide_quote.actor is not null", actor: "decide_quote.actor", deposit: false })}
@@ -290,12 +313,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row ${t("quotes")};${restoreVars}
+  v_row ${t("quotes")};${headers}${restoreVars}
 begin
   select * into v_row from ${t("quotes")} x where x.${q("tokenHash")} = ${sha256Hex("public_quote.token")};
   if v_row.${q("id")} is null then
     ${fail("QUOTE_LINK_INVALID", "this link is not valid", "P0002")}
-  end if;
+  end if;${viewer()}
 ${k.markViewed()}
   ${customerView}
 end;
@@ -331,16 +354,18 @@ grant execute on function ${fn("respond_to_quote")}(text, text, text, text, json
 -- A quote shared with the signed-in guest, as the customer sees it: through
 -- a grant on the quote or as a guest of its company or contact. Opening a
 -- sent quote marks it viewed. No link token is needed. The service role
--- reads it too, for an app's own portal.
-create or replace function ${fn("portal_quote")}(quote uuid)
+-- reads it too, for an app's own portal; actor is then the customer who
+-- opened it, for the state machine's history.
+drop function if exists ${fn("portal_quote")}(uuid);
+create or replace function ${fn("portal_quote")}(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_row ${t("quotes")};${restoreVars}
-begin
+  v_row ${t("quotes")};${headers}${restoreVars}
+begin${viewer("portal_quote.actor")}
   select * into v_row from ${t("quotes")} x where x.${q("id")} = portal_quote.quote and (${guest} or (${n.service} and ${k.st(`x.${q("status")}`, ["draft"], true)}));
   if v_row.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote shared with you", "P0002")}
@@ -349,7 +374,7 @@ ${k.markViewed()}
   ${customerView}
 end;
 $$;
-${userGrant(`${fn("portal_quote")}(uuid)`)}
+${userGrant(`${fn("portal_quote")}(uuid, jsonb)`)}
 
 -- The signed-in guest's answer to a quote shared with them, like
 -- respond_to_quote without a token. name defaults to their email; the

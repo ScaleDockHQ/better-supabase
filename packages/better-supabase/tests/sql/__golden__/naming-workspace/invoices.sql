@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:a379c2396bd4330eb80dfac6e15e86fea93d1e2833ca4f02b8a315b655c47374
+-- @bsb-hash sha256:6aa10e273f8d0f0ecebf5b9024b8b658c87730691ff6529198fcc558f4b9e4fa
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -181,6 +181,15 @@ begin
   if v_contact_id is not null and not false then
     raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
   end if;
+  if create_invoice.attrs ->> 'depositAmount' is not null then
+    raise exception 'this invoices table has no deposit amount column' using errcode = '22023', hint = 'INVOICE_DEPOSIT_UNSUPPORTED';
+  end if;
+  if nullif(create_invoice.attrs ->> 'discountBps', '0') is not null then
+    raise exception 'this invoices table has no discount column' using errcode = '22023', hint = 'INVOICE_DISCOUNT_UNSUPPORTED';
+  end if;
+  if nullif(create_invoice.attrs ->> 'discountAmount', '0') is not null then
+    raise exception 'this invoices table has no discount amount column' using errcode = '22023', hint = 'INVOICE_DISCOUNT_UNSUPPORTED';
+  end if;
   begin
     insert into "better_supabase"."invoices" ("tenant_id", "title", "company_type", "company_id", "contact_type", "contact_id", "currency",
       "terms_days", "note", "origin_type", "origin_id", "deposit_bps", "prices_include_tax", "created_by")
@@ -250,6 +259,15 @@ begin
   end if;
   if v_contact_id is not null and not false then
     raise exception 'the contact is unknown or not readable in this organization' using errcode = '42501', hint = 'INVOICE_CONTACT_FORBIDDEN';
+  end if;
+  if update_invoice.attrs ->> 'depositAmount' is not null then
+    raise exception 'this invoices table has no deposit amount column' using errcode = '22023', hint = 'INVOICE_DEPOSIT_UNSUPPORTED';
+  end if;
+  if nullif(update_invoice.attrs ->> 'discountBps', '0') is not null then
+    raise exception 'this invoices table has no discount column' using errcode = '22023', hint = 'INVOICE_DISCOUNT_UNSUPPORTED';
+  end if;
+  if nullif(update_invoice.attrs ->> 'discountAmount', '0') is not null then
+    raise exception 'this invoices table has no discount amount column' using errcode = '22023', hint = 'INVOICE_DISCOUNT_UNSUPPORTED';
   end if;
   begin
     update "better_supabase"."invoices" x set

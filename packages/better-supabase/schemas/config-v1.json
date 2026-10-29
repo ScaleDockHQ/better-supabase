@@ -5230,6 +5230,9 @@
               "paymentsAfterWriteOff": {
                 "type": "boolean",
                 "default": false
+              },
+              "depositKind": {
+                "type": "string"
               }
             }
           }
@@ -6033,6 +6036,20 @@
                 "default": false
               },
               "versionLines": {
+                "type": "boolean",
+                "default": false
+              },
+              "versionLineExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "totals": {
+                "type": "string",
+                "default": "block"
+              },
+              "resend": {
                 "type": "boolean",
                 "default": false
               }

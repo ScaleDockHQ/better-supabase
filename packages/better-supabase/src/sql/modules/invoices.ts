@@ -21,6 +21,8 @@ import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import {
   chargeExtraColumns,
   invoiceFunctions,
+  invoiceOptIn,
+  OPT_IN,
   invoiceParty,
   partyTypeSql,
 } from "./invoices-functions.ts";
@@ -106,15 +108,17 @@ const NAMES: BlockSqlNames = {
     "uniqueNumber",
     "linePositionKey",
     "paymentsAfterWriteOff",
+    "depositKind",
   ],
   tables: {
     invoices: {
       name: "invoices",
       app: {
         unused: (ctx) =>
-          typeof ctx.config.columns["invoices"]?.["writeOffReason"] === "string"
-            ? []
-            : ["writeOffReason"],
+          ["writeOffReason", ...OPT_IN].filter(
+            (column) =>
+              typeof ctx.config.columns["invoices"]?.[column] !== "string",
+          ),
       },
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -144,6 +148,9 @@ const NAMES: BlockSqlNames = {
         originType: "origin_type",
         originId: "origin_id",
         depositBps: "deposit_bps",
+        depositAmount: "deposit_amount",
+        discountBps: "discount_bps",
+        discountAmount: "discount_amount",
         pricesIncludeTax: "prices_include_tax",
         createdBy: "created_by",
         createdAt: "created_at",
@@ -161,6 +168,9 @@ const NAMES: BlockSqlNames = {
         "originType",
         "originId",
         "depositBps",
+        "depositAmount",
+        "discountBps",
+        "discountAmount",
         "pricesIncludeTax",
         "createdBy",
         "listTotal",
@@ -245,6 +255,21 @@ ${renderPolicy(
   const column = (logical: string, definition: string): string =>
     ctx.has("invoices", logical) ? `\n  ${i(logical)} ${definition},` : "";
 
+  // The columns a config opts into (depositAmount, discountBps, discountAmount).
+  const optIn: Readonly<Record<string, (name: string) => string>> = {
+    depositAmount: (name) => `bigint check (${name} > 0)`,
+    discountBps: (name) =>
+      `integer not null default 0 check (${name} >= 0 and ${name} <= 10000)`,
+    discountAmount: (name) => `bigint not null default 0 check (${name} >= 0)`,
+  };
+
+  const added = OPT_IN.filter((logical) => invoiceOptIn(ctx, logical))
+    .map(
+      (logical) =>
+        `\nalter table ${t("invoices")} add column if not exists ${i(logical)} ${optIn[logical]!(i(logical))};`,
+    )
+    .join("");
+
   const index = (name: string, columns: readonly string[]): string =>
     `\ncreate index if not exists ${ctx.naming.rename(name)} on ${t("invoices")} (${columns.map(i).join(", ")});`;
 
@@ -273,7 +298,7 @@ ${uniqueNumber === false ? "" : `  unique (${i("tenant")}, ${i("kind")}, ${i(uni
   check (${i("status")} <> 'draft' or ${i("number")} is null),
   check (${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}
 );
-create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", ["tenant", "kind", uniqueNumber])}
+${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", ["tenant", "kind", uniqueNumber])}
 ${lockModuleTable(ctx, "invoices", { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -340,6 +365,30 @@ function invoiceTotals(ctx: BlockSqlContext): "block" | "app" {
   return totals;
 }
 
+/**
+ * `options.depositKind`: the app value of the kind column that marks a deposit
+ * invoice. It must be one the `invoice` label maps to, so the block treats a
+ * deposit invoice as an invoice everywhere else.
+ */
+function depositKind(ctx: BlockSqlContext): string | undefined {
+  const kind = ctx.option("depositKind");
+
+  if (kind === undefined) {
+    return undefined;
+  }
+
+  if (
+    typeof kind !== "string" ||
+    !ctx.appValues("invoices", "kind", "invoice").includes(kind)
+  ) {
+    throw new TypeError(
+      "blocks.invoices.options.depositKind must be one of the values blocks.invoices.values.invoices.kind.invoice maps to",
+    );
+  }
+
+  return kind;
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -398,6 +447,7 @@ function build(ctx: BlockSqlContext): string {
     lineExtras: lineExtraColumns(ctx),
     chargeExtras: chargeExtraColumns(ctx),
     appTotals: invoiceTotals(ctx) === "app",
+    depositKind: depositKind(ctx),
   };
 
   return `${schemaPreamble(ctx)}
@@ -478,7 +528,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       ? [
           {
             name: "invoice_from_quote",
-            args: ["uuid", "integer"],
+            args: ["uuid", "integer", "bigint"],
             returns: "jsonb",
           },
         ]

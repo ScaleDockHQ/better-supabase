@@ -108,7 +108,8 @@ export interface QuoteKit {
     thing: string,
     what: string,
   ) => string;
-  readonly editable: (alias: string) => string;
+  /** Whether the caller may act on quote `alias` with `key` (default `write`). */
+  readonly editable: (alias: string, key?: string) => string;
   readonly st: (
     value: string,
     labels: readonly string[],
@@ -116,6 +117,10 @@ export interface QuoteKit {
   ) => string;
   readonly sv: (label: string) => string;
   readonly open: (alias: string) => string;
+  /** The statuses a quote can be edited in. */
+  readonly openStatuses: readonly string[];
+  /** The statuses `send` takes besides the open ones (`options.resend`). */
+  readonly declined: readonly string[];
   readonly lines: (alias: string) => string;
   readonly taxLines: (alias: string) => string;
   readonly row: (alias: string) => string;
@@ -194,8 +199,8 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     ${fail(`QUOTE_${thing}_UNSUPPORTED`, `this quotes table has no ${what}`, "22023")}
   end if;`;
 
-  const editable = (alias: string): string =>
-    `(${n.service} or ${ctx.scope.can(`${alias}.${q("tenant")}`, n.write)})`;
+  const editable = (alias: string, key = n.write): string =>
+    `(${n.service} or ${ctx.scope.can(`${alias}.${q("tenant")}`, key)})`;
 
   const st = (value: string, labels: readonly string[], negate = false) =>
     ctx.is("quotes", "status", value, labels, negate);
@@ -225,13 +230,14 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
   const workingCopy = workingCopyOn(ctx);
   const versionLines = versionLinesOn(ctx);
 
+  const declined = n.resend ? ["rejected", "withdrawn", "expired"] : [];
+
+  const openStatuses = workingCopy
+    ? ["draft", "changes_requested", "sent", "viewed", ...declined]
+    : ["draft", "changes_requested"];
+
   const open = (alias: string): string =>
-    st(
-      `${alias}.${q("status")}`,
-      workingCopy
-        ? ["draft", "changes_requested", "sent", "viewed"]
-        : ["draft", "changes_requested"],
-    );
+    st(`${alias}.${q("status")}`, openStatuses);
 
   const lineValue = (column: string): string =>
     lineColumn(ctx, "lines", "ql", column);
@@ -364,6 +370,8 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     st,
     sv,
     open,
+    openStatuses,
+    declined,
     lines,
     taxLines,
     row,
@@ -377,7 +385,9 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     notifyOwner,
     markViewed,
     depositDue:
-      has("depositDue") && (has("depositBps") || has("depositAmount"))
+      !n.appTotals &&
+      has("depositDue") &&
+      (has("depositBps") || has("depositAmount"))
         ? `${q("depositDue")} = case${has("depositAmount") ? ` when x.${q("depositAmount")} is not null then least(greatest(${total}, 0), x.${q("depositAmount")})` : ""}${has("depositBps") ? ` when x.${q("depositBps")} is not null then round(${total} * x.${q("depositBps")} / 10000.0)::bigint` : ""} else 0 end`
         : undefined,
   };

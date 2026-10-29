@@ -9,6 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { QuoteNames } from "./quotes-functions.ts";
 
 import { QUOTE_TO_ORDER } from "../../blocks/quotes/automations.ts";
+import { sqlString } from "../../core/template.ts";
 import { guestOr } from "../guest-sql.ts";
 import {
   lineExtraColumns,
@@ -94,6 +95,9 @@ const NAMES: BlockSqlNames = {
     "lineRates",
     "workingCopy",
     "versionLines",
+    "versionLineExtraColumns",
+    "totals",
+    "resend",
   ],
   tables: {
     quotes: {
@@ -351,7 +355,7 @@ create table if not exists ${t("versionLines")} (
   ${vl("quantity")} numeric(18, 4) not null,
   ${vl("unitAmount")} bigint not null,${vlColumn("periods", "integer not null default 1")}${vlColumn("discountBps", "integer not null default 0")}${vlColumn("taxRateBps", "integer not null default 0")}${vlColumn("taxCode", "text")}${vlColumn("section", "text")}${vlColumn("optional", "boolean not null default false")}${vlColumn("selected", "boolean not null default true")}${vlColumn("productType", "text")}${vlColumn("productId", "text")}
   unique (${vl("version")}, ${vl("position")})
-);
+);${addExtraColumns(t("versionLines"), n.versionLineExtras)}
 ${lockModuleTable(ctx, "versionLines", { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -416,12 +420,31 @@ for each row execute function better_supabase.${frozen.replaceAll('"', "")}();
 ${versionLines}${taxLines}`;
 }
 
+/** `options.totals`: who keeps a quote's totals. */
+function quoteTotals(ctx: BlockSqlContext): "block" | "app" {
+  const totals = ctx.text("totals", "block");
+
+  if (totals !== "block" && totals !== "app") {
+    throw new TypeError(
+      'blocks.quotes.options.totals must be "block" or "app"',
+    );
+  }
+
+  return totals;
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
   }
 
   const keys = moduleOperations("quotes");
+
+  const finer = (action: string): string =>
+    sqlString(
+      ctx.config.permissions[action] ?? ctx.permissionKey("write", keys.write),
+    );
+
   const validDays = ctx.number("validDays", 30);
 
   if (!Number.isInteger(validDays) || validDays < 1) {
@@ -437,6 +460,9 @@ function build(ctx: BlockSqlContext): string {
     read: ctx.permission("read", keys.read),
     write: ctx.permission("write", keys.write),
     manage: ctx.permission("manage", keys.manage),
+    send: finer("send"),
+    decide: finer("decide"),
+    withdraw: finer("withdraw"),
     company: ctx.text("company", "company"),
     contact: ctx.text("contact", "person"),
     prefix: ctx.text("prefix", "Q-"),
@@ -445,6 +471,11 @@ function build(ctx: BlockSqlContext): string {
     // The keys a quote read returns next to its columns.
     extras: ctx.extraColumns("quotes", ["lines", "token", "fields"]),
     lineExtras: lineExtraColumns(ctx),
+    versionLineExtras: versionLinesOn(ctx)
+      ? ctx.extraColumns("versionLines", [], "versionLineExtraColumns")
+      : [],
+    appTotals: quoteTotals(ctx) === "app",
+    resend: ctx.flag("resend", false),
   };
 
   return `${schemaPreamble(ctx)}
@@ -473,7 +504,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "withdraw_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "quote_versions", args: ["uuid"], returns: "jsonb" },
     { name: "quote_version", args: ["uuid", "integer"], returns: "jsonb" },
-    { name: "portal_quote", args: ["uuid"], returns: "jsonb" },
+    { name: "portal_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
     {
       name: "respond_to_portal_quote",
       args: ["uuid", "text", "text", "text", "jsonb"],

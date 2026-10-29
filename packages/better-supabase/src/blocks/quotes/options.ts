@@ -27,6 +27,25 @@ export type QuotesSqlOptions = {
    * `quote_version_lines`, so other records can point at them.
    */
   readonly versionLines?: boolean;
+  /**
+   * App columns of the version lines table. On publish, each one takes the
+   * value of the line column of the same name (`lineExtraColumns`), so checks
+   * and references on the version lines hold.
+   */
+  readonly versionLineExtraColumns?: ExtraColumns;
+  /**
+   * `"app"` when the app keeps the totals columns itself, such as with fixed
+   * line discounts or a VAT regime: the block never recounts or writes them,
+   * reads what they hold, and refuses a change to them once a quote is
+   * answered, expired or withdrawn.
+   */
+  readonly totals?: "block" | "app";
+  /**
+   * `send` and `publish` also take a rejected, withdrawn or expired quote and
+   * send it again in one call, without a draft step. With `workingCopy`, such a
+   * quote can be edited before it is sent again.
+   */
+  readonly resend?: boolean;
 };
 
 export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
@@ -40,4 +59,7 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
     workingCopy: option.boolean({ default: false }),
     versionLines: option.boolean({ default: false }),
+    versionLineExtraColumns: option.extraColumns(),
+    totals: option.string<"block" | "app">({ default: "block" }),
+    resend: option.boolean({ default: false }),
   });
