@@ -1064,6 +1064,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "ai-chat",
         "ai-files",
         "queue",
+        "subjects",
         "teams"
       ],
       "manifest": "knowledge",
@@ -1099,6 +1100,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "chunkCount": "chunk_count",
               "model": "embedding_model",
               "collection": "collection_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }

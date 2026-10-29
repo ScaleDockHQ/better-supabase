@@ -4855,6 +4855,7 @@
       "KnowledgeScope",
       "KnowledgeSearchOptions",
       "KnowledgeStatus",
+      "KnowledgeSubject",
       "KnowledgeVisibility",
       "NewKnowledgeCollection",
       "NewKnowledgeDocument"

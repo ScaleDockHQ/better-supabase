@@ -47,7 +47,14 @@ export type KnowledgeScope =
   | "agent"
   | "project"
   | "chat"
-  | "user";
+  | "user"
+  | "subject";
+
+/** The record subject knowledge is about: a `config.subjects` type and its id. */
+export interface KnowledgeSubject {
+  readonly type: string;
+  readonly id: string;
+}
 
 export type KnowledgeStatus = "pending" | "ready" | "failed";
 
@@ -60,9 +67,11 @@ export interface KnowledgeDocument {
   readonly scope: KnowledgeScope;
   /**
    * The agent, project, chat or user the document belongs to; none for
-   * organization scope.
+   * organization and subject scope.
    */
   readonly scopeId: string | undefined;
+  /** The record of a subject-scoped document. */
+  readonly subject: KnowledgeSubject | undefined;
   readonly fileId: string | undefined;
   readonly title: string;
   readonly source: string | undefined;
@@ -81,6 +90,11 @@ export interface NewKnowledgeDocument {
   /** Default `user`, scoped to the caller. */
   readonly scope?: KnowledgeScope;
   readonly scopeId?: string;
+  /**
+   * The record for scope `subject`, which the caller must be able to read. Only
+   * those who can read the record (`can_subject`) read the document.
+   */
+  readonly subject?: KnowledgeSubject;
   readonly fileId?: string;
   /** Where the text came from: a URL, a file name or a table. */
   readonly source?: string;
@@ -116,10 +130,14 @@ export interface KnowledgeQuery {
 }
 
 export interface KnowledgeSearchOptions {
-  /** The scopes to search, each with an optional id; every scope when unset. */
+  /**
+   * The scopes to search, each with an optional id (and a type for scope
+   * `subject`); every scope when unset.
+   */
   readonly scopes?: readonly {
     readonly scope: KnowledgeScope;
     readonly id?: string;
+    readonly type?: string;
   }[];
   /** How many chunks to return. Default 8, at most 100. */
   readonly k?: number;
@@ -203,6 +221,8 @@ export interface Knowledge {
         readonly limit?: number;
         /** The documents of a collection, system ones included. */
         readonly collectionId?: string;
+        /** The subject knowledge about this record. */
+        readonly subject?: KnowledgeSubject;
       },
     ): AsyncResult<readonly KnowledgeDocument[]>;
     /** Replaces the chunks; unchanged chunks keep their embedding. */
@@ -289,6 +309,7 @@ const SCOPES: ReadonlySet<string> = new Set([
   "project",
   "chat",
   "user",
+  "subject",
 ]);
 
 const STATUSES: ReadonlySet<string> = new Set(["pending", "ready", "failed"]);
@@ -409,6 +430,8 @@ const statusOf = (value: unknown): KnowledgeStatus => {
 
 function documentOf(value: unknown): KnowledgeDocument {
   const row = recordOf(value, "knowledge_documents");
+  const subjectType = optionalText(row["subject_type"]);
+  const subjectId = optionalText(row["subject_id"]);
 
   return {
     id: textOf(row["id"]),
@@ -416,6 +439,10 @@ function documentOf(value: unknown): KnowledgeDocument {
     ownerId: optionalText(row["owner_id"]),
     scope: scopeOf(row["scope"]),
     scopeId: optionalText(row["scope_id"]),
+    subject:
+      subjectType === undefined || subjectId === undefined
+        ? undefined
+        : { type: subjectType, id: subjectId },
     fileId: optionalText(row["file_id"]),
     title: textOf(row["title"]),
     source: optionalText(row["source"]),
@@ -503,6 +530,8 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
         metadata: document.metadata,
         owner: document.ownerId,
         collection_id: document.collectionId,
+        subject_type: document.subject?.type,
+        subject_id: document.subject?.id,
       },
       documentOf,
     );
@@ -691,6 +720,8 @@ export function createKnowledge(options: KnowledgeOptions): Knowledge {
             scope_id: listOptions.scopeId,
             max_rows: listOptions.limit,
             collection_id: listOptions.collectionId,
+            subject_type: listOptions.subject?.type,
+            subject_id: listOptions.subject?.id,
           },
           (value) =>
             recordsOf(value, "list_knowledge_documents").map(documentOf),

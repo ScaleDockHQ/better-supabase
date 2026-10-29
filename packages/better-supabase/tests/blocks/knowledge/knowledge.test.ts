@@ -184,6 +184,65 @@ describe("createKnowledge", () => {
     ).toMatchObject({ tenant: null, collection_id: "c1" });
   });
 
+  it("scopes a document to a record and lists and searches by it", async () => {
+    const subjectRow = documentRow({
+      scope: "subject",
+      scope_id: null,
+      subject_type: "drive_node",
+      subject_id: "n1",
+    });
+
+    const { transport, calls } = fakeTransport({
+      create_knowledge_document: () => subjectRow,
+      write_knowledge_chunks: () => subjectRow,
+      list_knowledge_documents: () => [subjectRow, documentRow()],
+      knowledge_search: () => [],
+    });
+
+    const knowledge = createKnowledge({ transport });
+    const subject = { type: "drive_node", id: "n1" };
+
+    const created = await knowledge.ingest
+      .text("o1", {
+        title: "Contract",
+        text: "Signed.",
+        scope: "subject",
+        subject,
+      })
+      .orThrow();
+
+    expect(created).toMatchObject({
+      scope: "subject",
+      scopeId: undefined,
+      subject,
+    });
+    expect(
+      calls.find((c) => c.fn === "create_knowledge_document")?.args,
+    ).toMatchObject({
+      scope: "subject",
+      subject_type: "drive_node",
+      subject_id: "n1",
+    });
+
+    const listed = await knowledge.documents
+      .list("o1", { scope: "subject", subject })
+      .orThrow();
+
+    expect(listed.map((d) => d.subject)).toEqual([subject, undefined]);
+    expect(
+      calls.find((c) => c.fn === "list_knowledge_documents")?.args,
+    ).toMatchObject({ subject_type: "drive_node", subject_id: "n1" });
+
+    await knowledge
+      .search("o1", "signed", {
+        scopes: [{ scope: "subject", type: "drive_node", id: "n1" }],
+      })
+      .orThrow();
+    expect(calls.find((c) => c.fn === "knowledge_search")?.args).toMatchObject({
+      scopes: { items: [{ scope: "subject", type: "drive_node", id: "n1" }] },
+    });
+  });
+
   it("ingests a file through ai-files and the extractor", async () => {
     const { transport, calls } = fakeTransport({
       create_knowledge_document: (args) =>
