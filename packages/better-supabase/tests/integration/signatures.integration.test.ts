@@ -92,6 +92,11 @@ describe.skipIf(!live)("signatures", () => {
           .request({ ...subject, signers: [ada.id, ada.id] })
           .then(hint),
       ).toBe("SIGNATURE_SIGNERS_INVALID");
+      expect(
+        await signatures
+          .request({ ...subject, signers: [ada.id], meaning: "witnessed" })
+          .then(hint),
+      ).toBe("SIGNATURE_REQUEST_MEANING_UNKNOWN");
 
       const request = await signatures
         .request({
@@ -100,6 +105,7 @@ describe.skipIf(!live)("signatures", () => {
           order: "sequential",
           approvalRequestId: approval.id,
           message: "Please sign the terms",
+          meaning: "approved",
         })
         .orThrow();
 
@@ -108,6 +114,7 @@ describe.skipIf(!live)("signatures", () => {
         order: "sequential",
         signers: [ada.id, bob.id],
         approvalRequestId: approval.id,
+        meaning: "approved",
       });
 
       const frozen = await s.rows<{ frozen: boolean }>(
@@ -166,7 +173,10 @@ describe.skipIf(!live)("signatures", () => {
 
       expect(second.requestStatus).toBe("completed");
       const detail = await signatures.get(request.id).orThrow();
-      expect(detail.status).toBe("completed");
+      expect(detail).toMatchObject({
+        status: "completed",
+        meaning: "approved",
+      });
       expect(detail.signatures.map((row) => row.signer)).toEqual([
         ada.id,
         bob.id,
@@ -272,6 +282,13 @@ describe.skipIf(!live)("signatures", () => {
         "signature.requested",
         "signature.declined",
       ]);
+
+      const completed = await s.rows<{ payload: { meaning: string | null } }>(
+        "select payload from better_supabase.outbox_events where organization_id = $1 and type = 'signature.completed'",
+        [tenant],
+      );
+
+      expect(completed[0]?.payload.meaning).toBe("approved");
     } finally {
       await s.close();
     }
