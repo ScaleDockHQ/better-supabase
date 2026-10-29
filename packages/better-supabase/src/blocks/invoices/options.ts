@@ -40,6 +40,7 @@ export type InvoicesSqlOptions = {
    * table, so the app can renumber lines in one update. Default `true`.
    */
   readonly linePositionKey?: boolean;
+  readonly paymentsAfterWriteOff?: boolean;
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -57,4 +58,5 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     providerPaymentMethods: option.strings({ default: ["stripe", "order"] }),
     uniqueNumber: option.unknown<"number" | "identifier" | false>(),
     linePositionKey: option.boolean({ default: true }),
+    paymentsAfterWriteOff: option.boolean({ default: false }),
   });

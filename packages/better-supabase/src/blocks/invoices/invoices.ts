@@ -217,6 +217,7 @@ export interface Invoices<F extends object = Record<never, never>> {
     currency: string,
     asOf?: Temporal.PlainDate,
   ): AsyncResult<InvoiceAging>;
+  payments(invoiceId: string): AsyncResult<readonly InvoicePayment[]>;
   /**
    * An invoice from an accepted quote: the full invoice once, minus the
    * deposits already issued, or a deposit invoice for `depositBps` of it.
@@ -286,6 +287,21 @@ const KNOWN = new Set([
   "charged_total",
 ]);
 
+function paymentOf(
+  payment: Readonly<Record<string, unknown>>,
+  currency: string,
+): InvoicePayment {
+  return compact<InvoicePayment>({
+    id: textOf(payment["id"]),
+    amount: moneyOf(payment["amount"], currency, "invoice payment amount"),
+    paidAt: requiredInstant(payment["paidAt"], "paidAt"),
+    method: optionalText(payment["method"]),
+    reference: optionalText(payment["reference"]),
+    note: optionalText(payment["note"]),
+    recordedBy: optionalText(payment["recordedBy"]),
+  });
+}
+
 function invoiceOf(value: unknown): Invoice {
   const row = recordOf(value, "invoice");
   const currency = textOf(row["currency"]);
@@ -350,15 +366,7 @@ function invoiceOf(value: unknown): Invoice {
       lineOf(line, currency),
     ),
     payments: recordsOf(row["payments"], "invoice payments").map((payment) =>
-      compact<InvoicePayment>({
-        id: textOf(payment["id"]),
-        amount: moneyOf(payment["amount"], currency, "invoice payment amount"),
-        paidAt: requiredInstant(payment["paidAt"], "paidAt"),
-        method: optionalText(payment["method"]),
-        reference: optionalText(payment["reference"]),
-        note: optionalText(payment["note"]),
-        recordedBy: optionalText(payment["recordedBy"]),
-      }),
+      paymentOf(payment, currency),
     ),
     totals: totalsOf(row, false),
     fields: Object.fromEntries(
@@ -529,6 +537,15 @@ export function createInvoices<
             },
           )
         : AsyncResult.err(unknownCurrency(currency)),
+    payments: (invoiceId) =>
+      call("list_invoice_payments", { invoice: invoiceId }, (value) => {
+        const row = recordOf(value, "list_invoice_payments");
+        const currency = textOf(row["currency"]);
+
+        return recordsOf(row["payments"], "invoice payments").map((payment) =>
+          paymentOf(payment, currency),
+        );
+      }),
     fromQuote: (quoteId, fromQuote = {}) =>
       invoice("invoice_from_quote", {
         quote: quoteId,

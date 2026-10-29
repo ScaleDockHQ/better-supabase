@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:45c3af24445248f665cb0602d19ecc4ee48464a9874ce9638edbc0c6d01938ee
+-- @bsb-hash sha256:b3d11dca687dbb026b994102eed88041dbba98d2eb273cc486a44a676ae8092a
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -911,6 +911,28 @@ $$;
 revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text) from public, anon;
 grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text) to authenticated, service_role;
 
+create or replace function "better_supabase"."list_invoice_payments"(invoice uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."invoices";
+begin
+  select * into v_row from "better_supabase"."invoices" x where x."id" = list_invoice_payments.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false));
+  if v_row."id" is null then
+    raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
+  end if;
+  return jsonb_build_object('currency', v_row."currency", 'payments', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'amount', (-e."amount")::text, 'paidAt', y."effective_at", 'method', y."metadata" ->> 'method', 'reference', y."metadata" ->> 'reference', 'note', y."metadata" ->> 'note', 'recordedBy', y."actor_id") order by y."effective_at", y."created_at")
+        from "better_supabase"."ledger_entries" e join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
+        where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."list_invoice_payments"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_invoice_payments"(uuid) to authenticated, service_role;
+
 -- A draft credit note against an issued invoice: its lines, or the given
 -- lines for a partial credit. Issue it to apply it.
 create or replace function "better_supabase"."credit_invoice"(invoice uuid, lines jsonb, note text)
@@ -1525,6 +1547,15 @@ set search_path = ''
 as $$ select "better_supabase"."record_invoice_payment"($1, $2, $3, $4, $5, $6, $7) $$;
 revoke execute on function "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text) from public, anon;
 grant execute on function "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."list_invoice_payments"(invoice uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_invoice_payments"($1) $$;
+revoke execute on function "api"."list_invoice_payments"(uuid) from public, anon;
+grant execute on function "api"."list_invoice_payments"(uuid) to authenticated, service_role;
 
 create or replace function "api"."credit_invoice"(invoice uuid, lines jsonb, note text)
 returns jsonb

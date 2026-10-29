@@ -75,6 +75,7 @@ const ENTRY = {
   reverses: null,
   metadata: {},
   effectiveAt: AT,
+  actorId: "u1",
   createdAt: AT,
 };
 
@@ -269,6 +270,7 @@ describe("createLedger", () => {
       transactionId: "t1",
       amount: 1500n,
       kind: "credit.grant",
+      actorId: "u1",
     });
     expect(entry?.memo).toBeUndefined();
     await ledger.entries("a1").orThrow();

@@ -7,9 +7,9 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, schemaPreamble } from "../shared.ts";
+import { fail, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { ledgerFunctions, ledgerTouch } from "./ledger-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -326,6 +326,26 @@ from (
 on conflict (${b("account")}) do update set ${b("balance")} = excluded.${b("balance")}, ${b("held")} = excluded.${b("held")}${ledgerTouch(ctx)};`;
 }
 
+function purgeBypass(ctx: BlockSqlContext): string {
+  if (!ctx.installed("data-lifecycle")) {
+    return "";
+  }
+
+  const lifecycle = ctx.of("data-lifecycle");
+  const d = (column: string): string => lifecycle.col("deletions", column);
+
+  return `
+  if tg_op = 'DELETE' and current_setting('better_supabase.purge_tenant', true) = to_jsonb(old) ->> tg_argv[0] then
+    if ${SERVICE_CALLER} and exists (
+      select 1 from ${lifecycle.table("deletions")} x
+      where x.${d("tenant")}::text = to_jsonb(old) ->> tg_argv[0]
+        and x.${d("cancelledAt")} is null and x.${d("purgedAt")} is null and x.${d("purgeAfter")} <= now()
+    ) then
+      return old;
+    end if;
+  end if;`;
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -410,17 +430,17 @@ returns trigger
 language plpgsql
 set search_path = ''
 as $$
-begin
+begin${purgeBypass(ctx)}
   ${fail("LEDGER_APPEND_ONLY", "ledger entries and transactions can't be changed or deleted; post a reversal", "55000")}
 end;
 $$;
 revoke execute on function ${fn("ledger_append_only")}() from public, anon, authenticated;
 drop trigger if exists ${ctx.trigger("ledger_entries_append_only")} on ${entries};
 create trigger ${ctx.trigger("ledger_entries_append_only")} before update or delete on ${entries}
-  for each row execute function ${fn("ledger_append_only")}();
+  for each row execute function ${fn("ledger_append_only")}(${sqlString(ctx.colName("entries", "tenant"))});
 drop trigger if exists ${ctx.trigger("ledger_transactions_append_only")} on ${transactions};
 create trigger ${ctx.trigger("ledger_transactions_append_only")} before update or delete on ${transactions}
-  for each row execute function ${fn("ledger_append_only")}();
+  for each row execute function ${fn("ledger_append_only")}(${sqlString(ctx.colName("transactions", "tenant"))});
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -542,7 +562,7 @@ export const LEDGER: BlockSqlDefinition = {
   description:
     "Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "data-lifecycle"],
   before: "inventory",
   target: "schema",
   modes: ["managed", "custom"],

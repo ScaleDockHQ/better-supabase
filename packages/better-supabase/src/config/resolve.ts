@@ -355,6 +355,7 @@ export function resolveConfig(
       ),
       blocks.blockNames,
       blocks.blocks,
+      config.sql?.tenantColumn,
     ),
     sql: {
       ...(config.sql?.workflow === undefined

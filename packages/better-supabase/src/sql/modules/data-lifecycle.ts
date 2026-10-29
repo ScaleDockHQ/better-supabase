@@ -651,6 +651,7 @@ begin
       and ${skipTables}
     order by (row_number() over ()) desc
   );
+  perform set_config('better_supabase.purge_tenant', purge_organization.tenant::text, true);
   for v_pass in 1..10 loop
     exit when cardinality(v_pending) = 0;
     v_left := '{}';
@@ -677,6 +678,7 @@ begin
     end if;
     v_pending := v_left;
   end loop;
+  perform set_config('better_supabase.purge_tenant', '', true);
   update ${d} x set ${cd("purgedAt")} = now() where x.${cd("tenant")} = v_row.${cd("tenant")} returning * into v_row;
   ${organizationRow}
   ${purgedEvent}

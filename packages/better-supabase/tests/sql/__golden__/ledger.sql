@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:f1be4a42e6666e5531afa630bf7551d6176bfa182c12f71c4a7e9e26caa97e74
+-- @bsb-hash sha256:582dc15b84a90a825389d8d3f153f6fbc279bafeacad1fe6a150266b08cc9f5c
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -258,10 +258,10 @@ $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
 drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -863,7 +863,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "better_supabase"."ledger_entries" y
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
@@ -1058,7 +1058,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:3fd73b58308ff75791f308e1485c966335bdc4020682fc588401660504b98e4c
+-- @bsb-hash sha256:263ca9e7175c91be7a954586b5474988e5ab1de508bff846c5de493950c6c051
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1309,16 +1309,25 @@ language plpgsql
 set search_path = ''
 as $$
 begin
+  if tg_op = 'DELETE' and current_setting('better_supabase.purge_tenant', true) = to_jsonb(old) ->> tg_argv[0] then
+    if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
+      select 1 from "better_supabase"."organization_deletions" x
+      where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+    ) then
+      return old;
+    end if;
+  end if;
   raise exception 'ledger entries and transactions can''t be changed or deleted; post a reversal' using errcode = '55000', hint = 'LEDGER_APPEND_ONLY';
 end;
 $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
 drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -1949,7 +1958,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "better_supabase"."ledger_entries" y
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
@@ -2144,7 +2153,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:2647f3b811837c608affddd917fbff3ef4ab8edd90c225bd946f3bde30305605
+-- @bsb-hash sha256:727ff92c6e079d436fb061ddb46787a8a17153164c2532e0815ad2fe4ac1436a
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2406,10 +2415,10 @@ $$;
 revoke execute on function "app_private"."ledger_append_only"() from public, anon, authenticated;
 drop trigger if exists "bsb_ledger_entries_append_only" on "app_private"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "app_private"."ledger_entries"
-  for each row execute function "app_private"."ledger_append_only"();
+  for each row execute function "app_private"."ledger_append_only"('tenant_id');
 drop trigger if exists "bsb_ledger_transactions_append_only" on "app_private"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "app_private"."ledger_transactions"
-  for each row execute function "app_private"."ledger_append_only"();
+  for each row execute function "app_private"."ledger_append_only"('tenant_id');
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -3011,7 +3020,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "app_private"."ledger_entries" y
     join "app_private"."ledger_transactions" r on r."id" = y."transaction_id"
@@ -3206,7 +3215,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:809cb3c3eba14d6ee1e1e4b6b6028bb94e50fd7d05e25944c1998ad485848f8a
+-- @bsb-hash sha256:934ced8b6324d9f95b660f0a7fbe6e8a773502c97a5080574d00a2b8d37d61da
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3463,10 +3472,10 @@ $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
 drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -4068,7 +4077,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "better_supabase"."ledger_entries" y
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
@@ -4387,7 +4396,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:b3d172d7d02b825e3534f7a62af5d4bff9e4de722ab2efc3d80825ebbb5734f8
+-- @bsb-hash sha256:6bcdd8f87d08c2dffe32b76b02c9c4bbb51606d5dda596c6dd43806b6167ce74
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4643,10 +4652,10 @@ $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
 drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -5248,7 +5257,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "better_supabase"."ledger_entries" y
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
@@ -5443,7 +5452,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:a871d661f385ed6c1538e411dbe9d35207c43de43b92912eee518c2b618b67e0
+-- @bsb-hash sha256:81e63e2b1a8e12e699932cfede4dea561d4bb491a142f3709853173f1fc83c1b
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5700,10 +5709,10 @@ $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
 drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('org_id');
 drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('org_id');
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -6305,7 +6314,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "better_supabase"."ledger_entries" y
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"

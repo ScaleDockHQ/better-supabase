@@ -120,4 +120,27 @@ describe("resolveConfig subjects", () => {
       "work_item",
     ]);
   });
+
+  it("names the tenant column sql.tenantColumn gives every block table", () => {
+    const resolved = resolveConfig(
+      {
+        blocks: {
+          ledger: {},
+          employees: { columns: { employees: { tenant: "org" } } },
+        },
+        database: { sql: { tenantColumn: "organization_id" } },
+      },
+      "/app",
+    );
+
+    expect(resolved.subjects["ledger_account"]?.tenant).toBe("organization_id");
+    expect(resolved.subjects["employee"]?.tenant).toBe("org");
+  });
+
+  it("keeps tenant_id without sql.tenantColumn", () => {
+    expect(
+      resolveConfig({ blocks: ["ledger"] }, "/app").subjects["ledger_account"]
+        ?.tenant,
+    ).toBe("tenant_id");
+  });
 });

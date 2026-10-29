@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_080_ledger.sql
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:ff8cfd3a43768fce469e0c517449e9e7bcbb771dfca69a1cfab47d929fc2d370
+-- @bsb-hash sha256:ef12df9b64d886a906a1ff9f20f2891dbd1254feb1ff126dd352f6f241709fc2
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -258,10 +258,10 @@ $$;
 revoke execute on function "better_supabase"."ledger_append_only"() from public, anon, authenticated;
 drop trigger if exists "bsb_ledger_entries_append_only" on "better_supabase"."ledger_entries";
 create trigger "bsb_ledger_entries_append_only" before update or delete on "better_supabase"."ledger_entries"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 drop trigger if exists "bsb_ledger_transactions_append_only" on "better_supabase"."ledger_transactions";
 create trigger "bsb_ledger_transactions_append_only" before update or delete on "better_supabase"."ledger_transactions"
-  for each row execute function "better_supabase"."ledger_append_only"();
+  for each row execute function "better_supabase"."ledger_append_only"('tenant_id');
 
 -- Keeps the account's balance and refuses to take an account that doesn't
 -- allow it below zero (counting its holds).
@@ -863,7 +863,7 @@ begin
   from (
     select jsonb_build_object('id', y."id", 'accountId', y."account_id", 'amount', y."amount"::text, 'unit', y."unit",
         'transactionId', r."id", 'kind', r."kind", 'referenceType', r."reference_type", 'referenceId', r."reference_id",
-        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'createdAt', y."created_at") as item,
+        'memo', r."memo", 'reverses', r."reverses", 'metadata', r."metadata", 'effectiveAt', r."effective_at", 'actorId', r."actor_id", 'createdAt', y."created_at") as item,
       y."created_at" as created, y."id" as id
     from "better_supabase"."ledger_entries" y
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"

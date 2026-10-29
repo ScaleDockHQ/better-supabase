@@ -665,7 +665,7 @@ begin
   from (
     select jsonb_build_object('id', y.${e("id")}, 'accountId', y.${e("account")}, 'amount', y.${e("amount")}::text, 'unit', y.${e("unit")},
         'transactionId', r.${t("id")}, 'kind', r.${t("kind")}, 'referenceType', r.${t("referenceType")}, 'referenceId', r.${t("referenceId")},
-        'memo', ${memo("r")}, 'reverses', r.${t("reverses")}, 'metadata', r.${t("metadata")}, 'effectiveAt', r.${t("effectiveAt")}, 'createdAt', y.${e("createdAt")}) as item,
+        'memo', ${memo("r")}, 'reverses', r.${t("reverses")}, 'metadata', r.${t("metadata")}, 'effectiveAt', r.${t("effectiveAt")}, 'actorId', r.${t("actor")}, 'createdAt', y.${e("createdAt")}) as item,
       y.${e("createdAt")} as created, y.${e("id")} as id
     from ${entries} y
     join ${transactions} r on r.${t("id")} = y.${e("transaction")}

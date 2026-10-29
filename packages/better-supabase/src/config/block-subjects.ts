@@ -5,6 +5,7 @@ import type { SubjectConfig, SubjectsConfig } from "./types/subjects.ts";
 
 import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
 import { resolveNames } from "../sql/resolved-names.ts";
+import { blockColumnName } from "../sql/tenant-column.ts";
 import { resolveBlock } from "./blocks.ts";
 
 const CATALOG = new Map(
@@ -125,6 +126,7 @@ export function blockEntities(
 function subjectsOf(
   module: string,
   blocks: AnyBlocksConfig,
+  tenantColumn?: string,
 ): Readonly<Record<string, SubjectConfig>> {
   const entities = CATALOG.get(module)?.entities;
   const names = catalogNames(module);
@@ -169,7 +171,13 @@ function subjectsOf(
 
       const column = (name: string): string =>
         config.columns[logical]?.[name] ??
-        resolved.naming.rename(table.columns[name] ?? name);
+        blockColumnName(
+          { module, table: logical },
+          table.columns,
+          table.columns[name] ?? name,
+          tenantColumn,
+          (each) => resolved.naming.rename(each),
+        );
 
       const titled = (key: string): string =>
         config.columns[logical]?.[key] === null &&
@@ -246,11 +254,14 @@ export function withBlockSubjects(
   subjects: SubjectsConfig,
   blockNames: readonly string[],
   blocks: AnyBlocksConfig,
+  tenantColumn?: string,
 ): SubjectsConfig {
   const merged: Record<string, SubjectConfig> = {};
 
   for (const module of withRequired(blockNames)) {
-    for (const [type, entry] of Object.entries(subjectsOf(module, blocks))) {
+    for (const [type, entry] of Object.entries(
+      subjectsOf(module, blocks, tenantColumn),
+    )) {
       if (Object.hasOwn(subjects, type)) {
         throw new TypeError(
           `records.${type}: the ${module} block registers "${type}" itself; remove records.${type}, or set blocks.${module}.names.<entity>.subject to false to keep your own`,

@@ -123,9 +123,19 @@ The balance is the total minus credits minus payments. `recordPayment` takes an 
 
 Payments live on the [ledger](/docs/blocks/ledger). Each invoice has a receivable account (code `invoice:<id>`) and each currency a cash account (`invoices:cash:<currency>`); a payment is a transaction of kind `invoice.payment` (or `invoice.refund`) that moves the amount from the receivable to cash, and its `paymentId` is the transaction id. `reversePayment(paymentId, reason?)` reverses a payment recorded by hand, such as a bounced transfer: it posts the opposite transaction (kind `invoice.payment_reversal`, pointing at the payment) and keeps the original, so the invoice is open again. A payment is reversed once (`INVOICE_PAYMENT_REVERSED`). A payment whose method is in `options.providerPaymentMethods` (default `stripe` and `order`) is refunded through its provider instead (`INVOICE_PAYMENT_PROVIDER`). Needs `invoices.manage`. The ledger client's `holderAccounts({ type: "invoices", id })` reads an invoice's receivable account with its entries.
 
+`payments(invoiceId)` reads an invoice's payments, refunds and reversals, oldest first, with `recordedBy` on each, without loading the whole invoice. It needs `permissions.read` (`list_invoice_payments`) and returns `INVOICE_NOT_FOUND` to a caller who can't read the invoice.
+
 `credit(invoiceId, { lines? })` makes a draft credit note for the whole invoice, or for the given lines; issuing it reduces the original's balance and can settle it. A credit note can't exceed the invoice's total and charges less its earlier credits (`INVOICE_CREDIT_TOO_LARGE`), so a paid invoice can still be credited: issue the credit note, then record the refund as a negative payment. An issued credit note can't change.
 
 `void(invoiceId, reason)` voids a draft, or an issued invoice without payments or credits. `writeOff(invoiceId, reason?)` marks an open invoice uncollectible; over your own table, `columns.invoices.writeOffReason` keeps the reason, and `invoice.uncollected` carries it. Both are written to the audit log.
+
+A written-off invoice refuses payments (`INVOICE_NOT_PAYABLE`) unless you set `options.paymentsAfterWriteOff: true`. Then a payment that still arrives, such as a bank transfer or a provider payment started before the write-off, is booked on the ledger like any other. The invoice stays `uncollectible` while a balance is left and moves to `paid` once nothing is owed, which records `invoice.paid`. The write-off posts nothing to the ledger, so there is nothing to reverse, and the write-off reason stays on the invoice.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  invoices: { options: { paymentsAfterWriteOff: true } },
+},
+```
 
 | Status           | Meaning                            |
 | ---------------- | ---------------------------------- |
@@ -259,7 +269,7 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 | `INVOICE_NOT_FOUND`           | no invoice the caller can edit (or manage, for void)                                        |
 | `INVOICE_NOT_DRAFT`           | the invoice was already issued, so it no longer changes and isn't deleted                   |
 | `INVOICE_EMPTY`               | an invoice without lines can't be issued                                                    |
-| `INVOICE_NOT_PAYABLE`         | only an issued invoice takes payments                                                       |
+| `INVOICE_NOT_PAYABLE`         | only an issued invoice takes payments, or a written-off one with `paymentsAfterWriteOff`    |
 | `INVOICE_PAYMENT_INVALID`     | a payment needs an amount                                                                   |
 | `INVOICE_CURRENCY_MISMATCH`   | a payment isn't in the invoice's currency                                                   |
 | `INVOICE_REFUND_TOO_LARGE`    | a refund is more than was paid                                                              |

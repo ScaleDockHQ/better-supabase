@@ -5197,6 +5197,10 @@
               "linePositionKey": {
                 "type": "boolean",
                 "default": true
+              },
+              "paymentsAfterWriteOff": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
