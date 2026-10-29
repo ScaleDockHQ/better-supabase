@@ -36,7 +36,7 @@ function remedy(
 ): string {
   switch (block) {
     case "field-encryption": {
-      return `set \`encrypted: true\` on appTables.${table.name}.columns.${column} so field-encryption stores it as ciphertext under a Vault data key`;
+      return `set \`encrypted: true\` on tables.${table.name}.columns.${column} so field-encryption stores it as ciphertext under a Vault data key`;
     }
 
     case "credentials": {
@@ -119,7 +119,7 @@ export const PLAIN_SECRET_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Plain secret column next to a block that encrypts it",
     description:
-      "One of your tables has a `text`, `varchar` or `json` column whose name ends in `credentials`, `token` or `secret`, and `field-encryption` or `credentials` is installed. The value sits in the row as written, so every role that reads the row, and every backup, has the secret. Mark the column `encrypted: true` in `appTables` (field-encryption), or move the secret to Vault with the credentials block and store a `credential_ref` instead. Block tables, columns already marked `encrypted` and names such as `token_hash` or `secret_id` are not reported.",
+      "One of your tables has a `text`, `varchar` or `json` column whose name ends in `credentials`, `token` or `secret`, and `field-encryption` or `credentials` is installed. The value sits in the row as written, so every role that reads the row, and every backup, has the secret. Mark the column `encrypted: true` under `tables.<name>.columns` in the config (field-encryption), or move the secret to Vault with the credentials block and store a `credential_ref` instead. Block tables, columns already marked `encrypted` and names such as `token_hash` or `secret_id` are not reported.",
     check: plainSecretColumns,
   },
 ];

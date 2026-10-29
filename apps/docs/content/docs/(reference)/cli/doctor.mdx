@@ -1466,7 +1466,9 @@ name ends in `credentials`, `token` or `secret` (`access_token`,
 the [`credentials`](/docs/extending/credentials) module is installed. The
 value sits in the row as written, so every role that reads the row, and every
 backup, has the secret. With field-encryption, set `encrypted: true` on the
-column in `appTables`, which stores it as ciphertext under a Vault data key.
+column under `tables.<name>.columns` in the config, or name it in the table's
+[`@bsb encrypted` tag](/docs/repository/tables#encrypted-columns). The block
+then stores it as ciphertext under a Vault data key.
 With credentials, move the secret to Vault and store a `credential_ref jsonb`
 in its place. Block tables, columns already marked `encrypted` and names that
 end in another word, such as `token_hash`, `secret_id` or `credential_ref`,

@@ -16,8 +16,9 @@ better-supabase add field-encryption
 
 Install it, then mark what to encrypt:
 
-- an [app table column](/docs/repository/tables#encrypted-columns) with
-  `encrypted: true`, read back through `public.<table>_reveal`;
+- a [column of your table](/docs/repository/tables#encrypted-columns) with
+  `encrypted: true` under `tables.<name>.columns` in the config, or in the
+  table's `@bsb encrypted` tag, read back through `public.<table>_reveal`;
 - a [custom field](/docs/blocks/custom-fields#encrypted-fields) with
   `encryptDefinition(id)`, read back through `readValues`.
 
