@@ -1,0 +1,234 @@
+---
+title: Risks
+description: A risk register per organization, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history in versions, treatments, scheduled reviews, barriers linked through relations and a heatmap.
+---
+
+`risks` keeps the organization's risk register. You register a risk with its
+cause and consequence, score it on a matrix before and after its controls,
+choose a treatment and review it on a schedule. Each assessment is kept as a
+frozen [version](/docs/blocks/versions), and the heatmap counts the open risks
+in each cell of the matrix.
+
+```bash
+better-supabase add risks
+```
+
+```ts
+import { createRisks } from "better-supabase/blocks/risks";
+```
+
+The module requires `tenant`, `permissions`, `subjects` and `versions`, and
+`versions` can't be in custom mode. With [numbering](/docs/blocks/numbering) a
+risk's number comes from a `risk` sequence such as `RSK-0001`; without it the
+number is `RSK-` and the risk's position in the organization. With
+[relations](/docs/blocks/relations) a risk links to the controls, work items
+and drive files that mitigate it. With
+[notifications](/docs/blocks/notifications) the owner hears about a due
+review, with `outbox` it records the events, and with `audit` every change is
+audited.
+
+## Tables
+
+| Table              | Holds                                                                                                      |
+| ------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `risk_matrices`    | A matrix per organization by `key`: likelihood and impact levels, score bands, the scoring and the default |
+| `risks`            | A risk with its number, category, owner, status, treatment, current ratings and next review date           |
+| `risk_assessments` | Every assessment of a risk: both ratings, the rationale, who assessed it and the version it froze          |
+
+Members with `risks.read` read every table. Writes go through the functions
+below. A risk is a subject of type `risk`, so comments, attachments, tags and
+the other subject blocks work on it.
+
+## Matrices
+
+Every organization starts with `options.defaultMatrix`, a 5 by 5 matrix scored
+as likelihood times impact in four bands:
+
+| Band       | Scores   |
+| ---------- | -------- |
+| `low`      | 1 to 4   |
+| `medium`   | 5 to 9   |
+| `high`     | 10 to 16 |
+| `critical` | 17 to 25 |
+
+`saveMatrix` adds one or changes one; it needs `risks.manage`.
+
+```ts
+await db.risks
+  .saveMatrix({
+    key: "safety",
+    name: "Safety 4x4",
+    likelihoodLevels: [
+      { value: 1, label: "Rare" },
+      { value: 2, label: "Possible" },
+      { value: 3, label: "Likely" },
+      { value: 4, label: "Frequent" },
+    ],
+    impactLevels: [
+      { value: 1, label: "Minor" },
+      { value: 2, label: "Serious" },
+      { value: 3, label: "Major" },
+      { value: 4, label: "Fatal" },
+    ],
+    bands: [
+      { key: "low", label: "Low", min: 1, max: 3 },
+      { key: "medium", label: "Medium", min: 4, max: 8 },
+      { key: "high", label: "High", min: 9, max: 16 },
+    ],
+  })
+  .orThrow();
+```
+
+Levels are numbered 1 up without gaps. The bands cover every score the matrix
+can give (with `scoring: "sum"` that is 2 up to both maximums added), without
+gaps or overlaps. A matrix that risks use keeps its number of levels; its
+labels and bands can still change. `isDefault: true` makes it the matrix new
+risks get.
+
+## The register
+
+Server code calls the `risks` instance on `db`, in the caller's organization:
+
+```ts
+const risk = await db.risks
+  .create({
+    title: "Supplier delivers out-of-spec parts",
+    category: "quality",
+    cause: "No incoming inspection",
+    consequence: "Line stoppage and scrap",
+    ownerId,
+    reviewIntervalMonths: 6,
+  })
+  .orThrow();
+
+await db.risks
+  .assess(risk.id, {
+    inherent: { likelihood: 4, impact: 4 },
+    residual: { likelihood: 2, impact: 3 },
+    rationale: "Incoming inspection on every batch",
+  })
+  .orThrow();
+```
+
+`create` needs `risks.write`, and the category must be one of
+`options.categories` (by default `quality`, `safety`, `environment`,
+`security`, `compliance`, `operational`, `financial` and `strategic`). A risk
+can change its matrix only before its first assessment.
+
+`assess` needs `risks.assess`. It scores both ratings on the risk's matrix,
+stores the assessment, freezes it as a version and makes it current. An
+assessment moves an identified risk to `assessed`.
+
+## Treatment, review and closing
+
+| Treatment  | The risk becomes | Needs          |
+| ---------- | ---------------- | -------------- |
+| `mitigate` | `treating`       | `risks.assess` |
+| `transfer` | `treating`       | `risks.assess` |
+| `accept`   | `accepted`       | `risks.manage` |
+| `avoid`    | `closed`         | `risks.manage` |
+
+```ts
+await db.risks
+  .setTreatment(risk.id, "mitigate", "Add incoming inspection")
+  .orThrow();
+await db.risks.review(risk.id, "Inspection in place, no rejects").orThrow();
+await db.risks.close(risk.id, "Supplier replaced").orThrow();
+```
+
+`review` needs `risks.assess` and moves `nextReviewOn` ahead by the risk's
+`reviewIntervalMonths`. `close` needs `risks.manage` and a reason. A closed
+risk takes no more changes.
+
+Run `notifyDueReviews` daily with the service role; the block's
+`review-due` schedule does that at 06:00. It records `risk.review_date_reached`
+once for each due review and notifies the owner. For reminders ahead of the
+date, point [reminders](/docs/blocks/reminders) at the column:
+
+```ts title="better-supabase.config.ts"
+reminders: {
+  on: { risk: { table: "better_supabase.risks", at: "next_review_on" } },
+},
+```
+
+## Barriers and the heatmap
+
+With relations installed, a risk links to what mitigates it through the
+`mitigated_by` kind (`mitigates` from the other side), and to the cases it
+turned into through `materialized_as`:
+
+```ts
+await db.relations
+  .link(
+    { type: "risk", id: risk.id },
+    { type: "control", id: controlId },
+    { kind: "mitigated_by" },
+  )
+  .orThrow();
+
+const detail = await db.risks.get(risk.id).orThrow();
+// detail.barriers: [{ linkId, type: "control", id, title }]
+```
+
+`heatmap` counts the open risks per cell, by residual rating on the default
+matrix unless you pass `matrixId` or `basis: "inherent"`:
+
+```ts
+const { matrix, cells } = await db.risks.heatmap().orThrow();
+// cells: [{ likelihood, impact, score, band, count, riskIds }]
+```
+
+The [risk register](/docs/registry/ui-recipes/risk-register) and
+[risk heatmap](/docs/registry/ui-recipes/risk-heatmap) recipes render both.
+
+| Method                            | Returns                                                   |
+| --------------------------------- | --------------------------------------------------------- |
+| `saveMatrix(input)`               | the matrix                                                |
+| `matrices()`                      | the matrices, the default first                           |
+| `create(input)`                   | the risk                                                  |
+| `update(riskId, change)`          | the risk                                                  |
+| `assess(riskId, input)`           | the risk with its new ratings                             |
+| `setTreatment(riskId, treatment)` | the risk                                                  |
+| `review(riskId, note)`            | the risk with its next review date                        |
+| `close(riskId, reason)`           | the closed risk                                           |
+| `get(riskId)`                     | the risk with its matrix, assessments, barriers and cases |
+| `list(options)`                   | the risks, the highest residual score first               |
+| `heatmap(options)`                | the matrix and one cell per likelihood and impact         |
+| `notifyDueReviews()`              | how many due reviews it reported                          |
+
+`list` filters by `category`, `band`, `ownerId`, `status`, `reviewDue` and
+`search`, with `limit` and `offset`.
+
+## Errors
+
+| Hint                      | Cause                                                           |
+| ------------------------- | --------------------------------------------------------------- |
+| `RISK_FORBIDDEN`          | the caller lacks `risks.read`, `.write`, `.assess` or `.manage` |
+| `RISK_INVALID`            | a field is invalid, or a change names a column the table lacks  |
+| `RISK_CATEGORY_UNKNOWN`   | the category isn't one of `options.categories`                  |
+| `RISK_LEVEL_OUT_OF_RANGE` | a likelihood or impact isn't a level of the risk's matrix       |
+| `RISK_CLOSED`             | the risk is closed                                              |
+| `RISK_NOT_FOUND`          | no risk with this id                                            |
+| `RISK_MATRIX_INVALID`     | the levels or bands don't form a matrix                         |
+| `RISK_MATRIX_IN_USE`      | risks use the matrix, so its number of levels can't change      |
+| `RISK_MATRIX_NOT_FOUND`   | no matrix with this id                                          |
+
+## Events
+
+`risk_matrix.created`, `risk_matrix.updated`, `risk.created`, `risk.updated`,
+`risk.assessed`, `risk.treatment_changed`, `risk.reviewed`, `risk.closed` and
+`risk.review_date_reached`. The [events page](/docs/extending/events) lists
+their payloads.
+
+## Without the client
+
+`db.risks` is this client. Code that does not go through `bsb.db()` builds it
+with a transport and an organization id:
+
+```ts
+const risks = createRisks({ transport, tenant: organizationId });
+
+const risk = await risks
+  .create({ title: "Data center outage", category: "operational" })
+  .orThrow();
+```

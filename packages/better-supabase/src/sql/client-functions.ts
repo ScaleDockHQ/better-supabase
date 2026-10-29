@@ -178,6 +178,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "delete_reminder list_my_reminders list_reminder_schedule mark_reminder_sent save_reminder",
   reviews:
     "delete_review list_reviews my_review publish_review reject_review reply_to_review review_queue review_summary submit_review",
+  risks:
+    "assess_risk close_risk create_risk get_risk list_risk_matrices list_risks notify_due_risk_reviews review_risk risk_heatmap save_risk_matrix set_risk_treatment update_risk",
   "saved-views":
     "delete_view duplicate_view list_views rank_view save_view set_default_view set_view_preference",
   scores:

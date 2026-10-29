@@ -70,6 +70,7 @@ const PURE_BARRELS = [
   "blocks/posts",
   "blocks/content",
   "blocks/qualifications",
+  "blocks/risks",
   "blocks/security-events",
   "blocks/reminders",
   "blocks/imports",

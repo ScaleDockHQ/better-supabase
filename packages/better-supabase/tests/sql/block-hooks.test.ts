@@ -176,6 +176,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_invoice_payment",
     "after_invoice_payment",
   ],
+  risks: [
+    "before_risk_create",
+    "after_risk_create",
+    "before_risk_assess",
+    "after_risk_assess",
+    "before_risk_close",
+    "after_risk_close",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

@@ -1463,6 +1463,22 @@ export interface BlockNameRegistry {
     };
     readonly primary: "review";
   };
+  readonly "risks": {
+    readonly tables: {
+      readonly "matrices": "id" | "tenant" | "key" | "name" | "likelihoodLevels" | "impactLevels" | "bands" | "scoring" | "isDefault" | "createdAt" | "updatedAt";
+      readonly "risks": "id" | "tenant" | "number" | "sequence" | "matrix" | "title" | "description" | "category" | "cause" | "consequence" | "owner" | "status" | "treatment" | "reviewIntervalMonths" | "nextReviewOn" | "reviewedAt" | "reviewNotifiedFor" | "inherentLikelihood" | "inherentImpact" | "inherentScore" | "inherentBand" | "residualLikelihood" | "residualImpact" | "residualScore" | "residualBand" | "currentAssessment" | "closedAt" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "assessments": "id" | "tenant" | "risk" | "inherentLikelihood" | "inherentImpact" | "inherentScore" | "inherentBand" | "residualLikelihood" | "residualImpact" | "residualScore" | "residualBand" | "rationale" | "version" | "assessedBy" | "assessedAt";
+    };
+    readonly functions: "assess_risk" | "close_risk" | "create_risk" | "ensure_risk_matrix" | "get_risk" | "list_risk_matrices" | "list_risks" | "notify_due_risk_reviews" | "review_risk" | "risk_heatmap" | "save_risk_matrix" | "set_risk_treatment" | "update_risk";
+    readonly actions: "read" | "write" | "assess" | "manage";
+    readonly hooks: "before_risk_create" | "after_risk_create" | "before_risk_assess" | "after_risk_assess" | "before_risk_close" | "after_risk_close";
+    readonly entities: {
+      readonly "risk": "id" | "tenant_id" | "number" | "sequence" | "matrix_id" | "title" | "description" | "category" | "cause" | "consequence" | "owner_id" | "status" | "treatment" | "review_interval_months" | "next_review_on" | "reviewed_at" | "review_notified_for" | "inherent_likelihood" | "inherent_impact" | "inherent_score" | "inherent_band" | "residual_likelihood" | "residual_impact" | "residual_score" | "residual_band" | "current_assessment_id" | "closed_at" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "risk_matrix": "id" | "tenant_id" | "key" | "name" | "likelihood_levels" | "impact_levels" | "bands" | "scoring" | "is_default" | "created_at" | "updated_at";
+      readonly "risk_assessment": "id" | "tenant_id" | "risk_id" | "inherent_likelihood" | "inherent_impact" | "inherent_score" | "inherent_band" | "residual_likelihood" | "residual_impact" | "residual_score" | "residual_band" | "rationale" | "version_id" | "assessed_by" | "assessed_at";
+    };
+    readonly primary: "risk";
+  };
   readonly "rls-guard": {
     readonly tables: {};
     readonly functions: never;

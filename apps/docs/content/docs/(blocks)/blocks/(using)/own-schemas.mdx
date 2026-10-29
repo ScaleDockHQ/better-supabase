@@ -495,6 +495,10 @@ may be your own enum or domain.
 - `reviews`
   - `better_supabase.reviews`: `id`, `tenant_id`, `subject_type`, `subject_id`, `author_id`, `rating`, `body`, `status`, `verified`, `published_at`, `created_at`; typed: `status`
   - `better_supabase.review_stats`: `tenant_id`, `subject_type`, `subject_id`, `review_count`, `rating_total`
+- `risks`
+  - `better_supabase.risk_matrices`: `id`, `tenant_id`, `key`, `name`, `likelihood_levels`, `impact_levels`, `bands`, `scoring`, `is_default`, `created_at`, `updated_at`
+  - `better_supabase.risks`: `id`, `tenant_id`, `number`, `sequence`, `matrix_id`, `title`, `category`, `owner_id`, `status`, `treatment`, `review_interval_months`, `next_review_on`, `reviewed_at`, `review_notified_for`, `inherent_likelihood`, `inherent_impact`, `inherent_score`, `inherent_band`, `residual_likelihood`, `residual_impact`, `residual_score`, `residual_band`, `current_assessment_id`, `closed_at`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.risk_assessments`: `id`, `tenant_id`, `risk_id`, `inherent_likelihood`, `inherent_impact`, `inherent_score`, `inherent_band`, `residual_likelihood`, `residual_impact`, `residual_score`, `residual_band`, `assessed_by`, `assessed_at`
 - `saved-views`
   - `better_supabase.saved_views`: `id`, `tenant_id`, `list`, `scope`, `owner_id`, `team_id`, `name`, `kind`, `state`, `rank`, `is_default`, `created_at`, `updated_at`
   - `better_supabase.saved_view_preferences`: `view_id`, `user_id`, `tenant_id`, `is_default`, `hidden`, `pinned`, `updated_at`

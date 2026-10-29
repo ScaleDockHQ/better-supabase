@@ -99,6 +99,7 @@ const MODULES = [
   "vercel-marketplace",
   "automations",
   "ai-files",
+  "risks",
 ] as const;
 
 interface Setup {

@@ -432,6 +432,9 @@ export default defineConfig({
     // Certifications and licences members, companies and assets hold, with
     // a gap report; courses grant them with their certificates.
     qualifications: {},
+    // Risks link their barriers to controls and snapshot assessments as
+    // versions.
+    risks: {},
     incidents: {},
     reminders: {},
     "drive-files": {},
