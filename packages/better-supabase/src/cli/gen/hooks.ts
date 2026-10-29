@@ -3,6 +3,7 @@ import { posix } from "node:path";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
 import { GENERATED_HEADER } from "./emit.ts";
+import { destructuredCall } from "./layout.ts";
 import { pascal, q, runtimeSubpath, singular } from "./shared.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
@@ -68,8 +69,14 @@ export function emitHooks(
 
         return [
           "",
-          `export const { useList: ${names.list}, useOne: ${names.one} } =`,
-          `  defineDataHooks(${q(property)}, (db: AppDb) => ${access(property)});`,
+          ...destructuredCall(
+            [
+              ["useList", names.list],
+              ["useOne", names.one],
+            ],
+            "defineDataHooks",
+            [q(property), `(db: AppDb) => ${access(property)}`],
+          ),
         ];
       }),
       "",

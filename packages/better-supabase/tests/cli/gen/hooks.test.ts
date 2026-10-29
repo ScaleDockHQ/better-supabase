@@ -30,7 +30,7 @@ describe("hooks.ts", () => {
       'import { defineDataHooks } from "better-supabase/react";',
     );
     expect(file?.contents).toContain(
-      'export const { useList: useCustomers, useOne: useCustomer } =\n  defineDataHooks("customers", (db: AppDb) => db.customers);',
+      'export const { useList: useCustomers, useOne: useCustomer } = defineDataHooks(\n  "customers",\n  (db: AppDb) => db.customers,\n);',
     );
     expect(file?.contents).not.toContain('"comments"');
 

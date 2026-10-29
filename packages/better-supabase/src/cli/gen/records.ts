@@ -8,6 +8,7 @@ import { importPath } from "../core/io.ts";
 import { hasPermissionConstants } from "./block-names.ts";
 import { blockConfigPath, generatorBlocks } from "./blocks.ts";
 import { GENERATED_HEADER } from "./emit.ts";
+import { docComment, importStatement, sortImports } from "./layout.ts";
 import { q } from "./shared.ts";
 
 type RecordsConfig = Pick<
@@ -151,7 +152,7 @@ function recordFile(
     ...blocks.filter((block) => block.from === undefined).map((b) => b.local),
   ].toSorted((a, b) => a.localeCompare(b));
 
-  const imports = [
+  const imports = sortImports([
     'import { defineRecordType } from "better-supabase/records";',
     ...blocks.flatMap((block) =>
       block.from === undefined
@@ -161,7 +162,7 @@ function recordFile(
     ...(extras.access === undefined
       ? []
       : [`import { permissionsBlock } from ${q(extras.access)};`]),
-  ].toSorted((a, b) => a.localeCompare(b));
+  ]);
 
   return {
     path,
@@ -170,12 +171,11 @@ function recordFile(
       "",
       ...imports,
       "",
-      `import { ${fromGenerated.join(", ")} } from ${q(generated)};`,
+      ...importStatement(fromGenerated, generated),
       "",
-      "/**",
-      ` * The ${type} record type: each installed block that binds to it. Pass it`,
-      " * to `bsb.record`, `recordQueries` or `createRecordProvider`.",
-      " */",
+      ...docComment(
+        `The ${type} record type: each installed block that binds to it. Pass it to \`bsb.record\`, \`recordQueries\` or \`createRecordProvider\`.`,
+      ),
       `export const ${camel(type)}Record = defineRecordType({`,
       `  type: ${q(type)},`,
       "  blocks: {",
