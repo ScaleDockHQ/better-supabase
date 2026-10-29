@@ -32,6 +32,39 @@ describe("testAuthorizationProvider", () => {
     );
   });
 
+  it("matches {resource} in a template's function names to requires", async () => {
+    const provider = withProvider({
+      functions: {
+        ...stubProvider.functions,
+        rowsWith: "authz.{resource}_rows({permission}, {ids})",
+      },
+      requires: [
+        ...stubProvider.requires,
+        {
+          function: "authz.file_node_rows",
+          args: "text, text[]",
+          role: "authenticated",
+        },
+      ],
+    });
+
+    const report = await testAuthorizationProvider(provider);
+
+    expect(report.checks.every((check) => check.ok)).toBe(true);
+    expect(
+      await failures(
+        withProvider({
+          functions: {
+            ...stubProvider.functions,
+            rowsWith: "authz.{resource}_rows({permission}, {ids})",
+          },
+        }),
+      ),
+    ).toContainEqual(
+      expect.stringContaining("calls authz.{resource}_rows, which requires"),
+    );
+  });
+
   it("refuses another API version and values that aren't JSON", async () => {
     expect(
       await failures({

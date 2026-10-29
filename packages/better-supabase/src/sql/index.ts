@@ -137,6 +137,7 @@ export {
   resolveProviderSql,
   SCOPE_ID_TYPES,
   scopeProblems,
+  sameTemplateFunction,
   templateFunctions,
 } from "../core/access-sql.ts";
 

@@ -10,7 +10,7 @@ import type { CommandResult } from "../core/io.ts";
 import type { CliEnv } from "../env.ts";
 
 import { moduleLayout, tenantsQuery } from "../../sql/index.ts";
-import { isSeed, isTenantSeed } from "../../testing/index.ts";
+import { isSeed, isTenantSeed } from "../../testing/seed.ts";
 import { databaseUrl, importExport, stdinDatabaseUrl } from "../config.ts";
 import { databaseHost, isLocalDatabaseUrl } from "../core/agent.ts";
 import { defineCliCommand } from "../core/command.ts";
