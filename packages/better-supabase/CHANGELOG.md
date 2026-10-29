@@ -1,5 +1,21 @@
 # better-supabase
 
+## 0.40.0
+
+### Minor Changes
+
+- [#528](https://github.com/ScaleDockHQ/better-supabase/pull/528) [`16f35ad`](https://github.com/ScaleDockHQ/better-supabase/commit/16f35ad69ca0fb4f55d198829b103df9d9545a1d) Thanks [@mick340](https://github.com/mick340)! - Ledger and invoice gaps: organization purges with a ledger, the tenant column of block subjects, payments after a write-off, and actors on ledger and invoice payment reads.
+  
+  - Data lifecycle: `purge_organization` now deletes a tenant's ledger entries and transactions. It sets the transaction-local `better_supabase.purge_tenant` setting, and the ledger's append-only guard lets a delete through only for the service role, only for that tenant and only while its deletion is due. Updates, and deletes by anyone else, still fail with `LEDGER_APPEND_ONLY`. Before, purging any organization with a ledger transaction failed.
+  - Subjects: the subjects blocks register (`ledger_account`, `work_item`, `product` and the others) name the tenant column `database.sql.tenantColumn` gives, as the block's tables do. Before, they kept `tenant_id`, so comments and other subject checks failed once such a block was installed.
+  - Invoices: `options.paymentsAfterWriteOff: true` lets a written-off invoice take payments, such as a provider payment that arrives after the write-off. The invoice stays `uncollectible` while a balance is left and moves to `paid` once nothing is owed. The default still refuses them with `INVOICE_NOT_PAYABLE`.
+  - Invoices: `payments(invoiceId)` (`list_invoice_payments`) reads an invoice's payments with `recordedBy`, and needs the read key.
+  - Ledger: `entries(accountId)` returns the transaction's `actorId` on each entry.
+
+### Patch Changes
+
+- [#525](https://github.com/ScaleDockHQ/better-supabase/pull/525) [`aa92bba`](https://github.com/ScaleDockHQ/better-supabase/commit/aa92bba39ee54c870a3dffd0fed3e522c901e82a) Thanks [@martijn00](https://github.com/martijn00)! - The `better-supabase` skill covers 0.36 to 0.39: `codemod 0.37` after upgrading from 0.35, doctor's BS607 version check, `bsb.contextClient(ctx.auth)` for a supabase-js client on the server, writing block tables through the block client with your own columns in `fields` (BS351), and encrypting secret columns (BS352). BS352 now names the `tables.<name>.columns` config key instead of `appTables`, and the migration guides say that 0.38 and 0.39 only add options.
+
 ## 0.39.0
 
 ### Minor Changes
