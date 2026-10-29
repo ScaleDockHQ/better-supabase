@@ -1,0 +1,54 @@
+---
+title: pgTAP helpers
+description: Helpers for supabase test db that create users, switch roles and check every table for RLS and audit triggers.
+---
+
+`pgtap` writes test helpers for `supabase test db`. They create users, run
+the rest of a test as a signed-in user or as `anon`, and check the catalog
+for tables that forgot row level security. The module goes to
+`supabase/tests/000_better_supabase_pgtap.test.sql`, never to your schema, so
+production databases don't get it.
+
+```bash
+better-supabase add pgtap
+```
+
+```sql title="supabase/tests/customers.test.sql"
+begin;
+select plan(2);
+
+select tests.every_table_has_rls('public');
+
+select tests.authenticate_as(
+  tests.create_user('alice@example.com'),
+  '{"tenant_id": "00000000-0000-4000-8000-000000000001"}'
+);
+select is_empty(
+  $$select 1 from public.customers
+    where tenant_id <> '00000000-0000-4000-8000-000000000001'$$,
+  'alice sees only her organization'
+);
+
+select * from finish();
+rollback;
+```
+
+## Helpers
+
+| Function                                                | What it does                                                             |
+| ------------------------------------------------------- | ------------------------------------------------------------------------ |
+| `tests.create_user(email, app_metadata, user_metadata)` | Inserts a confirmed user and returns its id                              |
+| `tests.authenticate_as(user_id, claims)`                | Switches to `authenticated` with the user's claims                       |
+| `tests.authenticate_as_anon()`                          | Switches to `anon`                                                       |
+| `tests.clear_authentication()`                          | Switches back to the test runner's role                                  |
+| `tests.every_table_has_rls(schema)`                     | Lists every table in the schema without row level security               |
+| `tests.rls_enabled(schema)`                             | The same check as `every_table_has_rls`                                  |
+| `tests.policies_use(schema, pattern)`                   | Lists every policy whose expressions don't match the regular expression  |
+| `tests.no_anon_policies(schema)`                        | Lists every policy that applies to `anon`, by name or through `public`   |
+| `tests.every_table_audited(schema, exempt)`             | Lists every table without an audit trigger, except the `exempt` patterns |
+| `tests.partitions_have_rls(schema)`                     | Lists every partition of an RLS table that has row level security off    |
+
+Each check fails the test and names what it found.
+
+The [pgTAP section of Testing](/docs/testing#pgtap) covers the full
+signatures and a tenant isolation suite.

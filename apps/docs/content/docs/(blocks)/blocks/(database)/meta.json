@@ -6,6 +6,11 @@
     "rank",
     "updated-at",
     "field-history",
-    "field-encryption"
+    "field-encryption",
+    "jsonb-schemas",
+    "pgtap",
+    "realtime-tables",
+    "rls-guard",
+    "read-sets"
   ]
 }

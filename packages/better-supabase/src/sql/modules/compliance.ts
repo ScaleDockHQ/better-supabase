@@ -15,7 +15,7 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
-import { controlsFunctions } from "./compliance-functions.ts";
+import { complianceFunctions } from "./compliance-functions.ts";
 import { policyFunctions } from "./compliance-policies.ts";
 import {
   CONTROL_RESERVED,
@@ -384,7 +384,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Compliance controls: frameworks of controls, evidence linked to them,
 -- recurring evidence tasks, and versioned policies members acknowledge.
-${tables(ctx)}${controlsFunctions(ctx)}${policyFunctions(ctx)}`;
+${tables(ctx)}${complianceFunctions(ctx)}${policyFunctions(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -460,7 +460,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
-export const CONTROLS: BlockSqlDefinition = {
+export const COMPLIANCE: BlockSqlDefinition = {
   name: "compliance",
   scopes: ["tenant"],
   title: "Compliance controls",

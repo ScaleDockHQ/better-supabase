@@ -1,9 +1,9 @@
 ---
-title: Rules
+title: Automations
 description: Tenant-editable rules that test a subject against a filter tree when a trigger event happens and name the actions your app runs, evaluated the same way in SQL and TypeScript.
 ---
 
-`rules` lets an organization write its own "when this, then that" rules. A rule belongs to a subject type (`expense`), is tested when a trigger event happens (`expense.submitted`), holds its conditions as a [filter tree](/docs/platform/list#filter-trees) over fields you declare, and names actions as `{ kind, config }` references: `approvals.request` with `{ action: "finance_review" }`, for example. The database stores, checks and evaluates rules; your app decides what each action kind does.
+`automations` lets an organization write its own "when this, then that" rules. A rule belongs to a subject type (`expense`), is tested when a trigger event happens (`expense.submitted`), holds its conditions as a [filter tree](/docs/platform/list#filter-trees) over fields you declare, and names actions as `{ kind, config }` references: `approvals.request` with `{ action: "finance_review" }`, for example. The database stores, checks and evaluates rules; your app decides what each action kind does.
 
 Reading rules needs `rules.read`, changing a disabled rule needs `rules.edit`, enabling a rule or changing an enabled one needs `rules.publish`, and removing one needs `rules.admin`. Admins get every permission and members get `rules.read`.
 

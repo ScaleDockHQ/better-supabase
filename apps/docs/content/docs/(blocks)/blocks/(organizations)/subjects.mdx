@@ -1,0 +1,40 @@
+---
+title: Subjects
+description: The app-wide registry of record types, with titles, links, access checks and a my-work list across blocks.
+---
+
+`subjects` turns the record types in `config.subjects` into SQL functions
+every block can call. A comment, a task or a notification points at a
+subject by type and id, and these functions give its title, its URL and
+whether the caller may see it. It needs the
+[`permissions`](/docs/blocks/permissions) block.
+
+```bash
+better-supabase add subjects
+```
+
+## SQL functions
+
+| Function                                                      | Returns                                                                        |
+| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `subject_types()`                                             | The registered types                                                           |
+| `subject_title(subject_type, subject_id)`                     | The record's title                                                             |
+| `subject_url(subject_type, subject_id)`                       | The record's URL in the app                                                    |
+| `subject_titles(refs jsonb)`                                  | Titles and URLs for a batch of `{ type, id }` refs                             |
+| `can_subject(subject_type, subject_id, action)`               | Whether the caller may perform the action on the record                        |
+| `can_subject_for(member, subject_type, subject_id, action)`   | The same check for another user, for server code                               |
+| `record_summary(subject_type, subject_id, sections, seen_at)` | A record page header: title, path and a count per section, with what is new    |
+| `my_work(tenant, page_size)`                                  | The caller's open items across the installed blocks                            |
+| `subject_presence_allowed(topic)`                             | Whether the caller may join the Realtime presence topic `presence:<type>:<id>` |
+
+The functions live in the block schema (`better_supabase` by default), and a
+type registered in `config.subjects` gets a branch in each one.
+
+## Client
+
+`better-supabase/blocks/subjects` reads the same functions from the client.
+The `subject-link`, `subject-chip` and `my-work` recipes render them.
+
+The [SQL modules page](/docs/blocks/sql#subject-registry) covers the
+registry's SQL and merges, and [Record types](/docs/repository/record-types)
+covers how to declare a type.

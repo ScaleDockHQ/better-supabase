@@ -212,7 +212,7 @@ export type AllBlocks = {
   readonly dispatch: typeof dispatchBlock;
   readonly shipments: typeof shipmentsBlock;
   readonly contracts: typeof contractsBlock;
-  readonly controls: typeof complianceBlock;
+  readonly compliance: typeof complianceBlock;
   readonly incidents: typeof incidentsBlock;
   readonly courses: typeof coursesBlock;
   readonly sequences: typeof sequencesBlock;

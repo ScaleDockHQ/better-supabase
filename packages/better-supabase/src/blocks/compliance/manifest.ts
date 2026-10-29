@@ -12,7 +12,7 @@ import {
   policyInputSchema,
 } from "./schemas.ts";
 
-/** The `controls` block's manifest (ADR 0029). */
+/** The `compliance` block's manifest (ADR 0029). */
 export const complianceBlock: BlockOf<
   "compliance",
   typeof createCompliance,

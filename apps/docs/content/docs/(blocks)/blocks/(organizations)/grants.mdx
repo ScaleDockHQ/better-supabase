@@ -1,0 +1,44 @@
+---
+title: Data API grants
+description: Write the Data API privileges of the tables and functions you list, or derive table grants from your policies.
+---
+
+`grants` writes the complete Data API privileges of the tables and functions
+in the `expose` config for `anon`, `authenticated` and `service_role`. Use it
+when the project doesn't grant new tables through default privileges, or when
+you want the Data API to reach only the tables you list. Row level security
+still decides which rows a role sees; a grant decides whether the role reaches
+the table at all.
+
+```bash
+better-supabase add grants
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: {
+    expose: {
+      customers: ["select", "insert", "update", "delete"],
+      "public.pricing_plans": { anon: ["select"], authenticated: ["select"] },
+      "search_notes(text, integer)": { execute: ["authenticated"] },
+    },
+  },
+  blocks: ["grants"],
+});
+```
+
+Each listed table or function gets exactly the listed privileges, and the
+rest is revoked. `upgrade` rewrites the grants when the list changes.
+
+## Options
+
+| Option         | Default | What it does                                                                                    |
+| -------------- | ------- | ----------------------------------------------------------------------------------------------- |
+| `fromPolicies` | off     | Derives grants for the tables `expose` doesn't list from the permissive policies in your schema |
+
+```ts title="better-supabase.config.ts"
+blocks: { grants: { options: { fromPolicies: true } } },
+```
+
+The [Data API grants guide](/docs/guides/data-api-grants) covers column
+grants, `fromPolicies` and the doctor checks.

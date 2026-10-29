@@ -3,7 +3,7 @@ title: Incoming webhooks
 description: Trigger URLs a tenant hands to other systems, with hashed tokens, optional signatures, limits and an inbox.
 ---
 
-Automation products let a tenant create a URL that another system calls:
+`incoming-webhooks` lets a tenant create a URL that another system calls:
 a form, a CRM, a monitoring tool. The `webhooks-in` SQL module keeps those
 endpoints per tenant, and `createIncomingWebhooks` from
 `better-supabase/blocks/webhooks` serves them. Each delivery is checked, then

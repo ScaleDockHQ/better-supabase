@@ -1,4 +1,4 @@
--- The controls module against the seed: the Acme owner (…a1) sets up a
+-- The compliance module against the seed: the Acme owner (…a1) sets up a
 -- framework, controls, an evidence task and a policy, an Acme member (…a2)
 -- collects evidence and acknowledges the policy, and the Globex owner (…a3)
 -- sees none of it. Run with `supabase test db`.

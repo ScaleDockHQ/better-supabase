@@ -11,7 +11,7 @@ import {
   personInputSchema,
 } from "./schemas.ts";
 
-/** The `parties` block's manifest (ADR 0029). */
+/** The `contacts` block's manifest (ADR 0029). */
 export const contactsBlock: BlockOf<
   "contacts",
   typeof createContacts,

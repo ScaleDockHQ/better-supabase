@@ -1,0 +1,47 @@
+---
+title: Realtime table changes
+description: Broadcast a change signal per statement on the tables you list, so live queries refetch through RLS.
+---
+
+`realtime-tables` sends a Realtime broadcast when a listed table changes, so
+[live queries](/docs/frontend/live-queries) know to refetch. The message
+carries no row data: clients refetch through the Data API, where their grants
+and policies decide what they see. A bulk write sends one message per
+statement, not one per row.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  realtime: { tables: ["customers", "plans"], global: ["plans"] },
+});
+```
+
+```bash
+better-supabase gen
+better-supabase add realtime-tables
+```
+
+## Topics
+
+| Table                        | Topic                                 | Who receives it                |
+| ---------------------------- | ------------------------------------- | ------------------------------ |
+| A tenant table               | `bsb:t:public.customers:<tenant>`     | Current members of that tenant |
+| A table in `realtime.global` | `bsb:t:public.plans`                  | Every signed-in user           |
+| A table in `realtime.users`  | `bsb:t:public.notifications:u:<user>` | The user the row belongs to    |
+
+With the [memberships](/docs/blocks/memberships) block, the receive policy
+checks membership when the client joins, not the token claim. Anonymous
+users receive nothing. A tenant table without the tenant column fails to
+install, so it never broadcasts to everyone by mistake.
+
+## SQL functions
+
+| Function                                             | What it does                                                   |
+| ---------------------------------------------------- | -------------------------------------------------------------- |
+| `track_realtime(target, tenant_column, user_column)` | Adds the statement triggers to a table                         |
+| `untrack_realtime(target)`                           | Removes them                                                   |
+| `broadcast_changes()`                                | The statement trigger that sends the change signal             |
+| `broadcast_topic()`                                  | A row trigger that announces a change on a `defineTopic` topic |
+
+The config writes the `track_realtime` calls for you. The
+[Realtime page](/docs/platform/realtime) covers typed topics and
+`broadcast_topic`.

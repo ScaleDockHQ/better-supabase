@@ -47,7 +47,7 @@ import {
   DisableServicePrincipalButton,
 } from "./service-principal-controls";
 
-// #region recipe:service-principals-table
+// #region recipe:service-accounts-table
 type PrincipalsState =
   | { readonly kind: "ok"; readonly principals: readonly ServicePrincipalRow[] }
   | { readonly kind: "error" }
@@ -104,7 +104,7 @@ export async function ServicePrincipalsTable() {
   ]);
 
   return (
-    <Card data-recipe="service-principals-table">
+    <Card data-recipe="service-accounts-table">
       <CardHeader>
         <CardTitle>{t("Service principals")}</CardTitle>
         <CardDescription>
@@ -215,4 +215,4 @@ export async function ServicePrincipalsTable() {
 export function ServicePrincipalsTableSkeleton() {
   return <Skeleton className="h-40 rounded-xl" aria-busy="true" />;
 }
-// #endregion recipe:service-principals-table
+// #endregion recipe:service-accounts-table

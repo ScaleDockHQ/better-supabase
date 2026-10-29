@@ -26,8 +26,8 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
-    slug: "service-principals-table",
-    title: "Service principals table",
+    slug: "service-accounts-table",
+    title: "Service accounts table",
     blocks: ["service-accounts"],
     kind: "component",
     description:
