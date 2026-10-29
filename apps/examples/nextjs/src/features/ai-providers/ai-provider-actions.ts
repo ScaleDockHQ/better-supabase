@@ -27,7 +27,7 @@ export const addProviderKey = bsb.action(
       apiKey: v.pipe(v.string(), v.trim(), v.minLength(8), v.maxLength(500)),
     }),
     requireTenant: true,
-    permission: "ai.admin",
+    permission: "ai_keys.manage",
   },
   async ({ provider, name, model, apiKey }, { tenant, supabase }) => {
     const keyName = name ?? "default";
@@ -65,7 +65,7 @@ export const removeProviderKey = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
-    permission: "ai.admin",
+    permission: "ai_keys.manage",
   },
   async ({ id }, { supabase }) => {
     const removed = await aiProviders(supabase).keys.remove(id);

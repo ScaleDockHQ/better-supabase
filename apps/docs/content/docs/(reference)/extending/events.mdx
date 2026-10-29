@@ -81,10 +81,15 @@ match from the events you pass:
 import { onBlockEvent } from "better-supabase/events";
 import { impersonationEvents } from "better-supabase/server";
 
-onBlockEvent(betterSupabase, impersonationEvents, "support.*", (event) => {
-  // event.type is "support.started" | "support.ended" | "support.denied"
-  auditTrail.write({ type: event.type, admin: event.data.adminId });
-});
+onBlockEvent(
+  betterSupabase,
+  impersonationEvents,
+  "impersonation.*",
+  (event) => {
+    // event.type is "support.started" | "support.ended" | "support.denied"
+    auditTrail.write({ type: event.type, admin: event.data.adminId });
+  },
+);
 ```
 
 [`defineBlocks`](/docs/blocks/create-blocks#typed-events-with-defineblocks)

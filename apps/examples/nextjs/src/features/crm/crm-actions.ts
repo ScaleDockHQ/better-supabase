@@ -35,7 +35,7 @@ export const createContact = bsb.action(
       domain: Optional,
     }),
     requireTenant: true,
-    permission: "parties.write",
+    permission: "contacts.write",
   },
   async ({ kind, name, email, domain }, { tenant, db, auth }) => {
     const { contacts: parties } = db.$blocks;
@@ -60,7 +60,7 @@ export const linkPerson = bsb.action(
   {
     input: v.object({ companyId: Id, personId: Id, role: Optional }),
     requireTenant: true,
-    permission: "parties.write",
+    permission: "contacts.write",
   },
   async ({ companyId, personId, role }, { db, auth }) => {
     const linked = await db.$blocks.contacts.linkPerson(
@@ -90,7 +90,7 @@ export const logActivity = bsb.action(
       body: Optional,
     }),
     requireTenant: true,
-    permission: "engagements.write",
+    permission: "activities.write",
   },
   async (
     { subjectType, subjectId, type, title, body },
@@ -252,7 +252,7 @@ export const createTarget = bsb.action(
       periodEnd: IsoDate,
     }),
     requireTenant: true,
-    permission: "targets.manage",
+    permission: "goals.manage",
   },
   async (
     { name, metric, goal, currency, periodStart, periodEnd },

@@ -58,7 +58,7 @@ select throws_ok(
   $$select better_supabase.merge_companies('00000000-0000-4000-8000-00000000c001', '00000000-0000-4000-8000-00000000c002')$$,
   '42501',
   'not allowed to change companies and people',
-  'a member without parties.manage cannot merge'
+  'a member without contacts.manage cannot merge'
 );
 select throws_ok(
   $$select better_supabase.merge_subject_refs('better_supabase.companies', '00000000-0000-4000-8000-00000000c001', '00000000-0000-4000-8000-00000000c002')$$,

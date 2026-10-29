@@ -448,7 +448,7 @@ describe("createWorkflowEditor", () => {
     const { transport, calls } = fake({
       workflow_version_get: () => ({ ...VERSION, status }),
       workflow_definition_get: () => DEFINITION,
-      workflow_graph_permissions: () => ["crm.read", "workflow.run"],
+      workflow_graph_permissions: () => ["crm.read", "workflow_editor.run"],
       publish_workflow_version: () => published,
     });
 
@@ -476,7 +476,7 @@ describe("createWorkflowEditor", () => {
       {
         publisher: "u1",
         tenant: "t1",
-        permissions: ["crm.read", "workflow.run"],
+        permissions: ["crm.read", "workflow_editor.run"],
         claims,
       },
     ]);
@@ -498,7 +498,7 @@ describe("createWorkflowEditor", () => {
     expect(!refused.ok && refused.error).toMatchObject({
       kind: "forbidden",
       hint: "WORKFLOW_PUBLISHER_FORBIDDEN",
-      permissions: ["crm.read", "workflow.run"],
+      permissions: ["crm.read", "workflow_editor.run"],
     });
     answer = () => {
       throw new Error("provider down");

@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:449b0b8b0b30a00ecced8da785564999173e470e17e678adc54209db80e833e9
+-- @bsb-hash sha256:48d24dc3502b6fe770e308ad4b8483d2bce9e5476ec8ce50e69d0e9ce613efa8
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,14 +124,14 @@ as $$
     when 'comments.read' then 'comments.read'
     when 'custom-fields.manage' then 'custom_fields.manage'
     when 'custom-fields.read' then 'custom_fields.read'
-    when 'custom-fields.sensitive' then 'custom_fields.sensitive.read'
+    when 'custom-fields.sensitive' then 'custom_fields.read_sensitive'
     when 'data-lifecycle.cancelDelete' then 'organization.delete'
     when 'data-lifecycle.delete' then 'organization.delete'
-    when 'data-lifecycle.export' then 'organization.export'
+    when 'data-lifecycle.export' then 'data_lifecycle.export'
     when 'drive.create' then 'drive.create'
     when 'drive.manage' then 'drive.manage'
     when 'drive.read' then 'drive.read'
-    when 'impersonation.revoke' then 'support.revoke'
+    when 'impersonation.revoke' then 'impersonation.revoke'
     when 'impersonation.start' then 'platform.users.manage'
     when 'impersonation.view' then 'platform.users.manage'
     when 'imports.manage' then 'imports.manage'
@@ -144,7 +144,7 @@ as $$
     when 'messaging.send' then 'comments.create'
     when 'notifications.read' then 'notifications.read'
     when 'notifications.send' then 'notifications.send'
-    when 'numbering.assign' then 'number_sequences.assign'
+    when 'numbering.assign' then 'numbering.assign'
     when 'organizations.delete' then 'organization.delete'
     when 'organizations.listMembers' then 'people.read'
     when 'organizations.removeMember' then 'members.remove'
@@ -232,7 +232,7 @@ as $$
     when member is not null
       and not better_supabase.user_disabled(member)
       and not better_supabase.tenant_disabled(tenant)
-    then coalesce(array(select k from unnest(coalesce((centrakit.authz_permissions_for(member, tenant)), '{}'::text[])) as k where k = any(array['activity.read', 'api_keys.manage', 'api_keys.own', 'attachments.manage', 'attachments.read', 'attachments.upload', 'audit.revert', 'audit.view', 'comments.create', 'comments.moderate', 'comments.read', 'crm.read', 'custom_fields.manage', 'custom_fields.read', 'custom_fields.sensitive.read', 'deals.manage', 'deals.read', 'deals.write', 'drive.create', 'drive.manage', 'drive.read', 'imports.manage', 'members.invite', 'members.remove', 'members.update_role', 'notifications.read', 'notifications.send', 'number_sequences.assign', 'organization.delete', 'organization.export', 'organization.transfer_ownership', 'organization.update', 'people.manage', 'people.read', 'people.view-sensitive', 'pipelines.manage', 'pipelines.read', 'platform.invite', 'platform.users.manage', 'reminders.manage', 'reminders.read', 'settings.manage', 'settings.read', 'settings.update', 'share_links.create', 'share_links.read', 'support.revoke', 'tags.manage', 'tags.read', 'teams.manage', 'teams.read', 'webhook.manage', 'webhook.view', 'work_items.manage', 'work_items.read', 'work_items.write']::text[])), '{}'::text[])
+    then coalesce(array(select k from unnest(coalesce((centrakit.authz_permissions_for(member, tenant)), '{}'::text[])) as k where k = any(array['timeline.read', 'api_keys.manage', 'api_keys.own', 'attachments.manage', 'attachments.read', 'attachments.upload', 'audit.revert', 'audit.view', 'comments.create', 'comments.moderate', 'comments.read', 'crm.read', 'custom_fields.manage', 'custom_fields.read', 'custom_fields.read_sensitive', 'deals.manage', 'deals.read', 'deals.write', 'drive.create', 'drive.manage', 'drive.read', 'imports.manage', 'members.invite', 'members.remove', 'members.update_role', 'notifications.read', 'notifications.send', 'numbering.assign', 'organization.delete', 'data_lifecycle.export', 'organization.transfer_ownership', 'organization.update', 'people.manage', 'people.read', 'people.view-sensitive', 'pipelines.manage', 'pipelines.read', 'platform.invite', 'platform.users.manage', 'reminders.manage', 'reminders.read', 'settings.manage', 'settings.read', 'settings.update', 'share_links.create', 'share_links.read', 'impersonation.revoke', 'tags.manage', 'tags.read', 'teams.manage', 'teams.read', 'webhook.manage', 'webhook.view', 'tasks.manage', 'tasks.read', 'tasks.write']::text[])), '{}'::text[])
     else '{}'::text[]
   end
 $$;

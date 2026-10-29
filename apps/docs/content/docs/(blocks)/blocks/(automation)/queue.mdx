@@ -487,11 +487,11 @@ parse the cron and compute the next run with the same helpers
 (`assertCron` and `nextCronRun`), so a cron and a time zone mean the same
 thing in each.
 
-| Layer                                                  | Who sets it                               | What a run does                                                             |
-| ------------------------------------------------------ | ----------------------------------------- | --------------------------------------------------------------------------- |
-| Job schedules (this block)                             | The app, in code or SQL                   | Enqueues a job with a fixed payload                                         |
-| [Workflow schedules](/docs/blocks/workflows#schedules) | The app, or members with `workflow.admin` | Starts a workflow run, with the idempotency key `schedule:<id>:<fire time>` |
-| [AI tasks](/docs/blocks/ai-schedules)                  | Each user, for their own prompt           | Runs the prompt and logs the chat each run wrote to                         |
+| Layer                                                  | Who sets it                                 | What a run does                                                             |
+| ------------------------------------------------------ | ------------------------------------------- | --------------------------------------------------------------------------- |
+| Job schedules (this block)                             | The app, in code or SQL                     | Enqueues a job with a fixed payload                                         |
+| [Workflow schedules](/docs/blocks/workflows#schedules) | The app, or members with `workflows.manage` | Starts a workflow run, with the idempotency key `schedule:<id>:<fire time>` |
+| [AI tasks](/docs/blocks/ai-schedules)                  | Each user, for their own prompt             | Runs the prompt and logs the chat each run wrote to                         |
 
 Pick the lowest layer that does the job. A nightly cleanup is a job
 schedule. A recurring start of a durable workflow that members can see and

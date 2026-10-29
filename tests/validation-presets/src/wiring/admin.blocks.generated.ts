@@ -217,8 +217,8 @@ export const permissions = {
     transferOwnership: "organization.transfer_ownership",
   },
   "saved-views": {
-    read: "views.read",
-    share: "views.share",
+    read: "saved_views.read",
+    share: "saved_views.share",
   },
   settings: {
     read: "settings.read",
@@ -236,7 +236,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "flags.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "flags.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

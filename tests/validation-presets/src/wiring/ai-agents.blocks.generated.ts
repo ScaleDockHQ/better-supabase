@@ -175,14 +175,14 @@ export const blocks = {
  */
 export const permissions = {
   agents: {
-    read: "ai.read",
-    create: "ai.create",
-    publish: "ai.share",
-    moderate: "ai.moderate",
+    read: "agents.read",
+    create: "agents.write",
+    publish: "agents.publish",
+    moderate: "agents.moderate",
   },
   "ai-schedules": {
-    create: "ai.create",
-    manage: "ai.admin",
+    create: "ai_schedules.write",
+    manage: "ai_schedules.manage",
   },
   "api-keys": {
     manage: "api_keys.manage",
@@ -204,9 +204,9 @@ export const permissions = {
     viewAll: "billing.read",
   },
   connectors: {
-    read: "ai.read",
-    use: "ai.create",
-    manage: "ai.admin",
+    read: "connectors.read",
+    use: "connectors.use",
+    manage: "connectors.manage",
   },
   enrollments: {
     read: "enrollments.read",
@@ -249,9 +249,9 @@ export const permissions = {
     read: "teams.read",
   },
   workflows: {
-    read: "workflow.read",
-    run: "workflow.run",
-    admin: "workflow.admin",
+    read: "workflows.read",
+    run: "workflows.run",
+    admin: "workflows.manage",
   },
 } as const;
 
@@ -260,7 +260,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai.admin" | "ai.create" | "ai.moderate" | "ai.read" | "ai.share" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "workflow.admin" | "workflow.read" | "workflow.run";
+export type PermissionKey = "agents.moderate" | "agents.publish" | "agents.read" | "agents.write" | "ai_schedules.manage" | "ai_schedules.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "connectors.manage" | "connectors.read" | "connectors.use" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "workflows.manage" | "workflows.read" | "workflows.run";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

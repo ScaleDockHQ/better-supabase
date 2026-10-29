@@ -34,8 +34,8 @@ export interface FieldChange {
 
 export interface FieldHistory {
   /**
-   * A record's changes, newest first. Needs `history.read` and read access to
-   * the record.
+   * A record's changes, newest first. Needs `field_history.read` and read
+   * access to the record.
    */
   of(
     subject: { readonly type: string; readonly id: string },

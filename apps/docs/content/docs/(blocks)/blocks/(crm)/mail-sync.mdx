@@ -19,15 +19,15 @@ Install `contacts` and `engagements` too for the matching and the timeline;
 without them, threads stay in the mailbox and can be linked by hand to any
 registered subject.
 
-| Permission     | Lets a member                                    | Default roles      |
-| -------------- | ------------------------------------------------ | ------------------ |
-| `mail.read`    | read the shared threads on records they can read | `member`, `admin`  |
-| `mail.connect` | connect their own mailbox                        | `member`, `admin`  |
-| `mail.send`    | send from their own mailbox                      | `member`, `admin`  |
-| `mail.manage`  | see every member's mailbox and its sync status   | `admin` (`mail.*`) |
+| Permission          | Lets a member                                    | Default roles           |
+| ------------------- | ------------------------------------------------ | ----------------------- |
+| `mail_sync.read`    | read the shared threads on records they can read | `member`, `admin`       |
+| `mail_sync.connect` | connect their own mailbox                        | `member`, `admin`       |
+| `mail_sync.send`    | send from their own mailbox                      | `member`, `admin`       |
+| `mail_sync.manage`  | see every member's mailbox and its sync status   | `admin` (`mail_sync.*`) |
 
 A mailbox's `share` decides who reads its threads. With `records` (the
-default), a member with `mail.read` sees a thread when they can read one of
+default), a member with `mail_sync.read` sees a thread when they can read one of
 its linked records, and the thread is logged as an engagement. With
 `private`, only the mailbox's owner sees its threads and nothing is logged.
 

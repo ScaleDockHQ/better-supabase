@@ -42,7 +42,7 @@ export async function ContactList() {
     getPermissions(),
   ]);
 
-  if (!can(permissions, "parties.read")) {
+  if (!can(permissions, "contacts.read")) {
     forbidden();
   }
 

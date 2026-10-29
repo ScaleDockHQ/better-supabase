@@ -101,7 +101,7 @@ export interface TimelineOptions
 export interface Timeline {
   /**
    * The activity feed of a tenant, newest first, or one subject's timeline with
-   * `subject`. Members with `activity.read` see it. With the `subjects` module,
+   * `subject`. Members with `timeline.read` see it. With the `subjects` module,
    * an entry on a registered subject type needs `can_subject` read, and a
    * subject's timeline also lists its audit log entries (`source: "audit"`)
    * when `audit` is installed with its read policy, the deliveries of
@@ -313,7 +313,7 @@ const FACETS: readonly [ActivityFacet, string, string][] = [
 /**
  * A cursor-paged list over `activity_entries` (generate types for the
  * `better_supabase` schema to get it in your models), newest first, filtered by
- * type, actor and subject. Members with `activity.read` see their tenants'
+ * type, actor and subject. Members with `timeline.read` see their tenants'
  * entries, less those on a registered subject that `can_subject` doesn't let
  * them read (with the `subjects` module). It reads the table, so it lists no
  * audit entries; `list()` does.

@@ -50,7 +50,7 @@ describe("blocks.<name>.entities in the SQL", () => {
 
   it("renames the default roles' keys after every block's entities", () => {
     expect(body("permissions", TASKS)).toContain("'tasks.*'");
-    expect(body("permissions", {})).toContain("'work_items.*'");
+    expect(body("permissions", {})).toContain("'tasks.*'");
   });
 
   it("keeps the tenant rename out of events, permission keys and hooks", () => {
@@ -60,7 +60,7 @@ describe("blocks.<name>.entities in the SQL", () => {
 
     expect(sql).toContain("'work_item.created'");
     expect(sql).toContain("'organizationId'");
-    expect(sql).toContain("'work_items.read'");
+    expect(sql).toContain("'tasks.read'");
   });
 
   it("leaves the default nouns only in parameter names, hints and prose", () => {

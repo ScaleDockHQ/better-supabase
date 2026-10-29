@@ -16,14 +16,14 @@ better-supabase add ai-schedules   # adds tenant and access as well
 | `ai_scheduled_tasks` | The prompt, cron, time zone, optional chat and agent, and next run |
 | `ai_task_runs`       | One row per run: `queued`, `running`, `completed` or `failed`      |
 
-A user sees and changes their own tasks; `ai.admin` lists every task
+A user sees and changes their own tasks; `ai_schedules.manage` lists every task
 in the organization. With [agents](/docs/blocks/agents) installed, a task
 can name the agent it runs as.
 
-| Permission  | Lets a member                      | Default roles              |
-| ----------- | ---------------------------------- | -------------------------- |
-| `ai.create` | schedule tasks                     | `owner`, `admin`, `member` |
-| `ai.admin`  | see every task in the organization | `owner`, `admin`           |
+| Permission            | Lets a member                      | Default roles              |
+| --------------------- | ---------------------------------- | -------------------------- |
+| `ai_schedules.write`  | schedule tasks                     | `owner`, `admin`, `member` |
+| `ai_schedules.manage` | see every task in the organization | `owner`, `admin`           |
 
 | Option       | Default       | Sets                                               |
 | ------------ | ------------- | -------------------------------------------------- |

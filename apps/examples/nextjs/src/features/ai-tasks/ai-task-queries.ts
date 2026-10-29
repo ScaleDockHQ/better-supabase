@@ -37,7 +37,7 @@ export type AiTasksRead =
 
 /**
  * The caller's scheduled tasks in the active organization, or every task with
- * `ai.admin`, newest first. Not cached: runs change their status.
+ * `ai_schedules.manage`, newest first. Not cached: runs change their status.
  */
 export async function getAiTasks(): Promise<AiTasksRead> {
   const [session, { supabase }, permissions] = await Promise.all([
@@ -53,7 +53,7 @@ export async function getAiTasks(): Promise<AiTasksRead> {
   }
 
   const result = await aiTasks(supabase).list(organizationId, {
-    all: can(permissions, "ai.admin"),
+    all: can(permissions, "ai_schedules.manage"),
   });
 
   if (!result.ok) {

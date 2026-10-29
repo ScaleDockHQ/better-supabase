@@ -9,7 +9,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const staff = { platform_permissions: ["support.*"] };
+const staff = { platform_permissions: ["impersonation.*"] };
 const START = "better_supabase.start_support_session($1, $2)";
 const REQUEST = "better_supabase.request_support_session($1, $2)";
 const APPROVE = "better_supabase.approve_support_request($1)";

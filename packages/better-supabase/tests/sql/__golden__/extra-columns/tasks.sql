@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:b462b7311ad5d3ac233e5058d81b36720d92e3d3584166c15665cca60d9c69c7
+-- @bsb-hash sha256:1e630937c73b3964856c810714d2dfed1dab06235fa6215b5d558649dd8cdd4f
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,7 @@ grant all on "better_supabase"."projects" to service_role;
 drop policy if exists projects_read on "better_supabase"."projects";
 create policy projects_read on "better_supabase"."projects"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 create table if not exists "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
@@ -133,7 +133,7 @@ grant all on "better_supabase"."iterations" to service_role;
 drop policy if exists iterations_read on "better_supabase"."iterations";
 create policy iterations_read on "better_supabase"."iterations"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 create table if not exists "better_supabase"."work_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -180,7 +180,7 @@ grant all on "better_supabase"."work_items" to service_role;
 drop policy if exists work_items_read on "better_supabase"."work_items";
 create policy work_items_read on "better_supabase"."work_items"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 create table if not exists "better_supabase"."work_item_assignees" (
   "tenant_id" uuid not null,
@@ -197,7 +197,7 @@ grant all on "better_supabase"."work_item_assignees" to service_role;
 drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
 create policy work_item_assignees_read on "better_supabase"."work_item_assignees"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
 create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
@@ -222,7 +222,7 @@ grant all on "better_supabase"."work_item_checklist_items" to service_role;
 drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
 create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 create or replace function better_supabase.bsb_work_item_guard()
 returns trigger
@@ -300,7 +300,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_work_item.tenant, 'work_items.write'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', create_work_item.tenant, 'tasks.write'), false)) then
     raise exception 'not allowed to change work items' using errcode = '42501', hint = 'WORK_ITEM_FORBIDDEN';
   end if;
   if nullif(trim(create_work_item.attrs ->> 'title'), '') is null then
@@ -386,7 +386,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'workItemId')::uuid;
-      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
       end if;
       declare
@@ -475,7 +475,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_work_item_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.write'), false));
+  select * into v_row from "better_supabase"."work_items" x where x."id" = set_work_item_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
@@ -503,7 +503,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."work_items" x set "archived_at" = case when archive_work_item.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_work_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.write'), false))
+  where x."id" = archive_work_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -532,7 +532,7 @@ begin
   end if;
   delete from "better_supabase"."work_items" x
   where x."id" = delete_work_item.work_item
-    and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.manage'), false))
+    and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -624,7 +624,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = save_work_item_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."work_items" x where x."id" = save_work_item_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'WORK_ITEM_NOT_FOUND';
   end if;
@@ -675,7 +675,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x.* into v_row from "better_supabase"."work_items" x join "better_supabase"."work_item_checklist_items" y on y."work_item_id" = x."id"
-  where y."id" = delete_work_item_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.write'), false)) and x."archived_at" is null;
+  where y."id" = delete_work_item_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
@@ -728,7 +728,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_project.tenant, 'work_items.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_project.tenant, 'tasks.manage'), false)) then
     raise exception 'not allowed to manage projects and iterations' using errcode = '42501', hint = 'WORK_ITEM_FORBIDDEN';
   end if;
   begin
@@ -780,7 +780,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_iteration.tenant, 'work_items.manage'), false)) then
+  if not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', save_iteration.tenant, 'tasks.manage'), false)) then
     raise exception 'not allowed to manage projects and iterations' using errcode = '42501', hint = 'WORK_ITEM_FORBIDDEN';
   end if;
   begin
@@ -829,7 +829,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."work_items" as restr
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_items" as restrictive
@@ -850,7 +850,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."work_item_checklist_
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items" as restrictive
@@ -871,7 +871,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."work_item_assignees"
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
 create policy bsb_tenant_scope_insert on "better_supabase"."work_item_assignees" as restrictive
@@ -892,7 +892,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."projects" as restric
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."projects";
 create policy bsb_tenant_scope_insert on "better_supabase"."projects" as restrictive
@@ -913,7 +913,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."iterations" as restr
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('work_items.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."iterations";
 create policy bsb_tenant_scope_insert on "better_supabase"."iterations" as restrictive

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:8b40d93a841e9b81ec0f13e25bd70ebcec617dff61cfea63d2bdd0688a031c3c
+-- @bsb-hash sha256:210a155b4197ed5b338bac5f29765a5d612a7a8a50f5b52152d0ee02c5144ec1
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -139,7 +139,7 @@ grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
 create policy employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -167,7 +167,7 @@ grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
 create policy employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
 
 -- A manager is an employee of the same organization and never one of the
@@ -588,7 +588,7 @@ declare
   v_row "better_supabase"."employee_private_details";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."employee_private_details" x where x."employee_id" = v_employee."id";
@@ -618,7 +618,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
@@ -661,7 +661,7 @@ declare
   v_employee "better_supabase"."employees";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_contracts.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   return (select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('salary', x."salary"::text) order by x."starts_on" desc), '[]'::jsonb)
@@ -690,7 +690,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false))) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
@@ -758,7 +758,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_private_det
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
@@ -779,7 +779,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
@@ -826,7 +826,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:0d7813610c953c34bb5c35065423b1978f8fe79d502510c58b8d8c3b45902d79
+-- @bsb-hash sha256:245a4ac205145fae945ca24ea38c2b653279c8dc72fcc2e66a2cb6bc1c82b264
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -964,7 +964,7 @@ grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
 create policy employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -992,7 +992,7 @@ grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
 create policy employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
 
 -- A manager is an employee of the same organization and never one of the
@@ -1460,7 +1460,7 @@ declare
   v_row "better_supabase"."employee_private_details";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."employee_private_details" x where x."employee_id" = v_employee."id";
@@ -1490,7 +1490,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
@@ -1533,7 +1533,7 @@ declare
   v_employee "better_supabase"."employees";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_contracts.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   return (select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('salary', x."salary"::text) order by x."starts_on" desc), '[]'::jsonb)
@@ -1562,7 +1562,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false))) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
@@ -1678,7 +1678,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_private_det
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
@@ -1699,7 +1699,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
@@ -1746,7 +1746,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:acdf83e874fa5202a07ced56f189dafba063fa49322d19b06805fdf70344bbcb
+-- @bsb-hash sha256:9a1d8a0c19b79e68f04852511b6af7ac99a9b246a38847689ecdb464ddb69b85
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1889,7 +1889,7 @@ grant all on "app_private"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "app_private"."employee_private_details";
 create policy employee_private_details_read on "app_private"."employee_private_details"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -1917,7 +1917,7 @@ grant all on "app_private"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "app_private"."employee_contracts";
 create policy employee_contracts_read on "app_private"."employee_contracts"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "app_private"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
 
 -- A manager is an employee of the same organization and never one of the
@@ -2338,7 +2338,7 @@ declare
   v_row "app_private"."employee_private_details";
 begin
   select * into v_employee from "app_private"."employees" x where x."id" = employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   select * into v_row from "app_private"."employee_private_details" x where x."employee_id" = v_employee."id";
@@ -2368,7 +2368,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "app_private"."employees" x where x."id" = save_employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
@@ -2411,7 +2411,7 @@ declare
   v_employee "app_private"."employees";
 begin
   select * into v_employee from "app_private"."employees" x where x."id" = employee_contracts.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   return (select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('salary', x."salary"::text) order by x."starts_on" desc), '[]'::jsonb)
@@ -2440,7 +2440,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "app_private"."employees" x where x."id" = add_employee_contract.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false))) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
@@ -2508,7 +2508,7 @@ create policy bsb_tenant_scope_select on "app_private"."employee_private_details
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."employee_private_details";
 create policy bsb_tenant_scope_insert on "app_private"."employee_private_details" as restrictive
@@ -2529,7 +2529,7 @@ create policy bsb_tenant_scope_select on "app_private"."employee_contracts" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "app_private"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."employee_contracts";
@@ -2576,7 +2576,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:b3648a78bbddc15b9813251f6a3c7a0731fbf5a82af06b537a974ae2e7ab922c
+-- @bsb-hash sha256:f955a37bf4340c9cede98d2720afcd06c126f38781cfd105195a4eaf32d5f573
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2714,7 +2714,7 @@ grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
 create policy employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -2742,7 +2742,7 @@ grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
 create policy employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
 
 -- A manager is an employee of the same organization and never one of the
@@ -3163,7 +3163,7 @@ declare
   v_row "better_supabase"."employee_private_details";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."employee_private_details" x where x."employee_id" = v_employee."id";
@@ -3193,7 +3193,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
@@ -3236,7 +3236,7 @@ declare
   v_employee "better_supabase"."employees";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_contracts.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   return (select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('salary', x."salary"::text) order by x."starts_on" desc), '[]'::jsonb)
@@ -3265,7 +3265,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false))) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
@@ -3333,7 +3333,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_private_det
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
@@ -3354,7 +3354,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
@@ -3504,7 +3504,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:11b5e787a8836687b05c3bd3f8010dc6bc14810cb01c98b35d6f38ebaae0a005
+-- @bsb-hash sha256:09244dd180ff79a1f90f9984fc968516bedcf37262a21864932beaf5b4ba7a9d
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3651,7 +3651,7 @@ grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists bsb_employee_private_details_select on "better_supabase"."employee_private_details";
 create policy bsb_employee_private_details_select on "better_supabase"."employee_private_details"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -3675,7 +3675,7 @@ grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists bsb_employee_contracts_select on "better_supabase"."employee_contracts";
 create policy bsb_employee_contracts_select on "better_supabase"."employee_contracts"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
 
 -- A manager is an employee of the same organization and never one of the
@@ -4096,7 +4096,7 @@ declare
   v_row "better_supabase"."employee_private_details";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."employee_private_details" x where x."employee_id" = v_employee."id";
@@ -4126,7 +4126,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
@@ -4169,7 +4169,7 @@ declare
   v_employee "better_supabase"."employees";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_contracts.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   return (select coalesce(jsonb_agg(to_jsonb(x) || jsonb_build_object('salary', x."salary"::text) order by x."starts_on" desc), '[]'::jsonb)
@@ -4198,7 +4198,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.view_sensitive'), false))) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."tenant_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
@@ -4272,7 +4272,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_private_det
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
@@ -4293,7 +4293,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";
@@ -4340,7 +4340,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:53ede11ebdfbcaef932b95c79df26c508ade827ed0bbf81ae7ea2dab12132bc0
+-- @bsb-hash sha256:4d8204017db071d9f7153853e35525c6fa198a0c426bb02d1fb383637ea77ae4
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4478,7 +4478,7 @@ grant all on "better_supabase"."employee_private_details" to service_role;
 drop policy if exists employee_private_details_read on "better_supabase"."employee_private_details";
 create policy employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()));
+  using ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
 -- Contract history: a new contract ends the one before it, and rows are
 -- never edited. Salary is in minor units of its currency.
@@ -4506,7 +4506,7 @@ grant all on "better_supabase"."employee_contracts" to service_role;
 drop policy if exists employee_contracts_read on "better_supabase"."employee_contracts";
 create policy employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+  using ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
 
 -- A manager is an employee of the same organization and never one of the
@@ -4927,7 +4927,7 @@ declare
   v_row "better_supabase"."employee_private_details";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   select * into v_row from "better_supabase"."employee_private_details" x where x."employee_id" = v_employee."id";
@@ -4957,7 +4957,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = save_employee_private_details.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   if jsonb_typeof(coalesce(save_employee_private_details.attrs, '{}')) <> 'object' then
@@ -5000,7 +5000,7 @@ declare
   v_employee "better_supabase"."employees";
 begin
   select * into v_employee from "better_supabase"."employees" x where x."id" = employee_contracts.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.view_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.read_sensitive'), false) or coalesce(v_employee."user_id" = auth.uid(), false)) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   return (select coalesce(jsonb_agg((to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('salary', x."salary"::text) order by x."starts_on" desc), '[]'::jsonb)
@@ -5029,7 +5029,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_employee from "better_supabase"."employees" x where x."id" = add_employee_contract.employee;
-  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.view_sensitive'), false))) then
+  if v_employee."id" is null or not ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.write'), false) and coalesce(better_supabase.can('tenant', v_employee."org_id", 'employees.read_sensitive'), false))) then
     raise exception 'no such employee whose details you can see' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
   end if;
   begin
@@ -5097,7 +5097,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_private_det
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or "user_id" = (select auth.uid()))
+    or ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_private_details";
 create policy bsb_tenant_scope_insert on "better_supabase"."employee_private_details" as restrictive
@@ -5118,7 +5118,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."employee_contracts" 
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('employees.view_sensitive')) or exists (
+    or ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."employee_contracts";

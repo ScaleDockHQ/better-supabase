@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:06295793040380b8dddc5355be7939583836a6b4676d79f12dc0bfc72742bb29
+-- @bsb-hash sha256:c56718b56a5b9e0dcec46dcb8ec05b319da2ebd5264d54050ca6e9a7dccacac1
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,7 +99,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -469,7 +469,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -499,7 +499,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -565,7 +565,7 @@ begin
     raise exception 'format must be ndjson or csv' using errcode = '22023', hint = 'DATA_EXPORT_FORMAT';
   end if;
   raise exception 'No record type can be exported' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
-  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'organization.export'), false))) then
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
     raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."data_exports" x
@@ -1075,7 +1075,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:e5f7556186fbcdd57ecb6ee6238f01a1b7fe3182e824e90a3203ef6fbb12c141
+-- @bsb-hash sha256:5b1084f8a936bbf7d9f8d1dbe37d7071c9a9dc614beb6d383aa23d15d5713b63
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1173,7 +1173,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -2059,7 +2059,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -2089,7 +2089,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -2172,7 +2172,7 @@ begin
     raise exception 'format must be ndjson or csv' using errcode = '22023', hint = 'DATA_EXPORT_FORMAT';
   end if;
   raise exception 'No record type can be exported' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
-  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'organization.export'), false))) then
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
     raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."data_exports" x
@@ -3010,7 +3010,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:d9088837264428d63af2e62ecf6946a7654264163b65403864b593aa7d87f5eb
+-- @bsb-hash sha256:7d7f65ac2d02f4f201c00b21f0383a9c16eb59dd8843e16e6b8f97c03ef79771
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3113,7 +3113,7 @@ grant all on "app_private"."data_exports" to service_role;
 drop policy if exists data_exports_read on "app_private"."data_exports";
 create policy data_exports_read on "app_private"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -3483,7 +3483,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "app_private"."data_export_object_allowed"(text) from public, anon;
@@ -3513,7 +3513,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "app_private"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -3579,7 +3579,7 @@ begin
     raise exception 'format must be ndjson or csv' using errcode = '22023', hint = 'DATA_EXPORT_FORMAT';
   end if;
   raise exception 'No record type can be exported' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
-  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'organization.export'), false))) then
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
     raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   select * into v_row from "app_private"."data_exports" x
@@ -4089,7 +4089,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:5ca598485eb2dd2a1f88d00235bdfcdbcc315c57c58617fa0e125428eccae6c3
+-- @bsb-hash sha256:80b2048751f82a40481d3bc70e470fb17cc095e087ef9b736305d354ffa19635
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4187,7 +4187,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -4557,7 +4557,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -4587,7 +4587,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -4653,7 +4653,7 @@ begin
     raise exception 'format must be ndjson or csv' using errcode = '22023', hint = 'DATA_EXPORT_FORMAT';
   end if;
   raise exception 'No record type can be exported' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
-  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'organization.export'), false))) then
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
     raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."data_exports" x
@@ -5452,7 +5452,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:2457b6db43f01cfb8b096087fe14334ff6b726346efe41b9b30311dc23676efe
+-- @bsb-hash sha256:45eb2335e556d1e856c3bed05f120f1787eb40e2774a14ec256c694f8bb1159f
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5548,7 +5548,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists bsb_data_exports_select on "better_supabase"."data_exports";
 create policy bsb_data_exports_select on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -5912,7 +5912,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."organization_id" is not null and coalesce(better_supabase.can('tenant', x."organization_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -5942,7 +5942,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."organization_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -6006,7 +6006,7 @@ begin
     raise exception 'format must be ndjson or csv' using errcode = '22023', hint = 'DATA_EXPORT_FORMAT';
   end if;
   raise exception 'No record type can be exported' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
-  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'organization.export'), false))) then
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
     raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."data_exports" x
@@ -6516,7 +6516,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:be2fa0038a806b90398d9949518f1d7d623511d6acee53924969598e06afce80
+-- @bsb-hash sha256:144ec41e26a93f7926471c7a48583b2612cf9f4ce8d9847e9251701fc786cf9a
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6614,7 +6614,7 @@ grant all on "better_supabase"."data_exports" to service_role;
 drop policy if exists data_exports_read on "better_supabase"."data_exports";
 create policy data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('organization.export')));
+  using ("requested_by" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
@@ -6984,7 +6984,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."org_id" is not null and coalesce(better_supabase.can('tenant', x."org_id", 'organization.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."org_id" is not null and coalesce(better_supabase.can('tenant', x."org_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -7014,7 +7014,7 @@ begin
     raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   if request_data_export.subject = 'organization' then
-    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'organization.export'), false) then
+    if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
     select * into v_row from "better_supabase"."data_exports" x where x."org_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
@@ -7080,7 +7080,7 @@ begin
     raise exception 'format must be ndjson or csv' using errcode = '22023', hint = 'DATA_EXPORT_FORMAT';
   end if;
   raise exception 'No record type can be exported' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
-  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'organization.export'), false))) then
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
     raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."data_exports" x

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:ca5671937a7b2f93fd0f63393869b9d83748b02c1480206e1c7e0a0ff4cb90cc
+-- @bsb-hash sha256:4fb71f02a2da7b5fb5568df115c27021e77a06548ca9c094cef6edd930cefe51
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,7 +50,7 @@ grant all on "better_supabase"."service_principals" to service_role;
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -70,7 +70,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if register_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -124,7 +124,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if set_service_principal_role.created_by is not null and not (
-    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(set_service_principal_role.created_by, v_row."tenant_id", set_service_principal_role.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -163,7 +163,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if disable_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(disable_service_principal.created_by, v_row."tenant_id", v_row."role"), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -231,7 +231,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."service_principals" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
@@ -277,7 +277,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:1d550eb26d92438ad50b453928fc26e73e270d472698f2a9d492ba0a528e8515
+-- @bsb-hash sha256:7a4c71eee1504032285b9f8636944bedc1f9cdf7c74707a02cd88fef2485a9b2
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -326,7 +326,7 @@ grant all on "better_supabase"."service_principals" to service_role;
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -346,7 +346,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if register_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -410,7 +410,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if set_service_principal_role.created_by is not null and not (
-    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(set_service_principal_role.created_by, v_row."tenant_id", set_service_principal_role.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -459,7 +459,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if disable_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(disable_service_principal.created_by, v_row."tenant_id", v_row."role"), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -537,7 +537,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."service_principals" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
@@ -583,7 +583,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:68ed6d646d792756b9f4e4a967d54c240b29378e8e626e381417a72b10b04126
+-- @bsb-hash sha256:99ca1049e8bf244f4163751dc102e131ca3e572b91664fa2cd7536ab1565d60a
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -637,7 +637,7 @@ grant all on "app_private"."service_principals" to service_role;
 drop policy if exists service_principals_read on "app_private"."service_principals";
 create policy service_principals_read on "app_private"."service_principals"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -657,7 +657,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if register_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -711,7 +711,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if set_service_principal_role.created_by is not null and not (
-    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(set_service_principal_role.created_by, v_row."tenant_id", set_service_principal_role.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -750,7 +750,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if disable_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(disable_service_principal.created_by, v_row."tenant_id", v_row."role"), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -818,7 +818,7 @@ create policy bsb_tenant_scope_select on "app_private"."service_principals" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."service_principals";
 create policy bsb_tenant_scope_insert on "app_private"."service_principals" as restrictive
@@ -864,7 +864,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:dfc70df8571f6958cea6663ec76566f0fb4a9ef6e1d4d2b67592b3394bf2aeeb
+-- @bsb-hash sha256:2e6fe05f19e612212be7f1c72a0f94a829c66f463659f844e6dc024c90574eca
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -913,7 +913,7 @@ grant all on "better_supabase"."service_principals" to service_role;
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -933,7 +933,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if register_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -987,7 +987,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if set_service_principal_role.created_by is not null and not (
-    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(set_service_principal_role.created_by, v_row."tenant_id", set_service_principal_role.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -1026,7 +1026,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if disable_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(disable_service_principal.created_by, v_row."tenant_id", v_row."role"), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -1094,7 +1094,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."service_principals" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
@@ -1191,7 +1191,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:0ee7afac0096457ab3c2968a4f845cd8e0f4c50ba7209669b7df88d6c956079d
+-- @bsb-hash sha256:158038ea2071540871264628ffae8b264e995ec406683c35191e643ca94b097d
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1237,7 +1237,7 @@ grant all on "better_supabase"."service_principals" to service_role;
 drop policy if exists bsb_service_principals_select on "better_supabase"."service_principals";
 create policy bsb_service_principals_select on "better_supabase"."service_principals"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -1257,7 +1257,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if register_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -1311,7 +1311,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if set_service_principal_role.created_by is not null and not (
-    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(set_service_principal_role.created_by, v_row."tenant_id", set_service_principal_role.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -1350,7 +1350,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if disable_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(disable_service_principal.created_by, v_row."tenant_id", v_row."role"), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -1418,7 +1418,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."service_principals" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive
@@ -1464,7 +1464,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:60049a9f01953582794f2731e35cadebbd5de06ff4c731af285ac625209071ea
+-- @bsb-hash sha256:f131141c5111a91ac8838d20d223e5b582655a38b3d721dcc3a1c09f6f5e7a46
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1513,7 +1513,7 @@ grant all on "better_supabase"."service_principals" to service_role;
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -1533,7 +1533,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if register_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -1587,7 +1587,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if set_service_principal_role.created_by is not null and not (
-    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."org_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."org_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(set_service_principal_role.created_by, v_row."org_id", set_service_principal_role.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -1626,7 +1626,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if disable_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."org_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."org_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(disable_service_principal.created_by, v_row."org_id", v_row."role"), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -1694,7 +1694,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."service_principals" 
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive

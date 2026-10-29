@@ -14,10 +14,10 @@ crosses a threshold.
 better-supabase add segments   # adds tenant, access, subjects and rules as well
 ```
 
-| Permission      | Lets a member                                         | Default roles          |
-| --------------- | ----------------------------------------------------- | ---------------------- |
-| `segments.read` | list segments and read the members they can also read | `member`, `admin`      |
-| `segments.edit` | create, change, refresh and remove segments           | `admin` (`segments.*`) |
+| Permission       | Lets a member                                         | Default roles          |
+| ---------------- | ----------------------------------------------------- | ---------------------- |
+| `segments.read`  | list segments and read the members they can also read | `member`, `admin`      |
+| `segments.write` | create, change, refresh and remove segments           | `admin` (`segments.*`) |
 
 A segment is visible to everyone in the organization with `segments.read`,
 but its member list also checks the subject type's read permission, so a
@@ -148,13 +148,13 @@ A member event names the segment and the record (`subjectType`,
 and record timelines handle it like any other subject event. See
 [Events](/docs/extending/events).
 
-| Error code                | When                                                |
-| ------------------------- | --------------------------------------------------- |
-| `SEGMENT_FORBIDDEN`       | the caller lacks `segments.read` or `segments.edit` |
-| `SEGMENT_NAME_TAKEN`      | another segment in the organization has the name    |
-| `SEGMENT_SUBJECT_UNKNOWN` | the subject type is not in `config.subjects`        |
-| `SEGMENT_FIELDS_MISSING`  | the subject type has no synced rule fields          |
-| `SEGMENT_TOO_LARGE`       | a refresh matched more than `maxMembers` records    |
+| Error code                | When                                                 |
+| ------------------------- | ---------------------------------------------------- |
+| `SEGMENT_FORBIDDEN`       | the caller lacks `segments.read` or `segments.write` |
+| `SEGMENT_NAME_TAKEN`      | another segment in the organization has the name     |
+| `SEGMENT_SUBJECT_UNKNOWN` | the subject type is not in `config.subjects`         |
+| `SEGMENT_FIELDS_MISSING`  | the subject type has no synced rule fields           |
+| `SEGMENT_TOO_LARGE`       | a refresh matched more than `maxMembers` records     |
 
 ## Without the client
 

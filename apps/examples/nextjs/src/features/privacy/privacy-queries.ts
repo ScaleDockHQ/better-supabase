@@ -40,8 +40,8 @@ function toRow(item: DataExport): ExportRow {
 
 /**
  * The caller's exports, the organization's exports when the caller holds
- * `organization.export`, and the pending deletion. A failed read throws, so it
- * is never cached and Retry reads again.
+ * `data_lifecycle.export`, and the pending deletion. A failed read throws, so
+ * it is never cached and Retry reads again.
  */
 export async function loadPrivacy(): Promise<PrivacyData> {
   "use cache: private";
@@ -55,7 +55,7 @@ export async function loadPrivacy(): Promise<PrivacyData> {
   const { dataLifecycle } = db;
 
   const canExport =
-    tenant !== undefined && can(permissions, "organization.export");
+    tenant !== undefined && can(permissions, "data_lifecycle.export");
 
   const [mine, organization, deletion] = await Promise.all([
     dataLifecycle.exports().orThrow(),

@@ -353,9 +353,9 @@ export const permissions = {
     view: "members.invite",
   },
   knowledge: {
-    read: "ai.read",
-    write: "ai.create",
-    manage: "ai.admin",
+    read: "knowledge.read",
+    write: "knowledge.write",
+    manage: "knowledge.manage",
   },
   notifications: {
     send: "notifications.send",
@@ -395,17 +395,17 @@ export const permissions = {
     manage: "subjects.manage",
   },
   tasks: {
-    read: "tickets.read",
-    write: "tickets.write",
-    manage: "tickets.manage",
+    read: "tasks.read",
+    write: "tasks.write",
+    manage: "tasks.manage",
   },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
   },
   ticket: {
-    read: "tickets.read",
-    write: "tickets.write",
+    read: "tasks.read",
+    write: "tasks.write",
   },
 } as const;
 
@@ -414,7 +414,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "incidents.manage" | "incidents.read" | "incidents.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "teams.manage" | "teams.read" | "tickets.manage" | "tickets.read" | "tickets.write";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "incidents.manage" | "incidents.read" | "incidents.write" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

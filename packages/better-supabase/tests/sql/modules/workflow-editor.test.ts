@@ -97,7 +97,7 @@ describe("workflow-editor module", () => {
       "where not coalesce(better_supabase.can_user(v_row.\"published_by\", 'tenant', v_tenant, p), false);",
     );
     expect(principal).toContain(
-      `unnest(array_append(v_row."permissions", 'workflow.publish'))`,
+      `unnest(array_append(v_row."permissions", 'workflow_editor.publish'))`,
     );
     expect(principal).toContain("hint = 'WORKFLOW_PUBLISHER_REVOKED'");
     expect(principal).toContain(
@@ -146,7 +146,7 @@ describe("workflow-editor module", () => {
     const body = moduleBody("workflow-editor", {})!;
     expect(body).toContain(`"scope" = 'tenant' or "tenant_id" is null`);
     expect(body).toContain(
-      `or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read')))`,
+      `or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow_editor.read')))`,
     );
 
     const target = body.slice(
@@ -197,7 +197,7 @@ describe("workflow-editor module", () => {
     expect(plain).toContain(
       `(select coalesce('{}'::jsonb ->> s."operation", s."operation")`,
     );
-    expect(plain).toContain(`'workflow.run'\n    ) as p`);
+    expect(plain).toContain(`'workflow_editor.run'\n    ) as p`);
 
     const layout = {
       modules: {

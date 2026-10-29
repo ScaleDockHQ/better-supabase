@@ -25,7 +25,7 @@ describe("number sequences", () => {
       'grant execute on function "better_supabase"."preview_number"(uuid, text, timestamptz) to authenticated, service_role;',
     );
     expect(sql).toContain(
-      "coalesce(better_supabase.can('tenant', p_tenant, 'number_sequences.assign'), false)",
+      "coalesce(better_supabase.can('tenant', p_tenant, 'numbering.assign'), false)",
     );
     expect(sql).toContain("ACTOR_READ_ONLY");
     expect(sql).toContain("on conflict");

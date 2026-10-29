@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:7ccfe85f887e676706de5e45dc393afaa8b828887d2dbd8d8ddfb7c85d092463
+-- @bsb-hash sha256:ddcc1322dfced7892f6f847883d56d1d38a402f54403963321fd9395d9f79a8e
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -623,7 +623,7 @@ $$;
 revoke execute on function "better_supabase"."update_ai_chat"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."update_ai_chat"(uuid, jsonb) to authenticated, service_role;
 
--- Deletes a chat with its messages; its owner, the service role or 'ai_chat.admin'.
+-- Deletes a chat with its messages; its owner, the service role or 'ai_chat.manage'.
 create or replace function "better_supabase"."delete_ai_chat"(chat uuid)
 returns boolean
 language plpgsql
@@ -640,7 +640,7 @@ begin
   if not found then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai_chat.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = (select auth.uid()), false) or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai_chat.manage'), false)) then
     raise exception 'No chat %', delete_ai_chat.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   delete from "better_supabase"."ai_chats" x where x."id" = delete_ai_chat.chat;
@@ -1482,7 +1482,7 @@ revoke execute on function "better_supabase"."get_ai_tool_approvals"(uuid, text[
 grant execute on function "better_supabase"."get_ai_tool_approvals"(uuid, text[]) to authenticated, service_role;
 
 -- Sets whether a tool runs (auto), asks (ask) or never runs (deny) in a
--- tenant ('ai_chat.admin'); policy null removes the rule.
+-- tenant ('ai_chat.manage'); policy null removes the rule.
 create or replace function "better_supabase"."set_ai_tool_policy"(tenant uuid, tool text, policy text)
 returns jsonb
 language plpgsql
@@ -1494,7 +1494,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_ai_tool_policy.tenant, 'ai_chat.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_ai_tool_policy.tenant, 'ai_chat.manage'), false)) then
     raise exception 'You may not change tool policies here' using errcode = '42501', hint = 'AI_CHAT_FORBIDDEN';
   end if;
   if set_ai_tool_policy.policy is null then
@@ -1950,7 +1950,7 @@ grant all on "better_supabase"."ai_sandboxes" to service_role;
 drop policy if exists ai_sandboxes_read on "better_supabase"."ai_sandboxes";
 create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')));
+  using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
 
 -- Records a sandbox or container the app started, or marks a known one used
 -- (service role). fields: user_id, chat_id, harness_id, container_id,
@@ -2556,7 +2556,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_sandboxes" as res
   for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_chat.admin')))
+    or ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_sandboxes" as restrictive

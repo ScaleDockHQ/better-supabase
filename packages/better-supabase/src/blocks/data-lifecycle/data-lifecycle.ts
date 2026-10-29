@@ -120,7 +120,7 @@ export interface DataLifecycleOptions extends BlockTemporalOptions {
 export interface DataLifecycle {
   /**
    * Exports the caller's data, or a tenant's with `organizationId` (needs
-   * `organization.export`).
+   * `data_lifecycle.export`).
    */
   requestExport(options?: {
     readonly organizationId?: string;
@@ -128,8 +128,8 @@ export interface DataLifecycle {
   /**
    * Exports one `config.subjects` record: its row, with encrypted columns
    * decrypted as the caller (and audited when the table audits reads), and
-   * every installed block's rows attached to it. Needs `organization.export` in
-   * the record's tenant or the record's `manage` action.
+   * every installed block's rows attached to it. Needs `data_lifecycle.export`
+   * in the record's tenant or the record's `manage` action.
    */
   requestSubjectExport(
     subjectType: string,

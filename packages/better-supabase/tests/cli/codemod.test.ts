@@ -772,4 +772,37 @@ export default defineConfig({
 
     expect(review.map((line) => line.line)).toEqual([1, 2]);
   });
+
+  it("leaves SQL alone when a codemod has no SQL step", () => {
+    const codemod = { name: "test", description: "No SQL step" };
+
+    expect(applyCodemod(codemod, "select 1;", "supabase/x.sql")).toEqual({
+      text: "select 1;",
+      review: [],
+    });
+  });
+
+  it("skips an empty string map", () => {
+    const codemod = { name: "test", description: "No strings", strings: {} };
+
+    expect(applyCodemod(codemod, `const key = "a.b";`, "src/a.ts").text).toBe(
+      `const key = "a.b";`,
+    );
+  });
+
+  it("takes a config edit without review lines", () => {
+    const codemod = {
+      name: "test",
+      description: "Config only",
+      configFile: (source: string) => ({
+        ok: true as const,
+        text: `${source}\n`,
+      }),
+    };
+
+    expect(applyCodemod(codemod, "{}", "better-supabase.config.json")).toEqual({
+      text: "{}\n",
+      review: [],
+    });
+  });
 });

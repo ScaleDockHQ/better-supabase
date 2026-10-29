@@ -194,7 +194,7 @@ export const permissions = {
     viewAll: "billing.read",
   },
   "data-lifecycle": {
-    export: "organization.export",
+    export: "data_lifecycle.export",
     delete: "organization.delete",
     cancelDelete: "organization.delete",
   },
@@ -204,9 +204,9 @@ export const permissions = {
     manage: "enrollments.manage",
   },
   impersonation: {
-    start: "support.start",
-    view: "support.read",
-    revoke: "support.revoke",
+    start: "impersonation.start",
+    view: "impersonation.read",
+    revoke: "impersonation.revoke",
   },
   invitations: {
     invite: "members.invite",
@@ -249,7 +249,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.export" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "sso.manage" | "support.read" | "support.revoke" | "support.start" | "teams.manage" | "teams.read";
+export type PermissionKey = "access_requests.create" | "access_requests.manage" | "access_requests.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "data_lifecycle.export" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "impersonation.read" | "impersonation.revoke" | "impersonation.start" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "sso.manage" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

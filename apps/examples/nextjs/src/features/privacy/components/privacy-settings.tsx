@@ -65,7 +65,7 @@ const STATUS_VARIANT: Record<DataExportStatus, BadgeProps["variant"]> = {
 
 // #region recipe:data-export-delete
 /**
- * Data exports for the caller and, with `organization.export`, for the
+ * Data exports for the caller and, with `data_lifecycle.export`, for the
  * organization, each with its status and a download. Owners schedule the
  * organization's deletion here; account deletion stays on the security page.
  */

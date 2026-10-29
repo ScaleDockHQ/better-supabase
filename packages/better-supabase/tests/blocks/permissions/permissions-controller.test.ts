@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   can,
@@ -14,6 +14,21 @@ describe("permissionMatches", () => {
     expect(permissionMatches("invoices.*", "invoices.write")).toBe(true);
     expect(permissionMatches("invoices.*", "invoicesx.write")).toBe(false);
     expect(permissionMatches("customers.read", "customers.write")).toBe(false);
+  });
+
+  it("accepts an old key on either side until the next minor", () => {
+    const warn = vi.spyOn(console, "warn").mockReturnValue(undefined);
+
+    expect(permissionMatches("parties.*", "contacts.write")).toBe(true);
+    expect(permissionMatches("contacts.read", "parties.read")).toBe(true);
+    expect(permissionMatches("ai.read", "knowledge.read")).toBe(true);
+    expect(permissionMatches("ai.read", "knowledge.write")).toBe(false);
+    expect(permissionMatches("workflow.*", "workflow_editor.publish")).toBe(
+      true,
+    );
+    expect(warn).toHaveBeenCalledOnce();
+
+    warn.mockRestore();
   });
 });
 

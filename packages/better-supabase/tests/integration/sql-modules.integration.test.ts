@@ -1953,7 +1953,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         [other, ACME],
       );
       await raises(
-        "select better_supabase.can_user($1, 'platform', null, 'support.start')",
+        "select better_supabase.can_user($1, 'platform', null, 'impersonation.start')",
         [other],
       );
     } finally {

@@ -31,7 +31,7 @@ describe("saved-views module", () => {
   it("needs views.share for a team or tenant view", () => {
     const sql = sqlOf();
     expect(sql).toContain(
-      `if save_view.scope <> 'user' and not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'views.share'), false)) then`,
+      `if save_view.scope <> 'user' and not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'saved_views.share'), false)) then`,
     );
   });
 

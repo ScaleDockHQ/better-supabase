@@ -80,7 +80,7 @@ before you call `setValue`.
 
 A [form](/docs/blocks/forms) field that names a `customField` answers with the forms field type in the last column, and a form field's own `min`, `max` or `options` win over the definition's. The check on `type` is named `bsb_field_definitions_type`; `upgrade` drops the inline check an older install created and adds the named one.
 
-A sensitive value is returned only when `can` passes for the field's `permission`, or `custom_fields.sensitive.read` when the field names none. A provider implements field-level grants behind that key.
+A sensitive value is returned only when `can` passes for the field's `permission`, or `custom_fields.read_sensitive` when the field names none. A provider implements field-level grants behind that key.
 
 ## Encrypted fields
 

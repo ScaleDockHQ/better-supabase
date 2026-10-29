@@ -44,7 +44,7 @@ export async function TargetsProgress() {
     getPermissions(),
   ]);
 
-  if (!can(permissions, "targets.read")) {
+  if (!can(permissions, "goals.read")) {
     return null;
   }
 
@@ -54,7 +54,7 @@ export async function TargetsProgress() {
     return null;
   }
 
-  const canManage = can(permissions, "targets.manage");
+  const canManage = can(permissions, "goals.manage");
 
   const amountOf = (target: TargetRow, value: bigint) =>
     target.currency === null

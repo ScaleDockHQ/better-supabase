@@ -28,7 +28,7 @@ describe("workflow-sdk module", () => {
     const sql = schemaOf({});
 
     const check = sql.indexOf(
-      "not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false)",
+      "not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflows.run'), false)",
     );
 
     expect(check).toBeGreaterThan(-1);

@@ -213,22 +213,22 @@ import { forwardBlockEvents } from "better-supabase/events";
 
 forwardBlockEvents(betterSupabase, audit.sink(), {
   source: "/crm",
-  types: ["organization.*", "support.*"],
+  types: ["organization.*", "impersonation.*"],
 });
 ```
 
 `auditEventOf(event)` is the mapping it uses:
 
-| Audit field                                                 | From the CloudEvent                                                       |
-| ----------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `eventType`                                                 | `type` without the `dev.better-supabase.` prefix (`typePrefix` option)    |
-| `category`                                                  | `security` for `account.*` and `support.*` (`category` option)            |
-| `record`                                                    | `subject`                                                                 |
-| `organizationId`                                            | the `memberships` or `partitionkey` extension, then `data.organizationId` |
-| `actorId`                                                   | `data.actorId`                                                            |
-| `metadata`                                                  | `data`                                                                    |
-| `idempotencyKey`                                            | `source` and `id`, so a redelivered event is recorded once                |
-| `supportSessionId`, `impersonatedBy`, `impersonationReason` | `data.sessionId`, `data.adminId` and `data.reason` of a `support.*` event |
+| Audit field                                                 | From the CloudEvent                                                             |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `eventType`                                                 | `type` without the `dev.better-supabase.` prefix (`typePrefix` option)          |
+| `category`                                                  | `security` for `account.*` and `impersonation.*` (`category` option)            |
+| `record`                                                    | `subject`                                                                       |
+| `organizationId`                                            | the `memberships` or `partitionkey` extension, then `data.organizationId`       |
+| `actorId`                                                   | `data.actorId`                                                                  |
+| `metadata`                                                  | `data`                                                                          |
+| `idempotencyKey`                                            | `source` and `id`, so a redelivered event is recorded once                      |
+| `supportSessionId`, `impersonatedBy`, `impersonationReason` | `data.sessionId`, `data.adminId` and `data.reason` of a `impersonation.*` event |
 
 `category` takes the event type without its prefix and returns one of the
 module categories above, or `undefined` for none, so app events land next to

@@ -30,6 +30,7 @@ import {
   DATA_CONTRACT_STRINGS,
   rewrite015,
 } from "./codemod-data-contract.ts";
+import { CODEMOD_0_46 } from "./codemod-naming-0-46.ts";
 import {
   convertDesignFile,
   DESIGN_FILE_NAME,
@@ -37,6 +38,7 @@ import {
   thenConvertPresetCode,
 } from "./codemod-preset-code.ts";
 import { RECORD_BINDING_RENAMES } from "./codemod-record-bindings.ts";
+import { linesMatching } from "./codemod-review.ts";
 import { CODEMOD_0_29 } from "./codemod-subjects.ts";
 import { migrateCliCall } from "./core/moved.ts";
 import { withoutAdoptOwnership } from "./sql/config-adopt.ts";
@@ -530,6 +532,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "0.29": CODEMOD_0_29,
   "0.32": CODEMOD_0_32,
   ...CODEMODS_0_37,
+  "0.46": CODEMOD_0_46,
 };
 
 const SUPABASE_IMPORT =
@@ -1196,20 +1199,4 @@ export function applyCodemod(
     text,
     review: [...refused, ...linesMatching(text, codemod.review ?? [])],
   };
-}
-
-/** One review line per line of `text` that a hint's pattern matches. */
-function linesMatching(
-  text: string,
-  hints: readonly ReviewHint[],
-): ReviewLine[] {
-  return hints.flatMap((hint) =>
-    text
-      .split("\n")
-      .flatMap((line, index) =>
-        hint.pattern.test(line)
-          ? [{ line: index + 1, message: hint.message }]
-          : [],
-      ),
-  );
 }

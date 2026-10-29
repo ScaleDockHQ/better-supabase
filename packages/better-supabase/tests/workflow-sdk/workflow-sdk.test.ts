@@ -543,9 +543,9 @@ describe("protectWebHandler", () => {
     const handler = vi.fn(async () => new Response("ok"));
     const answers: (boolean | undefined)[] = [undefined, false, true];
 
-    const protectedHandler = protectWebHandler(handler, "workflow.read", {
+    const protectedHandler = protectWebHandler(handler, "workflows.read", {
       can: (_request, permission) => {
-        expect(permission).toBe("workflow.read");
+        expect(permission).toBe("workflows.read");
 
         return answers.shift();
       },

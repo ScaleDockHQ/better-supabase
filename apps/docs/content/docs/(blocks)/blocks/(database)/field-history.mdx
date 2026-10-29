@@ -31,9 +31,9 @@ column, and each column a database name (`stage_id`, not `stageId`). A
 change only writes a row when the value differs, so an update that touches
 other columns records nothing.
 
-| Permission     | Lets a member                | Default roles     |
-| -------------- | ---------------------------- | ----------------- |
-| `history.read` | read the changes of a record | `member`, `admin` |
+| Permission           | Lets a member                | Default roles     |
+| -------------------- | ---------------------------- | ----------------- |
+| `field_history.read` | read the changes of a record | `member`, `admin` |
 
 A member reads a record's history only when they may also read the record.
 

@@ -56,7 +56,7 @@ describe("memory module", () => {
     const sql = body();
     expect(sql).toContain("only admins change organization and record memory");
     expect(sql).toContain("v_scope in ('organization', 'record')");
-    expect(sql).toContain("'ai.admin'");
+    expect(sql).toContain("'memory.manage'");
   });
 
   it("caps content at maxContent and rejects a bad cap", () => {

@@ -19,10 +19,10 @@ better-supabase add data-lifecycle   # adds tenant and access as well
 | `data_exports`           | `subject` (`user`, `organization` or `record`), `status`, the object paths in `files`, and `expires_at` |
 | `organization_deletions` | `requested_by`, `requested_at`, `purge_after`, `cancelled_at` and `purged_at`                           |
 
-| Permission            | Lets a member                       | Default roles    |
-| --------------------- | ----------------------------------- | ---------------- |
-| `organization.export` | export the organization's data      | `owner`, `admin` |
-| `organization.delete` | request the organization's deletion | `owner`          |
+| Permission              | Lets a member                       | Default roles    |
+| ----------------------- | ----------------------------------- | ---------------- |
+| `data_lifecycle.export` | export the organization's data      | `owner`, `admin` |
+| `organization.delete`   | request the organization's deletion | `owner`          |
 
 Every signed-in user can export their own data.
 
@@ -189,7 +189,7 @@ with the hint `DATA_EXPORT_NOT_FOUND` for it.
 [notifications](/docs/blocks/notifications) consumer can tell them it's
 done. `lifecycle.download(id)` then returns a signed URL per file. The
 bucket's policy serves the files only to the requester (or members with
-`organization.export` for an organization export) until `expires_at`.
+`data_lifecycle.export` for an organization export) until `expires_at`.
 
 Expired exports stay in Storage until something removes them. Run
 `purger.purgeExports()` from the same cron job as the purge (a

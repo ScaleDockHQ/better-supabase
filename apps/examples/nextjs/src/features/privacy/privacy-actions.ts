@@ -44,9 +44,9 @@ export const requestMyExport = bsb.action({}, async (_input, { db, auth }) => {
   return ok(requested.data.id);
 });
 
-/** Exports the active organization's data (`organization.export`). */
+/** Exports the active organization's data (`data_lifecycle.export`). */
 export const requestOrganizationExport = bsb.action(
-  { requireTenant: true, permission: "organization.export" },
+  { requireTenant: true, permission: "data_lifecycle.export" },
   async (_input, { tenant, db, auth }) => {
     const requested = await db.dataLifecycle.requestExport({
       organizationId: tenant,

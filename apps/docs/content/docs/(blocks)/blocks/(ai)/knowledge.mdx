@@ -35,11 +35,11 @@ except `subject` ones, which follow the record (see
 [Record knowledge](#record-knowledge)).
 A new document is `user` scoped unless you pass `scope`.
 
-| Permission  | Lets a member                                        | Default roles              |
-| ----------- | ---------------------------------------------------- | -------------------------- |
-| `ai.read`   | read organization and agent documents                | `owner`, `admin`, `member` |
-| `ai.create` | add `user`, `project` and `chat` documents           | `owner`, `admin`, `member` |
-| `ai.admin`  | add organization and agent documents, read every one | `owner`, `admin`           |
+| Permission         | Lets a member                                        | Default roles              |
+| ------------------ | ---------------------------------------------------- | -------------------------- |
+| `knowledge.read`   | read organization and agent documents                | `owner`, `admin`, `member` |
+| `knowledge.write`  | add `user`, `project` and `chat` documents           | `owner`, `admin`, `member` |
+| `knowledge.manage` | add organization and agent documents, read every one | `owner`, `admin`           |
 
 Rename the keys with `blocks.knowledge.permissions.read`, `.write`
 and `.manage`.

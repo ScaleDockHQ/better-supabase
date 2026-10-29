@@ -24,10 +24,10 @@ better-supabase add ai-keys   # adds tenant and access as well
 Organization exports leave out `credential_ref`, and the organization
 purge in [data lifecycle](/docs/blocks/data-lifecycle#credentials) revokes each key's credential before it deletes the row.
 
-| Permission  | Lets a member                                        | Default roles              |
-| ----------- | ---------------------------------------------------- | -------------------------- |
-| `ai.create` | start batches, and read their own batches            | `owner`, `admin`, `member` |
-| `ai.admin`  | list, save and remove the keys, and read every batch | `owner`, `admin`           |
+| Permission       | Lets a member                                        | Default roles              |
+| ---------------- | ---------------------------------------------------- | -------------------------- |
+| `ai_keys.use`    | start batches, and read their own batches            | `owner`, `admin`, `member` |
+| `ai_keys.manage` | list, save and remove the keys, and read every batch | `owner`, `admin`           |
 
 | Option      | Default | Sets                                                                 |
 | ----------- | ------- | -------------------------------------------------------------------- |

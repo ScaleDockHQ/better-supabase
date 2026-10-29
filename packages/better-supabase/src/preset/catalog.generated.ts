@@ -693,7 +693,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "keys": {
           "manage": "waitlist.manage",
-          "invite": "members.invite"
+          "invite": "waitlist.invite"
         }
       }
     },
@@ -843,11 +843,11 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "workflow.read",
-          "run": "workflow.run",
-          "edit": "workflow.edit",
-          "publish": "workflow.publish",
-          "admin": "workflow.admin"
+          "read": "workflow_editor.read",
+          "run": "workflow_editor.run",
+          "edit": "workflow_editor.write",
+          "publish": "workflow_editor.publish",
+          "admin": "workflow_editor.manage"
         }
       }
     },
@@ -1001,7 +1001,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "create": "ai_chat.create",
           "share": "ai_chat.share",
           "moderate": "ai_chat.moderate",
-          "admin": "ai_chat.admin"
+          "admin": "ai_chat.manage"
         }
       }
     },
@@ -1046,8 +1046,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "upload": "ai.create",
-          "manage": "ai.admin"
+          "upload": "ai_files.upload",
+          "manage": "ai_files.manage"
         }
       }
     },
@@ -1108,9 +1108,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "ai.read",
-          "write": "ai.create",
-          "manage": "ai.admin"
+          "read": "knowledge.read",
+          "write": "knowledge.write",
+          "manage": "knowledge.manage"
         }
       }
     },
@@ -1173,8 +1173,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "ai.read",
-          "manage": "ai.admin"
+          "read": "memory.read",
+          "manage": "memory.manage"
         }
       }
     },
@@ -1227,10 +1227,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "ai.read",
-          "create": "ai.create",
-          "publish": "ai.share",
-          "moderate": "ai.moderate"
+          "read": "agents.read",
+          "create": "agents.write",
+          "publish": "agents.publish",
+          "moderate": "agents.moderate"
         }
       }
     },
@@ -1277,9 +1277,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "ai.read",
-          "use": "ai.create",
-          "manage": "ai.admin"
+          "read": "connectors.read",
+          "use": "connectors.use",
+          "manage": "connectors.manage"
         }
       }
     },
@@ -1331,8 +1331,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "create": "ai.create",
-          "manage": "ai.admin"
+          "create": "ai_schedules.write",
+          "manage": "ai_schedules.manage"
         }
       }
     },
@@ -1559,7 +1559,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "manage": "custom_fields.manage",
           "read": "custom_fields.read",
-          "sensitive": "custom_fields.sensitive.read"
+          "sensitive": "custom_fields.read_sensitive"
         }
       }
     },
@@ -1772,8 +1772,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "views.read",
-          "share": "views.share"
+          "read": "saved_views.read",
+          "share": "saved_views.share"
         }
       }
     },
@@ -3248,9 +3248,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "parties.read",
-          "write": "parties.write",
-          "manage": "parties.manage"
+          "read": "contacts.read",
+          "write": "contacts.write",
+          "manage": "contacts.manage"
         }
       }
     },
@@ -3320,9 +3320,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "engagements.read",
-          "write": "engagements.write",
-          "manage": "engagements.manage"
+          "read": "activities.read",
+          "write": "activities.write",
+          "manage": "activities.manage"
         }
       }
     },
@@ -3581,9 +3581,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "work_items.read",
-          "write": "work_items.write",
-          "manage": "work_items.manage"
+          "read": "tasks.read",
+          "write": "tasks.write",
+          "manage": "tasks.manage"
         }
       }
     },
@@ -3879,8 +3879,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "targets.read",
-          "manage": "targets.manage"
+          "read": "goals.read",
+          "manage": "goals.manage"
         }
       }
     },
@@ -4062,7 +4062,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "keys": {
           "read": "employees.read",
           "write": "employees.write",
-          "viewSensitive": "employees.view_sensitive"
+          "viewSensitive": "employees.read_sensitive"
         }
       }
     },
@@ -4421,10 +4421,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "rules.read",
-          "edit": "rules.edit",
-          "publish": "rules.publish",
-          "admin": "rules.admin"
+          "read": "automations.read",
+          "edit": "automations.write",
+          "publish": "automations.publish",
+          "admin": "automations.manage"
         }
       }
     },
@@ -5763,10 +5763,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "controls.read",
-          "manage": "controls.manage",
-          "collect": "controls.collect",
-          "acknowledge": "controls.acknowledge"
+          "read": "compliance.read",
+          "manage": "compliance.manage",
+          "collect": "compliance.collect",
+          "acknowledge": "compliance.acknowledge"
         }
       }
     },
@@ -6240,7 +6240,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "activity.read"
+          "read": "timeline.read"
         }
       }
     },
@@ -6345,10 +6345,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "mail.read",
-          "connect": "mail.connect",
-          "send": "mail.send",
-          "manage": "mail.manage"
+          "read": "mail_sync.read",
+          "connect": "mail_sync.connect",
+          "send": "mail_sync.send",
+          "manage": "mail_sync.manage"
         }
       }
     },
@@ -6399,7 +6399,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "keys": {
           "read": "segments.read",
-          "edit": "segments.edit"
+          "edit": "segments.write"
         }
       }
     },

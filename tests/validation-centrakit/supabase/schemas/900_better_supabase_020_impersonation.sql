@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:797d3dc46a1c78bcedd2cf79448f985cb50d6c91e46856c9f236b05cee57bdd6
+-- @bsb-hash sha256:e7de6a122fd2ec8c0b4adf4720d396f324be3b0b0c85fd0c94248c031709295c
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -247,7 +247,7 @@ begin
   if v_row."admin_id" = approver then
     raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
-  if not service and not "better_supabase"."is_platform"('support.start') then
+  if not service and not "better_supabase"."is_platform"('impersonation.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
   end if;
   return "better_supabase"."apply_support_approval"(request_id, approver);
@@ -344,7 +344,7 @@ as $$
   )
   from "better_supabase"."support_requests" x
   where x."id" = $1
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('support.start'))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('impersonation.start'))
 $$;
 
 -- The approved request a start would use, or null; the caller is the admin,
@@ -531,7 +531,7 @@ begin
     end
   where s."id" = session_id and s."ended_at" is null
     and (service or s."admin_id" = auth.uid()
-      or "better_supabase"."is_platform"('support.revoke'))
+      or "better_supabase"."is_platform"('impersonation.revoke'))
   returning jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",

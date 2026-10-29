@@ -27,11 +27,11 @@ export async function RuleEditor({
     notFound();
   }
 
-  if (!tenant || !can(permissions, "rules.read")) {
+  if (!tenant || !can(permissions, "automations.read")) {
     forbidden();
   }
 
-  const canEdit = can(permissions, "rules.edit");
+  const canEdit = can(permissions, "automations.write");
 
   if (rule === "new" && !canEdit) {
     forbidden();
@@ -43,7 +43,7 @@ export async function RuleEditor({
       organizationId={tenant}
       rule={rule === "new" ? null : rule}
       canEdit={canEdit}
-      canPublish={can(permissions, "rules.publish")}
+      canPublish={can(permissions, "automations.publish")}
     />
   );
 }

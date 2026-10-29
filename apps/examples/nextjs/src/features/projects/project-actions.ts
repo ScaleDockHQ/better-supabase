@@ -213,7 +213,7 @@ export const saveTaskView = bsb.action(
       projectId: v.nullable(Id),
     }),
     requireTenant: true,
-    permission: "views.read",
+    permission: "saved_views.read",
   },
   async ({ name, view, q, status, projectId }, { tenant, db, auth }) => {
     const query: TaskViewQuery = {};
@@ -257,7 +257,7 @@ export const deleteTaskView = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
-    permission: "views.read",
+    permission: "saved_views.read",
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.$blocks.savedViews.delete(id);
