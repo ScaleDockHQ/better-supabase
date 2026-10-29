@@ -4,7 +4,7 @@
   "title": "useQuestionnaire",
   "description": "useQuestionnaire: the forms block's controllers as React hooks, for React DOM and React Native.",
   "dependencies": [
-    "better-supabase@^0.42.0"
+    "better-supabase@^0.43.0"
   ],
   "files": [
     {
