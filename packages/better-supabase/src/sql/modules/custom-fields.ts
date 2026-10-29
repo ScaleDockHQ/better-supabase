@@ -10,6 +10,11 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { CUSTOM_FIELD_TYPES } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import {
+  CUSTOM_FIELD_VALIDATORS,
+  customFieldValueCheck,
+  formatValidatorSql,
+} from "../format-checks.ts";
 import { RANK_KEY_PATTERN, rankAfter, rankBackfill } from "../rank-sql.ts";
 import {
   ensureCheck,
@@ -30,7 +35,14 @@ import { FIELD_CIPHER_PREFIX } from "./field-encryption.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** The custom field types whose values `encrypt_field_definition` encrypts. */
-const ENCRYPTABLE_TYPES: readonly CustomFieldType[] = ["text", "email", "url"];
+const ENCRYPTABLE_TYPES: readonly CustomFieldType[] = [
+  "text",
+  "email",
+  "url",
+  "bsn",
+  "iban",
+  "phone_e164",
+];
 
 const EVENTS: BlockSqlEvents<CustomFieldsEvents> = {
   "custom_field.saved": {
@@ -163,6 +175,7 @@ function build(ctx: BlockSqlContext): string {
 
   if (layout === "keyed") {
     return `${schemaPreamble(ctx)}
+${formatValidatorSql(ctx.schemaName, CUSTOM_FIELD_VALIDATORS)}
 ${keyedFields(
   ctx,
   {
@@ -262,7 +275,7 @@ ${inline || !ctx.has("values", "definition") ? "" : `create index if not exists 
         or ${ctx.scope.can(`v.${ctx.col("values", "tenant")}`, `coalesce(d.${ctx.col("definitions", "permission")}, ${sensitive})`)}`;
 
   return `${schemaPreamble(ctx)}
--- A sensitive value is returned only when the caller holds the field's
+${inline ? "" : `${formatValidatorSql(ctx.schemaName, CUSTOM_FIELD_VALIDATORS)}\n`}-- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 ${tables}
 create or replace function ${ctx.fn("save_field_definition")}(tenant ${ctx.idType}, entity text, key text, label text, type text, sensitive boolean)
@@ -372,6 +385,13 @@ begin
       : `
   if not ${subjectWrite} then
     ${fail("FIELD_SUBJECT_FORBIDDEN", "not allowed to set fields on this record")}
+  end if;`
+  }${
+    inline
+      ? ""
+      : `
+  if exists (select 1 from ${definitions} d where d.${ctx.col("definitions", "id")} = set_field_value.definition and not (${customFieldValueCheck(`d.${ctx.col("definitions", "type")}`, "set_field_value.value", ctx.schemaName)})) then
+    ${fail("FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
   end if;`
   }
   insert into ${values} (${ctx.col("values", "tenant")}, ${ctx.has("values", "definition") && !inline ? `${ctx.col("values", "definition")}, ` : ""}${ctx.col("values", "subjectType")}, ${ctx.col("values", "subjectId")}, ${ctx.col("values", "valueText")})

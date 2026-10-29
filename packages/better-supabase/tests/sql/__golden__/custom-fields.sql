@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:3f9b1f8d3c3d5ccf27b6bae11e9156b0a04de587b333bcceaf0df78e475bac30
+-- @bsb-hash sha256:11714d4dfa7e6ed7c15d5911cd574d24f845863c478e1497a7a7ef7906fba4ed
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,6 +64,42 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_bsn"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[0-9]{9}$' or value = '000000000' then false
+    else (
+      select sum(substr(value, i, 1)::integer * case when i = 9 then -1 else 10 - i end)
+      from generate_series(1, 9) as i
+    ) % 11 = 0
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_bsn"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_bsn"(text) to authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_iban"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' then false
+    else (
+      select string_agg(case when ascii(c.ch) between 65 and 90 then (ascii(c.ch) - 55)::text else c.ch end, '' order by c.n)
+      from regexp_split_to_table(substr(value, 5) || substr(value, 1, 4), '') with ordinality as c(ch, n)
+    )::numeric % 97 = 1
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 create table if not exists "better_supabase"."field_definitions" (
@@ -86,10 +122,10 @@ begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
     where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
     alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
+    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 068e6990';
   end if;
 end;
 $$;
@@ -194,6 +230,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(set_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(set_field_value.value) when 'phone_e164' then set_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
@@ -371,7 +410,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:de939ccbd6278401648733a20568beedfe6287d537e9fe4630ef391bfdbce859
+-- @bsb-hash sha256:b89b200b8d397dc32cb99b51127dbc704123a367aa68d5392211f2ab22087112
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -434,6 +473,42 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_bsn"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[0-9]{9}$' or value = '000000000' then false
+    else (
+      select sum(substr(value, i, 1)::integer * case when i = 9 then -1 else 10 - i end)
+      from generate_series(1, 9) as i
+    ) % 11 = 0
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_bsn"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_bsn"(text) to authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_iban"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' then false
+    else (
+      select string_agg(case when ascii(c.ch) between 65 and 90 then (ascii(c.ch) - 55)::text else c.ch end, '' order by c.n)
+      from regexp_split_to_table(substr(value, 5) || substr(value, 1, 4), '') with ordinality as c(ch, n)
+    )::numeric % 97 = 1
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 create table if not exists "better_supabase"."field_definitions" (
@@ -456,10 +531,10 @@ begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
     where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
     alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
+    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 068e6990';
   end if;
 end;
 $$;
@@ -566,6 +641,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(set_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(set_field_value.value) when 'phone_e164' then set_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, case when exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and d."encrypted") then "better_supabase"."field_encrypt"('tenant:' || set_field_value.tenant::text, set_field_value.value) else set_field_value.value end)
@@ -683,7 +761,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
-  if v_type not in ('text', 'email', 'url') then
+  if v_type not in ('text', 'email', 'url', 'bsn', 'iban', 'phone_e164') then
     raise exception 'only text fields can be encrypted' using errcode = '22023', hint = 'FIELD_NOT_ENCRYPTABLE';
   end if;
   v_key := "better_supabase"."field_key"('tenant:' || v_tenant::text, true);
@@ -780,7 +858,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:18dab395434622148ce241ed43459ba869c884b7c610ef2f2dee3abd937e6603
+-- @bsb-hash sha256:d8d0f96925cbe5d9b7244f63aeb6dfe22f93a08d4f99a30e965f4c8641e2f862
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -848,6 +926,42 @@ grant usage on schema "app_private" to anon, authenticated, service_role;
 alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+create or replace function "app_private"."bsb_valid_bsn"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[0-9]{9}$' or value = '000000000' then false
+    else (
+      select sum(substr(value, i, 1)::integer * case when i = 9 then -1 else 10 - i end)
+      from generate_series(1, 9) as i
+    ) % 11 = 0
+  end
+$$;
+revoke execute on function "app_private"."bsb_valid_bsn"(text) from public, anon;
+grant execute on function "app_private"."bsb_valid_bsn"(text) to authenticated, service_role;
+create or replace function "app_private"."bsb_valid_iban"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' then false
+    else (
+      select string_agg(case when ascii(c.ch) between 65 and 90 then (ascii(c.ch) - 55)::text else c.ch end, '' order by c.n)
+      from regexp_split_to_table(substr(value, 5) || substr(value, 1, 4), '') with ordinality as c(ch, n)
+    )::numeric % 97 = 1
+  end
+$$;
+revoke execute on function "app_private"."bsb_valid_iban"(text) from public, anon;
+grant execute on function "app_private"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 create table if not exists "app_private"."field_definitions" (
@@ -870,10 +984,10 @@ begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
     where c.conrelid = '"app_private"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
     alter table "app_private"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "app_private"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bsb_field_definitions_type" on "app_private"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "app_private"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
+    comment on constraint "bsb_field_definitions_type" on "app_private"."field_definitions" is 'better-supabase check 068e6990';
   end if;
 end;
 $$;
@@ -978,6 +1092,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "app_private"."field_definitions" d where d."id" = set_field_value.definition and not (case d."type" when 'bsn' then "app_private"."bsb_valid_bsn"(set_field_value.value) when 'iban' then "app_private"."bsb_valid_iban"(set_field_value.value) when 'phone_e164' then set_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
   end if;
   insert into "app_private"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
@@ -1155,7 +1272,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:e6dbc53b4205bda04944209a59d4ee85206e51f432da44119620dce924c232ab
+-- @bsb-hash sha256:6770593b8c55071de6df1ed2c384107b563128b911f912505de590bdeb0ea746
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1218,6 +1335,42 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_bsn"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[0-9]{9}$' or value = '000000000' then false
+    else (
+      select sum(substr(value, i, 1)::integer * case when i = 9 then -1 else 10 - i end)
+      from generate_series(1, 9) as i
+    ) % 11 = 0
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_bsn"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_bsn"(text) to authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_iban"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' then false
+    else (
+      select string_agg(case when ascii(c.ch) between 65 and 90 then (ascii(c.ch) - 55)::text else c.ch end, '' order by c.n)
+      from regexp_split_to_table(substr(value, 5) || substr(value, 1, 4), '') with ordinality as c(ch, n)
+    )::numeric % 97 = 1
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 create table if not exists "better_supabase"."field_definitions" (
@@ -1240,10 +1393,10 @@ begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
     where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
     alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
+    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 068e6990';
   end if;
 end;
 $$;
@@ -1348,6 +1501,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(set_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(set_field_value.value) when 'phone_e164' then set_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
@@ -1517,6 +1673,24 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
+create or replace function "api"."bsb_valid_bsn"(value text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bsb_valid_bsn"($1) $$;
+revoke execute on function "api"."bsb_valid_bsn"(text) from public, anon;
+grant execute on function "api"."bsb_valid_bsn"(text) to authenticated, service_role;
+
+create or replace function "api"."bsb_valid_iban"(value text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bsb_valid_iban"($1) $$;
+revoke execute on function "api"."bsb_valid_iban"(text) from public, anon;
+grant execute on function "api"."bsb_valid_iban"(text) to authenticated, service_role;
+
 create or replace function "api"."save_field_definition"(tenant uuid, entity text, key text, label text, type text, sensitive boolean)
 returns jsonb
 language sql
@@ -1601,7 +1775,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:eaf3b44012f38bf515480c8b61feb747aa3fc7e73728bdc07b84f6d7ee18116b
+-- @bsb-hash sha256:0ef5187cee28b206bdf65e094b481dee4a3cf7300e5c3caa38f1c26f9c1b2795
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1664,6 +1838,42 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_bsn"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[0-9]{9}$' or value = '000000000' then false
+    else (
+      select sum(substr(value, i, 1)::integer * case when i = 9 then -1 else 10 - i end)
+      from generate_series(1, 9) as i
+    ) % 11 = 0
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_bsn"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_bsn"(text) to authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_iban"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' then false
+    else (
+      select string_agg(case when ascii(c.ch) between 65 and 90 then (ascii(c.ch) - 55)::text else c.ch end, '' order by c.n)
+      from regexp_split_to_table(substr(value, 5) || substr(value, 1, 4), '') with ordinality as c(ch, n)
+    )::numeric % 97 = 1
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 -- better_supabase.field_definitions is the app's table: this block adds only the columns it needs.
@@ -1775,6 +1985,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(set_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(set_field_value.value) when 'phone_e164' then set_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
@@ -1952,7 +2165,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:16d6b39ac25d9fbbc82f92f34f34edaf343fa595559ace8e158395351b04aa5f
+-- @bsb-hash sha256:0138bdc4a6829b5e52e825b14068195170828ddfb323ff488f8cea8a7799e55a
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2015,6 +2228,42 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_bsn"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[0-9]{9}$' or value = '000000000' then false
+    else (
+      select sum(substr(value, i, 1)::integer * case when i = 9 then -1 else 10 - i end)
+      from generate_series(1, 9) as i
+    ) % 11 = 0
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_bsn"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_bsn"(text) to authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_iban"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' then false
+    else (
+      select string_agg(case when ascii(c.ch) between 65 and 90 then (ascii(c.ch) - 55)::text else c.ch end, '' order by c.n)
+      from regexp_split_to_table(substr(value, 5) || substr(value, 1, 4), '') with ordinality as c(ch, n)
+    )::numeric % 97 = 1
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 create table if not exists "better_supabase"."field_definitions" (
@@ -2037,10 +2286,10 @@ begin
   if coalesce(obj_description((
     select c.oid from pg_catalog.pg_constraint c
     where c.conrelid = '"better_supabase"."field_definitions"'::regclass and c.conname = 'bsb_field_definitions_type'
-  ), 'pg_constraint'), '') <> 'better-supabase check 41e34c72' then
+  ), 'pg_constraint'), '') <> 'better-supabase check 068e6990' then
     alter table "better_supabase"."field_definitions" drop constraint if exists "bsb_field_definitions_type";
-    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency'));
-    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 41e34c72';
+    alter table "better_supabase"."field_definitions" add constraint "bsb_field_definitions_type" check ("type" in ('text', 'number', 'date', 'bool', 'option', 'json', 'email', 'url', 'multi_option', 'user', 'rating', 'currency', 'bsn', 'iban', 'phone_e164'));
+    comment on constraint "bsb_field_definitions_type" on "better_supabase"."field_definitions" is 'better-supabase check 068e6990';
   end if;
 end;
 $$;
@@ -2145,6 +2394,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(set_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(set_field_value.value) when 'phone_e164' then set_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
   end if;
   insert into "better_supabase"."field_values" ("org_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)

@@ -697,7 +697,7 @@ export interface BlockNameRegistry {
   };
   readonly "field-encryption": {
     readonly tables: {};
-    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_key" | "field_open" | "field_seal";
+    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_hash" | "field_key" | "field_lookup" | "field_lookup_key" | "field_open" | "field_seal";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};

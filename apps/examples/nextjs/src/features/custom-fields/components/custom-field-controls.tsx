@@ -139,6 +139,18 @@ export function useTypeLabel(): (type: string) => string {
         return t("Amount");
       }
 
+      case "phone_e164": {
+        return t("Phone number");
+      }
+
+      case "bsn": {
+        return t("BSN");
+      }
+
+      case "iban": {
+        return t("IBAN");
+      }
+
       default: {
         const unknown: never = known;
 

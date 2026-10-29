@@ -53,15 +53,30 @@ a call without one fails with `invalid_request` and the hint
 
 `CUSTOM_FIELD_TYPES` lists the types a definition takes. A value is stored as text whatever the type; the type tells the form and the UI what it holds. The names match the [app table formats](/docs/repository/tables), so a field and a column that hold the same thing use the same word.
 
-| Type                                     | Holds                         | Forms field type          |
-| ---------------------------------------- | ----------------------------- | ------------------------- |
-| `text`, `number`, `date`, `bool`, `json` | the value                     | the same name             |
-| `option`                                 | one option value              | `option`                  |
-| `multi_option`                           | a JSON array of option values | `multi`                   |
-| `email`, `url`                           | an address                    | `email`, `url`            |
-| `user`                                   | a user id                     | `text`                    |
-| `rating`                                 | 1 to 5                        | `integer`, bounded 1 to 5 |
-| `currency`                               | an integer of minor units     | `integer`                 |
+| Type                                     | Holds                          | Forms field type          |
+| ---------------------------------------- | ------------------------------ | ------------------------- |
+| `text`, `number`, `date`, `bool`, `json` | the value                      | the same name             |
+| `option`                                 | one option value               | `option`                  |
+| `multi_option`                           | a JSON array of option values  | `multi`                   |
+| `email`, `url`                           | an address                     | `email`, `url`            |
+| `user`                                   | a user id                      | `text`                    |
+| `rating`                                 | 1 to 5                         | `integer`, bounded 1 to 5 |
+| `currency`                               | an integer of minor units      | `integer`                 |
+| `bsn`                                    | a Dutch citizen service number | `text`                    |
+| `iban`                                   | a bank account number          | `text`                    |
+| `phone_e164`                             | a phone number in E.164 form   | `text`                    |
+
+`set_field_value` checks the value of the last three before it stores it and
+fails with `FIELD_VALUE_INVALID` (SQLSTATE `22023`) when it doesn't pass:
+
+| Type         | Passes                                                                                                     |
+| ------------ | ---------------------------------------------------------------------------------------------------------- |
+| `bsn`        | 9 digits whose elfproef sum is a multiple of 11, checked by `bsb_valid_bsn(text)`                          |
+| `iban`       | the electronic form of ISO 13616 (uppercase, no spaces) whose mod 97 check is 1, by `bsb_valid_iban(text)` |
+| `phone_e164` | a `+`, a country code that doesn't start with 0, and at most 15 digits                                     |
+
+Store the value in that form: strip the spaces from an IBAN and uppercase it
+before you call `setValue`.
 
 A [form](/docs/blocks/forms) field that names a `customField` answers with the forms field type in the last column, and a form field's own `min`, `max` or `options` win over the definition's. The check on `type` is named `bsb_field_definitions_type`; `upgrade` drops the inline check an older install created and adds the named one.
 
@@ -70,8 +85,8 @@ A sensitive value is returned only when `can` passes for the field's `permission
 ## Encrypted fields
 
 With the [`field-encryption`](/docs/blocks/field-encryption) block
-installed, `encryptDefinition(id)` stores a `text`, `email` or `url` field's
-values as ciphertext under the tenant's data key, and encrypts the values it
+installed, `encryptDefinition(id)` stores a `text`, `email`, `url`, `bsn`,
+`iban` or `phone_e164` field's values as ciphertext under the tenant's data key, and encrypts the values it
 already has. It needs `custom_fields.manage`, and there is no way back.
 `listDefinitions` reports `encrypted` on each definition. `setValue` and
 `readValues` work as before: the definer functions encrypt on write and

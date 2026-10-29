@@ -463,6 +463,7 @@ const appTableEntries = {
         identity: v.optional(v.boolean()),
         access: v.optional(v.picklist(APP_COLUMN_ACCESS)),
         encrypted: v.optional(v.boolean()),
+        lookup: v.optional(v.boolean()),
       }),
     ),
   ),

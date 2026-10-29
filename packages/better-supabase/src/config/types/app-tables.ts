@@ -109,6 +109,13 @@ export interface AppColumnConfig {
    * It can't be unique, a reference, an identity, indexed or searched.
    */
   readonly encrypted?: boolean;
+  /**
+   * Adds `<column>_lookup bytea` to an encrypted column: an HMAC-SHA256 of the
+   * value, lowercased and without whitespace, under the owner's lookup key from
+   * Vault. `public.<table>_find(column, value)` finds rows by an equal value
+   * without decrypting any. Needs `encrypted: true`.
+   */
+  readonly lookup?: boolean;
 }
 
 export const APP_COLUMN_ACCESS = ["read", "server"] as const;

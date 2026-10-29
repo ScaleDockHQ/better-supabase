@@ -1159,7 +1159,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:f6e8dae8cd4da2b5d58669b4ccfc987557b20e64ee72db80579e353a15b9dfe6
+-- @bsb-hash sha256:39cc3ad2db97171bb974eac4ec95cb28c84c774dccd05145b6382367ef63178c
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1478,7 +1478,7 @@ begin
       v_keys := v_keys || (v_field ->> 'key');
       v_custom := null;
       if v_field ? 'customField' then
-        select jsonb_strip_nulls(jsonb_build_object('label', d."label", 'type', case d."type" when 'multi_option' then 'multi' when 'user' then 'text' when 'rating' then 'integer' when 'currency' then 'integer' else d."type" end, 'required', d."required"))
+        select jsonb_strip_nulls(jsonb_build_object('label', d."label", 'type', case d."type" when 'multi_option' then 'multi' when 'user' then 'text' when 'rating' then 'integer' when 'currency' then 'integer' when 'bsn' then 'text' when 'iban' then 'text' when 'phone_e164' then 'text' else d."type" end, 'required', d."required"))
             || case when d."type" = 'rating' then jsonb_build_object('min', 1, 'max', 5) else '{}'::jsonb end
           into v_custom
           from "better_supabase"."field_definitions" d

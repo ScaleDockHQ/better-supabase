@@ -48,6 +48,47 @@ export function encryptedOf(
   return encrypted;
 }
 
+/** The column that holds the lookup hash of encrypted column `column`. */
+export function lookupColumn(column: string): string {
+  return `${column}_lookup`;
+}
+
+/**
+ * `tables.<t>.columns.<c>.lookup` checked: the hash is of the plaintext, which
+ * only the seal trigger of an encrypted column sees.
+ */
+export function lookupOf(
+  where: string,
+  value: unknown,
+  encrypted: boolean | undefined,
+): boolean | undefined {
+  const lookup = booleanOf(`${where}.lookup`, value);
+
+  if (lookup === true && encrypted !== true) {
+    throw new TypeError(
+      `${where}.lookup: a lookup hashes an encrypted column; set encrypted too, or search the column as it is`,
+    );
+  }
+
+  return lookup;
+}
+
+/** Throws when the lookup column of an encrypted column is a column already. */
+export function checkLookupColumns(
+  where: string,
+  columns: Readonly<Record<string, AppColumnConfig>>,
+): void {
+  for (const [name, column] of Object.entries(columns)) {
+    const hash = lookupColumn(name);
+
+    if (column.lookup === true && columns[hash] !== undefined) {
+      throw new TypeError(
+        `${where}.columns.${name}.lookup: the lookup hash goes in ${hash}, which is a column already; rename one`,
+      );
+    }
+  }
+}
+
 /**
  * `tables.<t>.auditReads` checked: reads are audited where they are decrypted,
  * so the table needs an encrypted column.

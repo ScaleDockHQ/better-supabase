@@ -20,7 +20,9 @@ import { appDefaultError, isAppDefault } from "./app-defaults.ts";
 import {
   auditReadsOf,
   checkEncryptedKeys,
+  checkLookupColumns,
   encryptedOf,
+  lookupOf,
 } from "./app-encryption.ts";
 import {
   APP_COLUMN_FORMATS,
@@ -88,6 +90,7 @@ const COLUMN_KEYS: ReadonlySet<string> = new Set([
   "identity",
   "access",
   "encrypted",
+  "lookup",
 ]);
 
 const NUMBER_TYPES: ReadonlySet<AppColumnType> = new Set([
@@ -598,6 +601,8 @@ function columnOf(
     identity,
   });
 
+  const lookup = lookupOf(where, value["lookup"], encrypted);
+
   if (min !== undefined && max !== undefined && min > max) {
     throw new TypeError(
       `${where}: min ${String(min)} is above max ${String(max)}`,
@@ -636,6 +641,7 @@ function columnOf(
     ...(identity === undefined ? {} : { identity }),
     ...(access === undefined ? {} : { access }),
     ...(encrypted === undefined ? {} : { encrypted }),
+    ...(lookup === undefined ? {} : { lookup }),
   };
 }
 
@@ -1015,6 +1021,7 @@ function tableOf(
 
   const own = Object.fromEntries(resolved);
   checkEncryptedKeys(where, own, { unique, indexes });
+  checkLookupColumns(where, own);
   const auditReads = auditReadsOf(where, value["auditReads"], own);
 
   return {
