@@ -3,7 +3,7 @@
 -- member (…00a2) enrolls, completes it and gets a certificate, and Globex
 -- (…0002) sees nothing.
 begin;
-select plan(21);
+select plan(24);
 
 select set_config(
   'request.jwt.claims',
@@ -14,8 +14,14 @@ set local role authenticated;
 
 select set_config('test.course', better_supabase.save_course(
   '00000000-0000-4000-8000-000000000001',
-  '{"key":"onboarding","title":"Onboarding"}'
+  '{"key":"onboarding","title":"Onboarding","validForMonths":12}'
 ) ->> 'id', true);
+select throws_ok(
+  $$select better_supabase.save_course('00000000-0000-4000-8000-000000000001', '{"key":"onboarding","title":"Onboarding","validForMonths":300}')$$,
+  '22023',
+  'validForMonths must be a whole number of months from 1 to 240, or null',
+  'a validity over 240 months is refused'
+);
 select set_config('test.module', better_supabase.save_course_module(
   current_setting('test.course')::uuid, '{"title":"Basics"}'
 ) ->> 'id', true);
@@ -154,6 +160,21 @@ select is(
   (better_supabase.verify_course_certificate(current_setting('test.code')) ->> 'valid')::boolean,
   true,
   'anyone with the code verifies the certificate'
+);
+select is(
+  (better_supabase.verify_course_certificate(current_setting('test.code')) ->> 'expired')::boolean,
+  false,
+  'a certificate inside its validity is not expired'
+);
+reset role;
+update better_supabase.course_certificates set expires_at = now() - interval '1 day'
+  where code = current_setting('test.code');
+set local role anon;
+select is(
+  (select jsonb_build_object('valid', c -> 'valid', 'expired', c -> 'expired')
+   from better_supabase.verify_course_certificate(current_setting('test.code')) c),
+  '{"valid":false,"expired":true}'::jsonb,
+  'an expired certificate verifies as expired and not valid'
 );
 set local role authenticated;
 

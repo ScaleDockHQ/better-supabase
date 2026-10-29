@@ -13,6 +13,7 @@ export const COURSE_KEYS = [
   "summary",
   "status",
   "certificate",
+  "validForMonths",
   "createdBy",
   "createdAt",
   "updatedAt",
@@ -135,7 +136,7 @@ export function courseSql(ctx: BlockSqlContext): CourseSql {
     ),
     courseJson: (row) =>
       withExtraFields(
-        `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'key', ${row}.${c("key")}, 'title', ${row}.${c("title")}, 'summary', ${field("courses", row, "summary")}, 'status', ${row}.${c("status")}, 'certificate', ${field("courses", row, "certificate", "true")}, 'createdBy', ${field("courses", row, "createdBy")}, 'createdAt', ${field("courses", row, "createdAt")}, 'updatedAt', ${field("courses", row, "updatedAt")})`,
+        `jsonb_build_object('id', ${row}.${c("id")}, 'organizationId', ${row}.${c("tenant")}, 'key', ${row}.${c("key")}, 'title', ${row}.${c("title")}, 'summary', ${field("courses", row, "summary")}, 'status', ${row}.${c("status")}, 'certificate', ${field("courses", row, "certificate", "true")}, 'validForMonths', ${field("courses", row, "validForMonths")}, 'createdBy', ${field("courses", row, "createdBy")}, 'createdAt', ${field("courses", row, "createdAt")}, 'updatedAt', ${field("courses", row, "updatedAt")})`,
         row,
         extras,
       ),

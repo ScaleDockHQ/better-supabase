@@ -1,10 +1,11 @@
 ---
-title: Jobs, idempotency and webhook inbox
+title: Queue
 description: Background jobs on Supabase Queues, safe retries and exactly-once webhook handling on the Postgres you already have.
 ---
 
-`better-supabase/blocks/queue` sits on top of the `queue`, `idempotency` and
-`webhook-inbox` [SQL modules](/docs/blocks/sql). It needs a service-role
+`queue` runs background jobs, and the same subpath,
+`better-supabase/blocks/queue`, carries the `idempotency`, `rate-limit` and
+`webhook-inbox` blocks on their own [SQL modules](/docs/blocks/sql). It needs a service-role
 connection, such as `createPostgres(...).admin`, because the functions are
 closed to `anon` and `authenticated`. Every call returns a `Result`.
 
@@ -16,7 +17,7 @@ better-supabase add queue idempotency webhook-inbox
 
 Jobs run on [Supabase Queues](https://supabase.com/docs/guides/queues)
 (`pgmq`) by default, so queues and messages show up in the dashboard. The
-`jobs` module installs `pgmq` and adds thin `better_supabase.*` functions for
+`queue` module installs `pgmq` and adds thin `better_supabase.*` functions for
 what pgmq doesn't do itself: lease-safe completion, retries with backoff,
 dead letters, deduplication keys and schedules.
 
@@ -937,7 +938,7 @@ block.
 
 To keep messages in a table your app already has, map it in
 `blocks.webhook-inbox.tables`; see
-[Over your own tables](/docs/blocks/webhooks-in#over-your-own-tables).
+[Over your own tables](/docs/blocks/incoming-webhooks#over-your-own-tables).
 
 `secrets` verifies [Standard Webhooks](/docs/standards) signatures. Pass
 `verify` to use a provider's own scheme instead. `receive` answers `202` for

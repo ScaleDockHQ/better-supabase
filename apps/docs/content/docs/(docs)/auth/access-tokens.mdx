@@ -74,11 +74,11 @@ Pass `revocation` to check every request against a revocation list:
 
 ```ts
 import {
-  createOAuthServer,
+  createOauthServer,
   sqlTransport,
 } from "better-supabase/blocks/oauth-server";
 
-const oauth = createOAuthServer({ transport: sqlTransport(postgres.admin) });
+const oauth = createOauthServer({ transport: sqlTransport(postgres.admin) });
 
 accessTokenResolver({
   jwks: new URL(env.OAUTH_JWKS_URL),

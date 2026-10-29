@@ -130,9 +130,10 @@ backlogs too large to clear in the upgrade.
   and never ships in the package. It ends when a fixed `node-forge` ships or
   `@expo/cli` drops it.
 - `pnpm audit` also ignores GHSA-vcc3-ghjq-m6fr and GHSA-qr28-fpjm-wq7f. The
-  fixed `decode-uri-component` releases (0.5 and 0.5.1) are ESM-only, and the only path to it is
-  `expo-router` through `query-string` 7 in `apps/examples/expo-powersync`,
-  which requires it as a function, so an override would break the example.
+  fixed `decode-uri-component` releases (0.5 and 0.5.1) are ESM-only, and
+  the only path to them is `expo-router` through `query-string` 7 in
+  `apps/examples/expo-powersync`, which requires it as a function, so an
+  override would break the example.
   It ends when `expo-router` moves to `query-string` 8 or later.
 - `pnpm audit` also ignores GHSA-v53p-9fqp-m79j and GHSA-prgh-xp8r-p3m5.
   The fixed `nodemailer` is 10.0.6, and the only path to it is

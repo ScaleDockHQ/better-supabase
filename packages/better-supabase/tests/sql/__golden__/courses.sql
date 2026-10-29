@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:d84b64e6cc6cc7d665d7c33ea7248f7e6889bec0d3b37da1eabac961a88ca585
+-- @bsb-hash sha256:baa5e7d76ca135ea7a2e87073baa5b09d60d5133822408d01132f3371da05c88
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,11 +98,13 @@ create table if not exists "better_supabase"."courses" (
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
 
 create table if not exists "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
@@ -174,9 +176,11 @@ create table if not exists "better_supabase"."course_certificates" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "code" text not null unique check ("code" ~ '^[0-9a-f]{32}$'),
   "issued_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "revoked_at" timestamptz,
   constraint "course_certificates_enrollment_key" unique ("enrollment_id")
 );
+alter table "better_supabase"."course_certificates" add column if not exists "expires_at" timestamptz;
 create index if not exists "course_certificates_parent_idx" on "better_supabase"."course_certificates" ("course_id");
 create index if not exists "course_certificates_user_idx" on "better_supabase"."course_certificates" ("user_id");
 
@@ -229,7 +233,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
 $$;
 revoke execute on function "better_supabase"."course_json"(uuid) from public, anon, authenticated;
 
@@ -262,7 +266,7 @@ declare
   v_enrollment record;
   v_certificate "better_supabase"."course_certificates";
 begin
-  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies
+  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies, y."valid_for_months"::integer as valid_for
   into v_enrollment
   from "better_supabase"."enrollments" x join "better_supabase"."courses" y on ('course:' || y."id"::text) = x."program"
   where x."id" = course_finish.enrollment_id;
@@ -273,8 +277,8 @@ begin
     null;
   end if;
   if v_enrollment.certifies then
-    insert into "better_supabase"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code")
-    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'))
+    insert into "better_supabase"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code", "expires_at")
+    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'), now() + make_interval(months => v_enrollment.valid_for))
     on conflict on constraint "course_certificates_enrollment_key" do nothing
     returning * into v_certificate;
     if v_certificate."id" is not null then
@@ -317,7 +321,8 @@ $$;
 revoke execute on function "better_supabase"."course_sync"(uuid) from public, anon, authenticated;
 
 -- Creates or changes a course. course is { id?, key, title, summary, status,
--- certificate, fields }; keys left out keep their value.
+-- certificate, validForMonths, fields }; keys left out keep their value.
+-- validForMonths is how long a certificate stays valid; null never expires.
 create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
@@ -334,6 +339,7 @@ declare
   v_summary text;
   v_status text;
   v_certificate boolean;
+  v_valid_for integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -356,6 +362,18 @@ begin
   v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
   v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
   v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_valid_for := v_old."valid_for_months";
+  if save_course.course ? 'validForMonths' then
+    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+      v_valid_for := null;
+    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
+      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+      raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
+    else
+      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+    end if;
+  end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
@@ -369,8 +387,8 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   if v_old."id" is null then
-    insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, auth.uid())
+    insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
+    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -380,7 +398,8 @@ begin
     begin
       update "better_supabase"."courses" x
       set "key" = v_key, "title" = v_title, "summary" = v_summary, "status" = v_status,
-        "issues_certificate" = v_certificate, "updated_at" = now()
+        "issues_certificate" = v_certificate,
+        "valid_for_months" = v_valid_for, "updated_at" = now()
       where x."id" = v_old."id"
       returning * into v_row;
     exception when unique_violation then
@@ -443,7 +462,7 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
     from "better_supabase"."courses" x
     where x."tenant_id" = list_courses.tenant
       and (v_manage or x."status" = 'published')
@@ -732,7 +751,7 @@ as $$
       select jsonb_agg(jsonb_build_object('lessonId', y."lesson_id", 'startedAt', y."started_at", 'completedAt', y."completed_at", 'attempts', y."attempts", 'submissionId', y."submission_id", 'score', y."score", 'maxScore', y."max_score", 'passed', y."passed") order by y."started_at", y."lesson_id")
       from "better_supabase"."course_lesson_progress" y where y."enrollment_id" = x."id"
     ), '[]'::jsonb),
-    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
+    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
   )
   from "better_supabase"."enrollments" x
   where x."id" = course_learner_json.enrollment_id
@@ -792,7 +811,7 @@ begin
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_course."tenant_id" and x."program" = ('course:' || v_course."id"::text)
     and x."subject_type" = 'user' and x."subject_id" = auth.uid()::text;
-  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'validForMonths', v_course."valid_for_months", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
     'modules', coalesce((
       select jsonb_agg(jsonb_build_object('id', z."id", 'title', z."title", 'rank', z."rank", 'lessons', coalesce((
         select jsonb_agg(jsonb_build_object('id', y."id", 'moduleId', y."module_id", 'title', y."title", 'kind', y."kind", 'required', y."required",
@@ -1133,8 +1152,8 @@ revoke execute on function "better_supabase"."list_course_learners"(uuid, text, 
 grant execute on function "better_supabase"."list_course_learners"(uuid, text, integer, timestamptz) to authenticated, service_role;
 
 -- Checks a certificate by the code its link carries. Anyone with the code
--- learns the course, when it was issued and whether it was revoked; null for
--- an unknown code.
+-- learns the course, when it was issued, when it expires and whether it was
+-- revoked; null for an unknown code. An expired certificate is not valid.
 create or replace function "better_supabase"."verify_course_certificate"(code text)
 returns jsonb
 language sql
@@ -1143,7 +1162,8 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'courseTitle', y."title", 'organizationId', z."tenant_id",
-    'issuedAt', z."issued_at", 'revokedAt', z."revoked_at", 'valid', z."revoked_at" is null)
+    'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at",
+    'expired', coalesce(z."expires_at" <= now(), false), 'valid', z."revoked_at" is null and not coalesce(z."expires_at" <= now(), false))
   from "better_supabase"."course_certificates" z join "better_supabase"."courses" y on y."id" = z."course_id"
   where z."code" = lower(verify_course_certificate.code)
 $$;
@@ -1301,7 +1321,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:f3a030706b964f5ff910b833bdb1fdd05d7fa9c631d2e1b76940fc60cb63c26e
+-- @bsb-hash sha256:ac8b2291da5f56f3299ffb6325d91ebc7e4e1d8f2e6f7899a38ab3d8928bb321
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1398,11 +1418,13 @@ create table if not exists "better_supabase"."courses" (
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
 
 create table if not exists "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1474,9 +1496,11 @@ create table if not exists "better_supabase"."course_certificates" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "code" text not null unique check ("code" ~ '^[0-9a-f]{32}$'),
   "issued_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "revoked_at" timestamptz,
   constraint "course_certificates_enrollment_key" unique ("enrollment_id")
 );
+alter table "better_supabase"."course_certificates" add column if not exists "expires_at" timestamptz;
 create index if not exists "course_certificates_parent_idx" on "better_supabase"."course_certificates" ("course_id");
 create index if not exists "course_certificates_user_idx" on "better_supabase"."course_certificates" ("user_id");
 
@@ -1529,7 +1553,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
 $$;
 revoke execute on function "better_supabase"."course_json"(uuid) from public, anon, authenticated;
 
@@ -1562,7 +1586,7 @@ declare
   v_enrollment record;
   v_certificate "better_supabase"."course_certificates";
 begin
-  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies
+  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies, y."valid_for_months"::integer as valid_for
   into v_enrollment
   from "better_supabase"."enrollments" x join "better_supabase"."courses" y on ('course:' || y."id"::text) = x."program"
   where x."id" = course_finish.enrollment_id;
@@ -1583,12 +1607,12 @@ begin
   );
   end if;
   if v_enrollment.certifies then
-    insert into "better_supabase"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code")
-    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'))
+    insert into "better_supabase"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code", "expires_at")
+    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'), now() + make_interval(months => v_enrollment.valid_for))
     on conflict on constraint "course_certificates_enrollment_key" do nothing
     returning * into v_certificate;
     if v_certificate."id" is not null then
-      perform "better_supabase".emit_event('course_certificate.issued', jsonb_build_object('organizationId', v_certificate."tenant_id", 'id', v_certificate."id", 'courseId', v_certificate."course_id", 'userId', v_certificate."user_id", 'enrollmentId', v_certificate."enrollment_id"), 'course-certificates/' || v_certificate."id"::text, (v_certificate."tenant_id")::text, null, 'better-supabase/courses');
+      perform "better_supabase".emit_event('course_certificate.issued', jsonb_build_object('organizationId', v_certificate."tenant_id", 'id', v_certificate."id", 'courseId', v_certificate."course_id", 'userId', v_certificate."user_id", 'enrollmentId', v_certificate."enrollment_id", 'expiresAt', v_certificate."expires_at"), 'course-certificates/' || v_certificate."id"::text, (v_certificate."tenant_id")::text, null, 'better-supabase/courses');
   perform better_supabase.audit_event(
     event_type => 'course_certificate.issued',
     category => 'data',
@@ -1597,7 +1621,7 @@ begin
     target_label => v_certificate."code",
     summary => 'issued a course certificate',
     tenant => (v_certificate."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_certificate."tenant_id", 'id', v_certificate."id", 'courseId', v_certificate."course_id", 'userId', v_certificate."user_id", 'enrollmentId', v_certificate."enrollment_id")
+    metadata => jsonb_build_object('organizationId', v_certificate."tenant_id", 'id', v_certificate."id", 'courseId', v_certificate."course_id", 'userId', v_certificate."user_id", 'enrollmentId', v_certificate."enrollment_id", 'expiresAt', v_certificate."expires_at")
   );
     end if;
   end if;
@@ -1637,7 +1661,8 @@ $$;
 revoke execute on function "better_supabase"."course_sync"(uuid) from public, anon, authenticated;
 
 -- Creates or changes a course. course is { id?, key, title, summary, status,
--- certificate, fields }; keys left out keep their value.
+-- certificate, validForMonths, fields }; keys left out keep their value.
+-- validForMonths is how long a certificate stays valid; null never expires.
 create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
@@ -1654,6 +1679,7 @@ declare
   v_summary text;
   v_status text;
   v_certificate boolean;
+  v_valid_for integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1676,6 +1702,18 @@ begin
   v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
   v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
   v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_valid_for := v_old."valid_for_months";
+  if save_course.course ? 'validForMonths' then
+    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+      v_valid_for := null;
+    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
+      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+      raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
+    else
+      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+    end if;
+  end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
@@ -1689,8 +1727,8 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   if v_old."id" is null then
-    insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, auth.uid())
+    insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
+    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -1700,7 +1738,8 @@ begin
     begin
       update "better_supabase"."courses" x
       set "key" = v_key, "title" = v_title, "summary" = v_summary, "status" = v_status,
-        "issues_certificate" = v_certificate, "updated_at" = now()
+        "issues_certificate" = v_certificate,
+        "valid_for_months" = v_valid_for, "updated_at" = now()
       where x."id" = v_old."id"
       returning * into v_row;
     exception when unique_violation then
@@ -1783,7 +1822,7 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
     from "better_supabase"."courses" x
     where x."tenant_id" = list_courses.tenant
       and (v_manage or x."status" = 'published')
@@ -2082,7 +2121,7 @@ as $$
       select jsonb_agg(jsonb_build_object('lessonId', y."lesson_id", 'startedAt', y."started_at", 'completedAt', y."completed_at", 'attempts', y."attempts", 'submissionId', y."submission_id", 'score', y."score", 'maxScore', y."max_score", 'passed', y."passed") order by y."started_at", y."lesson_id")
       from "better_supabase"."course_lesson_progress" y where y."enrollment_id" = x."id"
     ), '[]'::jsonb),
-    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
+    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
   )
   from "better_supabase"."enrollments" x
   where x."id" = course_learner_json.enrollment_id
@@ -2142,7 +2181,7 @@ begin
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_course."tenant_id" and x."program" = ('course:' || v_course."id"::text)
     and x."subject_type" = 'user' and x."subject_id" = auth.uid()::text;
-  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'validForMonths', v_course."valid_for_months", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
     'modules', coalesce((
       select jsonb_agg(jsonb_build_object('id', z."id", 'title', z."title", 'rank', z."rank", 'lessons', coalesce((
         select jsonb_agg(jsonb_build_object('id', y."id", 'moduleId', y."module_id", 'title', y."title", 'kind', y."kind", 'required', y."required",
@@ -2556,8 +2595,8 @@ revoke execute on function "better_supabase"."list_course_learners"(uuid, text, 
 grant execute on function "better_supabase"."list_course_learners"(uuid, text, integer, timestamptz) to authenticated, service_role;
 
 -- Checks a certificate by the code its link carries. Anyone with the code
--- learns the course, when it was issued and whether it was revoked; null for
--- an unknown code.
+-- learns the course, when it was issued, when it expires and whether it was
+-- revoked; null for an unknown code. An expired certificate is not valid.
 create or replace function "better_supabase"."verify_course_certificate"(code text)
 returns jsonb
 language sql
@@ -2566,7 +2605,8 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'courseTitle', y."title", 'organizationId', z."tenant_id",
-    'issuedAt', z."issued_at", 'revokedAt', z."revoked_at", 'valid', z."revoked_at" is null)
+    'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at",
+    'expired', coalesce(z."expires_at" <= now(), false), 'valid', z."revoked_at" is null and not coalesce(z."expires_at" <= now(), false))
   from "better_supabase"."course_certificates" z join "better_supabase"."courses" y on y."id" = z."course_id"
   where z."code" = lower(verify_course_certificate.code)
 $$;
@@ -2724,7 +2764,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:6933b2878fb3e367d397c73e0006dbea020971c1e4418a20cedbf17648904eda
+-- @bsb-hash sha256:290716a772e19b18f18812ac5054bf9cac281864a6eea5fd3e3875f890db52bb
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2826,11 +2866,13 @@ create table if not exists "app_private"."courses" (
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
+alter table "app_private"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
 
 create table if not exists "app_private"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2902,9 +2944,11 @@ create table if not exists "app_private"."course_certificates" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "code" text not null unique check ("code" ~ '^[0-9a-f]{32}$'),
   "issued_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "revoked_at" timestamptz,
   constraint "course_certificates_enrollment_key" unique ("enrollment_id")
 );
+alter table "app_private"."course_certificates" add column if not exists "expires_at" timestamptz;
 create index if not exists "course_certificates_parent_idx" on "app_private"."course_certificates" ("course_id");
 create index if not exists "course_certificates_user_idx" on "app_private"."course_certificates" ("user_id");
 
@@ -2957,7 +3001,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "app_private"."courses" x where x."id" = course_json.course_id
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "app_private"."courses" x where x."id" = course_json.course_id
 $$;
 revoke execute on function "app_private"."course_json"(uuid) from public, anon, authenticated;
 
@@ -2990,7 +3034,7 @@ declare
   v_enrollment record;
   v_certificate "app_private"."course_certificates";
 begin
-  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies
+  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies, y."valid_for_months"::integer as valid_for
   into v_enrollment
   from "better_supabase"."enrollments" x join "app_private"."courses" y on ('course:' || y."id"::text) = x."program"
   where x."id" = course_finish.enrollment_id;
@@ -3001,8 +3045,8 @@ begin
     null;
   end if;
   if v_enrollment.certifies then
-    insert into "app_private"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code")
-    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'))
+    insert into "app_private"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code", "expires_at")
+    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'), now() + make_interval(months => v_enrollment.valid_for))
     on conflict on constraint "course_certificates_enrollment_key" do nothing
     returning * into v_certificate;
     if v_certificate."id" is not null then
@@ -3045,7 +3089,8 @@ $$;
 revoke execute on function "app_private"."course_sync"(uuid) from public, anon, authenticated;
 
 -- Creates or changes a course. course is { id?, key, title, summary, status,
--- certificate, fields }; keys left out keep their value.
+-- certificate, validForMonths, fields }; keys left out keep their value.
+-- validForMonths is how long a certificate stays valid; null never expires.
 create or replace function "app_private"."save_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
@@ -3062,6 +3107,7 @@ declare
   v_summary text;
   v_status text;
   v_certificate boolean;
+  v_valid_for integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3084,6 +3130,18 @@ begin
   v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
   v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
   v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_valid_for := v_old."valid_for_months";
+  if save_course.course ? 'validForMonths' then
+    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+      v_valid_for := null;
+    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
+      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+      raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
+    else
+      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+    end if;
+  end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
@@ -3097,8 +3155,8 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   if v_old."id" is null then
-    insert into "app_private"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, auth.uid())
+    insert into "app_private"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
+    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -3108,7 +3166,8 @@ begin
     begin
       update "app_private"."courses" x
       set "key" = v_key, "title" = v_title, "summary" = v_summary, "status" = v_status,
-        "issues_certificate" = v_certificate, "updated_at" = now()
+        "issues_certificate" = v_certificate,
+        "valid_for_months" = v_valid_for, "updated_at" = now()
       where x."id" = v_old."id"
       returning * into v_row;
     exception when unique_violation then
@@ -3171,7 +3230,7 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
     from "app_private"."courses" x
     where x."tenant_id" = list_courses.tenant
       and (v_manage or x."status" = 'published')
@@ -3460,7 +3519,7 @@ as $$
       select jsonb_agg(jsonb_build_object('lessonId', y."lesson_id", 'startedAt', y."started_at", 'completedAt', y."completed_at", 'attempts', y."attempts", 'submissionId', y."submission_id", 'score', y."score", 'maxScore', y."max_score", 'passed', y."passed") order by y."started_at", y."lesson_id")
       from "app_private"."course_lesson_progress" y where y."enrollment_id" = x."id"
     ), '[]'::jsonb),
-    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'revokedAt', z."revoked_at") from "app_private"."course_certificates" z where z."enrollment_id" = x."id")
+    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at") from "app_private"."course_certificates" z where z."enrollment_id" = x."id")
   )
   from "better_supabase"."enrollments" x
   where x."id" = course_learner_json.enrollment_id
@@ -3520,7 +3579,7 @@ begin
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_course."tenant_id" and x."program" = ('course:' || v_course."id"::text)
     and x."subject_type" = 'user' and x."subject_id" = auth.uid()::text;
-  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'validForMonths', v_course."valid_for_months", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
     'modules', coalesce((
       select jsonb_agg(jsonb_build_object('id', z."id", 'title', z."title", 'rank', z."rank", 'lessons', coalesce((
         select jsonb_agg(jsonb_build_object('id', y."id", 'moduleId', y."module_id", 'title', y."title", 'kind', y."kind", 'required', y."required",
@@ -3861,8 +3920,8 @@ revoke execute on function "app_private"."list_course_learners"(uuid, text, inte
 grant execute on function "app_private"."list_course_learners"(uuid, text, integer, timestamptz) to authenticated, service_role;
 
 -- Checks a certificate by the code its link carries. Anyone with the code
--- learns the course, when it was issued and whether it was revoked; null for
--- an unknown code.
+-- learns the course, when it was issued, when it expires and whether it was
+-- revoked; null for an unknown code. An expired certificate is not valid.
 create or replace function "app_private"."verify_course_certificate"(code text)
 returns jsonb
 language sql
@@ -3871,7 +3930,8 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'courseTitle', y."title", 'organizationId', z."tenant_id",
-    'issuedAt', z."issued_at", 'revokedAt', z."revoked_at", 'valid', z."revoked_at" is null)
+    'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at",
+    'expired', coalesce(z."expires_at" <= now(), false), 'valid', z."revoked_at" is null and not coalesce(z."expires_at" <= now(), false))
   from "app_private"."course_certificates" z join "app_private"."courses" y on y."id" = z."course_id"
   where z."code" = lower(verify_course_certificate.code)
 $$;
@@ -4029,7 +4089,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:ff19f3531f452cdffd76070f31bf09eeb66126e8afbe22ebe6d68f98206cec7c
+-- @bsb-hash sha256:5dca3b50a0986dd224914da7b6afa06eec55c2a887a13f009037bc177a0d840e
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4126,11 +4186,13 @@ create table if not exists "better_supabase"."courses" (
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
 
 create table if not exists "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4202,9 +4264,11 @@ create table if not exists "better_supabase"."course_certificates" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "code" text not null unique check ("code" ~ '^[0-9a-f]{32}$'),
   "issued_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "revoked_at" timestamptz,
   constraint "course_certificates_enrollment_key" unique ("enrollment_id")
 );
+alter table "better_supabase"."course_certificates" add column if not exists "expires_at" timestamptz;
 create index if not exists "course_certificates_parent_idx" on "better_supabase"."course_certificates" ("course_id");
 create index if not exists "course_certificates_user_idx" on "better_supabase"."course_certificates" ("user_id");
 
@@ -4257,7 +4321,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
 $$;
 revoke execute on function "better_supabase"."course_json"(uuid) from public, anon, authenticated;
 
@@ -4290,7 +4354,7 @@ declare
   v_enrollment record;
   v_certificate "better_supabase"."course_certificates";
 begin
-  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies
+  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies, y."valid_for_months"::integer as valid_for
   into v_enrollment
   from "better_supabase"."enrollments" x join "better_supabase"."courses" y on ('course:' || y."id"::text) = x."program"
   where x."id" = course_finish.enrollment_id;
@@ -4301,8 +4365,8 @@ begin
     null;
   end if;
   if v_enrollment.certifies then
-    insert into "better_supabase"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code")
-    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'))
+    insert into "better_supabase"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code", "expires_at")
+    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'), now() + make_interval(months => v_enrollment.valid_for))
     on conflict on constraint "course_certificates_enrollment_key" do nothing
     returning * into v_certificate;
     if v_certificate."id" is not null then
@@ -4345,7 +4409,8 @@ $$;
 revoke execute on function "better_supabase"."course_sync"(uuid) from public, anon, authenticated;
 
 -- Creates or changes a course. course is { id?, key, title, summary, status,
--- certificate, fields }; keys left out keep their value.
+-- certificate, validForMonths, fields }; keys left out keep their value.
+-- validForMonths is how long a certificate stays valid; null never expires.
 create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
@@ -4362,6 +4427,7 @@ declare
   v_summary text;
   v_status text;
   v_certificate boolean;
+  v_valid_for integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4384,6 +4450,18 @@ begin
   v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
   v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
   v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_valid_for := v_old."valid_for_months";
+  if save_course.course ? 'validForMonths' then
+    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+      v_valid_for := null;
+    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
+      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+      raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
+    else
+      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+    end if;
+  end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
@@ -4397,8 +4475,8 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   if v_old."id" is null then
-    insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, auth.uid())
+    insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
+    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -4408,7 +4486,8 @@ begin
     begin
       update "better_supabase"."courses" x
       set "key" = v_key, "title" = v_title, "summary" = v_summary, "status" = v_status,
-        "issues_certificate" = v_certificate, "updated_at" = now()
+        "issues_certificate" = v_certificate,
+        "valid_for_months" = v_valid_for, "updated_at" = now()
       where x."id" = v_old."id"
       returning * into v_row;
     exception when unique_violation then
@@ -4471,7 +4550,7 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
     from "better_supabase"."courses" x
     where x."tenant_id" = list_courses.tenant
       and (v_manage or x."status" = 'published')
@@ -4760,7 +4839,7 @@ as $$
       select jsonb_agg(jsonb_build_object('lessonId', y."lesson_id", 'startedAt', y."started_at", 'completedAt', y."completed_at", 'attempts', y."attempts", 'submissionId', y."submission_id", 'score', y."score", 'maxScore', y."max_score", 'passed', y."passed") order by y."started_at", y."lesson_id")
       from "better_supabase"."course_lesson_progress" y where y."enrollment_id" = x."id"
     ), '[]'::jsonb),
-    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
+    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
   )
   from "better_supabase"."enrollments" x
   where x."id" = course_learner_json.enrollment_id
@@ -4820,7 +4899,7 @@ begin
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_course."tenant_id" and x."program" = ('course:' || v_course."id"::text)
     and x."subject_type" = 'user' and x."subject_id" = auth.uid()::text;
-  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'validForMonths', v_course."valid_for_months", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
     'modules', coalesce((
       select jsonb_agg(jsonb_build_object('id', z."id", 'title', z."title", 'rank', z."rank", 'lessons', coalesce((
         select jsonb_agg(jsonb_build_object('id', y."id", 'moduleId', y."module_id", 'title', y."title", 'kind', y."kind", 'required', y."required",
@@ -5161,8 +5240,8 @@ revoke execute on function "better_supabase"."list_course_learners"(uuid, text, 
 grant execute on function "better_supabase"."list_course_learners"(uuid, text, integer, timestamptz) to authenticated, service_role;
 
 -- Checks a certificate by the code its link carries. Anyone with the code
--- learns the course, when it was issued and whether it was revoked; null for
--- an unknown code.
+-- learns the course, when it was issued, when it expires and whether it was
+-- revoked; null for an unknown code. An expired certificate is not valid.
 create or replace function "better_supabase"."verify_course_certificate"(code text)
 returns jsonb
 language sql
@@ -5171,7 +5250,8 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'courseTitle', y."title", 'organizationId', z."tenant_id",
-    'issuedAt', z."issued_at", 'revokedAt', z."revoked_at", 'valid', z."revoked_at" is null)
+    'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at",
+    'expired', coalesce(z."expires_at" <= now(), false), 'valid', z."revoked_at" is null and not coalesce(z."expires_at" <= now(), false))
   from "better_supabase"."course_certificates" z join "better_supabase"."courses" y on y."id" = z."course_id"
   where z."code" = lower(verify_course_certificate.code)
 $$;
@@ -5504,7 +5584,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:c10e83807cf9fd851d62e6c09d4093e847d3618935816d1548117c2f0c24b5ab
+-- @bsb-hash sha256:36f47ee8761db20a89c7beb1d9bcee3e005576b48cca997e4eb74ca0986d4f63
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5617,10 +5697,12 @@ alter table "better_supabase"."courses" add column if not exists "title" text ch
 alter table "better_supabase"."courses" add column if not exists "summary" text check ("summary" is null or length("summary") <= 2000);
 alter table "better_supabase"."courses" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived'));
 alter table "better_supabase"."courses" add column if not exists "issues_certificate" boolean not null default true;
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
 alter table "better_supabase"."courses" add column if not exists "created_by" uuid;
 alter table "better_supabase"."courses" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."courses" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_courses_key_key" on "better_supabase"."courses" ("tenant_id", "key");
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
 
 -- better_supabase.course_modules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."course_modules" add column if not exists "id" uuid default gen_random_uuid();
@@ -5683,8 +5765,10 @@ alter table "better_supabase"."course_certificates" add column if not exists "en
 alter table "better_supabase"."course_certificates" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."course_certificates" add column if not exists "code" text check ("code" ~ '^[0-9a-f]{32}$');
 alter table "better_supabase"."course_certificates" add column if not exists "issued_at" timestamptz not null default now();
+alter table "better_supabase"."course_certificates" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."course_certificates" add column if not exists "revoked_at" timestamptz;
 create unique index if not exists "bsb_course_certificates_enrollment_key" on "better_supabase"."course_certificates" ("enrollment_id");
+alter table "better_supabase"."course_certificates" add column if not exists "expires_at" timestamptz;
 create index if not exists "course_certificates_parent_idx" on "better_supabase"."course_certificates" ("course_id");
 create index if not exists "course_certificates_user_idx" on "better_supabase"."course_certificates" ("user_id");
 
@@ -5732,7 +5816,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
 $$;
 revoke execute on function "better_supabase"."course_json"(uuid) from public, anon, authenticated;
 
@@ -5765,7 +5849,7 @@ declare
   v_enrollment record;
   v_certificate "better_supabase"."course_certificates";
 begin
-  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies
+  select x."id" as id, x."tenant_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies, y."valid_for_months"::integer as valid_for
   into v_enrollment
   from "better_supabase"."enrollments" x join "better_supabase"."courses" y on ('course:' || y."id"::text) = x."program"
   where x."id" = course_finish.enrollment_id;
@@ -5776,8 +5860,8 @@ begin
     null;
   end if;
   if v_enrollment.certifies then
-    insert into "better_supabase"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code")
-    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'))
+    insert into "better_supabase"."course_certificates" ("tenant_id", "course_id", "enrollment_id", "user_id", "code", "expires_at")
+    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'), now() + make_interval(months => v_enrollment.valid_for))
     on conflict ("enrollment_id") do nothing
     returning * into v_certificate;
     if v_certificate."id" is not null then
@@ -5820,7 +5904,8 @@ $$;
 revoke execute on function "better_supabase"."course_sync"(uuid) from public, anon, authenticated;
 
 -- Creates or changes a course. course is { id?, key, title, summary, status,
--- certificate, fields }; keys left out keep their value.
+-- certificate, validForMonths, fields }; keys left out keep their value.
+-- validForMonths is how long a certificate stays valid; null never expires.
 create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
@@ -5837,6 +5922,7 @@ declare
   v_summary text;
   v_status text;
   v_certificate boolean;
+  v_valid_for integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -5859,6 +5945,18 @@ begin
   v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
   v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
   v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_valid_for := v_old."valid_for_months";
+  if save_course.course ? 'validForMonths' then
+    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+      v_valid_for := null;
+    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
+      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+      raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
+    else
+      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+    end if;
+  end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
@@ -5872,8 +5970,8 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   if v_old."id" is null then
-    insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, better_supabase.as_column_type(v_status, (null::"better_supabase"."courses")."status"), v_certificate, auth.uid())
+    insert into "better_supabase"."courses" ("tenant_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
+    values (save_course.tenant, v_key, v_title, v_summary, better_supabase.as_column_type(v_status, (null::"better_supabase"."courses")."status"), v_certificate, v_valid_for, auth.uid())
     on conflict ("tenant_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -5883,7 +5981,8 @@ begin
     begin
       update "better_supabase"."courses" x
       set "key" = v_key, "title" = v_title, "summary" = v_summary, "status" = better_supabase.as_column_type(v_status, (null::"better_supabase"."courses")."status"),
-        "issues_certificate" = v_certificate, "updated_at" = now()
+        "issues_certificate" = v_certificate,
+        "valid_for_months" = v_valid_for, "updated_at" = now()
       where x."id" = v_old."id"
       returning * into v_row;
     exception when unique_violation then
@@ -5946,7 +6045,7 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
     from "better_supabase"."courses" x
     where x."tenant_id" = list_courses.tenant
       and (v_manage or x."status" = 'published')
@@ -6235,7 +6334,7 @@ as $$
       select jsonb_agg(jsonb_build_object('lessonId', y."lesson_id", 'startedAt', y."started_at", 'completedAt', y."completed_at", 'attempts', y."attempts", 'submissionId', y."submission_id", 'score', y."score", 'maxScore', y."max_score", 'passed', y."passed") order by y."started_at", y."lesson_id")
       from "better_supabase"."course_lesson_progress" y where y."enrollment_id" = x."id"
     ), '[]'::jsonb),
-    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
+    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
   )
   from "better_supabase"."enrollments" x
   where x."id" = course_learner_json.enrollment_id
@@ -6295,7 +6394,7 @@ begin
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" = v_course."tenant_id" and x."program" = ('course:' || v_course."id"::text)
     and x."subject_type" = 'user' and x."subject_id" = auth.uid()::text;
-  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."tenant_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'validForMonths', v_course."valid_for_months", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
     'modules', coalesce((
       select jsonb_agg(jsonb_build_object('id', z."id", 'title', z."title", 'rank', z."rank", 'lessons', coalesce((
         select jsonb_agg(jsonb_build_object('id', y."id", 'moduleId', y."module_id", 'title', y."title", 'kind', y."kind", 'required', y."required",
@@ -6636,8 +6735,8 @@ revoke execute on function "better_supabase"."list_course_learners"(uuid, text, 
 grant execute on function "better_supabase"."list_course_learners"(uuid, text, integer, timestamptz) to authenticated, service_role;
 
 -- Checks a certificate by the code its link carries. Anyone with the code
--- learns the course, when it was issued and whether it was revoked; null for
--- an unknown code.
+-- learns the course, when it was issued, when it expires and whether it was
+-- revoked; null for an unknown code. An expired certificate is not valid.
 create or replace function "better_supabase"."verify_course_certificate"(code text)
 returns jsonb
 language sql
@@ -6646,7 +6745,8 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'courseTitle', y."title", 'organizationId', z."tenant_id",
-    'issuedAt', z."issued_at", 'revokedAt', z."revoked_at", 'valid', z."revoked_at" is null)
+    'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at",
+    'expired', coalesce(z."expires_at" <= now(), false), 'valid', z."revoked_at" is null and not coalesce(z."expires_at" <= now(), false))
   from "better_supabase"."course_certificates" z join "better_supabase"."courses" y on y."id" = z."course_id"
   where z."code" = lower(verify_course_certificate.code)
 $$;
@@ -6804,7 +6904,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:47b1c115c86bf6d0ec32c960b90a10c11743265806381e9d6a32e3b886bfb5d3
+-- @bsb-hash sha256:15c8d7034c560706af78d7420543a9512f71689f2a2aac4447d240d7e86b3ff3
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6901,11 +7001,13 @@ create table if not exists "better_supabase"."courses" (
   "summary" text check ("summary" is null or length("summary") <= 2000),
   "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
+  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "key")
 );
+alter table "better_supabase"."courses" add column if not exists "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" between 1 and 240);
 
 create table if not exists "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
@@ -6977,9 +7079,11 @@ create table if not exists "better_supabase"."course_certificates" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "code" text not null unique check ("code" ~ '^[0-9a-f]{32}$'),
   "issued_at" timestamptz not null default now(),
+  "expires_at" timestamptz,
   "revoked_at" timestamptz,
   constraint "course_certificates_enrollment_key" unique ("enrollment_id")
 );
+alter table "better_supabase"."course_certificates" add column if not exists "expires_at" timestamptz;
 create index if not exists "course_certificates_parent_idx" on "better_supabase"."course_certificates" ("course_id");
 create index if not exists "course_certificates_user_idx" on "better_supabase"."course_certificates" ("user_id");
 
@@ -7032,7 +7136,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
+  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."courses" x where x."id" = course_json.course_id
 $$;
 revoke execute on function "better_supabase"."course_json"(uuid) from public, anon, authenticated;
 
@@ -7065,7 +7169,7 @@ declare
   v_enrollment record;
   v_certificate "better_supabase"."course_certificates";
 begin
-  select x."id" as id, x."org_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies
+  select x."id" as id, x."org_id" as tenant, x."status" as status, x."user_id" as learner, y."id" as course, y."issues_certificate" as certifies, y."valid_for_months"::integer as valid_for
   into v_enrollment
   from "better_supabase"."enrollments" x join "better_supabase"."courses" y on ('course:' || y."id"::text) = x."program"
   where x."id" = course_finish.enrollment_id;
@@ -7076,8 +7180,8 @@ begin
     null;
   end if;
   if v_enrollment.certifies then
-    insert into "better_supabase"."course_certificates" ("org_id", "course_id", "enrollment_id", "user_id", "code")
-    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'))
+    insert into "better_supabase"."course_certificates" ("org_id", "course_id", "enrollment_id", "user_id", "code", "expires_at")
+    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'), now() + make_interval(months => v_enrollment.valid_for))
     on conflict on constraint "course_certificates_enrollment_key" do nothing
     returning * into v_certificate;
     if v_certificate."id" is not null then
@@ -7120,7 +7224,8 @@ $$;
 revoke execute on function "better_supabase"."course_sync"(uuid) from public, anon, authenticated;
 
 -- Creates or changes a course. course is { id?, key, title, summary, status,
--- certificate, fields }; keys left out keep their value.
+-- certificate, validForMonths, fields }; keys left out keep their value.
+-- validForMonths is how long a certificate stays valid; null never expires.
 create or replace function "better_supabase"."save_course"(tenant uuid, course jsonb)
 returns jsonb
 language plpgsql
@@ -7137,6 +7242,7 @@ declare
   v_summary text;
   v_status text;
   v_certificate boolean;
+  v_valid_for integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -7159,6 +7265,18 @@ begin
   v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else v_old."summary" end;
   v_status := coalesce(save_course.course ->> 'status', v_old."status", 'draft');
   v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(v_old."issues_certificate", true) end;
+  v_valid_for := v_old."valid_for_months";
+  if save_course.course ? 'validForMonths' then
+    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+      v_valid_for := null;
+    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
+      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+      raise exception 'validForMonths must be a whole number of months from 1 to 240, or null' using errcode = '22023', hint = 'COURSE_INVALID';
+    else
+      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+    end if;
+  end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     raise exception 'key: use lowercase letters, digits or "-", starting with a letter' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
@@ -7172,8 +7290,8 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   if v_old."id" is null then
-    insert into "better_supabase"."courses" ("org_id", "key", "title", "summary", "status", "issues_certificate", "created_by")
-    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, auth.uid())
+    insert into "better_supabase"."courses" ("org_id", "key", "title", "summary", "status", "issues_certificate", "valid_for_months", "created_by")
+    values (save_course.tenant, v_key, v_title, v_summary, v_status, v_certificate, v_valid_for, auth.uid())
     on conflict ("org_id", "key") do nothing
     returning * into v_row;
     if v_row."id" is null then
@@ -7183,7 +7301,8 @@ begin
     begin
       update "better_supabase"."courses" x
       set "key" = v_key, "title" = v_title, "summary" = v_summary, "status" = v_status,
-        "issues_certificate" = v_certificate, "updated_at" = now()
+        "issues_certificate" = v_certificate,
+        "valid_for_months" = v_valid_for, "updated_at" = now()
       where x."id" = v_old."id"
       returning * into v_row;
     exception when unique_violation then
@@ -7246,7 +7365,7 @@ begin
     raise exception 'status must be draft, published or archived' using errcode = '22023', hint = 'COURSE_INVALID';
   end if;
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
+    select jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'title', x."title", 'summary', x."summary", 'status', x."status", 'certificate', x."issues_certificate", 'validForMonths', x."valid_for_months", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."title", x."id")
     from "better_supabase"."courses" x
     where x."org_id" = list_courses.tenant
       and (v_manage or x."status" = 'published')
@@ -7535,7 +7654,7 @@ as $$
       select jsonb_agg(jsonb_build_object('lessonId', y."lesson_id", 'startedAt', y."started_at", 'completedAt', y."completed_at", 'attempts', y."attempts", 'submissionId', y."submission_id", 'score', y."score", 'maxScore', y."max_score", 'passed', y."passed") order by y."started_at", y."lesson_id")
       from "better_supabase"."course_lesson_progress" y where y."enrollment_id" = x."id"
     ), '[]'::jsonb),
-    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
+    'certificate', (select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'userId', z."user_id", 'code', z."code", 'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at") from "better_supabase"."course_certificates" z where z."enrollment_id" = x."id")
   )
   from "better_supabase"."enrollments" x
   where x."id" = course_learner_json.enrollment_id
@@ -7595,7 +7714,7 @@ begin
   select * into v_row from "better_supabase"."enrollments" x
   where x."org_id" = v_course."org_id" and x."program" = ('course:' || v_course."id"::text)
     and x."subject_type" = 'user' and x."subject_id" = auth.uid()::text;
-  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."org_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_course."id", 'organizationId', v_course."org_id", 'key', v_course."key", 'title', v_course."title", 'summary', v_course."summary", 'status', v_course."status", 'certificate', v_course."issues_certificate", 'validForMonths', v_course."valid_for_months", 'createdBy', v_course."created_by", 'createdAt', v_course."created_at", 'updatedAt', v_course."updated_at") || jsonb_build_object(
     'modules', coalesce((
       select jsonb_agg(jsonb_build_object('id', z."id", 'title', z."title", 'rank', z."rank", 'lessons', coalesce((
         select jsonb_agg(jsonb_build_object('id', y."id", 'moduleId', y."module_id", 'title', y."title", 'kind', y."kind", 'required', y."required",
@@ -7936,8 +8055,8 @@ revoke execute on function "better_supabase"."list_course_learners"(uuid, text, 
 grant execute on function "better_supabase"."list_course_learners"(uuid, text, integer, timestamptz) to authenticated, service_role;
 
 -- Checks a certificate by the code its link carries. Anyone with the code
--- learns the course, when it was issued and whether it was revoked; null for
--- an unknown code.
+-- learns the course, when it was issued, when it expires and whether it was
+-- revoked; null for an unknown code. An expired certificate is not valid.
 create or replace function "better_supabase"."verify_course_certificate"(code text)
 returns jsonb
 language sql
@@ -7946,7 +8065,8 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', z."id", 'courseId', z."course_id", 'courseTitle', y."title", 'organizationId', z."org_id",
-    'issuedAt', z."issued_at", 'revokedAt', z."revoked_at", 'valid', z."revoked_at" is null)
+    'issuedAt', z."issued_at", 'expiresAt', z."expires_at", 'revokedAt', z."revoked_at",
+    'expired', coalesce(z."expires_at" <= now(), false), 'valid', z."revoked_at" is null and not coalesce(z."expires_at" <= now(), false))
   from "better_supabase"."course_certificates" z join "better_supabase"."courses" y on y."id" = z."course_id"
   where z."code" = lower(verify_course_certificate.code)
 $$;

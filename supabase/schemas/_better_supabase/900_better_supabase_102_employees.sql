@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:e21a06c131d351bff2f8e5f2144e3dd00986211a5901748aeb3045898ec9faf5
+-- @bsb-hash sha256:7bbee6a5bf2c68c1c8e139096d1694afb783dbb6e46047789f0e5fb50cd019eb
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -406,7 +406,7 @@ begin
         null;
       end if;
       if v_row."manager_id" is distinct from v_was."manager_id" then
-        perform "better_supabase".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'fromManagerId', v_was."manager_id", 'toManagerId', v_row."manager_id"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
+        perform "better_supabase".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id", 'fromManagerId', v_was."manager_id", 'toManagerId', v_row."manager_id"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
       end if;
       v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('employeeId', v_id, 'field', v_field));
       v_touched := array_append(v_touched, v_id);
@@ -429,7 +429,7 @@ begin
     end;
   end loop;
   for v_row in select * from "better_supabase"."employees" x where x."id" = any (v_touched) loop
-    perform "better_supabase".emit_event('employee.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'employeeId')::uuid = v_row."id")), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
+    perform "better_supabase".emit_event('employee.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'employeeId')::uuid = v_row."id")), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
@@ -479,11 +479,11 @@ begin
     update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
     where x."id" = v_report."id"
     returning * into v_report;
-    perform "better_supabase".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_report."tenant_id", 'employeeId', v_report."id", 'subjectType', 'employee', 'subjectId', v_report."id"::text, 'name', v_report."name", 'fromManagerId', v_row."id", 'toManagerId', v_report."manager_id"), 'employees/' || v_report."id"::text, (v_report."tenant_id"::text)::text, null, 'better-supabase/employees');
+    perform "better_supabase".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_report."tenant_id", 'employeeId', v_report."id", 'subjectType', 'employee', 'subjectId', v_report."id"::text, 'name', v_report."name", 'userId', v_report."user_id", 'fromManagerId', v_row."id", 'toManagerId', v_report."manager_id"), 'employees/' || v_report."id"::text, (v_report."tenant_id"::text)::text, null, 'better-supabase/employees');
   end loop;
   update "better_supabase"."employee_private_details" x set "offboarded_at" = now()
   where x."employee_id" = v_row."id";
-  perform "better_supabase".emit_event('employee.offboarded', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'endDate', v_row."end_date", 'reason', v_row."offboard_reason"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
+  perform "better_supabase".emit_event('employee.offboarded', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id", 'endDate', v_row."end_date", 'reason', v_row."offboard_reason"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_employee_offboard"(uuid)');
   begin
@@ -796,7 +796,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation or invalid_datetime_format or datetime_field_overflow or numeric_value_out_of_range then
     raise exception 'a contract field has an invalid value' using errcode = '22023', hint = 'EMPLOYEE_CONTRACT_INVALID';
   end;
-  perform "better_supabase".emit_event('employee.updated', jsonb_build_object('organizationId', v_employee."tenant_id", 'employeeId', v_employee."id", 'subjectType', 'employee', 'subjectId', v_employee."id"::text, 'name', v_employee."name", 'fields', jsonb_build_array('contract')), 'employees/' || v_employee."id"::text, (v_employee."tenant_id"::text)::text, null, 'better-supabase/employees');
+  perform "better_supabase".emit_event('employee.updated', jsonb_build_object('organizationId', v_employee."tenant_id", 'employeeId', v_employee."id", 'subjectType', 'employee', 'subjectId', v_employee."id"::text, 'name', v_employee."name", 'userId', v_employee."user_id", 'fields', jsonb_build_array('contract')), 'employees/' || v_employee."id"::text, (v_employee."tenant_id"::text)::text, null, 'better-supabase/employees');
   return to_jsonb(v_row) || jsonb_build_object('salary', v_row."salary"::text);
 end;
 $$;

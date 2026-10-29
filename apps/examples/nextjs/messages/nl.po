@@ -4355,6 +4355,21 @@ msgid "Amount"
 msgstr "Bedrag"
 
 #: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields.jdJhOL"
+msgid "Phone number"
+msgstr "Telefoonnummer"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields.GIV9LR"
+msgid "BSN"
+msgstr "BSN"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
+msgctxt "custom-fields.-SgU-0"
+msgid "IBAN"
+msgstr "IBAN"
+
+#: src/features/custom-fields/components/custom-field-controls.tsx
 msgctxt "custom-fields.QbUmZX"
 msgid "Record type"
 msgstr "Recordtype"

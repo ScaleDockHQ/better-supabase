@@ -7,7 +7,7 @@ import { activitiesEvents } from "./events.ts";
 import { activitiesSqlOptions } from "./options.ts";
 import { engagementChangeSchema, engagementInputSchema } from "./schemas.ts";
 
-/** The `engagements` block's manifest (ADR 0029). */
+/** The `activities` block's manifest (ADR 0029). */
 export const activitiesBlock: BlockOf<
   "activities",
   typeof createActivities,

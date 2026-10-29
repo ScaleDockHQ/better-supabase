@@ -390,8 +390,8 @@ export interface BlockNameRegistry {
   };
   readonly "compliance": {
     readonly tables: {
-      readonly "frameworks": "id" | "tenant" | "key" | "name" | "version" | "description" | "createdAt" | "updatedAt";
-      readonly "controls": "id" | "tenant" | "framework" | "code" | "title" | "description" | "owner" | "applicable" | "createdAt" | "updatedAt";
+      readonly "frameworks": "id" | "tenant" | "key" | "name" | "kind" | "version" | "description" | "createdAt" | "updatedAt";
+      readonly "controls": "id" | "tenant" | "framework" | "code" | "title" | "description" | "owner" | "applicable" | "source" | "jurisdiction" | "createdAt" | "updatedAt";
       readonly "evidence": "id" | "tenant" | "control" | "task" | "attachment" | "note" | "collectedBy" | "collectedAt" | "validUntil";
       readonly "tasks": "id" | "tenant" | "control" | "title" | "assignee" | "intervalDays" | "dueOn" | "lastCollectedAt" | "notifiedFor" | "active" | "createdAt" | "updatedAt";
       readonly "policies": "id" | "tenant" | "key" | "title" | "owner" | "requiresAck" | "currentVersion" | "versionNumber" | "publishedAt" | "archivedAt" | "createdAt" | "updatedAt";
@@ -401,8 +401,8 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "manage" | "collect" | "acknowledge";
     readonly hooks: never;
     readonly entities: {
-      readonly "control": "id" | "tenant_id" | "framework_id" | "code" | "title" | "description" | "owner_id" | "applicable" | "created_at" | "updated_at";
-      readonly "control_framework": "id" | "tenant_id" | "key" | "name" | "version" | "description" | "created_at" | "updated_at";
+      readonly "control": "id" | "tenant_id" | "framework_id" | "code" | "title" | "description" | "owner_id" | "applicable" | "source" | "jurisdiction" | "created_at" | "updated_at";
+      readonly "control_framework": "id" | "tenant_id" | "key" | "name" | "kind" | "version" | "description" | "created_at" | "updated_at";
       readonly "evidence_task": "id" | "tenant_id" | "control_id" | "title" | "assignee_id" | "interval_days" | "due_on" | "last_collected_at" | "notified_for" | "active" | "created_at" | "updated_at";
       readonly "policy": "id" | "tenant_id" | "key" | "title" | "owner_id" | "requires_acknowledgement" | "current_version_id" | "version_number" | "published_at" | "archived_at" | "created_at" | "updated_at";
     };
@@ -467,20 +467,20 @@ export interface BlockNameRegistry {
   };
   readonly "courses": {
     readonly tables: {
-      readonly "courses": "id" | "tenant" | "key" | "title" | "summary" | "status" | "certificate" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "courses": "id" | "tenant" | "key" | "title" | "summary" | "status" | "certificate" | "validForMonths" | "createdBy" | "createdAt" | "updatedAt";
       readonly "modules": "id" | "tenant" | "course" | "title" | "rank" | "createdAt" | "updatedAt";
       readonly "lessons": "id" | "tenant" | "course" | "module" | "title" | "kind" | "body" | "mediaUrl" | "form" | "required" | "minutes" | "rank" | "createdAt" | "updatedAt";
       readonly "progress": "enrollment" | "lesson" | "tenant" | "course" | "user" | "startedAt" | "completedAt" | "attempts" | "submission" | "score" | "maxScore" | "passed" | "updatedAt";
-      readonly "certificates": "id" | "tenant" | "course" | "enrollment" | "user" | "code" | "issuedAt" | "revokedAt";
+      readonly "certificates": "id" | "tenant" | "course" | "enrollment" | "user" | "code" | "issuedAt" | "expiresAt" | "revokedAt";
     };
     readonly functions: "complete_course_lesson" | "course_finish" | "course_json" | "course_learner_json" | "course_lesson" | "course_lesson_done" | "course_outline" | "course_progress" | "course_steps" | "course_sync" | "delete_course" | "delete_course_lesson" | "delete_course_module" | "enroll_in_course" | "enrollment_ensure" | "enrollment_mark" | "list_course_learners" | "list_courses" | "revoke_course_certificate" | "save_course" | "save_course_lesson" | "save_course_module" | "start_course_lesson" | "unenroll_from_course" | "verify_course_certificate";
     readonly actions: "read" | "enroll" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "course": "id" | "tenant_id" | "key" | "title" | "summary" | "status" | "issues_certificate" | "created_by" | "created_at" | "updated_at";
+      readonly "course": "id" | "tenant_id" | "key" | "title" | "summary" | "status" | "issues_certificate" | "valid_for_months" | "created_by" | "created_at" | "updated_at";
       readonly "course_module": "id" | "tenant_id" | "course_id" | "title" | "rank" | "created_at" | "updated_at";
       readonly "course_lesson": "id" | "tenant_id" | "course_id" | "module_id" | "title" | "kind" | "body" | "media_url" | "form_id" | "required" | "duration_minutes" | "rank" | "created_at" | "updated_at";
-      readonly "course_certificate": "id" | "tenant_id" | "course_id" | "enrollment_id" | "user_id" | "code" | "issued_at" | "revoked_at";
+      readonly "course_certificate": "id" | "tenant_id" | "course_id" | "enrollment_id" | "user_id" | "code" | "issued_at" | "expires_at" | "revoked_at";
     };
     readonly primary: "course";
   };
@@ -697,7 +697,7 @@ export interface BlockNameRegistry {
   };
   readonly "field-encryption": {
     readonly tables: {};
-    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_key" | "field_open" | "field_seal";
+    readonly functions: "drop_field_key" | "field_decrypt" | "field_encrypt" | "field_hash" | "field_key" | "field_lookup" | "field_lookup_key" | "field_open" | "field_seal";
     readonly actions: never;
     readonly hooks: never;
     readonly entities: {};
@@ -1554,7 +1554,7 @@ export interface BlockNameRegistry {
       readonly "organization": "tenant" | "key" | "value" | "updatedBy" | "updatedAt";
       readonly "platform": "key" | "value" | "updatedBy" | "updatedAt";
     };
-    readonly functions: "get_organization_settings" | "get_platform_settings" | "get_user_settings" | "record_organization_setting" | "record_platform_setting" | "reset_organization_setting" | "reset_platform_setting" | "reset_user_setting" | "set_organization_setting" | "set_platform_setting" | "set_user_setting";
+    readonly functions: "get_organization_settings" | "get_platform_settings" | "get_user_settings" | "organization_setting" | "record_organization_setting" | "record_platform_setting" | "reset_organization_setting" | "reset_platform_setting" | "reset_user_setting" | "set_organization_setting" | "set_platform_setting" | "set_user_setting";
     readonly actions: "read" | "update" | "platform";
     readonly hooks: never;
     readonly entities: {};
@@ -1594,14 +1594,14 @@ export interface BlockNameRegistry {
   };
   readonly "signatures": {
     readonly tables: {
-      readonly "requests": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "contentHash" | "signers" | "order" | "status" | "approval" | "message" | "requestedBy" | "createdAt" | "completedAt";
+      readonly "requests": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "contentHash" | "signers" | "order" | "status" | "approval" | "message" | "meaning" | "requestedBy" | "createdAt" | "completedAt";
       readonly "signatures": "id" | "request" | "tenant" | "signer" | "method" | "typedName" | "image" | "signedHash" | "ip" | "userAgent" | "signedAt";
     };
     readonly functions: "cancel_signature_request" | "create_signature_request" | "decline_signature_request" | "get_signature_request" | "list_signature_requests" | "sign_signature" | "signature_verification";
     readonly actions: "read" | "request" | "manage";
     readonly hooks: "before_signature_request" | "after_signature_request" | "before_signature_sign" | "after_signature_sign";
     readonly entities: {
-      readonly "request": "id" | "tenant_id" | "subject_type" | "subject_id" | "version_id" | "content_hash" | "signers" | "sign_order" | "status" | "approval_request_id" | "message" | "requested_by" | "created_at" | "completed_at";
+      readonly "request": "id" | "tenant_id" | "subject_type" | "subject_id" | "version_id" | "content_hash" | "signers" | "sign_order" | "status" | "approval_request_id" | "message" | "meaning" | "requested_by" | "created_at" | "completed_at";
     };
     readonly primary: "request";
   };

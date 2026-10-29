@@ -16,22 +16,28 @@ const FORMAT_TYPES: Readonly<
   email: ["text"],
   url: ["text"],
   phone: ["text"],
+  phone_e164: ["text"],
   long_text: ["text"],
   color: ["text"],
   rating: ["integer", "bigint"],
   percent: ["integer", "numeric"],
   currency: ["bigint"],
+  bsn: ["text"],
+  iban: ["text"],
 };
 
 const FORMAT_LABELS: Readonly<Record<AppColumnFormat, string>> = {
   email: "email",
   url: "url",
   phone: "phone",
+  phone_e164: "phone (E.164)",
   long_text: "long text",
   color: "color",
   rating: "rating",
   percent: "percent",
   currency: "money",
+  bsn: "BSN",
+  iban: "IBAN",
 };
 
 const NUMBER_TYPES: ReadonlySet<AppColumnType> = new Set([

@@ -49,12 +49,23 @@ export interface ComplianceOptions<
   readonly mappers?: readonly ErrorMapper[];
 }
 
+/**
+ * What a framework is: a `standard` (SOC 2, ISO 27001), a `legal` register of
+ * obligations, an `internal` one or a `contract`.
+ */
+export type ControlFrameworkKind =
+  | "standard"
+  | "legal"
+  | "internal"
+  | "contract";
+
 /** A compliance framework, such as SOC 2 or ISO 27001. */
 export interface ControlFramework {
   readonly id: string;
   readonly organizationId: string;
   readonly key: string;
   readonly name: string;
+  readonly kind: ControlFrameworkKind;
   readonly version?: string;
   readonly description?: string;
   readonly createdAt: Temporal.Instant;
@@ -65,6 +76,8 @@ export interface ControlFrameworkInput {
   /** Saving a key again updates that framework. */
   readonly key: string;
   readonly name: string;
+  /** Default: `standard`. */
+  readonly kind?: ControlFrameworkKind;
   readonly version?: string;
   readonly description?: string;
 }
@@ -90,6 +103,10 @@ export interface Control<F extends object = Record<never, never>> {
   readonly description?: string;
   readonly ownerId?: string;
   readonly applicable: boolean;
+  /** Where the obligation comes from, such as a law or a clause. */
+  readonly source?: string;
+  /** Where the obligation applies, such as a country. */
+  readonly jurisdiction?: string;
   readonly status: ControlStatus;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -116,6 +133,10 @@ export interface ControlInput<F extends object = Record<never, never>> {
   readonly applicable?: boolean;
   /** Changes this control, code included. */
   readonly controlId?: string;
+  /** Where the obligation comes from, such as a law or a clause. */
+  readonly source?: string;
+  /** Where the obligation applies, such as a country. */
+  readonly jurisdiction?: string;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
 }
@@ -323,6 +344,13 @@ export interface Compliance<F extends object = Record<never, never>> {
   acknowledgements(policyId: string): AsyncResult<PolicyAcknowledgements>;
 }
 
+const KINDS: readonly ControlFrameworkKind[] = [
+  "standard",
+  "legal",
+  "internal",
+  "contract",
+];
+
 const STATUSES: readonly ControlStatus[] = [
   "passing",
   "failing",
@@ -362,6 +390,7 @@ function frameworkOf(value: unknown, fn: string): ControlFramework {
     organizationId: textOf(row["organizationId"]),
     key: textOf(row["key"]),
     name: textOf(row["name"]),
+    kind: enumOrThrow(row["kind"] ?? "standard", KINDS, "framework kind"),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("version", optionalText(row["version"])),
@@ -384,6 +413,8 @@ function controlOf(value: unknown, fn: string): Control {
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     ...optional("description", optionalText(row["description"])),
     ...optional("ownerId", optionalText(row["ownerId"])),
+    ...optional("source", optionalText(row["source"])),
+    ...optional("jurisdiction", optionalText(row["jurisdiction"])),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
 }
@@ -499,7 +530,7 @@ const many =
   (value: unknown): readonly T[] =>
     recordsOf(value, fn).map((row) => of(row, fn));
 
-/** The `controls` SQL module as typed calls. */
+/** The `compliance` SQL module as typed calls. */
 export function createCompliance<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ComplianceOptions<S>): Compliance<FieldsOf<S>> {
@@ -522,6 +553,7 @@ export function createCompliance<
           name: input.name,
           version: input.version ?? null,
           description: input.description ?? null,
+          kind: input.kind ?? "standard",
         },
         (value) => frameworkOf(value, "save_control_framework"),
       ),
@@ -545,6 +577,8 @@ export function createCompliance<
               owner_id: input.ownerId ?? null,
               applicable: input.applicable ?? true,
               control_id: input.controlId ?? null,
+              source: input.source ?? null,
+              jurisdiction: input.jurisdiction ?? null,
               ...(checked === undefined ? {} : { fields: checked }),
             },
             (value) => controlOf(value, "save_control"),

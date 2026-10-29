@@ -25,6 +25,7 @@ export interface ApprovalRequestSql {
   readonly tenant: string;
   /** A uuid expression: the user who asked for the approval. */
   readonly requester: string;
+  readonly approvers?: string;
 }
 
 /** The provider's eligibility check for one request. */
@@ -68,6 +69,7 @@ export function approverCheck(
         subject: request.subject,
         tenant: request.tenant,
         requester: request.requester,
+        approvers: request.approvers ?? "null::jsonb",
         scope: provider.scope,
       }),
       template: "isApprover",

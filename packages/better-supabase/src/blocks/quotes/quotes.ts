@@ -297,9 +297,11 @@ export interface Quotes<F extends object = Record<never, never>> {
    */
   publish(quoteId: string, options?: QuoteActorOptions): AsyncResult<Quote<F>>;
   /**
-   * Records the customer's answer taken another way, with their name. With
-   * `actor`, the app's own portal took it: the customer's details are kept with
-   * the answer, and a quote past its date expires instead.
+   * Records the customer's answer taken another way, with their name (`by`);
+   * without `by` or `actor` the answer names no one. With `actor`, the app's
+   * own portal took it: the customer's details are kept with the answer, and a
+   * quote past its date expires instead. The `note` is also the reason in the
+   * state machine's history.
    */
   decide(
     quoteId: string,
@@ -317,8 +319,14 @@ export interface Quotes<F extends object = Record<never, never>> {
    * `options.workingCopy` the link stays.
    */
   revise(quoteId: string, options?: QuoteActorOptions): AsyncResult<Quote<F>>;
-  /** Takes back a sent or expired quote the customer hasn't accepted. */
-  withdraw(quoteId: string, options?: QuoteActorOptions): AsyncResult<Quote<F>>;
+  /**
+   * Takes back a sent or expired quote the customer hasn't accepted. The
+   * `reason` and `actor` go to the state machine's history.
+   */
+  withdraw(
+    quoteId: string,
+    options?: QuoteActorOptions & { readonly reason?: string },
+  ): AsyncResult<Quote<F>>;
   /** The revisions sent so far, oldest first. */
   versions(quoteId: string): AsyncResult<readonly QuoteVersionSummary[]>;
   /** The quote as it was sent at `revision`. */
@@ -729,7 +737,13 @@ export function createQuotes<
     withdraw: (quoteId, withdrawOptions = {}) =>
       quote(
         "withdraw_quote",
-        { quote: quoteId, ...actorArg(withdrawOptions) },
+        {
+          quote: quoteId,
+          ...actorArg(withdrawOptions),
+          ...(withdrawOptions.reason === undefined
+            ? {}
+            : { reason: withdrawOptions.reason }),
+        },
         quoteOf,
       ),
     versions: (quoteId) =>

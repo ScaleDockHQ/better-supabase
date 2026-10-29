@@ -14,12 +14,16 @@ import {
 import {
   CONTROL_RESERVED,
   evidenceAttachments,
+  FRAMEWORK_KINDS,
   optionalField,
 } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
+/** The arguments of save_control before it took a source and a jurisdiction. */
+const PREVIOUS_CONTROL_ARGS = "uuid, text, text, text, uuid, boolean, uuid";
+
 /** The framework, control, evidence and evidence task functions. */
-export function controlsFunctions(ctx: BlockSqlContext): string {
+export function complianceFunctions(ctx: BlockSqlContext): string {
   const frameworks = ctx.table("frameworks");
   const controls = ctx.table("controls");
   const evidence = ctx.table("evidence");
@@ -54,11 +58,24 @@ export function controlsFunctions(ctx: BlockSqlContext): string {
   const touch = (table: string): string =>
     has(table, "updatedAt") ? `, ${ctx.col(table, "updatedAt")} = now()` : "";
 
+  const labels = ["source", "jurisdiction"].filter((column) =>
+    has("controls", column),
+  );
+
+  const labelSets = (row: string): string =>
+    labels.map((column) => `, ${k(column)} = ${row}.${k(column)}`).join("");
+
+  const labelUpdates = labels
+    .map(
+      (column) => `${k(column)} = nullif(trim(save_control.${column}), ''), `,
+    )
+    .join("");
+
   const assignee = has("tasks", "assignee");
   const owner = has("controls", "owner");
 
   const frameworkSets = [
-    `${f("name")} = excluded.${f("name")}${has("frameworks", "version") ? `, ${f("version")} = excluded.${f("version")}` : ""}`,
+    `${f("name")} = excluded.${f("name")}${has("frameworks", "kind") ? `, ${f("kind")} = excluded.${f("kind")}` : ""}${has("frameworks", "version") ? `, ${f("version")} = excluded.${f("version")}` : ""}`,
     [
       has("frameworks", "description")
         ? `${f("description")} = excluded.${f("description")}`
@@ -106,10 +123,10 @@ export function controlsFunctions(ctx: BlockSqlContext): string {
   end`;
 
   const controlJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'frameworkId', ${row}.${k("framework")}, 'code', ${row}.${k("code")}, 'title', ${row}.${k("title")}, 'description', ${field("controls", row, "description")}, 'ownerId', ${field("controls", row, "owner")}, 'applicable', ${row}.${k("applicable")}, 'status', ${status(row)}, 'createdAt', ${field("controls", row, "createdAt")}, 'updatedAt', ${field("controls", row, "updatedAt")}${extraFieldsJson(row, extras)})`;
+    `jsonb_build_object('id', ${row}.${k("id")}, 'organizationId', ${row}.${k("tenant")}, 'frameworkId', ${row}.${k("framework")}, 'code', ${row}.${k("code")}, 'title', ${row}.${k("title")}, 'description', ${field("controls", row, "description")}, 'ownerId', ${field("controls", row, "owner")}, 'applicable', ${row}.${k("applicable")}, 'source', ${field("controls", row, "source")}, 'jurisdiction', ${field("controls", row, "jurisdiction")}, 'status', ${status(row)}, 'createdAt', ${field("controls", row, "createdAt")}, 'updatedAt', ${field("controls", row, "updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const frameworkJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'name', ${row}.${f("name")}, 'version', ${field("frameworks", row, "version")}, 'description', ${field("frameworks", row, "description")}, 'createdAt', ${field("frameworks", row, "createdAt")}, 'updatedAt', ${field("frameworks", row, "updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${f("id")}, 'organizationId', ${row}.${f("tenant")}, 'key', ${row}.${f("key")}, 'name', ${row}.${f("name")}, 'kind', ${has("frameworks", "kind") ? `${row}.${f("kind")}` : "'standard'"}, 'version', ${field("frameworks", row, "version")}, 'description', ${field("frameworks", row, "description")}, 'createdAt', ${field("frameworks", row, "createdAt")}, 'updatedAt', ${field("frameworks", row, "updatedAt")})`;
 
   const evidenceJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${e("id")}, 'organizationId', ${row}.${e("tenant")}, 'controlId', ${row}.${e("control")}, 'evidenceTaskId', ${row}.${e("task")}, 'attachmentId', ${row}.${e("attachment")}, 'note', ${field("evidence", row, "note")}, 'collectedBy', ${row}.${e("collectedBy")}, 'collectedAt', ${row}.${e("collectedAt")}, 'validUntil', ${row}.${e("validUntil")}, 'valid', ${valid(row)})`;
@@ -156,7 +173,10 @@ export function controlsFunctions(ctx: BlockSqlContext): string {
 
   return `
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
-create or replace function ${fn("save_control_framework")}(tenant ${idType}, key text, name text, version text default null, description text default null)
+-- kind is standard, legal (a register of legal obligations), internal or
+-- contract.
+drop function if exists ${fn("save_control_framework")}(${idType}, text, text, text, text);
+create or replace function ${fn("save_control_framework")}(tenant ${idType}, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -169,15 +189,18 @@ begin
   if not ${allowed("save_control_framework.tenant", manage)} then
     ${forbidden("not allowed to manage controls")}
   end if;
-  insert into ${frameworks} (${f("tenant")}, ${f("key")}, ${f("name")}${insertCol("frameworks", "version")}${insertCol("frameworks", "description")})
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name)${insertVal("frameworks", "version", "nullif(trim(save_control_framework.version), '')")}${insertVal("frameworks", "description", "nullif(trim(save_control_framework.description), '')")})
+  if save_control_framework.kind is null or save_control_framework.kind not in (${FRAMEWORK_KINDS.map((item) => `'${item}'`).join(", ")}) then
+    ${invalid(`kind must be one of ${FRAMEWORK_KINDS.join(", ")}`)}
+  end if;
+  insert into ${frameworks} (${f("tenant")}, ${f("key")}, ${f("name")}${insertCol("frameworks", "kind")}${insertCol("frameworks", "version")}${insertCol("frameworks", "description")})
+  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name)${insertVal("frameworks", "kind", "save_control_framework.kind")}${insertVal("frameworks", "version", "nullif(trim(save_control_framework.version), '')")}${insertVal("frameworks", "description", "nullif(trim(save_control_framework.description), '')")})
   on conflict (${f("tenant")}, ${f("key")}) do update
     set ${frameworkSets}
   returning * into v_row;
   return ${frameworkJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_control_framework")}(${idType}, text, text, text, text)`)}
+${userGrant(`${fn("save_control_framework")}(${idType}, text, text, text, text, text)`)}
 
 create or replace function ${fn("list_control_frameworks")}(tenant ${idType})
 returns jsonb
@@ -194,8 +217,12 @@ ${userGrant(`${fn("list_control_frameworks")}(${idType})`)}
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
-${extra.drop(fn("save_control"), "uuid, text, text, text, uuid, boolean, uuid")}
-create or replace function ${fn("save_control")}(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null${extra.param})
+-- source names where an obligation comes from (a law or a clause) and
+-- jurisdiction where it applies.
+drop function if exists ${fn("save_control")}(${PREVIOUS_CONTROL_ARGS});
+drop function if exists ${fn("save_control")}(${PREVIOUS_CONTROL_ARGS}, jsonb);
+${extra.drop(fn("save_control"), `${PREVIOUS_CONTROL_ARGS}, text, text`)}
+create or replace function ${fn("save_control")}(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null${extra.param})
 returns jsonb
 language plpgsql
 security definer
@@ -225,15 +252,15 @@ ${
 `
     : ""
 }  if save_control.control_id is null then
-    insert into ${controls} (${k("tenant")}, ${k("framework")}, ${k("code")}, ${k("title")}${insertCol("controls", "description")}${insertCol("controls", "owner")}, ${k("applicable")})
-    values (v_framework.${f("tenant")}, v_framework.${f("id")}, trim(save_control.code), trim(save_control.title)${insertVal("controls", "description", "nullif(trim(save_control.description), '')")}${insertVal("controls", "owner", "save_control.owner_id")}, coalesce(save_control.applicable, true))
+    insert into ${controls} (${k("tenant")}, ${k("framework")}, ${k("code")}, ${k("title")}${insertCol("controls", "description")}${insertCol("controls", "owner")}${insertCol("controls", "source")}${insertCol("controls", "jurisdiction")}, ${k("applicable")})
+    values (v_framework.${f("tenant")}, v_framework.${f("id")}, trim(save_control.code), trim(save_control.title)${insertVal("controls", "description", "nullif(trim(save_control.description), '')")}${insertVal("controls", "owner", "save_control.owner_id")}${insertVal("controls", "source", "nullif(trim(save_control.source), '')")}${insertVal("controls", "jurisdiction", "nullif(trim(save_control.jurisdiction), '')")}, coalesce(save_control.applicable, true))
     on conflict (${k("framework")}, ${k("code")}) do update
-      set ${k("title")} = excluded.${k("title")}${has("controls", "description") ? `, ${k("description")} = excluded.${k("description")}` : ""},
+      set ${k("title")} = excluded.${k("title")}${has("controls", "description") ? `, ${k("description")} = excluded.${k("description")}` : ""}${labelSets("excluded")},
         ${owner ? `${k("owner")} = excluded.${k("owner")}, ` : ""}${k("applicable")} = excluded.${k("applicable")}${touch("controls")}
     returning * into v_row;
   else
     update ${controls} x set ${k("code")} = trim(save_control.code), ${k("title")} = trim(save_control.title),
-      ${has("controls", "description") ? `${k("description")} = nullif(trim(save_control.description), ''), ` : ""}${owner ? `${k("owner")} = save_control.owner_id,\n      ` : ""}${k("applicable")} = coalesce(save_control.applicable, true)${touch("controls")}
+      ${has("controls", "description") ? `${k("description")} = nullif(trim(save_control.description), ''), ` : ""}${labelUpdates}${owner ? `${k("owner")} = save_control.owner_id,\n      ` : ""}${k("applicable")} = coalesce(save_control.applicable, true)${touch("controls")}
       where x.${k("id")} = save_control.control_id and x.${k("framework")} = v_framework.${f("id")}
       returning * into v_row;
     if not found then
@@ -255,7 +282,7 @@ ${
   return ${controlJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("save_control")}(uuid, text, text, text, uuid, boolean, uuid${extra.type})`)}
+${userGrant(`${fn("save_control")}(${PREVIOUS_CONTROL_ARGS}, text, text${extra.type})`)}
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function ${fn("get_control")}(control_id uuid)

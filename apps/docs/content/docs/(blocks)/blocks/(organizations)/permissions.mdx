@@ -1,0 +1,18 @@
+---
+title: Permissions
+description: The access contract that policies and blocks call, can(), tenant_ids_with() and is_platform(), over your roles or an authorization provider.
+---
+
+`permissions` installs the access contract: `can()`, `tenant_ids_with()` and
+`is_platform()`. Your policies and every block's SQL call these three
+functions, so one permission model decides access across the app. The model
+can be a roles list, a role and permission catalog, an
+[authorization provider](/docs/extending/authorization-providers) or your own
+functions (`blocks.permissions.model`). It needs the
+[memberships](/docs/blocks/memberships) block.
+
+```bash
+better-supabase add permissions
+```
+
+The [Permissions guide](/docs/repository/permissions) has the setup and the full reference.

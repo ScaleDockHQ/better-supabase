@@ -423,7 +423,7 @@ export async function POST(request: Request, { params }) {
 `standard-webhooks` for Standard Webhooks and Svix senders. The response is
 202 once the run resumes with the JSON body, 401 for a bad signature, and
 404 when no run waits on the token. Pass `seen` to refuse a replayed
-delivery (409), as for [inbound webhooks](/docs/blocks/webhooks-in).
+delivery (409), as for [inbound webhooks](/docs/blocks/incoming-webhooks).
 
 ### Hooks a run waits on
 

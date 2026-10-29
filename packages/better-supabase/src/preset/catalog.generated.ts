@@ -97,7 +97,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "idempotency",
       "title": "Idempotency keys",
-      "category": "developer",
+      "category": "automation",
       "requires": [],
       "integrates": [],
       "manifest": "idempotency"
@@ -105,7 +105,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "webhook-inbox",
       "title": "Webhook inbox",
-      "category": "developer",
+      "category": "automation",
       "requires": [],
       "integrates": [
         "data-lifecycle"
@@ -182,7 +182,7 @@ export const PRESET_CATALOG: PresetCatalog = {
     {
       "name": "rate-limit",
       "title": "Write rate limits",
-      "category": "developer",
+      "category": "automation",
       "requires": [],
       "integrates": [],
       "manifest": "rate-limit"
@@ -2896,6 +2896,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "approval": "approval_request_id",
               "message": "message",
+              "meaning": "meaning",
               "requestedBy": "requested_by",
               "createdAt": "created_at",
               "completedAt": "completed_at"
@@ -3140,7 +3141,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "audit",
         "notifications",
-        "inbox"
+        "inbox",
+        "relations"
       ],
       "manifest": "contacts",
       "scopes": [
@@ -4763,7 +4765,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "invoices",
         "bookings",
-        "contacts"
+        "contacts",
+        "relations"
       ],
       "manifest": "guests",
       "scopes": [
@@ -5686,6 +5689,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "description": "description",
               "owner": "owner_id",
               "applicable": "applicable",
+              "source": "source",
+              "jurisdiction": "jurisdiction",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -5697,6 +5702,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "tenant": "tenant_id",
               "key": "key",
               "name": "name",
+              "kind": "kind",
               "version": "version",
               "description": "description",
               "createdAt": "created_at",
@@ -5927,6 +5933,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "summary": "summary",
               "status": "status",
               "certificate": "issues_certificate",
+              "validForMonths": "valid_for_months",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
@@ -5973,6 +5980,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "user": "user_id",
               "code": "code",
               "issuedAt": "issued_at",
+              "expiresAt": "expires_at",
               "revokedAt": "revoked_at"
             }
           }
@@ -12186,6 +12194,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ControlFrameworkInput"
         },
         {
+          "name": "ControlFrameworkKind"
+        },
+        {
           "name": "ControlInput",
           "fields": true
         },
@@ -12247,6 +12258,16 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "minLength": 1,
                 "maxLength": 200
               },
+              "kind": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "standard",
+                  "legal",
+                  "internal",
+                  "contract"
+                ]
+              },
               "version": {
                 "kind": "string",
                 "optional": true,
@@ -12272,6 +12293,15 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 200
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "standard",
+                    "legal",
+                    "internal",
+                    "contract"
+                  ]
                 },
                 "version": {
                   "type": "string",
@@ -12324,6 +12354,18 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "uuid",
                 "optional": true
               },
+              "source": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "jurisdiction": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -12363,6 +12405,16 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "controlId": {
                   "type": "string",
                   "format": "uuid"
+                },
+                "source": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "jurisdiction": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
                 },
                 "fields": {
                   "description": "The extra columns, keyed by database name."
@@ -13024,6 +13076,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CourseCertificateEventData"
         },
         {
+          "name": "CourseCertificateIssuedEventData"
+        },
+        {
           "name": "CourseEventData"
         },
         {
@@ -13142,6 +13197,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "kind": "boolean",
                 "optional": true
               },
+              "validForMonths": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 1,
+                "maximum": 240
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -13184,6 +13246,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                 },
                 "certificate": {
                   "type": "boolean"
+                },
+                "validForMonths": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 240
                 },
                 "fields": {
                   "description": "The extra columns to set, keyed by database name."
@@ -15182,7 +15252,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "idempotency"
       ],
-      "category": "developer",
+      "category": "automation",
       "client": {
         "export": "idempotencyBlock",
         "subpath": "better-supabase/blocks/queue"
@@ -15230,7 +15300,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "rate-limit"
       ],
-      "category": "developer",
+      "category": "automation",
       "client": {
         "export": "rateLimitBlock",
         "subpath": "better-supabase/blocks/queue"
@@ -15243,7 +15313,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "sql": [
         "webhook-inbox"
       ],
-      "category": "developer",
+      "category": "automation",
       "client": {
         "export": "webhookInboxBlock",
         "subpath": "better-supabase/blocks/queue"
@@ -16390,7 +16460,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/oauth-server"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "OauthServerEvents",
+        "types": [
+          "oauth_client.registered",
+          "oauth_client.deleted",
+          "oauth_grant.created",
+          "oauth_grant.revoked"
+        ]
+      }
     },
     {
       "name": "onboarding",

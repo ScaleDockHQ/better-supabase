@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:a3ce290cc50ae7a506b00d255ca99adabaed11c2c710f7c146354e82f1856ac3
+-- @bsb-hash sha256:9e05ecce5fa9f7c039bdba30ccfa1eaaba594a1083a2752ac39a736806427978
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,6 +63,42 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_bsn"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[0-9]{9}$' or value = '000000000' then false
+    else (
+      select sum(substr(value, i, 1)::integer * case when i = 9 then -1 else 10 - i end)
+      from generate_series(1, 9) as i
+    ) % 11 = 0
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_bsn"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_bsn"(text) to authenticated, service_role;
+create or replace function "better_supabase"."bsb_valid_iban"(value text)
+returns boolean
+language sql
+immutable
+strict
+parallel safe
+set search_path = ''
+as $$
+  select case
+    when value !~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$' then false
+    else (
+      select string_agg(case when ascii(c.ch) between 65 and 90 then (ascii(c.ch) - 55)::text else c.ch end, '' order by c.n)
+      from regexp_split_to_table(substr(value, 5) || substr(value, 1, 4), '') with ordinality as c(ch, n)
+    )::numeric % 97 = 1
+  end
+$$;
+revoke execute on function "better_supabase"."bsb_valid_iban"(text) from public, anon;
+grant execute on function "better_supabase"."bsb_valid_iban"(text) to authenticated, service_role;
 -- A sensitive value is returned only when the caller holds the field's
 -- permission, or custom_fields.sensitive.read when the field names none.
 -- centrakit.field_definitions is the app's table: this block adds only the columns it needs.
@@ -146,6 +182,9 @@ begin
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', set_field_value.tenant, 'custom_fields.manage'), false)) then
     raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "centrakit"."field_definitions" d where d."id" = set_field_value.definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(set_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(set_field_value.value) when 'phone_e164' then set_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
   end if;
   insert into "centrakit"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)

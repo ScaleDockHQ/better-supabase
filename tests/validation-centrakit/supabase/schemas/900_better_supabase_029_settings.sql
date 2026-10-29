@@ -1,6 +1,6 @@
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:091511a70b5f883f41b0652899fef35da037c6147b77fede6609d687e7d858f3
+-- @bsb-hash sha256:62a7f28302011968c7db7414bb2667bd9bcc3862789e74df07ad7ab5cd7d7b2e
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -228,6 +228,20 @@ as $$
   select exists (select 1 from removed)
 $$;
 
+-- One organization setting for other modules' security definer functions,
+-- which decide who may see it. Returns null when the key is not set.
+create or replace function "better_supabase"."organization_setting"(tenant uuid, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s."value"
+  from "better_supabase"."organization_settings" s
+  where s."organization_id" = organization_setting.tenant and s."key" = organization_setting.key
+$$;
+
 create or replace function "better_supabase"."get_platform_settings"()
 returns jsonb
 language sql
@@ -283,6 +297,8 @@ grant execute on function "better_supabase"."reset_user_setting"(text) to authen
 grant execute on function "better_supabase"."get_organization_settings"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."set_organization_setting"(uuid, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."reset_organization_setting"(uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."organization_setting"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."organization_setting"(uuid, text) to service_role;
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.

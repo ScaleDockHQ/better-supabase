@@ -140,11 +140,14 @@ const REASON =
  */
 const ACTOR_ID = `coalesce(auth.uid(), nullif(nullif(current_setting('${ACTOR_SETTING}', true), '')::jsonb ->> 'id', '')::uuid)`;
 
-/** One field of the actor `transition()` passed, as SQL. */
-function actorField(field: string): string {
-  const value = `nullif(nullif(current_setting('${ACTOR_SETTING}', true), '')::jsonb ->> ${sqlString(field)}, '')`;
+/** One field of the actor `transition()` passed, as text SQL. */
+function actorText(field: string): string {
+  return `nullif(nullif(current_setting('${ACTOR_SETTING}', true), '')::jsonb ->> ${sqlString(field)}, '')`;
+}
 
-  return field === "ip" ? `${value}::inet` : value;
+/** One field of the actor `transition()` passed, as SQL of its column type. */
+function actorField(field: string): string {
+  return field === "ip" ? `${actorText(field)}::inet` : actorText(field);
 }
 
 /** The history columns and values a transition writes. */
@@ -172,7 +175,7 @@ function historyWrite(ctx: BlockSqlContext, item: Machine): string {
 
         return column === undefined
           ? []
-          : [[column, asColumnType(table, column, actorField(field))]];
+          : [[column, asColumnType(table, column, actorText(field))]];
       }),
     ];
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:c69a700f59a9f30980e51fb3cf3641ce86903858de7458b73cfeb013f985c8c9
+-- @bsb-hash sha256:4fa7fe41de3ec0b73b6743d9d7b9238221cc4f99c6dc23ed56b138e05f7d0a87
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -229,6 +229,20 @@ as $$
   select exists (select 1 from removed)
 $$;
 
+-- One organization setting for other modules' security definer functions,
+-- which decide who may see it. Returns null when the key is not set.
+create or replace function "better_supabase"."workspace_setting"(tenant uuid, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s."value"
+  from "better_supabase"."workspace_settings" s
+  where s."workspace_id" = workspace_setting.tenant and s."key" = workspace_setting.key
+$$;
+
 create or replace function "better_supabase"."get_platform_settings"()
 returns jsonb
 language sql
@@ -284,6 +298,8 @@ grant execute on function "better_supabase"."reset_user_setting"(text) to authen
 grant execute on function "better_supabase"."get_workspace_settings"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."set_workspace_setting"(uuid, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."reset_workspace_setting"(uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."workspace_setting"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."workspace_setting"(uuid, text) to service_role;
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.

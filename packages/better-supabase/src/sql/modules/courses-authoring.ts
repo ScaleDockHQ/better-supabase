@@ -39,10 +39,15 @@ export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
       },
     });
 
-  const certificateRecord = (type: string, row: string, summary: string) =>
+  const certificateRecord = (
+    type: string,
+    row: string,
+    summary: string,
+    extra = "",
+  ): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${row}.${q.k("tenant")}, 'id', ${row}.${q.k("id")}, 'courseId', ${row}.${q.k("course")}, 'userId', ${row}.${q.k("user")}, 'enrollmentId', ${row}.${q.k("enrollment")})`,
+      payload: `jsonb_build_object('organizationId', ${row}.${q.k("tenant")}, 'id', ${row}.${q.k("id")}, 'courseId', ${row}.${q.k("course")}, 'userId', ${row}.${q.k("user")}, 'enrollmentId', ${row}.${q.k("enrollment")}${extra})`,
       subject: `'course-certificates/' || ${row}.${q.k("id")}::text`,
       tenant: `${row}.${q.k("tenant")}`,
       audit: {
@@ -66,6 +71,8 @@ export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
       ? `, ${ctx.col(table, "updatedAt")} = now()`
       : "";
 
+  const expires = ctx.has("certificates", "expiresAt");
+
   const touchCourse = ctx.has("courses", "updatedAt")
     ? `\n  update ${q.courses} x set ${c("updatedAt")} = now() where x.${c("id")} = v_course.${c("id")};`
     : "";
@@ -78,6 +85,7 @@ export function courseAuthoringFunctions(ctx: BlockSqlContext): string {
       ["summary", "v_summary"],
       ["status", ctx.cast("courses", "status", "v_status")],
       ["certificate", "v_certificate"],
+      ["validForMonths", "v_valid_for"],
       ["createdBy", "auth.uid()"],
     ] as const
   ).filter(([column]) => ctx.has("courses", column));
@@ -151,7 +159,7 @@ declare
   v_enrollment record;
   v_certificate ${q.certificates};
 begin
-  select x.${e("id")} as id, x.${e("tenant")} as tenant, x.${e("status")} as status, x.${e("user")} as learner, y.${c("id")} as course, ${field("courses", "y", "certificate", "true")} as certifies
+  select x.${e("id")} as id, x.${e("tenant")} as tenant, x.${e("status")} as status, x.${e("user")} as learner, y.${c("id")} as course, ${field("courses", "y", "certificate", "true")} as certifies, ${field("courses", "y", "validForMonths")}::integer as valid_for
   into v_enrollment
   from ${q.enrollments} x join ${q.courses} y on ${q.program(`y.${c("id")}`)} = x.${e("program")}
   where x.${e("id")} = course_finish.enrollment_id;
@@ -162,12 +170,12 @@ begin
     ${q.learnerRecord("course.completed", "completed a course")}
   end if;
   if v_enrollment.certifies then
-    insert into ${q.certificates} (${q.k("tenant")}, ${q.k("course")}, ${q.k("enrollment")}, ${q.k("user")}, ${q.k("code")})
-    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex'))
+    insert into ${q.certificates} (${q.k("tenant")}, ${q.k("course")}, ${q.k("enrollment")}, ${q.k("user")}, ${q.k("code")}${expires ? `, ${q.k("expiresAt")}` : ""})
+    values (v_enrollment.tenant, v_enrollment.course, v_enrollment.id, v_enrollment.learner, encode(extensions.gen_random_bytes(16), 'hex')${expires ? ", now() + make_interval(months => v_enrollment.valid_for)" : ""})
     on conflict ${q.certificateTarget} do nothing
     returning * into v_certificate;
     if v_certificate.${q.k("id")} is not null then
-      ${certificateRecord("course_certificate.issued", "v_certificate", "issued a course certificate")}
+      ${certificateRecord("course_certificate.issued", "v_certificate", "issued a course certificate", `, 'expiresAt', ${field("certificates", "v_certificate", "expiresAt")}`)}
     end if;
   end if;
 end;
@@ -206,7 +214,8 @@ $$;
 revoke execute on function ${fn("course_sync")}(uuid) from public, anon, authenticated;
 
 -- Creates or changes a course. course is { id?, key, title, summary, status,
--- certificate, fields }; keys left out keep their value.
+-- certificate, validForMonths, fields }; keys left out keep their value.
+-- validForMonths is how long a certificate stays valid; null never expires.
 create or replace function ${fn("save_course")}(tenant ${idType}, course jsonb)
 returns jsonb
 language plpgsql
@@ -223,6 +232,7 @@ declare
   v_summary text;
   v_status text;
   v_certificate boolean;
+  v_valid_for integer;
 begin
   if not ${q.allowed("save_course.tenant", q.manage)} then
     ${q.forbidden("not allowed to manage courses")}
@@ -242,6 +252,18 @@ begin
   v_summary := case when save_course.course ? 'summary' then nullif(trim(save_course.course ->> 'summary'), '') else ${field("courses", "v_old", "summary")} end;
   v_status := coalesce(save_course.course ->> 'status', v_old.${c("status")}, 'draft');
   v_certificate := case when save_course.course ? 'certificate' then (save_course.course ->> 'certificate')::boolean else coalesce(${field("courses", "v_old", "certificate")}, true) end;
+  v_valid_for := ${field("courses", "v_old", "validForMonths")};
+  if save_course.course ? 'validForMonths' then
+    if jsonb_typeof(save_course.course -> 'validForMonths') = 'null' then
+      v_valid_for := null;
+    elsif jsonb_typeof(save_course.course -> 'validForMonths') <> 'number'
+      or (save_course.course ->> 'validForMonths')::numeric % 1 <> 0
+      or (save_course.course ->> 'validForMonths')::numeric not between 1 and 240 then
+      ${q.invalid("validForMonths must be a whole number of months from 1 to 240, or null")}
+    else
+      v_valid_for := (save_course.course ->> 'validForMonths')::integer;
+    end if;
+  end if;
   if v_key is null or v_key !~ '^[a-z][a-z0-9-]{0,62}$' then
     ${q.invalid('key: use lowercase letters, digits or "-", starting with a letter')}
   end if;
@@ -265,7 +287,7 @@ begin
   else
     begin
       update ${q.courses} x
-      set ${c("key")} = v_key, ${c("title")} = v_title,${ctx.has("courses", "summary") ? ` ${c("summary")} = v_summary,` : ""} ${c("status")} = ${ctx.cast("courses", "status", "v_status")}${ctx.has("courses", "certificate") ? `,\n        ${c("certificate")} = v_certificate` : ""}${touched("courses")}
+      set ${c("key")} = v_key, ${c("title")} = v_title,${ctx.has("courses", "summary") ? ` ${c("summary")} = v_summary,` : ""} ${c("status")} = ${ctx.cast("courses", "status", "v_status")}${ctx.has("courses", "certificate") ? `,\n        ${c("certificate")} = v_certificate` : ""}${ctx.has("courses", "validForMonths") ? `,\n        ${c("validForMonths")} = v_valid_for` : ""}${touched("courses")}
       where x.${c("id")} = v_old.${c("id")}
       returning * into v_row;
     exception when unique_violation then

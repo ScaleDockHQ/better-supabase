@@ -5,7 +5,7 @@ import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { optionalField } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
-/** The policy and acknowledgement functions of the `controls` module. */
+/** The policy and acknowledgement functions of the `compliance` module. */
 export function policyFunctions(ctx: BlockSqlContext): string {
   const policies = ctx.table("policies");
   const acks = ctx.table("acknowledgements");

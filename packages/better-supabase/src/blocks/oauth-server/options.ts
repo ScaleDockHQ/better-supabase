@@ -3,7 +3,7 @@ import type { BlockOptionsSchema } from "../options.ts";
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.oauth-server.options`. */
-export type OAuthServerSqlOptions = {
+export type OauthServerSqlOptions = {
   /**
    * The pattern a client id must match: a regular expression, or `"slug"` for
    * lower-case slugs such as `acme-cli`. The default accepts the 22-character
@@ -12,5 +12,5 @@ export type OAuthServerSqlOptions = {
   readonly clientIdPattern?: string;
 };
 
-export const oauthServerSqlOptions: BlockOptionsSchema<OAuthServerSqlOptions> =
-  blockOptions<OAuthServerSqlOptions>({ clientIdPattern: option.string() });
+export const oauthServerSqlOptions: BlockOptionsSchema<OauthServerSqlOptions> =
+  blockOptions<OauthServerSqlOptions>({ clientIdPattern: option.string() });

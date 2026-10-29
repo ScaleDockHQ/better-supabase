@@ -101,6 +101,16 @@ function dayAfter(days: number): string {
   return `${String(date.getUTCFullYear())}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 
+/** Numbers that pass the elfproef, for a `bsn` column. */
+const SAMPLE_BSNS = ["111222333", "123456782", "100000009"];
+
+/** Example IBANs that pass the ISO 13616 check, for an `iban` column. */
+const SAMPLE_IBANS = [
+  "NL91ABNA0417164300",
+  "DE89370400440532013000",
+  "GB82WEST12345698765432",
+];
+
 function numberIn(column: AppColumn, index: number, step: number): number {
   const min = column.min ?? 0;
   const value = min + index * step;
@@ -130,6 +140,18 @@ function formatted(
 
     case "phone": {
       return `+1 555 01${pad(index + 10)}`;
+    }
+
+    case "phone_e164": {
+      return `+3120555${pad(index + 10)}`;
+    }
+
+    case "bsn": {
+      return SAMPLE_BSNS[index % SAMPLE_BSNS.length] ?? "111222333";
+    }
+
+    case "iban": {
+      return SAMPLE_IBANS[index % SAMPLE_IBANS.length] ?? "NL91ABNA0417164300";
     }
 
     case "long_text": {

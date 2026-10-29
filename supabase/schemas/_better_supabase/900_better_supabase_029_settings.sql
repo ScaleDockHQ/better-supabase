@@ -1,6 +1,6 @@
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:2cb8b2a37756bdc02c5660158bd884528e2e9e6619eb7550f775b200f8efc119
+-- @bsb-hash sha256:5a96b39f4caee9a5ec240578697ca421221f4fca71d4632fd1af9e305343cdec
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -228,6 +228,20 @@ as $$
   select exists (select 1 from removed)
 $$;
 
+-- One organization setting for other modules' security definer functions,
+-- which decide who may see it. Returns null when the key is not set.
+create or replace function "better_supabase"."organization_setting"(tenant uuid, key text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select s."value"
+  from "better_supabase"."organization_settings" s
+  where s."organization_id" = organization_setting.tenant and s."key" = organization_setting.key
+$$;
+
 create or replace function "better_supabase"."get_platform_settings"()
 returns jsonb
 language sql
@@ -283,6 +297,8 @@ grant execute on function "better_supabase"."reset_user_setting"(text) to authen
 grant execute on function "better_supabase"."get_organization_settings"(uuid) to authenticated, service_role;
 grant execute on function "better_supabase"."set_organization_setting"(uuid, text, jsonb) to authenticated, service_role;
 grant execute on function "better_supabase"."reset_organization_setting"(uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."organization_setting"(uuid, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."organization_setting"(uuid, text) to service_role;
 
 -- Records organization and platform setting changes; user settings are not
 -- recorded.
@@ -514,6 +530,15 @@ set search_path = ''
 as $$ select "better_supabase"."reset_organization_setting"($1, $2) $$;
 revoke execute on function "api"."reset_organization_setting"(uuid, text) from public, anon;
 grant execute on function "api"."reset_organization_setting"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."organization_setting"(tenant uuid, key text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."organization_setting"($1, $2) $$;
+revoke execute on function "api"."organization_setting"(uuid, text) from public, anon, authenticated;
+grant execute on function "api"."organization_setting"(uuid, text) to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

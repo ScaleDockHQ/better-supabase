@@ -229,11 +229,14 @@
                     "email",
                     "url",
                     "phone",
+                    "phone_e164",
                     "long_text",
                     "color",
                     "rating",
                     "percent",
-                    "currency"
+                    "currency",
+                    "bsn",
+                    "iban"
                   ],
                   "type": "string"
                 },
@@ -260,6 +263,9 @@
                   "type": "string"
                 },
                 "encrypted": {
+                  "type": "boolean"
+                },
+                "lookup": {
                   "type": "boolean"
                 }
               },

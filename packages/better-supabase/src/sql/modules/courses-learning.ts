@@ -132,7 +132,13 @@ export function courseLearningFunctions(ctx: BlockSqlContext): string {
     `jsonb_build_object('lessonId', ${row}.${p("lesson")}, 'startedAt', ${field("progress", row, "startedAt")}, 'completedAt', ${row}.${p("completedAt")}, 'attempts', ${row}.${p("attempts")}, 'submissionId', ${field("progress", row, "submission")}, 'score', ${field("progress", row, "score")}, 'maxScore', ${field("progress", row, "maxScore")}, 'passed', ${field("progress", row, "passed")})`;
 
   const certificateJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${k("id")}, 'courseId', ${row}.${k("course")}, 'userId', ${row}.${k("user")}, 'code', ${row}.${k("code")}, 'issuedAt', ${field("certificates", row, "issuedAt")}, 'revokedAt', ${row}.${k("revokedAt")})`;
+    `jsonb_build_object('id', ${row}.${k("id")}, 'courseId', ${row}.${k("course")}, 'userId', ${row}.${k("user")}, 'code', ${row}.${k("code")}, 'issuedAt', ${field("certificates", row, "issuedAt")}, 'expiresAt', ${field("certificates", row, "expiresAt")}, 'revokedAt', ${row}.${k("revokedAt")})`;
+
+  const expiresAt = field("certificates", "z", "expiresAt");
+
+  const expired = ctx.has("certificates", "expiresAt")
+    ? `coalesce(${expiresAt} <= now(), false)`
+    : "false";
 
   const enrollmentOf = (course: string, user: string): string =>
     `select * into v_row from ${q.enrollments} x
@@ -520,8 +526,8 @@ $$;
 ${userGrant(`${fn("list_course_learners")}(uuid, text, integer, timestamptz)`)}
 
 -- Checks a certificate by the code its link carries. Anyone with the code
--- learns the course, when it was issued and whether it was revoked; null for
--- an unknown code.
+-- learns the course, when it was issued, when it expires and whether it was
+-- revoked; null for an unknown code. An expired certificate is not valid.
 create or replace function ${fn("verify_course_certificate")}(code text)
 returns jsonb
 language sql
@@ -530,7 +536,8 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', z.${k("id")}, 'courseId', z.${k("course")}, 'courseTitle', y.${c("title")}, 'organizationId', z.${k("tenant")},
-    'issuedAt', ${field("certificates", "z", "issuedAt")}, 'revokedAt', z.${k("revokedAt")}, 'valid', z.${k("revokedAt")} is null)
+    'issuedAt', ${field("certificates", "z", "issuedAt")}, 'expiresAt', ${expiresAt}, 'revokedAt', z.${k("revokedAt")},
+    'expired', ${expired}, 'valid', z.${k("revokedAt")} is null and not ${expired})
   from ${q.certificates} z join ${q.courses} y on y.${c("id")} = z.${k("course")}
   where z.${k("code")} = lower(verify_course_certificate.code)
 $$;

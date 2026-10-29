@@ -771,11 +771,13 @@ ${userGrant(`${fn("issue_invoice")}(uuid, date, date, jsonb)`)}
 -- currency as a ledger transaction from the invoice's receivable account to
 -- cash. A reference, such as a bank or payment provider id, is unique per
 -- organization, so recording the same payment twice adds it once. actor:
--- who recorded it, for the state machine's history.
+-- who recorded it, and reason: why the status changes, for the state
+-- machine's history.
 drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, timestamptz, text, text);
 drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text);
 drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text);
-create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null)
+drop function if exists ${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+create or replace function ${fn("record_invoice_payment")}(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -817,7 +819,9 @@ begin
     ["bigint", "record_invoice_payment.amount"],
   ])}
   v_was := v_row.${i("status")};
+  ${transitionReasonSql("record_invoice_payment.reason")}
   v_payment := ${ledger.post("v_row", "record_invoice_payment.amount", "coalesce(record_invoice_payment.paid_at, now())", "record_invoice_payment.method", "v_reference", "nullif(trim(record_invoice_payment.note), '')")};${settle("v_row", afterWriteOff)}
+  ${transitionReasonSql()}
   ${record("invoice.payment_recorded", "v_row", `, 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', ${balance("v_row")}::text`)}
   if ${st(`v_row.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} then
     ${record("invoice.paid", "v_row", `, 'total', v_row.${i("total")}::text`)}
@@ -829,7 +833,7 @@ begin
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text, jsonb)`)}
+${userGrant(`${fn("record_invoice_payment")}(uuid, bigint, text, timestamptz, text, text, text, jsonb, text)`)}
 
 create or replace function ${fn("list_invoice_payments")}(invoice uuid)
 returns jsonb

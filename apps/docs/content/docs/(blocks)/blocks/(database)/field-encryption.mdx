@@ -36,17 +36,65 @@ of its owner and is never rotated in place.
 | --------------------------------------- | ---------------------- | ------------------------------------------------------- |
 | `field_encrypt(owner, value)`           | service role           | Encrypts a value with the owner's key, creating the key |
 | `field_decrypt(owner, value)`           | service role           | Decrypts a value; `null` when the key was dropped       |
-| `drop_field_key(owner)`                 | service role           | Deletes the owner's key, which shreds every value       |
+| `field_lookup(owner, value)`            | service role           | The lookup hash of a value under the owner's lookup key |
+| `drop_field_key(owner)`                 | service role           | Deletes the owner's keys, which shreds every value      |
 | `field_key`, `field_seal`, `field_open` | nobody through the API | The helpers the definer functions call                  |
+| `field_lookup_key`, `field_hash`        | nobody through the API | The lookup helpers the definer functions call           |
 
 Signed-in users can't call any of them. They read plaintext only through the
 definer functions of the table or block that owns the value, which check the
 caller's scope first.
 
+## Searching encrypted values
+
+Add `lookup: true` to an encrypted column to find rows by an equal value
+without decrypting them. The column gets a `<column>_lookup bytea` column and
+an index on it. The seal trigger fills it with an HMAC-SHA256 of the value,
+lowercased and without whitespace, under a second key of the owner:
+`bs:field-lookup-key:<owner>` in Vault, next to the data key. The hash is
+written before the value is sealed, again with the new owner's key when a row
+moves, and from the stored value when the hash is missing or was written by
+hand.
+
+```ts title="better-supabase.config.ts"
+tables: {
+  patients: {
+    columns: {
+      bsn: { type: "text", format: "bsn", encrypted: true, lookup: true },
+    },
+  },
+},
+```
+
+In a declarative schema, tag the column with `@bsb lookup bsn` next to
+`@bsb encrypted bsn`. Then call `public.<table>_find(column, value)`. It
+returns the ids of the rows the caller reaches whose lookup matches, hashing
+the value once for each tenant the caller is a member of (each owner in the
+table, for the service role):
+
+```ts
+const { data } = await supabase.rpc("patients_find", {
+  lookup_column: "bsn",
+  value: "111222333",
+});
+```
+
+From server code with the service role, compare the column with
+`better_supabase.field_lookup('tenant:<id>', value)` in your own query. Pass
+the value as Postgres prints the column type, since that is what the trigger
+hashes.
+
+A lookup matches equal values only, ignoring case and whitespace; it finds no
+prefix or range. Within one owner, rows with the same value have the same
+hash, so anyone who can select the lookup column sees which rows are equal,
+though not the value. Rows written before you set `lookup` have no hash:
+`update <table> set <column> = <column>` fills it.
+
 ## Shredding
 
-`drop_field_key('tenant:<id>')` deletes the tenant's key from Vault. Every
-value sealed under it then reads as `null`, in the database and in every
+`drop_field_key('tenant:<id>')` deletes the tenant's data key and lookup key
+from Vault. Every value sealed under it then reads as `null` and no lookup
+finds it, in the database and in every
 backup taken after the key's Vault row is gone, so dropping the key is how
 you erase a tenant's encrypted data without rewriting rows. It records a
 `field_key.dropped` event and a `security` audit entry with the owner, never
@@ -54,13 +102,14 @@ the key.
 
 ## Limits
 
-- There is no searchable equality. The database only sees ciphertext, so an
-  encrypted column can't be part of a unique key, an index, a reference, a
-  search column, a subject title or URL, a rollup or a lookup.
-  Search and compare the values after `reveal` in server code, or keep a
-  separate non-sensitive column for lookups.
+- The database only sees ciphertext, so an encrypted column can't be part of
+  a unique key, an index, a reference, a search column, a subject title or
+  URL, a rollup or a lookup. Equal values are found through `lookup` (see
+  [Searching encrypted values](#searching-encrypted-values)); for anything
+  else, compare the values after `reveal` in server code.
 - `text[]` columns, identities and references can't be encrypted. A custom
-  field can be encrypted when its type is `text`, `email` or `url`.
+  field can be encrypted when its type is `text`, `email`, `url`, `bsn`,
+  `iban` or `phone_e164`. Custom fields have no lookup column.
 - A [data export](/docs/blocks/data-lifecycle) copies the stored ciphertext.
   Reveal the values in server code before you hand an export to a person.
 - The `inline` custom fields layout keeps values on an adopted table and is

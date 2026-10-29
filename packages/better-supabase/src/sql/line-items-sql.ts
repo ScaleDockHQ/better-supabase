@@ -5,6 +5,7 @@ import type {
 } from "./context.ts";
 
 import { sqlIdent, sqlString } from "../core/template.ts";
+import { asColumnType } from "./column-type.ts";
 import {
   addExtraColumns,
   extraFieldsJson,
@@ -367,9 +368,11 @@ export function lineItemsSql(
       column,
       column === "productType"
         ? ctx.cast(items.lines, column, value)
-        : RATE_COLUMNS.has(column) && percentRates(ctx, items.lines)
-          ? `(${value} / 100.0)`
-          : value,
+        : column === "productId" && !replaces
+          ? asColumnType(t, ctx.colName(items.lines, column), value)
+          : RATE_COLUMNS.has(column) && percentRates(ctx, items.lines)
+            ? `(${value} / 100.0)`
+            : value,
     ]);
 
   const extras = items.extras ?? [];

@@ -964,3 +964,59 @@ describe("appTables encrypted columns", () => {
     ).toThrow("auditReads needs the audit block");
   });
 });
+
+describe("appTables encrypted lookups and identifier formats", () => {
+  const LOOKUP: AppTablesConfig = {
+    patients: {
+      columns: {
+        bsn: { type: "text", format: "bsn", encrypted: true, lookup: true },
+        email: { type: "text", format: "email", encrypted: true, lookup: true },
+        iban: { type: "text", format: "iban" },
+        phone: { type: "text", format: "phone_e164" },
+        born_on: { type: "date", encrypted: true, lookup: true },
+      },
+    },
+    keys: {
+      scope: "none",
+      columns: { token: { type: "text", encrypted: true, lookup: true } },
+    },
+  };
+
+  it("hashes a lookup column in the seal trigger and finds rows by it", async () => {
+    const files = render([...BLOCKS, "field-encryption"], {
+      appTables: LOOKUP,
+    });
+
+    const schema = files.find((file) => file.kind === "schema")?.contents;
+
+    expect(schema).toContain('add column if not exists "bsn_lookup" bytea;');
+    expect(schema).toContain('"patients_bsn_lookup_idx"');
+    expect(schema).toContain(
+      'new."bsn_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."bsn");',
+    );
+    expect(schema).toContain(
+      'create or replace function "public"."patients_find"(lookup_column text, value text)',
+    );
+    expect(schema).toContain("((patients_find.value)::date)::text");
+    expect(schema).toContain(
+      'create or replace function "public"."bsb_valid_bsn"(value text)',
+    );
+    expect(schema).toContain('check ("public"."bsb_valid_iban"("iban"))');
+    expect(schema).toContain('if not ("public"."bsb_valid_bsn"(new."bsn"))');
+    expect(schema).toContain(String.raw`"phone" ~* '^\+[1-9][0-9]{1,14}$'`);
+
+    await expect(golden(files)).toMatchFileSnapshot(
+      "__golden__/app-tables/lookup.sql",
+    );
+  });
+
+  it("renders no validator when no column needs one", () => {
+    const files = render(BLOCKS, {
+      appTables: { notes: { columns: { body: { type: "text" } } } },
+    });
+
+    expect(
+      files.find((file) => file.kind === "schema")?.contents,
+    ).not.toContain("bsb_valid_");
+  });
+});

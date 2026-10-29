@@ -52,6 +52,11 @@ export const SPEC_PINS: {
    */
   readonly iso4217: "2026-09-17";
   /**
+   * ISO 13616-1 edition behind the `iban` column and custom field format: the
+   * electronic form and the mod 97 check digits.
+   */
+  readonly iso13616: "2020";
+  /**
    * RFC 6902 JSON Patch that the versions block's `createPatch` writes and
    * `applyPatch` applies.
    */
@@ -158,6 +163,7 @@ export const SPEC_PINS: {
   rfc5545: "2009-09",
   rfc4180: "2005-10",
   iso4217: "2026-09-17",
+  iso13616: "2020",
   rfc6902: "2013-04",
   rfc9396: "2023-05",
   rfc9864: "2025-10",

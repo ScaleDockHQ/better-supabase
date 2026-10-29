@@ -5,6 +5,7 @@ import type {
 import type { BlockSqlContext } from "../context.ts";
 
 import { encryptedColumns } from "../../config/app-access.ts";
+import { lookupColumn } from "../../config/app-encryption.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
 import { FIELD_CIPHER_PREFIX, fieldKeyOwner } from "./field-encryption.ts";
@@ -32,6 +33,21 @@ const qualified = (table: string): string =>
 
 /** The reveal function of `table`, quoted. */
 const revealFunction = (table: string): string => qualified(`${table}_reveal`);
+
+/** The find function of `table`, quoted. */
+const findFunction = (table: string): string => qualified(`${table}_find`);
+
+/** The encrypted columns of `config` that keep a lookup hash. */
+export function lookupColumns(config: AppTableConfig): readonly string[] {
+  return encryptedColumns(config).filter(
+    (name) => config.columns?.[name]?.lookup === true,
+  );
+}
+
+/** The plaintext `value` as the column type prints it, as the trigger hashes it. */
+function normalized(column: AppColumnConfig, value: string): string {
+  return column.type === "text" ? value : `((${value})::${column.type})::text`;
+}
 
 /** The SQL type of the table's id. */
 const idType = (config: AppTableConfig): string =>
@@ -112,10 +128,15 @@ export function sealSql(
   const prefix = sqlString(FIELD_CIPHER_PREFIX);
   const width = String(FIELD_CIPHER_PREFIX.length);
 
+  const lookupKey = encryption.fn("field_lookup_key");
+  const hash = encryption.fn("field_hash");
+  const lookups = new Set(lookupColumns(table.config));
+
   const branch = (name: string): string => {
     const column = table.config.columns?.[name] ?? { type: "text" };
     const value = `new.${sqlIdent(name)}`;
     const conditions = plainChecks(column, checks, value);
+    const lookup = lookups.has(name) ? sqlIdent(lookupColumn(name)) : undefined;
 
     const normalize =
       column.type === "text"
@@ -132,18 +153,40 @@ export function sealSql(
 
     const fresh = `case when tg_op = 'INSERT' then true else ${value} is distinct from old.${sqlIdent(name)} end`;
 
-    return `  if ${value} is not null and (${fresh} or left(${value}, ${width}) <> ${prefix}) then${normalize}${check}
+    const hashed = (plain: string): string =>
+      `\n    v_lookup_key := coalesce(v_lookup_key, ${lookupKey}(v_owner, true));\n    new.${lookup ?? ""} := ${hash}(v_lookup_key, ${plain});`;
+
+    if (lookup === undefined) {
+      return `  if ${value} is not null and (${fresh} or left(${value}, ${width}) <> ${prefix}) then${normalize}${check}
     v_key := coalesce(v_key, ${key}(v_owner, true));
     ${value} := ${seal}(v_key, ${value});
   elsif ${value} is not null and v_moved then
     v_key := coalesce(v_key, ${key}(v_owner, true));
     ${value} := ${seal}(v_key, ${open}(${key}(v_old_owner, false), ${value}));
   end if;`;
+    }
+
+    // The lookup hash follows the value: it is hashed before the value is
+    // sealed, again with the new owner's key on a move, and from the stored
+    // value when it is missing or was written by hand.
+    return `  if ${value} is not null and (${fresh} or left(${value}, ${width}) <> ${prefix}) then${normalize}${check}${hashed(value)}
+    v_key := coalesce(v_key, ${key}(v_owner, true));
+    ${value} := ${seal}(v_key, ${value});
+  elsif ${value} is not null and v_moved then
+    v_plain := ${open}(${key}(v_old_owner, false), ${value});${hashed("v_plain")}
+    v_key := coalesce(v_key, ${key}(v_owner, true));
+    ${value} := ${seal}(v_key, v_plain);
+  elsif ${value} is null then
+    new.${lookup} := null;
+  elsif new.${lookup} is null or (tg_op = 'UPDATE' and new.${lookup} is distinct from old.${lookup}) then${hashed(`${open}(${key}(v_owner, false), ${value})`)}
+  end if;`;
   };
 
-  const watched = [...(table.scope ? [table.scope.name] : []), ...columns].map(
-    (column) => sqlIdent(column),
-  );
+  const watched = [
+    ...(table.scope ? [table.scope.name] : []),
+    ...columns,
+    ...[...lookups].map((name) => lookupColumn(name)),
+  ].map((column) => sqlIdent(column));
 
   return `-- Encrypts ${columns.join(", ")} with the row's data key before the row is written.
 create or replace function ${fn}()
@@ -156,7 +199,7 @@ declare
   v_owner text := ${ownerOf(table, "new")};
   v_old_owner text;
   v_moved boolean := false;
-  v_key text;
+  v_key text;${lookups.size === 0 ? "" : "\n  v_lookup_key text;\n  v_plain text;"}
 begin
   if tg_op = 'UPDATE' then
     v_old_owner := ${ownerOf(table, "old")};
@@ -264,6 +307,105 @@ as $$
 $$;
 revoke execute on function ${wrapper}(${id}[]) from public, anon;
 grant execute on function ${wrapper}(${id}[]) to authenticated, service_role;`;
+}
+
+/**
+ * `public.<table>_find(lookup_column, value)`: the ids of the rows the caller
+ * reaches whose lookup column holds the hash of `value`. It hashes `value` once
+ * per owner the caller can reach: the tenants they are a member of, or
+ * themselves, and for the service role every owner in the table. Like
+ * `<table>_reveal`, a `security invoker` wrapper in `public` calls the definer
+ * function in `better_supabase`.
+ */
+export function findSql(table: SealTable): string {
+  const columns = lookupColumns(table.config);
+
+  if (columns.length === 0) {
+    return "";
+  }
+
+  const { ctx } = table;
+  const encryption = ctx.of("field-encryption");
+  const fn = ctx.fn(`${table.name}_find`);
+  const name = ctx.fnName(`${table.name}_find`);
+  const wrapper = findFunction(table.name);
+  const id = idType(table.config);
+  const target = qualified(table.name);
+  const scope = table.scope;
+
+  const reach = [
+    table.own,
+    ...(table.sessionPolicy
+      ? ["(select better_supabase.session_active())"]
+      : []),
+  ].join(" and ");
+
+  const kind = ctx.scope.kind === "user" ? "user" : "tenant";
+
+  const owners =
+    scope === undefined
+      ? `select ${fieldKeyOwner("none", "")} as bsb_owner`
+      : `select distinct ${fieldKeyOwner(kind, "o.id")} as bsb_owner
+        from (
+          select t.${sqlIdent(scope.name)} as id from ${target} t where v_service
+          union all
+          select m.id from ${ctx.scope.members()} as m(id) where not v_service
+        ) o
+        where o.id is not null`;
+
+  const branches = columns.map((column, index) => {
+    const config = table.config.columns?.[column] ?? { type: "text" };
+
+    return `  ${index === 0 ? "if" : "elsif"} ${name}.lookup_column = ${sqlString(column)} then
+    return query
+      with k as materialized (
+        select w.bsb_owner, ${encryption.fn("field_hash")}(${encryption.fn("field_lookup_key")}(w.bsb_owner, false), ${normalized(config, `${name}.value`)}) as bsb_hash
+        from (${owners}) w
+      )
+      select t.id
+      from ${target} t
+      join k on k.bsb_hash = t.${sqlIdent(lookupColumn(column))} and k.bsb_owner = ${ownerOf(table, "t")}
+      where v_service or (${reach});`;
+  });
+
+  return `-- Finds the rows whose ${columns.join(", ")} equal a value, by their lookup hash, as the table's policies allow.
+create or replace function ${fn}(lookup_column text, value text)
+returns table (id ${id})
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_service boolean := ${SERVICE_CALLER};
+begin
+  if (select auth.uid()) is null and not v_service then
+    ${fail("APP_FIND_FORBIDDEN", `only signed-in users and the service role find ${table.name}`)}
+  end if;
+  if ${name}.value is null then
+    return;
+  end if;
+${branches.join("\n")}
+  else
+    ${fail("APP_FIND_COLUMN", `${table.name} keeps a lookup for ${columns.join(", ")} only`, "22023")}
+  end if;
+end;
+$$;
+revoke execute on function ${fn}(text, text) from public, anon;
+grant execute on function ${fn}(text, text) to authenticated, service_role;
+-- The API entry point for ${fn}; the definer function stays out of the exposed schemas.
+create or replace function ${wrapper}(lookup_column text, value text)
+returns table (id ${id})
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select * from ${fn}(lookup_column, value);
+$$;
+revoke execute on function ${wrapper}(text, text) from public, anon;
+grant execute on function ${wrapper}(text, text) to authenticated, service_role;`;
 }
 
 /** The audit entries of one reveal call: one per tenant, naming its rows. */

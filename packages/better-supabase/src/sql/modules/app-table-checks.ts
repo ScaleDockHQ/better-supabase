@@ -2,6 +2,16 @@ import type { AppColumnConfig } from "../../config/types/app-tables.ts";
 
 import { FIELD_FORMATS } from "../../core/contracts/field-formats.ts";
 import { sqlString } from "../../core/template.ts";
+import { formatConditions } from "../format-checks.ts";
+
+/** A value of each checked text format that passes its check. */
+const TEXT_SAMPLES: Partial<Record<string, string>> = {
+  email: "'test@example.com'",
+  url: "'https://example.com'",
+  phone_e164: "'+31201234567'",
+  bsn: "'111222333'",
+  iban: "'NL91ABNA0417164300'",
+};
 
 /**
  * The conditions of a column's check on the `ident` expression: its format,
@@ -19,8 +29,8 @@ export function constraintChecks(
       ? undefined
       : FIELD_FORMATS[column.format];
 
-  if (format?.pattern !== undefined) {
-    conditions.push(`${ident} ~* ${sqlString(format.pattern)}`);
+  if (format !== undefined && column.format !== undefined) {
+    conditions.push(...formatConditions(column.format, ident, "public"));
   }
 
   if (column.options !== undefined) {
@@ -84,12 +94,11 @@ export function sampleValue(
 
   switch (column.type) {
     case "text": {
-      if (column.format === "email") {
-        return "'test@example.com'";
-      }
+      const sample =
+        column.format === undefined ? undefined : TEXT_SAMPLES[column.format];
 
-      if (column.format === "url") {
-        return "'https://example.com'";
+      if (sample !== undefined) {
+        return sample;
       }
 
       return `repeat('x', ${String(Math.max(low ?? 1, 1))})`;

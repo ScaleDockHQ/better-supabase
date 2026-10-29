@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:303e3327c563765f8beeca25ef6ad11472d2b405ae671e0fc6a7b86159043b19
+-- @bsb-hash sha256:7e54a557a735ac6a7baaf032363b6bdb23abc94fab45cc195387cbcb983441c7
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,10 +76,13 @@ create table if not exists "better_supabase"."signature_requests" (
   "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'declined', 'cancelled')),
   "approval_request_id" uuid,
   "message" text check ("message" is null or length("message") <= 2000),
+  "meaning" text,
   "requested_by" uuid,
   "created_at" timestamptz not null default now(),
   "completed_at" timestamptz
 );
+-- What signing means (blocks.signatures.options.meanings), such as approved.
+alter table "better_supabase"."signature_requests" add column if not exists "meaning" text;
 create index if not exists "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
 create index if not exists "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
 create index if not exists "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
@@ -119,10 +122,13 @@ create policy signatures_read on "better_supabase"."signatures"
 
 -- Asks members to sign one version of a record. The version is frozen, so
 -- retention and delete_version keep it; without one, the record's columns
--- are snapshotted first. fields: the extra columns
+-- are snapshotted first. meaning says what signing means, one of
+-- blocks.signatures.options.meanings. fields: the extra columns
 -- (blocks.signatures.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text);
 drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, jsonb);
-create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null)
+drop function if exists "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text, jsonb);
+create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -139,6 +145,9 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', create_signature_request.tenant, 'signatures.request'), false) and true)) then
     raise exception 'not allowed to request signatures on this record' using errcode = '42501', hint = 'SIGNATURE_FORBIDDEN';
+  end if;
+  if create_signature_request.meaning is not null and create_signature_request.meaning not in ('authored', 'reviewed', 'approved', 'released', 'acknowledged') then
+    raise exception 'meaning must be one of authored, reviewed, approved, released, acknowledged' using errcode = '22023', hint = 'SIGNATURE_REQUEST_MEANING_UNKNOWN';
   end if;
   if create_signature_request.sign_order not in ('parallel', 'sequential') then
     raise exception 'sign_order must be parallel or sequential' using errcode = '22023', hint = 'SIGNATURE_ORDER_INVALID';
@@ -181,8 +190,8 @@ begin
     end if;
   end;
   update "better_supabase"."versions" x set "frozen" = true where x."id" = v_version and not x."frozen";
-  insert into "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id", "version_id", "content_hash", "signers", "sign_order", "approval_request_id", "message", "requested_by")
-  values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), ''), auth.uid())
+  insert into "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id", "version_id", "content_hash", "signers", "sign_order", "approval_request_id", "message", "meaning", "requested_by")
+  values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), ''), create_signature_request.meaning, auth.uid())
   returning * into v_row;
   null;
   declare
@@ -193,11 +202,11 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'versionId', v_row."version_id", 'contentHash', v_row."content_hash", 'signers', to_jsonb(v_row."signers"), 'order', v_row."sign_order", 'status', v_row."status", 'approvalRequestId', v_row."approval_request_id", 'message', v_row."message", 'requestedBy', v_row."requested_by", 'createdAt', v_row."created_at", 'completedAt', v_row."completed_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'versionId', v_row."version_id", 'contentHash', v_row."content_hash", 'signers', to_jsonb(v_row."signers"), 'order', v_row."sign_order", 'status', v_row."status", 'approvalRequestId', v_row."approval_request_id", 'message', v_row."message", 'meaning', v_row."meaning", 'requestedBy', v_row."requested_by", 'createdAt', v_row."created_at", 'completedAt', v_row."completed_at");
 end;
 $$;
-revoke execute on function "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text) from public, anon;
-grant execute on function "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."create_signature_request"(uuid, text, text, uuid[], uuid, text, uuid, text, text) to authenticated, service_role;
 
 -- Recomputes the signed version's hash from its content and each signature's
 -- hash, and reports whether the record has a newer version since.
@@ -365,7 +374,7 @@ begin
     where x."id" = v_req."id"
     returning * into v_req;
   null;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'versionId', v_req."version_id", 'contentHash', v_req."content_hash", 'signers', to_jsonb(v_req."signers"), 'order', v_req."sign_order", 'status', v_req."status", 'approvalRequestId', v_req."approval_request_id", 'message', v_req."message", 'requestedBy', v_req."requested_by", 'createdAt', v_req."created_at", 'completedAt', v_req."completed_at");
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'versionId', v_req."version_id", 'contentHash', v_req."content_hash", 'signers', to_jsonb(v_req."signers"), 'order', v_req."sign_order", 'status', v_req."status", 'approvalRequestId', v_req."approval_request_id", 'message', v_req."message", 'meaning', v_req."meaning", 'requestedBy', v_req."requested_by", 'createdAt', v_req."created_at", 'completedAt', v_req."completed_at");
 end;
 $$;
 revoke execute on function "better_supabase"."decline_signature_request"(uuid, text) from public, anon;
@@ -398,7 +407,7 @@ begin
     where x."id" = v_req."id"
     returning * into v_req;
   null;
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'versionId', v_req."version_id", 'contentHash', v_req."content_hash", 'signers', to_jsonb(v_req."signers"), 'order', v_req."sign_order", 'status', v_req."status", 'approvalRequestId', v_req."approval_request_id", 'message', v_req."message", 'requestedBy', v_req."requested_by", 'createdAt', v_req."created_at", 'completedAt', v_req."completed_at");
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'versionId', v_req."version_id", 'contentHash', v_req."content_hash", 'signers', to_jsonb(v_req."signers"), 'order', v_req."sign_order", 'status', v_req."status", 'approvalRequestId', v_req."approval_request_id", 'message', v_req."message", 'meaning', v_req."meaning", 'requestedBy', v_req."requested_by", 'createdAt', v_req."created_at", 'completedAt', v_req."completed_at");
 end;
 $$;
 revoke execute on function "better_supabase"."cancel_signature_request"(uuid) from public, anon;
@@ -424,7 +433,7 @@ begin
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', g."id", 'requestId', g."request_id", 'signer', g."signer", 'method', g."method", 'typedName', g."typed_name", 'imageAttachmentId', g."image_attachment_id", 'signedHash', g."signed_hash", 'ip', g."ip", 'userAgent', g."user_agent", 'signedAt', g."signed_at") order by g."signed_at"), '[]'::jsonb) into v_items
     from "better_supabase"."signatures" g where g."request_id" = v_req."id";
-  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'versionId', v_req."version_id", 'contentHash', v_req."content_hash", 'signers', to_jsonb(v_req."signers"), 'order', v_req."sign_order", 'status', v_req."status", 'approvalRequestId', v_req."approval_request_id", 'message', v_req."message", 'requestedBy', v_req."requested_by", 'createdAt', v_req."created_at", 'completedAt', v_req."completed_at") || jsonb_build_object('signatures', v_items, 'verification', "better_supabase"."signature_verification"(v_req."id"));
+  return jsonb_build_object('id', v_req."id", 'organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'versionId', v_req."version_id", 'contentHash', v_req."content_hash", 'signers', to_jsonb(v_req."signers"), 'order', v_req."sign_order", 'status', v_req."status", 'approvalRequestId', v_req."approval_request_id", 'message', v_req."message", 'meaning', v_req."meaning", 'requestedBy', v_req."requested_by", 'createdAt', v_req."created_at", 'completedAt', v_req."completed_at") || jsonb_build_object('signatures', v_items, 'verification', "better_supabase"."signature_verification"(v_req."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."get_signature_request"(uuid) from public, anon;
@@ -444,7 +453,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or list_signature_requests.mine or coalesce(better_supabase.can('tenant', list_signature_requests.tenant, 'signatures.read'), false)) then
     raise exception 'not allowed to list signature requests' using errcode = '42501', hint = 'SIGNATURE_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'versionId', q."version_id", 'contentHash', q."content_hash", 'signers', to_jsonb(q."signers"), 'order', q."sign_order", 'status', q."status", 'approvalRequestId', q."approval_request_id", 'message', q."message", 'requestedBy', q."requested_by", 'createdAt', q."created_at", 'completedAt', q."completed_at") order by q."created_at" desc), '[]'::jsonb) into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'subjectType', q."subject_type", 'subjectId', q."subject_id", 'versionId', q."version_id", 'contentHash', q."content_hash", 'signers', to_jsonb(q."signers"), 'order', q."sign_order", 'status', q."status", 'approvalRequestId', q."approval_request_id", 'message', q."message", 'meaning', q."meaning", 'requestedBy', q."requested_by", 'createdAt', q."created_at", 'completedAt', q."completed_at") order by q."created_at" desc), '[]'::jsonb) into v_rows
   from (
     select * from "better_supabase"."signature_requests" x
     where x."tenant_id" = list_signature_requests.tenant

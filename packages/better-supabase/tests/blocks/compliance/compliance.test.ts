@@ -20,6 +20,7 @@ const FRAMEWORK = {
   organizationId: "org-1",
   key: "soc2",
   name: "SOC 2",
+  kind: "standard",
   version: "2017",
   description: "Trust services criteria",
   createdAt: AT,
@@ -44,6 +45,8 @@ const CONTROL = {
   description: "Access is restricted",
   ownerId: "u1",
   applicable: true,
+  source: "GDPR article 30",
+  jurisdiction: "EU",
   status: "passing",
   createdAt: AT,
   updatedAt: AT,
@@ -171,16 +174,22 @@ describe("createCompliance", () => {
       .orThrow();
 
     await controls
-      .saveFramework("org-1", { key: "iso", name: "ISO" })
+      .saveFramework("org-1", { key: "iso", name: "ISO", kind: "legal" })
       .orThrow();
 
     const [, bare] = await controls.frameworks("org-1").orThrow();
 
-    expect(saved).toMatchObject({ key: "soc2", version: "2017" });
+    expect(saved).toMatchObject({
+      key: "soc2",
+      kind: "standard",
+      version: "2017",
+    });
+    expect(bare?.kind).toBe("standard");
     expect(Object.keys(bare ?? {}).toSorted()).toEqual([
       "createdAt",
       "id",
       "key",
+      "kind",
       "name",
       "organizationId",
       "updatedAt",
@@ -194,6 +203,7 @@ describe("createCompliance", () => {
           name: "SOC 2",
           version: "2017",
           description: "Trust services criteria",
+          kind: "standard",
         },
       ],
       [
@@ -204,6 +214,7 @@ describe("createCompliance", () => {
           name: "ISO",
           version: null,
           description: null,
+          kind: "legal",
         },
       ],
       ["list_control_frameworks", { tenant: "org-1" }],
@@ -223,6 +234,8 @@ describe("createCompliance", () => {
         ownerId: "u1",
         applicable: false,
         controlId: "c1",
+        source: "GDPR article 30",
+        jurisdiction: "EU",
         fields: { tier: "high" },
       })
       .orThrow();
@@ -240,6 +253,10 @@ describe("createCompliance", () => {
     });
 
     expect(saved.fields.tier).toBe("high");
+    expect(saved).toMatchObject({
+      source: "GDPR article 30",
+      jurisdiction: "EU",
+    });
     expect(refused.ok ? undefined : refused.error.kind).toBe("validation");
     expect(t.calls).toEqual([
       [
@@ -252,6 +269,8 @@ describe("createCompliance", () => {
           owner_id: "u1",
           applicable: false,
           control_id: "c1",
+          source: "GDPR article 30",
+          jurisdiction: "EU",
           fields: { tier: "high" },
         },
       ],
@@ -265,6 +284,8 @@ describe("createCompliance", () => {
           owner_id: null,
           applicable: true,
           control_id: null,
+          source: null,
+          jurisdiction: null,
         },
       ],
     ]);
@@ -708,7 +729,7 @@ describe("createCompliance", () => {
   });
 });
 
-describe("controls block", () => {
+describe("compliance block", () => {
   it("names the block and validates the inputs", () => {
     expect(complianceBlock.name).toBe("compliance");
     expect(

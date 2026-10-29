@@ -23,6 +23,13 @@ export const courseInputSchema: EntitySchema<CourseInput> =
         optional: true,
       },
       certificate: { kind: "boolean", optional: true },
+      validForMonths: {
+        kind: "integer",
+        optional: true,
+        nullable: true,
+        minimum: 1,
+        maximum: 240,
+      },
       fields: {
         kind: "json",
         optional: true,

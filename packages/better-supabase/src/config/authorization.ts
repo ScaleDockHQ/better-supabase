@@ -68,9 +68,12 @@ export interface AuthorizationFunctions {
    * `{tenant}`. `{requester}` is the uuid of the user who asked (the approval's
    * `requested_by`, the support admin, the chat's owner), or `null`; a provider
    * that resolves out-of-office covers reads it to refuse a cover by the
-   * requester's own delegator. It replaces each module's own eligibility check;
-   * the requester is refused before it runs. Without it a module falls back to
-   * its default approver (the chat's owner, a platform permission).
+   * requester's own delegator. `{approvers}` is a jsonb value with the
+   * approvers the request waits on now: the approvals block's current step
+   * `approvers` with its `required` count, or `escalateTo` once escalated, and
+   * `null` elsewhere. It replaces each module's own eligibility check; the
+   * requester is refused before it runs. Without it a module falls back to its
+   * default approver (the chat's owner, a platform permission).
    */
   readonly isApprover?: string;
   /**

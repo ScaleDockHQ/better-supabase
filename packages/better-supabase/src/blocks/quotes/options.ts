@@ -46,6 +46,12 @@ export type QuotesSqlOptions = {
    * quote can be edited before it is sent again.
    */
   readonly resend?: boolean;
+  /**
+   * `false` sends no `quote.decided` notification to the owner when a quote is
+   * answered, so the app can send its own from the `quote.*` events. Default
+   * `true`.
+   */
+  readonly notifications?: boolean;
 };
 
 export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
@@ -62,4 +68,5 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     versionLineExtraColumns: option.extraColumns(),
     totals: option.string<"block" | "app">({ default: "block" }),
     resend: option.boolean({ default: false }),
+    notifications: option.boolean({ default: true }),
   });

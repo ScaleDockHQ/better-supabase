@@ -101,7 +101,7 @@ Policies are fixed per subject type and action. To pick one by the record's valu
 
 A policy's `mode` says what an approval proves. `authorize`, the default, means someone other than the requester decided every step (unless `selfApproval` is on). `confirm` means the requester looked again: they may approve their own request, and their approval finishes it at once, whatever steps remain. Other approvers still decide the steps as usual. Use `confirm` for a deliberate second click before a risky action, and `authorize` when another person has to agree.
 
-`steps[].approvers.manager: true` lets the requester's manager decide the step, or the manager of the employee a request's policy names in `managerOf` (the [leave](/docs/blocks/leave), [time tracking](/docs/blocks/time-tracking) and [expenses](/docs/blocks/expenses) integrations set it to the request's employee). The manager comes from the [employees](/docs/blocks/employees) block: the requester's employee record names a manager, whose user decides while they are an active member of the organization and not offboarded. A policy that names a manager needs the employees block in managed mode.
+`steps[].approvers.manager: true` lets the requester's manager decide the step, or the manager of the employee a request's policy names in `managerOf` (the [leave](/docs/blocks/leave), [time tracking](/docs/blocks/time-tracking) and [expenses](/docs/blocks/expenses) integrations set it to the request's employee). The manager comes from the [employees](/docs/blocks/employees) block: the requester's employee record names a manager, whose user decides while they are an active member of the organization and not offboarded. The offboarded check reads the employees block's `values.employees.status` mapping, so a manager whose row holds the app's mapped value (for example `ended`) decides nothing. A policy that names a manager needs the employees block in managed mode.
 
 ## Tenant policies
 
@@ -321,7 +321,10 @@ approves for another until a date.
 When your authorization provider keeps covers, let it own them: its
 `isApprover` answers for the cover, and `approval_eligible` passes the
 request's `requested_by` as `{requester}` so a cover never lets the
-requester's own delegator approve. Every module that waits for an approval
+requester's own delegator approve. It passes the current step's approvers
+with its `required` count as `{approvers}` (`jsonb`), or the step's
+`escalateTo` while the step is escalated, so a provider can let a cover
+decide where the absent user is a named approver, and nowhere else. Every module that waits for an approval
 then honours the same covers. Configure covers in the provider only, and
 don't mirror them with `delegate` calls. Without such a provider, call
 `delegate` per request. Under the `provider` model, `delegate` checks that

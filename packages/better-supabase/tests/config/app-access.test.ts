@@ -170,6 +170,37 @@ describe("appTablesOf encrypted columns", () => {
     );
   });
 
+  it("keeps a lookup on an encrypted column", () => {
+    const tables = appTablesOf({
+      patients: {
+        columns: { ssn: { type: "text", encrypted: true, lookup: true } },
+      },
+    });
+
+    expect(tables["patients"]?.columns?.["ssn"]?.lookup).toBe(true);
+  });
+
+  it("refuses a lookup without encryption", () => {
+    fails(
+      { patients: { columns: { ssn: { type: "text", lookup: true } } } },
+      "tables.patients.columns.ssn.lookup: a lookup hashes an encrypted column",
+    );
+  });
+
+  it("refuses a lookup whose hash column is a column already", () => {
+    fails(
+      {
+        patients: {
+          columns: {
+            ssn: { type: "text", encrypted: true, lookup: true },
+            ssn_lookup: { type: "text" },
+          },
+        },
+      },
+      "the lookup hash goes in ssn_lookup, which is a column already",
+    );
+  });
+
   it("refuses a non-boolean encrypted", () => {
     fails(
       { patients: { columns: { b: { type: "text", encrypted: "yes" } } } },

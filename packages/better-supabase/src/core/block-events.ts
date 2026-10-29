@@ -642,6 +642,8 @@ export interface SignatureEventData extends SubjectEventData {
   readonly signer?: string;
   /** For `signature.signed`: `drawn`, `typed` or `click`. */
   readonly method?: string;
+  /** For `signature.completed`: what signing meant, such as `approved`. */
+  readonly meaning?: string | null;
 }
 
 /** `template.published` from the templates module. */

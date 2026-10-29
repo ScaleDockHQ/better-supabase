@@ -11,6 +11,7 @@ export const TABLE_FEATURES = [
   "json",
   "expose",
   "encrypted",
+  "lookup",
   "server",
   "events",
   "vector-search",

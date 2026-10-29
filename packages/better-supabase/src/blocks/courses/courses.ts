@@ -55,6 +55,8 @@ export interface Course<F extends object = Record<never, never>> {
   readonly status: CourseStatus;
   /** Whether completing the course issues a certificate. */
   readonly certificate: boolean;
+  /** How many months a certificate stays valid; without it, it never expires. */
+  readonly validForMonths?: number;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
@@ -70,6 +72,8 @@ export interface CourseInput<F extends object = Record<never, never>> {
   readonly summary?: string | null;
   readonly status?: CourseStatus;
   readonly certificate?: boolean;
+  /** 1 to 240 months a certificate stays valid; `null` for no expiry. */
+  readonly validForMonths?: number | null;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
 }
@@ -147,6 +151,8 @@ export interface CourseCertificate {
   /** The random value a verification link carries. */
   readonly code: string;
   readonly issuedAt: Temporal.Instant;
+  /** When the certificate expires, from the course's `validForMonths`. */
+  readonly expiresAt?: Temporal.Instant;
   readonly revokedAt?: Temporal.Instant;
 }
 
@@ -231,7 +237,11 @@ export interface CourseCertificateCheck {
   readonly courseTitle: string;
   readonly organizationId: string;
   readonly issuedAt: Temporal.Instant;
+  readonly expiresAt?: Temporal.Instant;
   readonly revokedAt?: Temporal.Instant;
+  /** True once `expiresAt` has passed. */
+  readonly expired: boolean;
+  /** Neither revoked nor expired. */
   readonly valid: boolean;
 }
 
@@ -356,6 +366,7 @@ function courseOf(value: unknown, fn: string): Course {
     updatedAt: requiredInstant(row["updatedAt"], "updatedAt"),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
     ...optional("summary", optionalText(row["summary"])),
+    ...optional("validForMonths", numberOr(row["validForMonths"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
   };
 }
@@ -418,6 +429,7 @@ function certificateOf(value: unknown, fn: string): CourseCertificate {
     userId: textOf(row["userId"]),
     code: textOf(row["code"]),
     issuedAt: requiredInstant(row["issuedAt"], "issuedAt"),
+    ...optional("expiresAt", optionalInstant(row["expiresAt"])),
     ...optional("revokedAt", optionalInstant(row["revokedAt"])),
   };
 }
@@ -535,7 +547,9 @@ function checkOf(value: unknown): CourseCertificateCheck | null {
     courseTitle: textOf(value["courseTitle"]),
     organizationId: textOf(value["organizationId"]),
     issuedAt: requiredInstant(value["issuedAt"], "issuedAt"),
+    expired: value["expired"] === true,
     valid: value["valid"] === true,
+    ...optional("expiresAt", optionalInstant(value["expiresAt"])),
     ...optional("revokedAt", optionalInstant(value["revokedAt"])),
   };
 }

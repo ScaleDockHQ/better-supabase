@@ -45,7 +45,7 @@ export interface PolicyAcknowledgedEventData {
   readonly userId: string;
 }
 
-/** The events of the `controls` block: type to data. */
+/** The events of the `compliance` block: type to data. */
 export type ComplianceEvents = {
   readonly "control.saved": ControlSavedEventData;
   readonly "control.evidence_added": ControlEvidenceAddedEventData;
@@ -54,7 +54,7 @@ export type ComplianceEvents = {
   readonly "policy.acknowledged": PolicyAcknowledgedEventData;
 };
 
-/** The `controls` block's event types, for its manifest and `onBlockEvent`. */
+/** The `compliance` block's event types, for its manifest and `onBlockEvent`. */
 export const complianceEvents: Events<ComplianceEvents> = defineEvents({
   "control.saved": event<ControlSavedEventData>(),
   "control.evidence_added": event<ControlEvidenceAddedEventData>(),

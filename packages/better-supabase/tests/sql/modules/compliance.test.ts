@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
-import { CONTROLS } from "../../../src/sql/modules/compliance.ts";
+import { COMPLIANCE } from "../../../src/sql/modules/compliance.ts";
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
@@ -19,7 +19,7 @@ const sqlOf = (
     .map((file) => file.contents)
     .join("\n");
 
-describe("controls module", () => {
+describe("compliance module", () => {
   it("links evidence to an attachment only when attachments owns its table", () => {
     const sql = sqlOf();
     expect(sql).toMatch(
@@ -64,7 +64,7 @@ describe("controls module", () => {
     expect(sqlOf(custom).trim()).toBe("");
     // SAFETY: custom mode returns before reading anything else on the context.
     const context = { mode: "custom" } as unknown as BlockSqlContext;
-    expect(CONTROLS.build(context, {})).toBe("");
+    expect(COMPLIANCE.build(context, {})).toBe("");
     const [contract] = customContracts(["compliance"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([
@@ -72,6 +72,28 @@ describe("controls module", () => {
         "control_posture",
         "acknowledge_policy",
       ]),
+    );
+  });
+
+  it("keeps a framework's kind and a control's source and jurisdiction", () => {
+    const sql = sqlOf();
+    expect(sql).toContain(
+      `"kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'))`,
+    );
+    expect(sql).toContain(
+      `alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);`,
+    );
+    expect(sql).toContain(
+      `add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);`,
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);`,
+    );
+    expect(sql).toContain(
+      `drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);`,
+    );
+    expect(sql).toContain(
+      "kind must be one of standard, legal, internal, contract",
     );
   });
 });

@@ -1,4 +1,5 @@
 import type { RelationsEvents } from "../../blocks/relations/events.ts";
+import type { RelationKindOptions } from "../../blocks/relations/options.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
@@ -10,6 +11,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Subject } from "../subjects.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { uniqueContributions } from "../contributions.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
@@ -31,23 +33,8 @@ import {
 } from "../subjects.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
-/** How a kind of link behaves. */
-export interface RelationKind {
-  /** The name of the link read from the target's side, such as `blocked_by`. */
-  readonly inverse?: string;
-  /** Refuse a link that would close a cycle of this kind. */
-  readonly acyclic?: boolean;
-  /**
-   * `one`: a source has at most one target of this kind; a new link replaces
-   * it.
-   */
-  readonly cardinality?: "one" | "many";
-  /** The link reads the same from both ends; it is stored once. */
-  readonly symmetric?: boolean;
-}
-
 /** The kinds `options.kinds` falls back to. */
-const DEFAULT_RELATION_KINDS: Readonly<Record<string, RelationKind>> = {
+const DEFAULT_RELATION_KINDS: Readonly<Record<string, RelationKindOptions>> = {
   blocks: { inverse: "blocked_by", acyclic: true },
   parent: { inverse: "children", cardinality: "one", acyclic: true },
   relates: { symmetric: true },
@@ -123,11 +110,79 @@ interface ResolvedKind {
   readonly acyclic: boolean;
   readonly single: boolean;
   readonly symmetric: boolean;
+  /** Subject types allowed at the stored source end; undefined is any. */
+  readonly sourceTypes: readonly string[] | undefined;
+  /** Subject types allowed at the stored target end; undefined is any. */
+  readonly targetTypes: readonly string[] | undefined;
+  /** The contributing block's check of a link's data. */
+  readonly data: ((data: string) => string) | undefined;
+}
+
+const KIND_OPTIONS = [
+  "inverse",
+  "acyclic",
+  "cardinality",
+  "symmetric",
+  "types",
+];
+
+/** `types.source` or `types.target` of a kind, checked. */
+function typeList(
+  where: string,
+  value: unknown,
+): readonly string[] | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const list: unknown[] = Array.isArray(value) ? value : [];
+
+  const types = list.filter(
+    (type): type is string => typeof type === "string" && NAME.test(type),
+  );
+
+  if (types.length === 0 || types.length !== list.length) {
+    throw new TypeError(
+      `${where} must be a non-empty list of subject types (lowercase letters, digits and underscores)`,
+    );
+  }
+
+  return types;
+}
+
+/** `types` of a kind, checked. */
+function kindTypes(
+  where: string,
+  value: unknown,
+): Pick<ResolvedKind, "sourceTypes" | "targetTypes"> {
+  if (value === undefined) {
+    return { sourceTypes: undefined, targetTypes: undefined };
+  }
+
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new TypeError(`${where} must be an object with source and target`);
+  }
+
+  const entry = new Map<string, unknown>(Object.entries(value));
+
+  for (const key of entry.keys()) {
+    if (key !== "source" && key !== "target") {
+      throw new TypeError(
+        `${where}.${key} is not an option. Options: source, target`,
+      );
+    }
+  }
+
+  return {
+    sourceTypes: typeList(`${where}.source`, entry.get("source")),
+    targetTypes: typeList(`${where}.target`, entry.get("target")),
+  };
 }
 
 /**
- * `options.kinds`, checked: names, inverses that clash, and symmetric kinds
- * without direction.
+ * `options.kinds` (or the defaults), then the kinds other blocks contribute
+ * that the app doesn't name, checked: names, inverses that clash, and symmetric
+ * kinds without direction.
  */
 function relationKinds(ctx: BlockSqlContext): readonly ResolvedKind[] {
   const where = "blocks.relations.options.kinds";
@@ -136,6 +191,22 @@ function relationKinds(ctx: BlockSqlContext): readonly ResolvedKind[] {
   if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
     throw new TypeError(`${where} must be an object of kind name to options`);
   }
+
+  const own = new Map<string, unknown>(Object.entries(raw));
+
+  const contributions = uniqueContributions(
+    "relations",
+    ctx.contributions("relations"),
+    (contribution) => contribution.kind,
+  ).filter((contribution) => !own.has(contribution.kind));
+
+  const contributed = contributions.map(
+    ({ kind, data: _data, ...entry }) => [kind, entry] as const,
+  );
+
+  const checks = new Map(
+    contributions.map((contribution) => [contribution.kind, contribution.data]),
+  );
 
   const kinds: ResolvedKind[] = [];
   const names = new Set<string>();
@@ -154,7 +225,7 @@ function relationKinds(ctx: BlockSqlContext): readonly ResolvedKind[] {
     names.add(name);
   };
 
-  for (const [name, value] of new Map<string, unknown>(Object.entries(raw))) {
+  for (const [name, value] of [...own, ...contributed]) {
     claim(name);
 
     if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -164,9 +235,9 @@ function relationKinds(ctx: BlockSqlContext): readonly ResolvedKind[] {
     const entry = new Map<string, unknown>(Object.entries(value));
 
     for (const key of entry.keys()) {
-      if (!["inverse", "acyclic", "cardinality", "symmetric"].includes(key)) {
+      if (!KIND_OPTIONS.includes(key)) {
         throw new TypeError(
-          `${where}.${name}.${key} is not an option. Options: inverse, acyclic, cardinality, symmetric`,
+          `${where}.${name}.${key} is not an option. Options: ${KIND_OPTIONS.join(", ")}`,
         );
       }
     }
@@ -201,10 +272,66 @@ function relationKinds(ctx: BlockSqlContext): readonly ResolvedKind[] {
       acyclic: entry.get("acyclic") === true,
       single: cardinality === "one",
       symmetric,
+      ...kindTypes(`${where}.${name}.types`, entry.get("types")),
+      data: checks.get(name),
     });
   }
 
   return kinds;
+}
+
+/**
+ * The checks `link` runs on the stored ends of each kind that names its subject
+ * types. A symmetric kind accepts either order.
+ */
+function typeChecks(kinds: readonly ResolvedKind[]): string {
+  const within = (
+    column: string,
+    types: readonly string[] | undefined,
+  ): string | undefined =>
+    types === undefined
+      ? undefined
+      : `${column} in (${types.map((type) => sqlString(type)).join(", ")})`;
+
+  const both = (source: string, target: string, kind: ResolvedKind): string =>
+    [within(source, kind.sourceTypes), within(target, kind.targetTypes)]
+      .filter((part) => part !== undefined)
+      .join(" and ");
+
+  return kinds
+    .filter(
+      (kind) =>
+        kind.sourceTypes !== undefined || kind.targetTypes !== undefined,
+    )
+    .map((kind) => {
+      const forward = both("v_source_type", "v_target_type", kind);
+
+      const allowed = kind.symmetric
+        ? `(${forward}) or (${both("v_target_type", "v_source_type", kind)})`
+        : forward;
+
+      return `
+  if v_kind = ${sqlString(kind.name)} and not (${allowed}) then
+    ${fail("RELATION_TYPE_NOT_ALLOWED", `this kind of link doesn't accept these record types`, "22023")}
+  end if;`;
+    })
+    .join("");
+}
+
+/** The checks `link` runs on the data it stores, for kinds that check it. */
+function dataChecks(kinds: readonly ResolvedKind[], data: string): string {
+  return kinds
+    .flatMap((kind) =>
+      kind.data === undefined
+        ? []
+        : [
+            `
+    if v_kind = ${sqlString(kind.name)} and not coalesce(${kind.data(data)}, false) then
+      ${fail("RELATION_DATA_INVALID", "this kind of link doesn't accept this data", "22023")}
+    end if;`,
+          ],
+    )
+    .join("");
 }
 
 /** A `values` list of every name a caller may pass, with the kind it stands for. */
@@ -436,7 +563,7 @@ begin
   if link.source_type = link.target_type and link.source_id = link.target_id then
     ${fail("RELATION_SELF", "a record can't link to itself", "22023")}
   end if;
-${canonical("link")}
+${canonical("link")}${typeChecks(kinds)}
   if not (${readable("link", "link.source_type", "link.source_id")})
      or not (${readable("link", "link.target_type", "link.target_id")}) then
     ${fail("RELATION_SUBJECT_FORBIDDEN", "not allowed to link these records")}
@@ -456,7 +583,7 @@ ${canonical("link")}
     where ${tenant} = link.tenant and ${kind} = v_kind
       and ${sourceType} = v_source_type and ${sourceId} = v_source_id
       and ${targetType} = v_target_type and ${targetId} = v_target_id;
-  if v_id is null then
+  if v_id is null then${dataChecks(kinds, "coalesce(link.data, '{}'::jsonb)")}
     if v_acyclic and exists (
       with recursive reach(t, i, depth) as (
         select v_target_type, v_target_id, 0
@@ -491,7 +618,7 @@ ${canonical("link")}
     returning ${id} into v_id;
     v_created := true;
     ${event("subject.linked", "v_id", "link.tenant")}
-  elsif link.data is not null then
+  elsif link.data is not null then${dataChecks(kinds, "link.data")}
     update ${relations} set ${data} = link.data where ${id} = v_id;
   end if;${writeExtraColumns(relations, extras, "link.fields", `x.${id} = v_id`)}
   ${ctx.hook("after_relation_link", [["uuid", "v_id"]])}

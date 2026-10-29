@@ -5021,7 +5021,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "representation": {}
+            }
           }
         }
       },
@@ -6133,6 +6135,10 @@
               "resend": {
                 "type": "boolean",
                 "default": false
+              },
+              "notifications": {
+                "type": "boolean",
+                "default": true
               }
             }
           }
@@ -6540,6 +6546,12 @@
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "meanings": {
+                "type": "array",
+                "items": {
                   "type": "string"
                 }
               }

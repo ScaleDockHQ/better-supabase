@@ -1,6 +1,6 @@
 ---
 title: Naming
-description: The names better-supabase uses for definitions, instances, files and types, and the renames from earlier versions.
+description: The names better-supabase uses for definitions, instances, files, types and block names, and the renames from earlier versions.
 ---
 
 Every app has one definition and one runtime instance per side. The docs,
@@ -95,6 +95,74 @@ the function's own `server.ts`.
 Supabase's own cookie and header names keep their `sb-` prefix
 (`sb-<project>-auth-token`); those belong to `@supabase/ssr`, not to the
 library.
+
+## Block names
+
+Every block names its entities, tables, permission keys, events, hint codes
+and functions by one convention, so you can guess a name from the block and
+the noun.
+[ADR 0130](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0130-one-naming-convention-for-blocks.md)
+records the decision. Some names from before it still break the rules
+(`controls.*` keys on the `compliance` block, `work_item.*` events on
+`tasks`); one breaking minor renames them, with a codemod and one minor in
+which the old names keep working.
+
+1. Block names are kebab-case. Existing block names do not change.
+2. An entity key equals its `singular`. Entity keys are unique across all
+   blocks. When the noun is generic (`document`, `request`, `entry`,
+   `policy`, `task`, `type`, `location`, `key`, `link`, `view`, `field`,
+   `node`, `server`, `snapshot`, `definition`, `project`) or another block
+   uses it, the block noun comes first: `knowledge_document`,
+   `leave_request`, `drive_node`. The block that owns the plain noun keeps
+   it (`documents` keeps `document`, `tasks` keeps `task` and `project`).
+3. A table is the plural of its entity in snake*case (`compliance_policy`
+   becomes `compliance_policies`). A table that is not an entity (a link,
+   log or history table) starts with its entity's singular:
+   `task_assignees`, `case_actions`. Uncountable nouns stay singular:
+   `control_evidence`, `webhook_inbox`, `subject_user_state`,
+   `chat_state_cache`, `scim_sync_log`, `ai_message_feedback`,
+   `ai_model_catalog`, `attachment_cleanup`, `custom_emoji`. Acronym
+   prefixes of a standard stay (`ssf*\_`, `scim\_\_`, `oauth\_\*`).
+4. `subject` is the SQL term and `record` is the docs term. The columns
+   `subject_type` and `subject_id`, the `subjects` block and the
+   `subject.*` events keep their names.
+5. A permission key is `<area>.<verb>`, where the area is the block name in
+   snake_case. Exceptions: `messaging`, `comments` and `channels` share
+   `messages.*` because they share one table (`channels` keeps `channels.*`
+   for channel settings); `organizations` owns `organization.*`,
+   `members.*` and `platform.*`; `platform.*` stays for platform-wide
+   actions.
+6. The permission verbs are `read` (see), `write` (create and change
+   records), `delete` (only when deleting differs from writing), `manage`
+   (configure the block, act on everyone's records), and domain verbs
+   (`approve`, `submit`, `review`, `acknowledge`, `collect`, `assign`,
+   `grant`, `assess`, `close`, `invite`, `record`). There is no `view`,
+   `edit` or `admin`, and a key never has three parts:
+   `custom_fields.read_sensitive`, not `custom_fields.sensitive.read`.
+7. An event type is `<entity singular>.<past tense verb>`, where the entity
+   is the one that changed, whichever block wrote it. The lifecycle verbs
+   are `created`, `updated`, `deleted`, `archived`, `restored` and `purged`.
+   No event is named `saved` (it is `created` or `updated`), `removed` (it
+   is `deleted`), `upserted` or `<attribute>_set` (it is
+   `<attribute>_changed`). Payload keys are camelCase and carry
+   `organizationId` when the event has a tenant.
+8. A hint code is `<ENTITY>_<REASON>` in upper snake case, from the entity
+   singular: `CONTROL_FORBIDDEN`, `TASK_NOT_FOUND`.
+9. SQL functions take the entity singular: `create_<entity>`,
+   `update_<entity>`, `get_<entity>`, `list_<entities>`, `delete_<entity>`,
+   and domain verbs (`close_case`, `assess_risk`). Hooks are
+   `before_<entity>_<action>` and `after_<entity>_<action>`.
+10. Exports are `create<Pascal>`, `<camel>Block` and `<camel>Events`, with
+    acronyms written as words: `createOauthServer`.
+11. A block's docs page is titled with its plain name in title case,
+    sometimes with a short qualifier ("Audits and inspections", "Usage and
+    quotas"), and its first sentence names the block by its block name. The
+    URL is `/docs/blocks/<block-name>`.
+12. The manifest's `category` decides which docs folder the page sits in.
+
+When you rename a block's nouns with `blocks.<name>.names`, its tables,
+functions, events and permission keys follow the new singular; see
+[Typed blocks](/docs/blocks/typed-blocks).
 
 ## Renames
 

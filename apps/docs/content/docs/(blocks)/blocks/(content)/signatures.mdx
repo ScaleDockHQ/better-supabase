@@ -49,13 +49,29 @@ Each signature stores a SHA-256 hash over the request, the version's content has
 
 With the [approvals](/docs/blocks/approvals) module, `approvalRequestId` links a pending approval request on the same record. When a signer is an approver for its current step, their signature approves that step, so signing a contract can be the approval that sends it.
 
-Errors carry these hints: `SIGNATURE_SIGNERS_INVALID`, `SIGNATURE_VERSION_NOT_FOUND`, `SIGNATURE_OUT_OF_ORDER`, `SIGNATURE_ALREADY_SIGNED`, `SIGNATURE_METHOD_INVALID`, `SIGNATURE_CONTENT_CHANGED` (the version changed between the request and the signature), `SIGNATURE_REQUEST_CLOSED` and `SIGNATURE_FORBIDDEN`.
+## Meanings
+
+A request can say what signing means with `meaning`, such as `approved` for a release sign-off or `reviewed` for a review. The meaning is stored on the request, returned by `get` and `list`, and sent with `signature.completed`. The allowed meanings are `authored`, `reviewed`, `approved`, `released` and `acknowledged`; set `blocks.signatures.options.meanings` to your own list of lowercase names. A meaning outside the list fails with `SIGNATURE_REQUEST_MEANING_UNKNOWN`.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { signatures: { options: { meanings: ["approved", "agreed"] } } },
+});
+```
+
+```ts
+await db.signatures
+  .request({ ...subject, signers: [qaLeadId], meaning: "approved" })
+  .orThrow();
+```
+
+Errors carry these hints: `SIGNATURE_SIGNERS_INVALID`, `SIGNATURE_VERSION_NOT_FOUND`, `SIGNATURE_OUT_OF_ORDER`, `SIGNATURE_ALREADY_SIGNED`, `SIGNATURE_METHOD_INVALID`, `SIGNATURE_CONTENT_CHANGED` (the version changed between the request and the signature), `SIGNATURE_REQUEST_CLOSED`, `SIGNATURE_REQUEST_MEANING_UNKNOWN` (a meaning outside `options.meanings`) and `SIGNATURE_FORBIDDEN`.
 
 Until 0.14 the client was exported from `better-supabase/blocks/forms`. Import it from `better-supabase/blocks/signatures`; see [From 0.13 to 0.14](/docs/migration/0.13-to-0.14#signatures-get-their-own-block).
 
 ## Events and hooks
 
-The module records `signature.requested`, `signature.signed` (with `signer` and `method`), `signature.completed`, `signature.declined` and `signature.cancelled`, each with the signed record's `subjectType` and `subjectId`, and audits requests, signatures, declines and cancellations. It calls `before_signature_request`, `after_signature_request`, `before_signature_sign` and `after_signature_sign`.
+The module records `signature.requested`, `signature.signed` (with `signer` and `method`), `signature.completed` (with the request's `meaning`), `signature.declined` and `signature.cancelled`, each with the signed record's `subjectType` and `subjectId`, and audits requests, signatures, declines and cancellations. It calls `before_signature_request`, `after_signature_request`, `before_signature_sign` and `after_signature_sign`.
 
 ## With ReUI
 

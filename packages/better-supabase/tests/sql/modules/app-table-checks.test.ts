@@ -29,6 +29,32 @@ describe("constraintChecks", () => {
   });
 });
 
+describe("identifier formats", () => {
+  it("calls the bsn and iban validators and matches E.164", () => {
+    expect(constraintChecks({ type: "text", format: "bsn" }, "v")).toEqual([
+      '"public"."bsb_valid_bsn"(v)',
+    ]);
+    expect(constraintChecks({ type: "text", format: "iban" }, "v")).toEqual([
+      '"public"."bsb_valid_iban"(v)',
+    ]);
+    expect(
+      constraintChecks({ type: "text", format: "phone_e164" }, "v"),
+    ).toEqual([String.raw`v ~* '^\+[1-9][0-9]{1,14}$'`]);
+  });
+
+  it("samples a value that passes each check", () => {
+    expect(sampleValue(required({ type: "text", format: "bsn" }))).toBe(
+      "'111222333'",
+    );
+    expect(sampleValue(required({ type: "text", format: "iban" }))).toBe(
+      "'NL91ABNA0417164300'",
+    );
+    expect(sampleValue(required({ type: "text", format: "phone_e164" }))).toBe(
+      "'+31201234567'",
+    );
+  });
+});
+
 describe("sampleValue", () => {
   it("needs no value for a nullable, defaulted or identity column", () => {
     expect(sampleValue({ type: "text" })).toBeNull();

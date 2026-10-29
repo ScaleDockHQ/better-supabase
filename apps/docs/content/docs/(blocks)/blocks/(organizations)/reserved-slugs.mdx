@@ -1,0 +1,43 @@
+---
+title: Reserved slugs
+description: Check a slug's format and length, and keep words like admin, api and www out of workspace URLs.
+---
+
+`reserved-slugs` checks the slugs your users pick, such as an organization's
+URL segment. A slug is lowercase letters, digits and inner hyphens, within
+the configured length, and not one of the reserved words (`admin`, `api`,
+`login`, `www` and others) or your own.
+
+```bash
+better-supabase add reserved-slugs
+```
+
+Track a column, and its trigger rejects a bad slug on insert and update:
+
+```sql title="supabase/schemas/organizations.sql"
+select better_supabase.track_slug('public.organizations');
+-- or a column with another name
+select better_supabase.track_slug('public.projects', 'handle');
+```
+
+An invalid slug raises `23514` with the hint `SLUG_INVALID`, and a reserved
+one with `SLUG_RESERVED`. Call `better_supabase.slug_problem(slug)` to check
+a slug before you save it: it returns `invalid`, `reserved` or null.
+
+## Options
+
+| Option      | Default | What it does                                      |
+| ----------- | ------- | ------------------------------------------------- |
+| `minLength` | `1`     | The shortest slug                                 |
+| `maxLength` | `63`    | The longest slug                                  |
+| `slugs`     | `[]`    | Your own reserved words, such as your route names |
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "reserved-slugs": { options: { minLength: 3, slugs: ["pricing", "teams"] } },
+},
+```
+
+The reserved words live in the `reserved_slugs` table, which every role can
+read. The `workspace-url-field` recipe renders an organization form whose
+reserved and taken slugs come back as field errors.

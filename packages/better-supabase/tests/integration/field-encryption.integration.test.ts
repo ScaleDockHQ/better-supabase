@@ -10,13 +10,15 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 const live = await reachable();
 
 // Encrypted columns are ciphertext at rest and decrypt through
-// `<table>_reveal`, which audits each call per tenant (ADR 0087).
+// `<table>_reveal`, which audits each call per tenant (ADR 0087). A lookup
+// column keeps an HMAC of the value that `<table>_find` matches.
 const TABLES: AppTablesConfig = {
   it_charts: {
     columns: {
       title: { type: "text", nullable: false },
       diagnosis: { type: "text", encrypted: true },
       dose: { type: "numeric", encrypted: true, min: 0 },
+      bsn: { type: "text", format: "bsn", encrypted: true, lookup: true },
     },
     auditReads: true,
   },
@@ -187,6 +189,90 @@ describe.skipIf(!live)("field encryption", () => {
         "(select diagnosis from public.it_charts where title = 'A2')",
       ),
     ).toBe(before);
+  });
+
+  it("finds rows by an encrypted value's lookup, only in the caller's tenants", async () => {
+    await s.asRole(ann);
+    await s.client.query(
+      "insert into public.it_charts (organization_id, title, bsn) values ($1, 'P', '111222333'), ($1, 'Q', '123456782')",
+      [annOrg],
+    );
+
+    const found = await s.rows<{ title: string }>(
+      "select c.title from public.it_charts_find('bsn', ' 111222333 ') f join public.it_charts c on c.id = f.id",
+    );
+
+    expect(found).toEqual([{ title: "P" }]);
+    expect(
+      await s.hint("select * from public.it_charts_find('dose', '1')"),
+    ).toBe("APP_FIND_COLUMN");
+    expect(
+      await s.hint(
+        "insert into public.it_charts (organization_id, title, bsn) values ($1, 'R', '123456789')",
+        [annOrg],
+      ),
+    ).toMatch(/it_charts_bsn_check/u);
+
+    await s.service();
+    const bob = await s.user("bob");
+    await s.organization(bob);
+    await s.asRole(bob);
+    expect(
+      await s.value<number>(
+        "(select count(*)::int from public.it_charts_find('bsn', '111222333'))",
+      ),
+    ).toBe(0);
+
+    await s.service();
+
+    const stored = await s.value<string>(
+      "(select encode(bsn_lookup, 'hex') from public.it_charts where title = 'P')",
+    );
+
+    expect(
+      await s.value<string>(
+        "(select encode(better_supabase.field_lookup($1, '111222333'), 'hex'))",
+        [`tenant:${annOrg}`],
+      ),
+    ).toBe(stored);
+
+    await s.client.query(
+      "update public.it_charts set bsn_lookup = '\\x00' where title = 'P'",
+    );
+    expect(
+      await s.value<string>(
+        "(select encode(bsn_lookup, 'hex') from public.it_charts where title = 'P')",
+      ),
+    ).toBe(stored);
+
+    await s.client.query("select better_supabase.drop_field_key($1)", [
+      `tenant:${annOrg}`,
+    ]);
+    expect(
+      await s.value<number>(
+        "(select count(*)::int from public.it_charts_find('bsn', '111222333'))",
+      ),
+    ).toBe(0);
+  });
+
+  it("checks identifier formats of custom field values", async () => {
+    await s.asRole(ann);
+
+    const definition = await s.value<string>(
+      "(better_supabase.save_field_definition($1, 'contact', 'iban', 'IBAN', 'iban', false) ->> 'id')",
+      [annOrg],
+    );
+
+    await s.client.query(
+      "select better_supabase.set_field_value($1, 'contact', 'c-1', $2, 'NL91ABNA0417164300')",
+      [annOrg, definition],
+    );
+    expect(
+      await s.hint(
+        "select better_supabase.set_field_value($1, 'contact', 'c-2', $2, 'NL91ABNA0417164301')",
+        [annOrg, definition],
+      ),
+    ).toBe("FIELD_VALUE_INVALID");
   });
 
   it("encrypts a custom field's values, audits the read and shreds them with the key", async () => {

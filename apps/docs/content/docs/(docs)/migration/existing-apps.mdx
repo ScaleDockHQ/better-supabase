@@ -192,7 +192,7 @@ An outbox over your events table writes to it. SQL modules emit in the same
 transaction as the change, with the source in `blockSource`, and
 `emit_event` calls without a source get `defaultSource`. Your existing
 webhook receivers keep their signature format through a
-[signer](/docs/blocks/webhooks-out): `hmacSigner` writes `v1=<hex>` over
+[signer](/docs/blocks/webhooks): `hmacSigner` writes `v1=<hex>` over
 `timestamp.body` under your header names, so you can move to Standard
 Webhooks later, per destination.
 

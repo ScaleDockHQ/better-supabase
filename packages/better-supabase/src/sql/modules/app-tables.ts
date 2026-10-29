@@ -9,8 +9,10 @@ import type { BlockSqlContext, BlockSqlIdType } from "../context.ts";
 import type { BlockSqlFile, BlockSqlLayout } from "../module-types.ts";
 import type { EnrichTable } from "./app-table-enrich.ts";
 import type { SealTable } from "./app-table-seal.ts";
+import type { TenantReference } from "./app-table-tenant-keys.ts";
 
 import { hasColumnAccess } from "../../config/app-access.ts";
+import { lookupColumn } from "../../config/app-encryption.ts";
 import {
   APP_DELETED_AT_COLUMN,
   APP_RANK_COLUMN,
@@ -20,6 +22,7 @@ import {
 } from "../../config/app-tables.ts";
 import { CONFIG_DEFAULTS } from "../../config/defaults.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { formatValidatorSql, validatorsOf } from "../format-checks.ts";
 import { moduleContext } from "../module-context.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -43,11 +46,14 @@ import {
 } from "./app-table-enrich.ts";
 import {
   checkSealBlocks,
+  findSql,
+  lookupColumns,
   revealSql,
   sealChecks,
   sealSql,
 } from "./app-table-seal.ts";
 import { appTableSetSql, settableColumns } from "./app-table-set.ts";
+import { tenantKeysSql, tenantReferencesOf } from "./app-table-tenant-keys.ts";
 import { appViewBehaviour, appViewChecks, appViewSql } from "./app-views.ts";
 import { appTableSearchTriggers } from "./search.ts";
 import { sessionPolicyTables } from "./sessions.ts";
@@ -94,18 +100,6 @@ interface AppTable {
   readonly tenantReferences: ReadonlyMap<string, TenantReference>;
   /** Set when the app's own schema creates the table (`layout.ownTables`). */
   readonly enrich: EnrichTable | undefined;
-}
-
-/**
- * A reference between two tenant-scoped app tables. It becomes a foreign key on
- * `(tenant, column)` to the target's `(tenant, id)`, so a row can't point at a
- * row of another tenant.
- */
-interface TenantReference {
-  readonly column: string;
-  readonly target: string;
-  readonly tenant: string;
-  readonly onDelete: AppReference["onDelete"];
 }
 
 const qualified = (table: string): string =>
@@ -252,83 +246,6 @@ function columnSql(
   ].join("");
 }
 
-/**
- * The references of a tenant-scoped table to another tenant-scoped app table
- * (itself included), which `tenantKeysSql` checks per tenant.
- */
-function tenantReferencesOf(
-  table: Omit<AppTable, "tenantReferences">,
-  tenantScoped: ReadonlySet<string>,
-): ReadonlyMap<string, TenantReference> {
-  const references = new Map<string, TenantReference>();
-
-  if (table.ctx.scope.kind !== "tenant" || !table.scope) {
-    return references;
-  }
-
-  for (const [column, config] of Object.entries(table.config.columns ?? {})) {
-    const reference = config.references;
-
-    if (
-      reference !== undefined &&
-      !("block" in reference) &&
-      tenantScoped.has(reference.table)
-    ) {
-      references.set(column, {
-        column,
-        target: reference.table,
-        tenant: table.scope.name,
-        onDelete: reference.onDelete,
-      });
-    }
-  }
-
-  return references;
-}
-
-/**
- * The unique `(tenant, id)` index on every target of a tenant reference, then
- * each reference as a foreign key on `(tenant, column)`. The key is dropped and
- * added again so a re-run replaces the single-column key an earlier version
- * wrote under the same name. `set null` names the column (Postgres 15), so the
- * tenant column keeps its value.
- */
-function tenantKeysSql(tables: readonly AppTable[]): string {
-  const references = tables.flatMap((table) =>
-    [...table.tenantReferences.values()].map((reference) => ({
-      table: table.name,
-      reference,
-    })),
-  );
-
-  const targets = new Map(
-    references.map(({ reference }) => [reference.target, reference.tenant]),
-  );
-
-  const indexes = [...targets].map(
-    ([target, tenant]) =>
-      `create unique index if not exists ${sqlIdent(`${target}_${tenant}_id_key`)} on ${qualified(target)} (${sqlIdent(tenant)}, id);`,
-  );
-
-  const keys = references.map(({ table, reference }) => {
-    const name = sqlIdent(`${table}_${reference.column}_fkey`);
-    const tenant = sqlIdent(reference.tenant);
-    const column = sqlIdent(reference.column);
-
-    const onDelete =
-      reference.onDelete === undefined
-        ? ""
-        : reference.onDelete === "set null"
-          ? ` on delete set null (${column})`
-          : ` on delete ${reference.onDelete}`;
-
-    return `alter table ${qualified(table)} drop constraint if exists ${name};
-alter table ${qualified(table)} add constraint ${name} foreign key (${tenant}, ${column}) references ${qualified(reference.target)} (${tenant}, id)${onDelete};`;
-  });
-
-  return [...indexes, ...keys].join("\n");
-}
-
 function createSql(table: AppTable): string {
   if (table.enrich) {
     return enrichSql(table.enrich);
@@ -376,6 +293,9 @@ function columnsSql(table: AppTable): string {
       .filter(([name]) => !table.enrich?.existing.has(name))
       .map(([name, column]) => columnSql(table, name, column)),
     ...subjectColumnsSql(table),
+    ...lookupColumns(table.config).map(
+      (name) => `${sqlIdent(lookupColumn(name))} bytea`,
+    ),
   ]
     .map(
       (column) =>
@@ -414,6 +334,7 @@ function indexesSql(table: AppTable): string {
     ...indexed.map((column) => [column]),
     ...rankIndex(table),
     ...(table.config.indexes ?? []),
+    ...lookupColumns(table.config).map((name) => [lookupColumn(name)]),
   ]
     .map(
       (columns) =>
@@ -893,6 +814,7 @@ function tableSql(table: AppTable): string {
     eventsSql(table),
     sealSql(sealTable(table), constraintChecks),
     revealSql(sealTable(table)),
+    findSql(sealTable(table)),
   ]
     .filter((part) => part !== "")
     .join("\n");
@@ -1215,6 +1137,16 @@ export function appTablesFiles(
   ].join("\n");
 
   const body = [
+    formatValidatorSql(
+      SCHEMA,
+      validatorsOf(
+        tables.flatMap((table) =>
+          Object.values(table.config.columns ?? {}).map(
+            (column) => column.format,
+          ),
+        ),
+      ),
+    ),
     tables.map((table) => createSql(table)).join("\n\n"),
     tables
       .map((table) => columnsSql(table))

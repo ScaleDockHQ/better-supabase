@@ -235,9 +235,11 @@ Each also writes an audit entry when the audit module is installed.
 
 ```ts
 import {
-  createOAuthServer,
+  createOauthServer,
   sqlTransport,
 } from "better-supabase/blocks/oauth-server";
 
-const oauth = createOAuthServer({ transport: sqlTransport(postgres.admin) });
+const oauth = createOauthServer({ transport: sqlTransport(postgres.admin) });
 ```
+
+`createOAuthServer` and the `OAuth*` type names still work as deprecated aliases of `createOauthServer` and the `Oauth*` types until the next minor release.

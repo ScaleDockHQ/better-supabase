@@ -1,6 +1,6 @@
 # 0093: Install blocks as named instances behind one data contract
 
-- Status: accepted
+- Status: accepted; the frozen table names, permission keys, event types and hint codes are superseded by 0130
 - Date: 2026-10-22
 
 ## Context

@@ -2,7 +2,7 @@
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
 -- @bsb-hash sha256:8e8a9f38db3cc3f4bd335a0ae66dbfe8853d0b8dd72c35a24eae8c4962795bda
--- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
+-- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -870,7 +870,7 @@ on conflict (name) do update
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
 -- @bsb-hash sha256:6a7e4f83ff5c7da2de1cb0605aaaf2af7da045723435738124401abbfc6233ba
--- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
+-- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1784,7 +1784,7 @@ on conflict (name) do update
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
 -- @bsb-hash sha256:1d72d0250ef85316877acdc30d51453eae37e8483e8212b73e9ea88dffcc765d
--- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
+-- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2657,7 +2657,7 @@ on conflict (name) do update
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
 -- @bsb-hash sha256:92b5f411594edc0e98dd57a73e4a13bb44b431746feec8ab9cd3397b96d1f998
--- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
+-- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3732,7 +3732,7 @@ on conflict (name) do update
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
 -- @bsb-hash sha256:f3b2db264efc1d2b18be89abfba6ddbfd268c560bbe2587f1298a719353a24c3
--- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
+-- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

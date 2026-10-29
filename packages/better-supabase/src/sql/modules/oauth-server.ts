@@ -1,4 +1,4 @@
-import type { OAuthServerEvents } from "../../blocks/oauth-server/events.ts";
+import type { OauthServerEvents } from "../../blocks/oauth-server/events.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
@@ -17,7 +17,7 @@ import {
   userGrant,
 } from "../shared.ts";
 
-const EVENTS: BlockSqlEvents<OAuthServerEvents> = {
+const EVENTS: BlockSqlEvents<OauthServerEvents> = {
   "oauth_client.registered": {
     subject: "oauth-clients",
     payload: ["clientId"],
@@ -1020,7 +1020,7 @@ export const OAUTH_SERVER: BlockSqlDefinition = {
   name: "oauth-server",
   title: "OAuth server",
   description:
-    "Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOAuthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.",
+    "Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.",
   requires: [],
   integrates: ["outbox", "audit"],
   target: "schema",

@@ -111,7 +111,7 @@ describe("splitAppTables", () => {
     expect(files.some((file) => file.path === "public/views/v.sql")).toBe(true);
   });
 
-  it("writes json, encrypted and events tags", () => {
+  it("writes json, encrypted, lookup and events tags", () => {
     const tagged = {
       ...base,
       json: {
@@ -123,6 +123,7 @@ describe("splitAppTables", () => {
         a: {
           columns: {
             ssn: { type: "bigint" as const, encrypted: true },
+            bsn: { type: "text" as const, encrypted: true, lookup: true },
             notes: { type: "text" as const, access: "server" as const },
           },
           events: { on: ["created" as const], include: ["x"] },
@@ -139,7 +140,8 @@ describe("splitAppTables", () => {
     const b = files[1]?.contents ?? "";
 
     expect(a).toContain("json meta=Meta doc=import:@/t#Doc");
-    expect(a).toContain("encrypted ssn=bigint");
+    expect(a).toContain("encrypted ssn=bigint bsn=text");
+    expect(a).toContain("lookup bsn");
     expect(a).toContain("server notes");
     expect(a).toContain("events on=created include=x");
     expect(b).toContain("events");

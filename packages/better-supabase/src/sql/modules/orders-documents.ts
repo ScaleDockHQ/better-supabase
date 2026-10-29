@@ -387,7 +387,7 @@ begin
   end if;
   return ${fn("order_from_document")}(v_quote.${q("tenant")}, v_attrs || jsonb_build_object(
     'currency', v_quote.${q("currency")}, 'taxInclusive', ${inclusive},
-    'subtotal', v_quote.${q("listTotal")}::text, 'discountTotal', v_quote.${q("discountTotal")}::text, 'shippingTotal', '0',
+    'subtotal', v_quote.${q(quotes.has("quotes", "listTotal") ? "listTotal" : "subtotal")}::text, 'discountTotal', ${quotes.has("quotes", "discountTotal") ? `v_quote.${q("discountTotal")}::text` : "'0'"}, 'shippingTotal', '0',
     'taxTotal', v_quote.${q("taxTotal")}::text, 'total', v_quote.${q("total")}::text,
     'origin', jsonb_build_object('type', 'quote', 'id', v_quote.${q("id")}::text)),
     v_lines, nullif(v_attrs ->> 'locationId', '')::uuid);

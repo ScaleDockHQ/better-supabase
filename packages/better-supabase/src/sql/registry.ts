@@ -36,7 +36,7 @@ import { CHANNELS } from "./modules/channels.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
 import { COLLECTIONS } from "./modules/collections.ts";
 import { COMMENTS } from "./modules/comments.ts";
-import { CONTROLS } from "./modules/compliance.ts";
+import { COMPLIANCE } from "./modules/compliance.ts";
 import { CONNECTORS } from "./modules/connectors.ts";
 import { PARTIES } from "./modules/contacts.ts";
 import { CONTENT } from "./modules/content.ts";
@@ -363,7 +363,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(DISPATCH),
       built(SHIPMENTS),
       built(CONTRACTS),
-      built(CONTROLS),
+      built(COMPLIANCE),
       built(INCIDENTS),
       built(COURSES),
       built(MESSAGING),

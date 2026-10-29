@@ -216,6 +216,11 @@ export interface Invoices<F extends object = Record<never, never>> {
       readonly note?: string;
       /** Who recorded it, for the state machine's history. */
       readonly actor?: TransitionActor;
+      /**
+       * Why the status changes, such as a refund, for the state machine's
+       * history.
+       */
+      readonly reason?: string;
     },
   ): AsyncResult<Invoice<F>>;
   /** A draft credit note for the whole invoice, or for the given lines. */
@@ -545,6 +550,7 @@ export function createInvoices<
         reference: payment.reference ?? null,
         note: payment.note ?? null,
         ...(payment.actor === undefined ? {} : { actor: payment.actor }),
+        ...(payment.reason === undefined ? {} : { reason: payment.reason }),
       }),
     credit: (invoiceId, credit = {}) => {
       const invalid = amountsError(

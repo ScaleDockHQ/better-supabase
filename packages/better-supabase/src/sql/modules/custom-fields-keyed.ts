@@ -6,6 +6,7 @@ import type { Subject } from "../subjects.ts";
 import { CUSTOM_FIELD_TYPES } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
+import { customFieldValueCheck } from "../format-checks.ts";
 import { fail, lockTable, userGrant } from "../shared.ts";
 import {
   boundRowSubject,
@@ -393,6 +394,9 @@ begin
   end if;
   if coalesce(trim(${s("key")}), '') = '' or coalesce(trim(${s("label")}), '') = '' or v_type is null or v_type not in (${CUSTOM_FIELD_TYPES.map((type) => sqlString(type)).join(", ")}) then
     ${fail("FIELD_INVALID", "a field needs a key, a label and a known type", "22023")}
+  end if;
+  if not (${customFieldValueCheck("v_type", `${s("value")} #>> '{}'`, ctx.schemaName)}) then
+    ${fail("FIELD_VALUE_INVALID", "the value doesn't match the field's format", "22023")}
   end if;
   if not (${check(s("subject_type"), s("subject_id"), s("tenant"))}) then
     ${fail("FIELD_SUBJECT_FORBIDDEN", "not allowed to set fields on this record")}

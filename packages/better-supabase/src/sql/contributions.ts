@@ -1,3 +1,4 @@
+import type { RelationKindOptions } from "../blocks/relations/options.ts";
 import type { BlockSqlContext } from "./context.ts";
 
 /**
@@ -10,6 +11,7 @@ export interface BlockContributions {
   readonly bulk: BulkActionContribution;
   readonly numbering: NumberingContribution;
   readonly pipelines: PipelineContribution;
+  readonly relations: RelationContribution;
   readonly "share-links": ShareLinkContribution;
   readonly subjects: SubjectContribution;
 }
@@ -84,6 +86,21 @@ export interface PipelineContribution {
   readonly tenant: string;
   /** The binding; an app's own `on` entry is merged over it. */
   readonly entry: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * A kind of link the contributing block needs, for when the app doesn't
+ * configure `blocks.relations.options.kinds.<kind>` itself. Name subject types
+ * in `types` after the instance's entity names.
+ */
+export interface RelationContribution extends RelationKindOptions {
+  readonly kind: string;
+  /**
+   * A boolean expression over the link's `data` (a jsonb expression) that every
+   * link of this kind must pass, or `link` raises `RELATION_DATA_INVALID`. An
+   * app kind of the same name drops it.
+   */
+  readonly data?: (data: string) => string;
 }
 
 /** SQL expressions for the subject a new share link names. */

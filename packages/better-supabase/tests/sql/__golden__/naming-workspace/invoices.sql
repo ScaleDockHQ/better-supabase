@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:6aa10e273f8d0f0ecebf5b9024b8b658c87730691ff6529198fcc558f4b9e4fa
+-- @bsb-hash sha256:bfa48e2d3a562f384d32ca8b335391d7de4f72710528faaddbb3c6f57322b898
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -658,11 +658,13 @@ grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, js
 -- currency as a ledger transaction from the invoice's receivable account to
 -- cash. A reference, such as a bank or payment provider id, is unique per
 -- organization, so recording the same payment twice adds it once. actor:
--- who recorded it, for the state machine's history.
+-- who recorded it, and reason: why the status changes, for the state
+-- machine's history.
 drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
 drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
 drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null)
+drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -729,6 +731,7 @@ begin
     end if;
   end;
   v_was := v_row."status";
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(record_invoice_payment.reason), ''), ''), true);
   v_payment := "better_supabase"."ledger_post"(v_row."tenant_id", case when record_invoice_payment.amount < 0 then 'invoice.refund' else 'invoice.payment' end,
     jsonb_build_array(
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'receivable',
@@ -755,6 +758,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
     null;
@@ -778,8 +782,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_invoice_payments"(invoice uuid)
 returns jsonb
