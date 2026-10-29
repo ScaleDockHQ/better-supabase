@@ -124,6 +124,11 @@ export interface ShareLinkContribution {
    * earlier ones, such as a feed whose old address should stop working.
    */
   readonly single?: boolean;
+  /**
+   * The roles a link to this subject type may carry. `create_share_link`
+   * refuses any other with `SHARE_LINK_ROLE_INVALID`. Default: `["view"]`.
+   */
+  readonly roles?: readonly string[];
 }
 
 /** One section `record_summary` counts. */

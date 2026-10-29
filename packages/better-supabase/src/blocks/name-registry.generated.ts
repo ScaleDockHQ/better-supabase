@@ -1562,7 +1562,7 @@ export interface BlockNameRegistry {
   };
   readonly "share-links": {
     readonly tables: {
-      readonly "links": "id" | "tenant" | "subjectType" | "subjectId" | "tokenHash" | "role" | "version" | "expiresAt" | "revokedAt" | "maxUses" | "useCount" | "createdBy" | "leaf" | "versionId" | "createdAt" | "lastUsedAt";
+      readonly "links": "id" | "tenant" | "subjectType" | "subjectId" | "tokenHash" | "role" | "version" | "expiresAt" | "revokedAt" | "maxUses" | "useCount" | "createdBy" | "leaf" | "versionId" | "createdAt" | "lastUsedAt" | "passwordHash" | "downloadAllowed";
       readonly "views": "id" | "tenant" | "subjectType" | "subjectId" | "version" | "viewerKind" | "viewer" | "firstViewedAt" | "lastViewedAt" | "viewCount";
       readonly "state": "subjectType" | "subjectId" | "user" | "starredAt" | "lastOpenedAt";
     };
@@ -1570,7 +1570,7 @@ export interface BlockNameRegistry {
     readonly actions: "create" | "read";
     readonly hooks: never;
     readonly entities: {
-      readonly "link": "id" | "tenant_id" | "subject_type" | "subject_id" | "token_hash" | "role" | "version" | "expires_at" | "revoked_at" | "max_uses" | "use_count" | "created_by" | "leaf_id" | "version_id" | "created_at" | "last_used_at";
+      readonly "link": "id" | "tenant_id" | "subject_type" | "subject_id" | "token_hash" | "role" | "version" | "expires_at" | "revoked_at" | "max_uses" | "use_count" | "created_by" | "leaf_id" | "version_id" | "created_at" | "last_used_at" | "password_hash" | "download_allowed";
     };
     readonly primary: "link";
   };

@@ -1055,7 +1055,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:dfa9b1a4e33d7487e82043267d8b97217b55a7eb228319a2b2cde9198b44c336
+-- @bsb-hash sha256:c50b387cee229413b9c36a9d826c1e3b3d194ee39b2b7ef7e4bb202506217d10
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2112,6 +2112,7 @@ begin
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
     and (l."max_uses" is null or l."use_count" < l."max_uses")
+    and l."password_hash" is null
     and (l."subject_type" <> 'leave_feed' or l."subject_id" = l."tenant_id"::text)
   for update;
   if v_tenant is null or v_creator is null or not coalesce(better_supabase.can_user(v_creator, 'tenant', v_tenant, 'leave.read'), false) then

@@ -1019,6 +1019,7 @@ const CONTRIBUTES: BlockContributes = {
     {
       subject: "form",
       exists: (subject) => shareLinkRow(own, "forms", subject),
+      roles: [FORM_LINK_ROLE],
     },
   ],
 };

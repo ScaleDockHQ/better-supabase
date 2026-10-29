@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:ffe2dfde00999e3f250ad8b64d1b274ea6b3a3c875de215197c479fd29e9d12c
+-- @bsb-hash sha256:286f0d8efafb5616a90250672a2e295070a928946ce784be74ff460800534cf5
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -886,7 +886,8 @@ begin
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
-    and (l."max_uses" is null or l."use_count" < l."max_uses");
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+    and l."password_hash" is null;
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;
@@ -944,7 +945,8 @@ begin
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
-    and (l."max_uses" is null or l."use_count" < l."max_uses");
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+    and l."password_hash" is null;
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;
@@ -1001,7 +1003,8 @@ begin
     and l."subject_type" = 'booking_service'
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
-    and (l."max_uses" is null or l."use_count" < l."max_uses");
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+    and l."password_hash" is null;
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'unknown or expired booking link' using errcode = 'P0002', hint = 'BOOKING_LINK_INVALID';
   end if;
