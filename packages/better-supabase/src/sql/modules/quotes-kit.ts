@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 import type { QuoteNames } from "./quotes-functions.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { asColumnType } from "../column-type.ts";
 import {
   declared,
   documentTotals,
@@ -13,12 +14,37 @@ import { int8Text } from "../money-sql.ts";
 import { columnsObject, fail } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 
-/** Whether the quotes table has both columns of a company or contact link. */
+/**
+ * How the quotes table holds a company or contact: a type and an id column
+ * (`pair`), only an id column of the fixed type `options.company` or `contact`,
+ * such as a foreign key to the app's customers (`fixed`), or not at all.
+ */
 export function quoteParty(
   ctx: BlockSqlContext,
   party: "company" | "contact",
-): boolean {
-  return ctx.has("quotes", `${party}Type`) && ctx.has("quotes", `${party}Id`);
+): "pair" | "fixed" | undefined {
+  if (!ctx.has("quotes", `${party}Id`)) {
+    return undefined;
+  }
+
+  return ctx.has("quotes", `${party}Type`) ? "pair" : "fixed";
+}
+
+/**
+ * SQL for the type of a quote's company or contact under `prefix`: its type
+ * column, or the fixed type when the id is set.
+ */
+export function quotePartyType(
+  ctx: BlockSqlContext,
+  party: "company" | "contact",
+  prefix: string,
+): string {
+  const at = (logical: string): string =>
+    `${prefix}${ctx.col("quotes", logical)}`;
+
+  return quoteParty(ctx, party) === "pair"
+    ? at(`${party}Type`)
+    : `(case when ${at(`${party}Id`)} is null then null else ${sqlString(ctx.text(party, party === "company" ? "company" : "person"))} end)`;
 }
 
 /** Whether the quotes table has both columns of the record it was made from. */
@@ -67,9 +93,13 @@ export function quoteGuest(
   const checks = [
     ctx.scope.guest(q("tenant"), "'quote'", `${q("id")}::text`, "read"),
     ...(["company", "contact"] as const)
-      .filter((party) => quoteParty(ctx, party))
+      .filter((party) => quoteParty(ctx, party) !== undefined)
       .map((party) =>
-        ctx.scope.guestParty(q("tenant"), q(`${party}Type`), q(`${party}Id`)),
+        ctx.scope.guestParty(
+          q("tenant"),
+          quotePartyType(ctx, party, prefix),
+          q(`${party}Id`),
+        ),
       ),
   ].filter((check) => check !== "false");
 
@@ -145,6 +175,17 @@ export interface QuoteKit {
     id: string,
     tenant: string,
   ) => string;
+  /** The logical columns of a party the quotes table has: type and id, or id. */
+  readonly partyFields: (party: "company" | "contact") => readonly string[];
+  /**
+   * The insert values of a party from text SQL `type` and `id`: the type when
+   * the id is set and the id, or only the id in the fixed column's own type.
+   */
+  readonly partyValues: (
+    party: "company" | "contact",
+    type: string,
+    id: string,
+  ) => string[];
   readonly notifyOwner: (event: string) => string;
   /** Marks sent quote `v_row` viewed, recording `quote.viewed`. */
   readonly markViewed: () => string;
@@ -247,8 +288,14 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     .map((column) => `, ${sqlString(column)}, ql.${l(column)}`)
     .join("");
 
+  // A line's product; with only a product id column, its id without a type.
+  const product =
+    !lineHas("productType") && lineHas("productId")
+      ? `case when ql.${l("productId")} is null then null else jsonb_build_object('type', null, 'id', ql.${l("productId")}) end`
+      : `case when ${lineValue("productType")} is null then null else jsonb_build_object('type', ${lineValue("productType")}, 'id', ${lineValue("productId")}) end`;
+
   const lines = (alias: string): string =>
-    `coalesce((select jsonb_agg(jsonb_build_object('position', ql.${l("position")}, 'description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ${lineValue("discountBps")}, 'taxRateBps', ${lineValue("taxRateBps")}, 'taxCode', ${lineValue("taxCode")}${documentLine}, 'product', case when ${lineValue("productType")} is null then null else jsonb_build_object('type', ${lineValue("productType")}, 'id', ${lineValue("productId")}) end${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
+    `coalesce((select jsonb_agg(jsonb_build_object('position', ql.${l("position")}, 'description', ql.${l("description")}, 'quantity', ql.${l("quantity")}, 'unitAmount', ql.${l("unitAmount")}::text, 'discountBps', ${lineValue("discountBps")}, 'taxRateBps', ${lineValue("taxRateBps")}, 'taxCode', ${lineValue("taxCode")}${documentLine}, 'product', ${product}${lineFieldsJson("ql", n.lineExtras)}) order by ql.${l("position")}) from ${t("lines")} ql where ql.${l("parent")} = ${alias}.${q("id")}), '[]'::jsonb)`;
 
   const tl = (column: string): string => c("taxLines", column);
 
@@ -273,8 +320,20 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     ]),
   );
 
+  // The keys a row reads back that the app's table has no column for.
+  const missingKeys = (alias: string): string =>
+    `${(["company", "contact"] as const)
+      .filter((party) => quoteParty(ctx, party) === "fixed")
+      .map(
+        (party) =>
+          `, ${sqlString(`${party}_type`)}, ${quotePartyType(ctx, party, `${alias}.`)}`,
+      )
+      .join(
+        "",
+      )}${has("listTotal") ? "" : `, 'list_total', ${alias}.${q("subtotal")}::text`}${has("discountTotal") ? "" : ", 'discount_total', '0'"}`;
+
   const row = (alias: string): string =>
-    `(${ctx.rowJson("quotes", alias, { as: int8As })} - ${sqlString(q("tokenHash").replaceAll('"', ""))}${q("tokenHash") === '"token_hash"' ? "" : " - 'token_hash'"}) || ${int8Text(alias, int8)} || jsonb_build_object('lines', ${lines(alias)}, 'taxLines', ${taxLines(alias)}${
+    `(${ctx.rowJson("quotes", alias, { as: int8As })} - ${sqlString(q("tokenHash").replaceAll('"', ""))}${q("tokenHash") === '"token_hash"' ? "" : " - 'token_hash'"}) || ${int8Text(alias, int8)} || jsonb_build_object('lines', ${lines(alias)}, 'taxLines', ${taxLines(alias)}${missingKeys(alias)}${
       n.extras.length === 0
         ? ""
         : `, 'fields', ${columnsObject(
@@ -319,16 +378,56 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     type: string,
     id: string,
     tenant: string,
-  ): string =>
-    (kind === "COMPANY" ? company : contact)
-      ? `
-  if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
-    ${fail(`QUOTE_${kind}_FORBIDDEN`, `the ${kind.toLowerCase()} is unknown or not readable in this organization`, "42501")}
+  ): string => {
+    const party = kind === "COMPANY" ? "company" : "contact";
+    const mode = kind === "COMPANY" ? company : contact;
+    const fixed = party === "company" ? n.company : n.contact;
+
+    if (mode === undefined) {
+      return refuse(false, id, kind, `${party} columns`);
+    }
+
+    return `${
+      mode === "fixed"
+        ? `
+  if ${id} is not null and ${type} is distinct from ${sqlString(fixed)} then
+    ${fail(`QUOTE_${kind}_UNSUPPORTED`, `this quotes table takes only a ${fixed} as the ${party}`, "22023")}
   end if;`
-      : refuse(false, id, kind, `${kind.toLowerCase()} columns`);
+        : ""
+    }
+  if ${id} is not null and not ${subjectInTenant(ctx, type, id, tenant)} then
+    ${fail(`QUOTE_${kind}_FORBIDDEN`, `the ${party} is unknown or not readable in this organization`, "42501")}
+  end if;`;
+  };
+
+  const partyFields = (party: "company" | "contact"): readonly string[] => {
+    const mode = quoteParty(ctx, party);
+
+    if (mode === undefined) {
+      return [];
+    }
+
+    return mode === "pair" ? [`${party}Type`, `${party}Id`] : [`${party}Id`];
+  };
+
+  const partyValues = (
+    party: "company" | "contact",
+    type: string,
+    id: string,
+  ): string[] => {
+    const mode = quoteParty(ctx, party);
+
+    if (mode === "pair") {
+      return [`case when ${id} is null then null else ${type} end`, id];
+    }
+
+    return mode === "fixed"
+      ? [asColumnType(t("quotes"), ctx.colName("quotes", `${party}Id`), id)]
+      : [];
+  };
 
   const notifyOwner = (event: string): string =>
-    ctx.installed("notifications")
+    ctx.installed("notifications") && ctx.flag("notifications", true)
       ? `
   if v_row.${q("owner")} is not null then
     ${ctx.notify(
@@ -337,6 +436,7 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
       'tenant', v_row.${q("tenant")},
       'subject_type', 'quote',
       'subject_id', v_row.${q("id")}::text,
+      'subject_label', v_row.${q("identifier")} || ' ' || v_row.${q("title")},
       'summary', v_row.${q("identifier")} || ' ' || v_row.${q("title")},
       'recipients', jsonb_build_array(v_row.${q("owner")}),
       'key', ${sqlString(`${event}:`)} || v_row.${q("id")}::text,
@@ -382,6 +482,8 @@ export function quoteKit(ctx: BlockSqlContext, n: QuoteNames): QuoteKit {
     workingCopy,
     record,
     checkParty,
+    partyFields,
+    partyValues,
     notifyOwner,
     markViewed,
     depositDue:

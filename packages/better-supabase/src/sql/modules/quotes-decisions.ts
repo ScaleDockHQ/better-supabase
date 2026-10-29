@@ -3,7 +3,13 @@ import type { QuoteNames } from "./quotes-functions.ts";
 import type { QuoteKit } from "./quotes-kit.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, sha256Hex, transitionActorSql, userGrant } from "../shared.ts";
+import {
+  fail,
+  sha256Hex,
+  transitionActorSql,
+  transitionReasonSql,
+  userGrant,
+} from "../shared.ts";
 import { quoteGuest } from "./quotes-kit.ts";
 
 /** The quote columns a customer sees of a published version. */
@@ -221,10 +227,10 @@ export function quoteDecisions(
   }${selection(a.name)}
     ${ctx.hook("before_quote_accept", [["uuid", `v_row.${q("id")}`]])}
   end if;
-  update ${t("quotes")} x set ${q("status")} = ${ctx.cast("quotes", "status", `${a.name}.decision`)}, ${q("decidedAt")} = now(), ${q("decidedBy")} = nullif(trim(${a.by}), ''),
+  ${a.customer ? "" : `${transitionReasonSql(`${a.name}.note`)}\n  `}update ${t("quotes")} x set ${q("status")} = ${ctx.cast("quotes", "status", `${a.name}.decision`)}, ${q("decidedAt")} = now(), ${q("decidedBy")} = nullif(trim(${a.by}), ''),
     ${has("decisionNote") ? `${q("decisionNote")} = nullif(trim(${a.name}.note), ''), ` : ""}${client("decidedUser", a.actor === undefined ? "auth.uid()" : `coalesce(nullif(${a.actor} ->> 'id', '')::uuid, auth.uid())`)}${client("decidedIp", a.customer || a.actor !== undefined ? actorIp(a) : "null")}${client("decidedUserAgent", a.customer || a.actor !== undefined ? actorAgent(a) : "null")}${k.workingCopy ? `${q("unpublishedChanges")} = case when ${a.name}.decision = 'accepted' then false else x.${q("unpublishedChanges")} end, ` : ""}${q("updatedAt")} = now()
   where x.${q("id")} = v_row.${q("id")}
-  returning * into v_row;
+  returning * into v_row;${a.customer ? "" : `\n  ${transitionReasonSql()}`}
   case ${a.name}.decision
     when 'accepted' then
       ${record("quote.accepted", "v_row", `, 'total', v_row.${q("total")}::text, 'currency', v_row.${q("currency")}, 'byName', v_row.${q("decidedBy")}, 'revision', v_row.${q("revision")}, 'depositDue', ${has("depositDue") ? `v_row.${q("depositDue")}::text` : "'0'"}`)}
@@ -278,7 +284,9 @@ export function quoteDecisions(
 
   return `
 -- Records the customer's answer taken another way (by phone, by email):
--- decision is accepted, rejected or changes_requested; by is their name.
+-- decision is accepted, rejected or changes_requested; by is their name,
+-- and without it or an actor the answer names no one. The note is also the
+-- reason in the state machine's history.
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
@@ -298,7 +306,7 @@ begin
   select * into v_row from ${t("quotes")} x where x.${q("id")} = decide_quote.quote and ${editable("x", n.decide)} for update;
   if v_row.${q("id")} is null then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
-  end if;${answer({ name: "decide_quote", by: "coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)", customer: false, expires: "decide_quote.actor is not null", actor: "decide_quote.actor", deposit: false })}
+  end if;${answer({ name: "decide_quote", by: "coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')", customer: false, expires: "decide_quote.actor is not null", actor: "decide_quote.actor", deposit: false })}
   return ${row("v_row")};
 end;
 $$;

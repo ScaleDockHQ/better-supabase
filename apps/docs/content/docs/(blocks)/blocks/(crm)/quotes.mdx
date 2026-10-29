@@ -84,6 +84,25 @@ const rows = useQuotes({ limit: 50 });
 
 `create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.subjects` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
+Over your own quotes table, a company or contact can be one id column of a fixed type, such as a foreign key to your customers, as on [invoices](/docs/blocks/invoices). Map the type column to `null` and name the type in `options.company` (or `options.contact`): `create` and `update` write the id in the column's own type, refuse another type (`QUOTE_COMPANY_UNSUPPORTED`), and a read returns the fixed type as `company_type`. `fromQuote` on invoices passes the customer on to the invoice.
+
+```ts
+blocks: {
+  quotes: {
+    tables: { quotes: "public.quotes", lines: "public.quote_lines" },
+    columns: { quotes: { companyType: null, companyId: "customer_id" } },
+    options: { company: "customer" },
+  },
+}
+
+await quotes.create(organizationId, {
+  title: "Repair",
+  company: { type: "customer", id: customerId },
+});
+```
+
+A line table without a product type column keeps the product id: `setLines` writes `product.id` in the column's own type, such as `uuid`, and the published lines keep it, so restoring a version keeps each line's product.
+
 Unit amounts and totals are `Money` values from [commerce](/docs/concepts/commerce), sent to the database as text so they stay exact past 2^53. Every line must be in the quote's currency (`CURRENCY_MISMATCH`, checked before the database call), and a quote created without a `currency` takes the currency of its lines. An unknown code returns `CURRENCY_INVALID`.
 
 With the [catalog block](/docs/blocks/catalog) installed, a line can name a
@@ -175,7 +194,7 @@ The database spreads the document discount over the tax rates in proportion to e
 
 ### Totals your app keeps
 
-With `options.totals: "app"`, the block never counts or writes a quote's totals: your app does, for example with a fixed discount per line or a VAT regime such as reverse charge, exempt or a small-business scheme that keeps the line rates but counts no VAT. `setLines` returns the totals the quote holds after your triggers ran, and `depositDue` follows your `total`. The block still guards them: lines and pricing change only while the quote is open, a published version never changes, and a trigger refuses a change to `listTotal`, `discountTotal`, `subtotal`, `taxTotal` or `total` once the quote is accepted, rejected, expired or withdrawn (`QUOTE_TOTALS_FROZEN`). `quote_tax_lines` is then yours to fill.
+With `options.totals: "app"`, the block never counts or writes a quote's totals: your app does, for example with a fixed discount per line or a VAT regime such as reverse charge, exempt or a small-business scheme that keeps the line rates but counts no VAT. `setLines` returns the totals the quote holds after your triggers ran, and `depositDue` follows your `total`. The block still guards them: lines and pricing change only while the quote is open, a published version never changes, and a trigger refuses a change to `listTotal`, `discountTotal`, `subtotal`, `taxTotal` or `total` once the quote is accepted, rejected, expired or withdrawn (`QUOTE_TOTALS_FROZEN`). `quote_tax_lines` is then yours to fill. Your table may leave out `listTotal` and `discountTotal` (map them to `null`); reads then return the `subtotal` as the list total and a zero discount, as on invoices.
 
 ```ts
 blocks: {
@@ -228,7 +247,16 @@ await quotes
 
 The customer's answer records their name, the time, their IP address (the last `x-forwarded-for` entry) and their user agent, in `decidedBy`, `decidedAt`, `decidedIp` and `decidedUserAgent`.
 
-`decide(quoteId, decision, { by, note, selected })` records an answer the customer gave another way, such as by phone, with the member who recorded it in `decidedUserId`.
+`decide(quoteId, decision, { by, note, selected })` records an answer the customer gave another way, such as by phone, with the member who recorded it in `decidedUserId`. `decidedBy` is the name you pass as `by` (or the actor's name or email); without one it stays empty, so a member's user id never shows as the signer. The `note` is also the history's `reason` when a [state machine](/docs/blocks/state-machine) runs over the quotes table.
+
+`withdraw(quoteId, { reason, actor })` takes back a sent quote; the reason goes to the state machine's history.
+
+```ts
+await quotes
+  .decide(quoteId, "rejected", { by: "Els Jansen", note: "Too expensive" })
+  .orThrow();
+await quotes.withdraw(otherId, { reason: "Prices changed" }).orThrow();
+```
 
 ## In your own portal
 
@@ -269,7 +297,17 @@ await db.quotes.portalRespond(quoteId, "accepted", { selected: [2] }).orThrow();
 | `quote.accepted`                                                  | the same, with `total`, `currency`, `byName`, `revision` and `depositDue` |
 | `quote.rejected`, `quote.changes_requested`                       | the same, with the customer's `note`                                      |
 
-With the [notifications](/docs/blocks/notifications) module installed, the quote's owner gets a notification when the customer answers.
+With the [notifications](/docs/blocks/notifications) module installed, the quote's owner gets a `quote.decided` notification when the customer answers, labeled with the quote's identifier and title. `options.notifications: false` sends none, so the app can send its own from the events.
+
+```ts
+blocks: {
+  quotes: {
+    options: {
+      notifications: false;
+    }
+  }
+}
+```
 
 ## Your own fields
 

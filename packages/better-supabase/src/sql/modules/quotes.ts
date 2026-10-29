@@ -98,6 +98,7 @@ const NAMES: BlockSqlNames = {
     "versionLineExtraColumns",
     "totals",
     "resend",
+    "notifications",
   ],
   tables: {
     quotes: {
@@ -168,6 +169,8 @@ const NAMES: BlockSqlNames = {
         "depositDue",
         "unpublishedChanges",
         "createdBy",
+        "listTotal",
+        "discountTotal",
       ],
       typed: ["status"],
     },
@@ -282,7 +285,7 @@ function tables(ctx: BlockSqlContext, n: QuoteNames): string {
 
   const constraints = [
     `unique (${q("tenant")}, ${q("number")}, ${q("revision")})`,
-    ...(company
+    ...(company === "pair"
       ? [`check ((${q("companyType")} is null) = (${q("companyId")} is null))`]
       : []),
     ...(origin
@@ -501,7 +504,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "revise_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
-    { name: "withdraw_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
+    {
+      name: "withdraw_quote",
+      args: ["uuid", "jsonb", "text"],
+      returns: "jsonb",
+    },
     { name: "quote_versions", args: ["uuid"], returns: "jsonb" },
     { name: "quote_version", args: ["uuid", "integer"], returns: "jsonb" },
     { name: "portal_quote", args: ["uuid", "jsonb"], returns: "jsonb" },

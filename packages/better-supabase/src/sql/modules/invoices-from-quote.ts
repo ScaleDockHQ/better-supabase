@@ -9,6 +9,7 @@ import {
   lineExtraColumns,
 } from "../line-items-sql.ts";
 import { fail, userGrant } from "../shared.ts";
+import { quoteParty, quotePartyType } from "./quotes-kit.ts";
 
 /** The invoice helpers `invoice_from_quote` shares with the other functions. */
 export interface InvoiceKit {
@@ -154,9 +155,8 @@ export function invoiceFromQuote(
 
   const party = (kind: "company" | "contact"): string =>
     (kind === "company" ? company : contact) &&
-    quotes.has("quotes", `${kind}Type`) &&
-    quotes.has("quotes", `${kind}Id`)
-      ? `case when v_quote.${q(`${kind}Id`)} is null then null else jsonb_build_object('type', v_quote.${q(`${kind}Type`)}, 'id', v_quote.${q(`${kind}Id`)}) end`
+    quoteParty(quotes, kind) !== undefined
+      ? `case when v_quote.${q(`${kind}Id`)} is null then null else jsonb_build_object('type', ${quotePartyType(quotes, kind, "v_quote.")}, 'id', v_quote.${q(`${kind}Id`)}) end`
       : "null";
 
   const create = `${fn("create_invoice")}(v_quote.${q("tenant")}, jsonb_build_object(
