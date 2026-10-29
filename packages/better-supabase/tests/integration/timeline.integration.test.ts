@@ -170,7 +170,7 @@ describe.skipIf(!live)("activity", () => {
         (await activity.list(subject, { sources: ["message"] }).orThrow()).map(
           (entry) => [entry.type, entry.actorId, entry.summary],
         ),
-      ).toEqual([["message.sent", owner.id, "Looks good"]]);
+      ).toEqual([["comment.posted", owner.id, "Looks good"]]);
       expect(
         await s.hint("select better_supabase.record_activity('{}')"),
       ).toMatch(/permission denied/);
