@@ -444,6 +444,16 @@ msgctxt "projects.1eG-hs"
 msgid "One tasks table as a grid, a board, a calendar, a timeline and a Gantt chart."
 msgstr "One tasks table as a grid, a board, a calendar, a timeline and a Gantt chart."
 
+#: src/app/[locale]/(app)/qualifications/page.tsx
+msgctxt "qualifications.9q2Nej"
+msgid "Qualifications"
+msgstr "Qualifications"
+
+#: src/app/[locale]/(app)/qualifications/page.tsx
+msgctxt "qualifications.gfuJNy"
+msgid "The certificates and licences members hold, and the required ones that are missing or about to expire."
+msgstr "The certificates and licences members hold, and the required ones that are missing or about to expire."
+
 #: src/app/[locale]/(app)/rules/[rule]/page.tsx
 msgctxt "rules.XkosHt"
 msgid "All rules"
@@ -8005,6 +8015,11 @@ msgid "Compliance"
 msgstr "Compliance"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.9q2Nej"
+msgid "Qualifications"
+msgstr "Qualifications"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Notifications"
@@ -9716,6 +9731,140 @@ msgctxt "push.62nsdy"
 msgid "Retry"
 msgstr "Retry"
 
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.iiTeG-"
+msgid "Your qualifications didn't load"
+msgstr "Your qualifications didn't load"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/qualifications/components/my-qualifications.tsx
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.BN5yXZ"
+msgid "Valid"
+msgstr "Valid"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.FsQ6XB"
+msgid "Expiring"
+msgstr "Expiring"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.RahCRH"
+msgid "Expired"
+msgstr "Expired"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.f0W26f"
+msgid "Revoked"
+msgstr "Revoked"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.d9ZLIj"
+msgid "My qualifications"
+msgstr "My qualifications"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.zPdMFv"
+msgid "The certificates and licences you hold, and the ones your role still requires."
+msgstr "The certificates and licences you hold, and the ones your role still requires."
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.PaYY_O"
+msgid "Nothing to show yet"
+msgstr "Nothing to show yet"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.HncnQa"
+msgid "Qualifications appear here once an admin grants one or you complete a course that awards one."
+msgstr "Qualifications appear here once an admin grants one or you complete a course that awards one."
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications._VQpyO"
+msgid "Expires {date}"
+msgstr "Expires {date}"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.CLPZEn"
+msgid "Never expires"
+msgstr "Never expires"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.-JirHd"
+msgid "Still required"
+msgstr "Still required"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.6EXyFZ"
+msgid "The qualification gaps didn't load"
+msgstr "The qualification gaps didn't load"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.iB4NL8"
+msgid "No qualifications yet"
+msgstr "No qualifications yet"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.IR-dXM"
+msgid "Add a qualification type such as a forklift licence, then name the roles or teams that must hold it."
+msgstr "Add a qualification type such as a forklift licence, then name the roles or teams that must hold it."
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.pGk7PH"
+msgid "Read the qualifications guide"
+msgstr "Read the qualifications guide"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.DkkVJF"
+msgid "Missing"
+msgstr "Missing"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.k6d5sB"
+msgid "Qualification gaps"
+msgstr "Qualification gaps"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.JViQiM"
+msgid "Members who lack a required qualification, hold an expired one or will lose one soon."
+msgstr "Members who lack a required qualification, hold an expired one or will lose one soon."
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.320L3T"
+msgid "Every member holds the qualifications their role requires."
+msgstr "Every member holds the qualifications their role requires."
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.7L86Z5"
+msgid "Member"
+msgstr "Member"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.sQk2Pd"
+msgid "Qualification"
+msgstr "Qualification"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.xhQMeQ"
+msgid "Expires"
+msgstr "Expires"
+
 #: src/features/roles/components/permission-matrix.tsx
 msgctxt "roles.JzR7p4"
 msgid "Search permissions"
@@ -10762,14 +10911,14 @@ msgid "Damaged"
 msgstr "Damaged"
 
 #: src/features/shop/components/adjust-stock-dialog.tsx
-msgctxt "shop.PvBlVy"
-msgid "Scrapped"
-msgstr "Scrapped"
-
-#: src/features/shop/components/adjust-stock-dialog.tsx
 msgctxt "shop.FL6lKX"
 msgid "Lost"
 msgstr "Lost"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.PvBlVy"
+msgid "Scrapped"
+msgstr "Scrapped"
 
 #: src/features/shop/components/adjust-stock-dialog.tsx
 msgctxt "shop.wm96Jx"
@@ -11330,14 +11479,14 @@ msgid "Draft"
 msgstr "Draft"
 
 #: src/features/shop/components/order-status-badge.tsx
-msgctxt "shop.dX7-Rv"
-msgid "Confirmed"
-msgstr "Confirmed"
-
-#: src/features/shop/components/order-status-badge.tsx
 msgctxt "shop.M1w9up"
 msgid "Awaiting payment"
 msgstr "Awaiting payment"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.dX7-Rv"
+msgid "Confirmed"
+msgstr "Confirmed"
 
 #: src/features/shop/components/order-status-badge.tsx
 msgctxt "shop.jY-f2f"

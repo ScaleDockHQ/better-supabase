@@ -4,6 +4,7 @@ import type { LucideIcon } from "lucide-react";
 
 import {
   ActivityIcon,
+  BadgeCheckIcon,
   IdCardIcon,
   BriefcaseIcon,
   ClockIcon,
@@ -107,6 +108,7 @@ const ICONS = {
   trash: Trash2Icon,
   metrics: ChartColumnIcon,
   compliance: ShieldHalfIcon,
+  qualifications: BadgeCheckIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
@@ -263,6 +265,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "compliance": {
         return t("Compliance");
+      }
+
+      case "qualifications": {
+        return t("Qualifications");
       }
 
       case "notifications": {

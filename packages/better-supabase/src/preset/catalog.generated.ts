@@ -6828,6 +6828,114 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "qualifications",
+      "title": "Qualifications",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "courses",
+        "employees",
+        "teams",
+        "contacts",
+        "assets",
+        "segments",
+        "attachments",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "qualifications",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "qualifications",
+      "entities": {
+        "specs": {
+          "qualification": {
+            "table": "qualifications",
+            "singular": "qualification",
+            "primary": true
+          },
+          "qualification_type": {
+            "table": "types",
+            "singular": "qualification_type",
+            "subject": {
+              "title": "name",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "qualification_requirement": {
+            "table": "requirements",
+            "singular": "qualification_requirement"
+          }
+        },
+        "tables": {
+          "qualifications": {
+            "name": "qualifications",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "type": "type_id",
+              "holderType": "holder_type",
+              "holderId": "holder_id",
+              "grantedOn": "granted_on",
+              "expiresOn": "expires_on",
+              "revokedAt": "revoked_at",
+              "revokeReason": "revoke_reason",
+              "evidenceAttachment": "evidence_attachment_id",
+              "evidenceNote": "evidence_note",
+              "source": "source",
+              "sourceId": "source_id",
+              "grantedBy": "granted_by",
+              "notifiedStatus": "notified_status",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "types": {
+            "name": "qualification_types",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "description": "description",
+              "holderTypes": "holder_types",
+              "validForMonths": "valid_for_months",
+              "evidenceRequired": "evidence_required",
+              "course": "course_id",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "requirements": {
+            "name": "qualification_requirements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "type": "type_id",
+              "targetType": "target_type",
+              "targetValue": "target_value",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "qualifications.read",
+          "grant": "qualifications.grant",
+          "manage": "qualifications.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -14039,6 +14147,290 @@ export const PRESET_CATALOG: PresetCatalog = {
           "description": "Publishes the scheduled entries whose time has come."
         }
       ]
+    },
+    {
+      "name": "qualifications",
+      "sql": [
+        "qualifications"
+      ],
+      "category": "people",
+      "client": {
+        "export": "qualificationsBlock",
+        "subpath": "better-supabase/blocks/qualifications"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Qualification",
+          "fields": true
+        },
+        {
+          "name": "QualificationExpiryEventData"
+        },
+        {
+          "name": "QualificationGap"
+        },
+        {
+          "name": "QualificationGapOptions"
+        },
+        {
+          "name": "QualificationGapStatus"
+        },
+        {
+          "name": "QualificationGrantedEventData"
+        },
+        {
+          "name": "QualificationGrantInput",
+          "fields": true
+        },
+        {
+          "name": "QualificationHolderType"
+        },
+        {
+          "name": "QualificationRequirement"
+        },
+        {
+          "name": "QualificationRevokedEventData"
+        },
+        {
+          "name": "Qualifications",
+          "fields": true
+        },
+        {
+          "name": "QualificationsEvents"
+        },
+        {
+          "name": "QualificationsOptions"
+        },
+        {
+          "name": "QualificationSource"
+        },
+        {
+          "name": "QualificationStatus"
+        },
+        {
+          "name": "QualificationTargetType"
+        },
+        {
+          "name": "QualificationType"
+        },
+        {
+          "name": "QualificationTypeArchivedEventData"
+        },
+        {
+          "name": "QualificationTypeInput"
+        },
+        {
+          "name": "QualificationTypeSavedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "qualification_type": {
+          "input": {
+            "title": "QualificationTypeInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "holderTypes": {
+                "kind": "enum",
+                "values": [
+                  "member",
+                  "company",
+                  "asset"
+                ],
+                "array": true
+              },
+              "validForMonths": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 240
+              },
+              "evidenceRequired": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "courseId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "typeId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "QualificationTypeInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "holderTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "member",
+                      "company",
+                      "asset"
+                    ]
+                  }
+                },
+                "validForMonths": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 240
+                },
+                "evidenceRequired": {
+                  "type": "boolean"
+                },
+                "courseId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "typeId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "holderTypes"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "qualification": {
+          "input": {
+            "title": "QualificationGrantInput",
+            "fields": {
+              "typeKey": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "holderType": {
+                "kind": "enum",
+                "values": [
+                  "member",
+                  "company",
+                  "asset"
+                ]
+              },
+              "holderId": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "grantedOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "evidenceAttachmentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "evidenceNote": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "QualificationGrantInput",
+              "type": "object",
+              "properties": {
+                "typeKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "holderType": {
+                  "type": "string",
+                  "enum": [
+                    "member",
+                    "company",
+                    "asset"
+                  ]
+                },
+                "holderId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "grantedOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "evidenceAttachmentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "evidenceNote": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "typeKey",
+                "holderType",
+                "holderId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "QualificationsEvents",
+        "types": [
+          "qualification_type.created",
+          "qualification_type.updated",
+          "qualification_type.archived",
+          "qualification.granted",
+          "qualification.revoked",
+          "qualification.expiry_warned",
+          "qualification.expired"
+        ]
+      }
     },
     {
       "name": "drive",

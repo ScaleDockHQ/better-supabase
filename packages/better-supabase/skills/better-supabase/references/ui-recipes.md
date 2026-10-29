@@ -14604,6 +14604,329 @@ export async function EmployeeDirectory() {
 }
 ```
 
+## Qualification matrix
+
+A table of the members who lack a required qualification, hold an expired one or will lose one soon. It loads its data on the server through the block's client; the [qualifications block](https://bettersupabase.com/blocks/qualifications) must be installed (`npx better-supabase add qualifications`). Page: https://bettersupabase.com/recipes/qualification-matrix.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty skeleton table
+```
+
+```tsx title="apps/examples/nextjs/src/features/qualifications/components/qualification-matrix.tsx"
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+const GAP_VARIANT = {
+  missing: "destructive-light",
+  expired: "destructive-light",
+  expiring: "warning-light",
+} as const satisfies Record<QualificationGapStatus, string>;
+
+/**
+ * Render inside `<Suspense>` for members with `qualifications.read`: each
+ * required qualification a member lacks, has let lapse or is about to lose.
+ */
+export async function QualificationMatrix() {
+  const [state, t, format] = await Promise.all([
+    getMatrix(),
+    getExtracted("qualifications"),
+    getFormatter(),
+  ]);
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  if (state.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="qualification-matrix">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The qualification gaps didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  const { types, gaps } = state.data;
+
+  if (types === 0) {
+    return (
+      <Empty className="border" data-recipe="qualification-matrix">
+        <EmptyHeader>
+          <EmptyMedia variant="icon">
+            <BadgeCheckIcon />
+          </EmptyMedia>
+          <EmptyTitle>{t("No qualifications yet")}</EmptyTitle>
+          <EmptyDescription>
+            {t(
+              "Add a qualification type such as a forklift licence, then name the roles or teams that must hold it.",
+            )}
+          </EmptyDescription>
+        </EmptyHeader>
+        <EmptyContent>
+          <a
+            className="text-sm underline underline-offset-4"
+            href="https://bettersupabase.com/docs/blocks/qualifications"
+          >
+            {t("Read the qualifications guide")}
+          </a>
+        </EmptyContent>
+      </Empty>
+    );
+  }
+
+  const label = (status: QualificationGapStatus) => {
+    switch (status) {
+      case "missing": {
+        return t("Missing");
+      }
+
+      case "expired": {
+        return t("Expired");
+      }
+
+      case "expiring": {
+        return t("Expiring");
+      }
+
+      default: {
+        const unknown: never = status;
+
+        return unknown;
+      }
+    }
+  };
+
+  const day = (date: string) =>
+    format.dateTime(new Date(date), { dateStyle: "medium", timeZone: "UTC" });
+
+  return (
+    <Card data-recipe="qualification-matrix">
+      <CardHeader>
+        <CardTitle>{t("Qualification gaps")}</CardTitle>
+        <CardDescription>
+          {t(
+            "Members who lack a required qualification, hold an expired one or will lose one soon.",
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        {gaps.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("Every member holds the qualifications their role requires.")}
+          </p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("Member")}</TableHead>
+                <TableHead>{t("Qualification")}</TableHead>
+                <TableHead>{t("Status")}</TableHead>
+                <TableHead>{t("Expires")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {gaps.map((gap) => (
+                <TableRow key={gap.key}>
+                  <TableCell className="font-medium">
+                    {gap.holderTitle}
+                  </TableCell>
+                  <TableCell>{gap.typeName}</TableCell>
+                  <TableCell>
+                    <Badge variant={GAP_VARIANT[gap.status]}>
+                      {label(gap.status)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground">
+                    {gap.expiresOn ? day(gap.expiresOn) : "–"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function QualificationMatrixSkeleton() {
+  return <Skeleton className="h-64" aria-busy="true" />;
+}
+```
+
+## My qualifications
+
+The signed-in member's certificates and licences with their expiry, and the required ones they still lack. It loads its data on the server through the block's client; the [qualifications block](https://bettersupabase.com/blocks/qualifications) must be installed (`npx better-supabase add qualifications`). Page: https://bettersupabase.com/recipes/my-qualifications.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button card empty skeleton
+```
+
+```tsx title="apps/examples/nextjs/src/features/qualifications/components/my-qualifications.tsx"
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+const STATUS_VARIANT = {
+  valid: "success-light",
+  expiring: "warning-light",
+  expired: "destructive-light",
+  revoked: "secondary",
+} as const satisfies Record<QualificationStatus, string>;
+
+/**
+ * Render inside `<Suspense>`: the signed-in member's certificates and licences
+ * with their expiry, then the required ones they still lack. Needs no
+ * permission; members read their own holdings and gaps.
+ */
+export async function MyQualifications() {
+  const [state, t, format] = await Promise.all([
+    getMyQualifications(),
+    getExtracted("qualifications"),
+    getFormatter(),
+  ]);
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  if (state.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="my-qualifications">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("Your qualifications didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  const { holdings, gaps } = state.data;
+
+  const label = (status: QualificationStatus) => {
+    switch (status) {
+      case "valid": {
+        return t("Valid");
+      }
+
+      case "expiring": {
+        return t("Expiring");
+      }
+
+      case "expired": {
+        return t("Expired");
+      }
+
+      case "revoked": {
+        return t("Revoked");
+      }
+
+      default: {
+        const unknown: never = status;
+
+        return unknown;
+      }
+    }
+  };
+
+  const day = (date: string) =>
+    format.dateTime(new Date(date), { dateStyle: "medium", timeZone: "UTC" });
+
+  return (
+    <Card data-recipe="my-qualifications">
+      <CardHeader>
+        <CardTitle>{t("My qualifications")}</CardTitle>
+        <CardDescription>
+          {t(
+            "The certificates and licences you hold, and the ones your role still requires.",
+          )}
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {holdings.length === 0 && gaps.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <IdCardIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("Nothing to show yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t(
+                  "Qualifications appear here once an admin grants one or you complete a course that awards one.",
+                )}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : null}
+        {holdings.length > 0 ? (
+          <ul className="flex flex-col gap-2">
+            {holdings.map((holding) => (
+              <li
+                key={holding.id}
+                className="flex flex-wrap items-center justify-between gap-2"
+              >
+                <div className="flex flex-col gap-1">
+                  <span className="text-sm font-medium">
+                    {holding.typeName}
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {holding.expiresOn
+                      ? t("Expires {date}", { date: day(holding.expiresOn) })
+                      : t("Never expires")}
+                  </span>
+                </div>
+                <Badge variant={STATUS_VARIANT[holding.status]}>
+                  {label(holding.status)}
+                </Badge>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {gaps.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <span className="text-sm font-medium">{t("Still required")}</span>
+            <div className="flex flex-wrap gap-2">
+              {gaps.map((gap) => (
+                <Badge key={gap.key} variant="destructive-light">
+                  {gap.typeName}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        ) : null}
+      </CardContent>
+    </Card>
+  );
+}
+
+export function MyQualificationsSkeleton() {
+  return <Skeleton className="h-48" aria-busy="true" />;
+}
+```
+
 ## Hiring board
 
 Candidates for an opening as cards in interview stage columns. It loads its data on the server through the block's client; the [hiring block](https://bettersupabase.com/blocks/hiring) must be installed (`npx better-supabase add hiring`). Page: https://bettersupabase.com/recipes/hiring-board.

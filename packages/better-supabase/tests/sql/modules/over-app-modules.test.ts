@@ -91,6 +91,7 @@ const MODULES = [
   "chat-sdk-state",
   "incidents",
   "compliance",
+  "qualifications",
   "mail-sync",
   "usage",
   "oauth-server",

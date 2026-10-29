@@ -397,6 +397,40 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "qualification-matrix",
+    title: "Qualification matrix",
+    blocks: ["qualifications"],
+    kind: "component",
+    description:
+      "A table of the members who lack a required qualification, hold an expired one or will lose one soon.",
+    web: {
+      file: `${WEB_APP}/src/features/qualifications/components/qualification-matrix.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "empty",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "my-qualifications",
+    title: "My qualifications",
+    blocks: ["qualifications"],
+    kind: "component",
+    description:
+      "The signed-in member's certificates and licences with their expiry, and the required ones they still lack.",
+    web: {
+      file: `${WEB_APP}/src/features/qualifications/components/my-qualifications.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
     slug: "hiring-board",
     title: "Hiring board",
     blocks: ["hiring"],

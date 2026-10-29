@@ -89,6 +89,7 @@ import type { postsBlock } from "../../src/blocks/posts/manifest.ts";
 import type { profilesBlock } from "../../src/blocks/profiles/manifest.ts";
 import type { promotionsBlock } from "../../src/blocks/promotions/manifest.ts";
 import type { pushBlock } from "../../src/blocks/push/manifest.ts";
+import type { qualificationsBlock } from "../../src/blocks/qualifications/manifest.ts";
 import type {
   idempotencyBlock,
   queueBlock,
@@ -219,6 +220,7 @@ export type AllBlocks = {
   readonly "lead-scoring": typeof leadScoringBlock;
   readonly posts: typeof postsBlock;
   readonly content: typeof contentBlock;
+  readonly qualifications: typeof qualificationsBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

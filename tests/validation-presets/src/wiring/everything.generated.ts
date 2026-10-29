@@ -52,6 +52,7 @@ import { sequencesBlock } from "better-supabase/blocks/sequences";
 import { leadScoringBlock } from "better-supabase/blocks/lead-scoring";
 import { postsBlock } from "better-supabase/blocks/posts";
 import { contentBlock } from "better-supabase/blocks/content";
+import { qualificationsBlock } from "better-supabase/blocks/qualifications";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { activitiesBlock } from "better-supabase/blocks/activities";
@@ -179,6 +180,7 @@ export const blockSet = defineBlocks(blockConfig, {
   leadScoring: leadScoringBlock,
   posts: postsBlock,
   content: contentBlock,
+  qualifications: qualificationsBlock,
   drive: driveBlock,
   employees: employeesBlock,
   activities: activitiesBlock,

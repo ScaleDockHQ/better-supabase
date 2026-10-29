@@ -429,6 +429,9 @@ export default defineConfig({
     signatures: {},
     contracts: {},
     compliance: {},
+    // Certifications and licences members, companies and assets hold, with
+    // a gap report; courses grant them with their certificates.
+    qualifications: {},
     incidents: {},
     reminders: {},
     "drive-files": {},
