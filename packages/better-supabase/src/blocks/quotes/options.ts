@@ -16,6 +16,17 @@ export type QuotesSqlOptions = {
    * and to basis points. Default `"bps"`.
    */
   readonly lineRates?: "bps" | "percent";
+  /**
+   * Staff edit a sent quote while the customer keeps seeing its last published
+   * version; sending it again publishes the next revision on the same link, and
+   * an acceptance restores the version the customer saw.
+   */
+  readonly workingCopy?: boolean;
+  /**
+   * Each published version keeps its lines as rows with their own ids in
+   * `quote_version_lines`, so other records can point at them.
+   */
+  readonly versionLines?: boolean;
 };
 
 export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
@@ -27,4 +38,6 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     extraColumns: option.extraColumns(),
     lineExtraColumns: option.extraColumns(),
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
+    workingCopy: option.boolean({ default: false }),
+    versionLines: option.boolean({ default: false }),
   });

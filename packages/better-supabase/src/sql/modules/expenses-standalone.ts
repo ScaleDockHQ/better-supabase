@@ -156,7 +156,7 @@ export function standaloneContract(
     { name: "delete_expense", args: ["uuid"], returns: "boolean" },
     {
       name: "decide_expense",
-      args: ["uuid", "boolean", "text"],
+      args: ["uuid", "boolean", "text", "uuid"],
       returns: "jsonb",
     },
     { name: "reimburse_expense", args: ["uuid", "text"], returns: "jsonb" },
@@ -531,7 +531,9 @@ end;
 $$;
 ${userGrant(`${fn("delete_expense")}(uuid)`)}
 
-create or replace function ${fn("decide_expense")}(expense_id uuid, approved boolean, note text default null)
+-- The service role names the user it decides for in decided_by.
+drop function if exists ${fn("decide_expense")}(uuid, boolean, text);
+create or replace function ${fn("decide_expense")}(expense_id uuid, approved boolean, note text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -543,6 +545,10 @@ begin${load("decide_expense.expense_id")}
   if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${e("tenant")}`, approve)} and ${owner.requester("v_row")} is distinct from auth.uid())) then
     ${forbidden("not allowed to decide this expense")}
   end if;
+  if decide_expense.decided_by is not null and (not ${SERVICE_CALLER} and decide_expense.decided_by is distinct from auth.uid()
+    or decide_expense.decided_by = ${owner.requester("v_row")}) then
+    ${forbidden("only the service role decides for another user, never for the owner")}
+  end if;
   if ${status("v_row")} <> 'submitted' then
     ${fail("EXPENSE_LOCKED", "only a submitted expense is decided", "55000")}
   end if;
@@ -550,12 +556,12 @@ begin${load("decide_expense.expense_id")}
     ${invalid("approved must be true or false")}
   end if;${unsupported("decisionNote", "nullif(trim(decide_expense.note), '')")}
   if decide_expense.approved then
-    update ${table} x set ${e("updatedAt")} = now()${setStatus("approved")}${set("approvedAt", "now()")}${set("decidedBy", "auth.uid()")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(decide_expense.note), '')")}
+    update ${table} x set ${e("updatedAt")} = now()${setStatus("approved")}${set("approvedAt", "now()")}${set("decidedBy", "coalesce(decide_expense.decided_by, auth.uid())")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(decide_expense.note), '')")}
       where x.${e("id")} = v_row.${e("id")}
       returning * into v_row;
     ${record("expense.approved", "approved an expense")}
   else
-    update ${table} x set ${e("updatedAt")} = now()${setStatus("rejected")}${set("rejectedAt", "now()")}${set("decidedBy", "auth.uid()")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(decide_expense.note), '')")}
+    update ${table} x set ${e("updatedAt")} = now()${setStatus("rejected")}${set("rejectedAt", "now()")}${set("decidedBy", "coalesce(decide_expense.decided_by, auth.uid())")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(decide_expense.note), '')")}
       where x.${e("id")} = v_row.${e("id")}
       returning * into v_row;
     ${record("expense.rejected", "rejected an expense")}
@@ -563,7 +569,7 @@ begin${load("decide_expense.expense_id")}
   return ${json("v_row")};
 end;
 $$;
-${userGrant(`${fn("decide_expense")}(uuid, boolean, text)`)}
+${userGrant(`${fn("decide_expense")}(uuid, boolean, text, uuid)`)}
 
 create or replace function ${fn("reimburse_expense")}(expense_id uuid, reference text default null)
 returns jsonb

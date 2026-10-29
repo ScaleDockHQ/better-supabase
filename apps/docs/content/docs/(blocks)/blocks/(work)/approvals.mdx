@@ -70,16 +70,20 @@ blocks: {
 },
 ```
 
-| Option              | Default       | What it does                                                                                                                                       |
-| ------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `steps[].approvers` | none          | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id), `users` or `manager: true`; any match may decide                |
-| `steps[].required`  | `1`           | Approvals the step needs; `"all"` with `users` means every listed user                                                                             |
-| `expiresIn`         | none          | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                               |
-| `selfApproval`      | `false`       | Whether the requester may decide a step                                                                                                            |
-| `mode`              | `"authorize"` | `"confirm"` lets the requester approve their own request as a second look; see [confirm or authorize](#confirm-or-authorize)                       |
-| `run`               | none          | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/queue) |
+| Option                                        | Default       | What it does                                                                                                                                       |
+| --------------------------------------------- | ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `steps[].approvers`                           | none          | `permission`, `role` (membership role), `team` (a [teams](/docs/blocks/teams) id), `users` or `manager: true`; any match may decide                |
+| `steps[].required`                            | `1`           | Approvals the step needs; `"all"` with `users` means every listed user, and with only `permission` every holder of it when the request is filed    |
+| `steps[].escalateAfter`, `steps[].escalateTo` | none          | After the step waited this ISO 8601 duration, `escalate_approvals()` lets the `escalateTo` approvers decide it too                                 |
+| `effects`                                     | none          | Tags such as `money-movement` that tenant and platform policies match on                                                                           |
+| `expiresIn`                                   | none          | An ISO 8601 duration such as `P7D`; `expire_approvals()` closes the request after it                                                               |
+| `selfApproval`                                | `false`       | Whether the requester may decide a step                                                                                                            |
+| `mode`                                        | `"authorize"` | `"confirm"` lets the requester approve their own request as a second look; see [confirm or authorize](#confirm-or-authorize)                       |
+| `run`                                         | none          | `{ transition: "<status>" }` through the [state machine](/docs/blocks/state-machine), or `{ queue: "<queue>" }` through [jobs](/docs/blocks/queue) |
 
 A subject can have one pending request per action (`APPROVAL_PENDING`). A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
+
+A floor under the action `"*"` covers every action of its subject type that has no floor of its own, such as every tool an AI agent can call. With `required: "all"` and only `approvers.permission`, the request asks every holder of the permission in the organization (the requester only with `selfApproval`), resolved to `users` when it is filed; nobody holding it fails with `APPROVAL_APPROVERS_EMPTY`. It needs an access model that lists holders (the roles or catalog model, or a provider or custom model with `holdersOf`).
 
 Policies are fixed per subject type and action. To pick one by the record's values, such as the finance chain for an expense over 500, give each chain its own action and let a tenant-edited [rule](/docs/blocks/automations#actions) choose it: `approvalsAction` from `better-supabase/blocks/automations` files the request for the action in the matching rule's `config.action`.
 
@@ -100,7 +104,27 @@ With `options.tenantPolicies: true`, each organization keeps its own policies in
 
 A floor with `steps: []` asks for nothing until a tenant policy adds a step or a mode, so an organization can opt into approvals for an action the platform leaves open. Without `tenantPolicies`, a floor needs at least one step or `mode: "confirm"`.
 
-`conditions` is a [filter tree](/docs/platform/list#filter-trees) over the subject type's [rule fields](/docs/blocks/automations#fields), matched against the request's `payload`. A policy without conditions always applies. Conditions need the [automations](/docs/blocks/automations) block; without it, saving a policy with conditions fails with `APPROVAL_CONDITIONS_UNSUPPORTED`.
+`conditions` is a [filter tree](/docs/platform/list#filter-trees) over the subject type's [rule fields](/docs/blocks/automations#fields), matched against the request's `payload`. A policy without conditions always applies. Conditions need the [automations](/docs/blocks/automations) block; without it, saving a policy with conditions fails with `APPROVAL_CONDITIONS_UNSUPPORTED`. With `options.conditions: "payload"`, the block matches the tree itself against the payload by each rule's `path`, without automations or rule fields: numbers compare as numbers, everything else as text, with the operators of the filter tree (`is`, `gt`, `between`, `is_any_of`, `contains`, `has_any_of` and the rest). An unknown operator fails with `APPROVAL_CONDITIONS_INVALID`. Put what a condition needs, such as `actorKind` or `amount`, in the request's `payload`.
+
+A tenant policy can match more than one floor: `subjectType: "*"` matches every subject type and `action: "*"` every action, and `effect` limits it to floors that declare that effect. One policy then covers every money-moving tool:
+
+```ts
+await db.approvals
+  .savePolicy({
+    subjectType: "*",
+    action: "*",
+    effect: "money-movement",
+    name: "Money moves",
+    steps: [{ approvers: { permission: "finance.approve" }, required: 1 }],
+  })
+  .orThrow();
+```
+
+A tenant policy still needs a floor it tightens: one for its subject type, action and effect, where `*` matches any (`APPROVAL_POLICY_UNKNOWN` otherwise).
+
+### Platform policies
+
+With `options.platformPolicies: true` (next to `tenantPolicies`), rows of `approval_policies` without an organization are platform policies: platform staff with `approvals.manage` edit them at runtime with `savePolicy(input, { platform: true })`, `listPolicies({ platform: true })` lists them, and they apply to every organization before its own policies. A platform policy also stands in for a floor the config doesn't have, so a subject type and action can need approval without a deploy, and tenant policies can tighten it.
 
 ```ts
 await db.approvals
@@ -132,6 +156,28 @@ const needed = await db.approvals
 ```
 
 Saving and removing a policy needs `approvals.manage` and goes to the audit log; `listPolicies` needs `approvals.read`. `requirement(subjectType, action, payload)` returns the merged policy for a payload, or `null` when nothing is required, so the app can run the action without a request. `request` refuses a request nothing requires with `APPROVAL_NOT_REQUIRED`.
+
+## Requests without an organization
+
+`options.tenantless` lists subject types whose requests may have no organization, for a personal AI chat or a platform action. `request(subject, { action, tenantless: true })` files one as the signed-in user, `list({ tenantless: true })` lists them and `requirement(..., { tenantless: true })` checks one. Their approvers are named users, a provider's `isApprover`, or platform staff holding the step's `permission`; roles, teams and managers belong to an organization and don't match. Platform policies apply to them; tenant policies don't. A request without an organization for any other subject type fails with `APPROVAL_TENANT_REQUIRED`, and these requests send no notifications. `organizationId` is `null` on them.
+
+## Escalation
+
+A step with `escalateAfter` and `escalateTo` lets the fallback approvers decide it too once it waited that long, counted from the request or the previous step's last decision. Schedule `escalate_approvals()` like the reminders; it marks the step `escalated`, records `approval.escalated` and asks the fallback approvers. The original approvers keep deciding. It needs the requests table's policy column.
+
+```ts
+steps: [
+  {
+    approvers: { manager: true },
+    escalateAfter: "PT48H",
+    escalateTo: { permission: "finance.approve" },
+  },
+],
+```
+
+## Deciding for a user
+
+Code that runs as the service role, such as a chat bot or a workflow, decides for the user who clicked: `approve(id, comment, { decidedBy: userId })` and `reject` record that user as the approver. The service role skips the approver check, but the requester still can't decide their own request unless the policy allows it, and a user decides a step once. A signed-in caller who names someone else fails with `APPROVAL_FORBIDDEN`.
 
 ## Use an approval once
 
@@ -194,8 +240,7 @@ support request, and `decide_ai_tool_approval` or `approve_support_request`
 closes the request. A rejected support request can no longer start a
 session. Only the requester, the eligible approvers and the service role read
 these requests; `approvals.read` alone doesn't show them. A support request
-without a tenant stays in `support_requests` only, because every approval
-request belongs to an organization.
+without a tenant stays in `support_requests` only.
 
 ## Approvers from your authorization provider
 
@@ -267,11 +312,28 @@ select cron.schedule('remind-approvals', '0 9 * * *', 'select better_supabase.re
 
 With the [notifications](/docs/blocks/notifications) module, the current step's approvers get `approval.requested` (and `approval.reminder`), a delegate gets `approval.delegated`, and the requester gets `approval.approved`, `approval.rejected` or `approval.expired`. Approvers named by permission are reached through the notification's permission audience.
 
-The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired`, `approval.delegated` and `approval.consumed`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Tenant policies record `approval_policy.saved` and `approval_policy.removed` with `organizationId`, `id`, `subjectType` and `action`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide` and `after_approval_decide`.
+The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired`, `approval.delegated`, `approval.consumed` and `approval.escalated`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Tenant policies record `approval_policy.saved` and `approval_policy.removed` with `organizationId`, `id`, `subjectType` and `action`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide` and `after_approval_decide`.
 
 ## With ReUI
 
 An approvals inbox renders `list({ assigned: true })` in a ReUI data grid with approve and reject actions. A request sheet shows `get(id)`: the steps as a stepper with the current `step` highlighted, and `decisions` as a timeline. Show the approve buttons only when `canDecide` is true.
+
+## Over your own requests table
+
+The requests and decisions tables can be your own: map `tables.requests` and `tables.decisions` and their `columns`, as with every block table. Logical columns your table lacks map to `null`, and the block leaves out what needs them: without `policy` a request follows the live policy, without `step` a policy has one step, and a reason, payload, expiry, reminder, delegate or comment the table has no column for is refused (`APPROVAL_REASON_UNSUPPORTED` and the like). A status column may be an enum. Your other columns stay as they are, or take the request's values through `extraColumns`.
+
+```ts title="better-supabase.config.ts"
+approvals: {
+  tables: {
+    requests: "public.approval_requests",
+    decisions: "public.approval_decisions",
+  },
+  columns: {
+    requests: { tenant: "organization_id", decidedAt: "closed_at", remindedAt: null },
+    decisions: { request: "request_id", tenant: "organization_id", delegateTo: null },
+  },
+},
+```
 
 ## Your own fields
 

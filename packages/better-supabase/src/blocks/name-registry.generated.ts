@@ -154,9 +154,9 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "requests": "id" | "tenant" | "subjectType" | "subjectId" | "action" | "policy" | "step" | "status" | "requestedBy" | "reason" | "payload" | "expiresAt" | "remindedAt" | "decidedAt" | "fingerprint" | "consumedAt" | "createdAt";
       readonly "decisions": "id" | "request" | "tenant" | "step" | "approver" | "decision" | "delegateTo" | "comment" | "createdAt";
-      readonly "policies": "id" | "tenant" | "subjectType" | "action" | "name" | "conditions" | "mode" | "steps" | "selfApproval" | "expiresIn" | "enabled" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "policies": "id" | "tenant" | "subjectType" | "action" | "name" | "conditions" | "mode" | "steps" | "selfApproval" | "expiresIn" | "enabled" | "createdBy" | "createdAt" | "updatedAt" | "effect";
     };
-    readonly functions: "approval_effective_policy" | "approval_eligible" | "approval_finalize" | "approval_notify" | "approval_policy" | "approval_requirement" | "cancel_approval" | "consume_approval" | "decide_approval" | "delegate_approval" | "expire_approvals" | "get_approval" | "is_approved" | "list_approvals" | "open_approval" | "remind_approvals" | "request_approval";
+    readonly functions: "approval_effective_policy" | "approval_eligible" | "approval_finalize" | "approval_notify" | "approval_policy" | "approval_requirement" | "cancel_approval" | "consume_approval" | "decide_approval" | "delegate_approval" | "escalate_approvals" | "expire_approvals" | "get_approval" | "is_approved" | "list_approvals" | "open_approval" | "remind_approvals" | "request_approval";
     readonly actions: "read" | "request" | "manage";
     readonly hooks: "before_approval_request" | "after_approval_request" | "before_approval_decide" | "after_approval_decide";
     readonly entities: {
@@ -1334,16 +1334,17 @@ export interface BlockNameRegistry {
   };
   readonly "quotes": {
     readonly tables: {
-      readonly "quotes": "id" | "tenant" | "number" | "identifier" | "revision" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "owner" | "currency" | "status" | "validUntil" | "terms" | "note" | "originType" | "originId" | "tokenHash" | "sentAt" | "viewedAt" | "decidedAt" | "decidedBy" | "decisionNote" | "decidedUser" | "decidedIp" | "decidedUserAgent" | "pricesIncludeTax" | "discountBps" | "discountAmount" | "depositBps" | "depositDue" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
-      readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt" | "section" | "optional" | "selected";
+      readonly "quotes": "id" | "tenant" | "number" | "identifier" | "revision" | "title" | "companyType" | "companyId" | "contactType" | "contactId" | "owner" | "currency" | "status" | "validUntil" | "terms" | "note" | "originType" | "originId" | "tokenHash" | "sentAt" | "viewedAt" | "decidedAt" | "decidedBy" | "decisionNote" | "decidedUser" | "decidedIp" | "decidedUserAgent" | "pricesIncludeTax" | "discountBps" | "discountAmount" | "depositBps" | "depositAmount" | "depositRequired" | "depositDue" | "unpublishedChanges" | "createdBy" | "createdAt" | "updatedAt" | "listTotal" | "discountTotal" | "subtotal" | "taxTotal" | "total";
+      readonly "lines": "id" | "tenant" | "parent" | "productType" | "productId" | "description" | "quantity" | "unitAmount" | "discountBps" | "taxRateBps" | "taxCode" | "position" | "createdAt" | "section" | "optional" | "selected" | "periods";
       readonly "versions": "id" | "tenant" | "quote" | "revision" | "snapshot" | "total" | "currency" | "publishedBy" | "publishedAt";
+      readonly "versionLines": "id" | "tenant" | "version" | "position" | "description" | "quantity" | "unitAmount" | "periods" | "discountBps" | "taxRateBps" | "taxCode" | "section" | "optional" | "selected" | "productType" | "productId";
       readonly "taxLines": "id" | "tenant" | "parent" | "taxRateBps" | "taxCode" | "net" | "tax" | "gross" | "discount";
     };
-    readonly functions: "create_quote" | "decide_quote" | "expire_quotes" | "portal_quote" | "public_quote" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote";
+    readonly functions: "create_quote" | "decide_quote" | "expire_quotes" | "portal_quote" | "public_quote" | "quote_version" | "quote_versions" | "respond_to_portal_quote" | "respond_to_quote" | "revise_quote" | "send_quote" | "set_quote_lines" | "set_quote_lines_recount" | "update_quote" | "withdraw_quote";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_quote_send" | "after_quote_send" | "before_quote_accept" | "after_quote_accept";
     readonly entities: {
-      readonly "quote": "id" | "tenant_id" | "number" | "identifier" | "revision" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "owner_user_id" | "currency" | "status" | "valid_until" | "terms" | "note" | "origin_type" | "origin_id" | "token_hash" | "sent_at" | "viewed_at" | "decided_at" | "decided_by" | "decision_note" | "decided_user_id" | "decided_ip" | "decided_user_agent" | "prices_include_tax" | "discount_bps" | "discount_amount" | "deposit_bps" | "deposit_due" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
+      readonly "quote": "id" | "tenant_id" | "number" | "identifier" | "revision" | "title" | "company_type" | "company_id" | "contact_type" | "contact_id" | "owner_user_id" | "currency" | "status" | "valid_until" | "terms" | "note" | "origin_type" | "origin_id" | "token_hash" | "sent_at" | "viewed_at" | "decided_at" | "decided_by" | "decision_note" | "decided_user_id" | "decided_ip" | "decided_user_agent" | "prices_include_tax" | "discount_bps" | "discount_amount" | "deposit_bps" | "deposit_amount" | "deposit_required" | "deposit_due" | "unpublished_changes" | "created_by" | "created_at" | "updated_at" | "list_total" | "discount_total" | "subtotal" | "tax_total" | "total";
     };
     readonly primary: "quote";
   };

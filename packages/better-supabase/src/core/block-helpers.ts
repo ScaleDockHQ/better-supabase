@@ -707,3 +707,18 @@ export function chunksOf<T>(
 
   return chunks;
 }
+
+/**
+ * Who made a change, for the state machine's history row: a portal visitor who
+ * isn't an auth user, the request's IP address and user agent, or the user the
+ * service role acts for.
+ */
+export interface TransitionActor {
+  /** The user the service role acts for; a signed-in caller is kept instead. */
+  readonly id?: string;
+  readonly name?: string;
+  readonly email?: string;
+  /** An IPv4 or IPv6 address; anything else is refused. */
+  readonly ip?: string;
+  readonly userAgent?: string;
+}

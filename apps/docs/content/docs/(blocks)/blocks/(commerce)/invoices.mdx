@@ -137,6 +137,8 @@ blocks: {
 },
 ```
 
+`issue(invoiceId, issuedOn, { actor })` and `recordPayment(invoiceId, { amount, actor })` take who acted, for the [state machine](/docs/blocks/state-machine#who-made-the-change)'s history of the status change they cause.
+
 | Status           | Meaning                            |
 | ---------------- | ---------------------------------- |
 | `draft`          | lines can change; no number yet    |

@@ -1375,3 +1375,27 @@ drop trigger if exists ${trigger} on ${options.table};
 create trigger ${trigger} after insert or update or delete on ${options.table}
   for each row execute function ${fn}();`;
 }
+
+/**
+ * PL/pgSQL that hands `actor` (a jsonb SQL expression of `id`, `name`, `email`,
+ * `ip` and `userAgent`) to the state machine's history trigger for the status
+ * changes that follow in the transaction. `id` stands in for the acting user
+ * only when there is no signed-in user, as for the service role.
+ */
+export function transitionActorSql(
+  actor: string,
+  code: string,
+  indent = "  ",
+): string {
+  return `if ${actor} is not null then
+${indent}  if jsonb_typeof(${actor}) <> 'object' then
+${indent}    ${fail(code, "actor must be an object of id, name, email, ip and userAgent", "22023")}
+${indent}  end if;
+${indent}  begin
+${indent}    perform nullif(${actor} ->> 'ip', '')::inet, nullif(${actor} ->> 'id', '')::uuid;
+${indent}  exception when invalid_text_representation then
+${indent}    ${fail(code, "actor.ip must be an IP address and actor.id a user id", "22023")}
+${indent}  end;
+${indent}end if;
+${indent}perform set_config('better_supabase.transition_actor', coalesce(${actor}::text, ''), true);`;
+}

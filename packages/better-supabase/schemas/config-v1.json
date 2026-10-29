@@ -3769,6 +3769,20 @@
                 "type": "boolean",
                 "default": false
               },
+              "platformPolicies": {
+                "type": "boolean",
+                "default": false
+              },
+              "conditions": {
+                "type": "string",
+                "default": "rules"
+              },
+              "tenantless": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {
@@ -5994,6 +6008,14 @@
               "lineRates": {
                 "type": "string",
                 "default": "bps"
+              },
+              "workingCopy": {
+                "type": "boolean",
+                "default": false
+              },
+              "versionLines": {
+                "type": "boolean",
+                "default": false
               }
             }
           }

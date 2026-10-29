@@ -3,6 +3,7 @@ import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import {
   catalogLineFallback,
+  declared,
   lineColumn,
   lineItemsSql,
 } from "../line-items-sql.ts";
@@ -12,6 +13,7 @@ import {
   insertExtraColumns,
   serviceGrant,
   sha256Hex,
+  transitionActorSql,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
@@ -121,7 +123,72 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
         "DEPOSIT",
         "deposit column",
       ),
+      refuse(
+        has("depositAmount"),
+        `${attrs} ->> 'depositAmount'`,
+        "DEPOSIT",
+        "deposit amount column",
+      ),
+      refuse(
+        has("depositRequired"),
+        `nullif(${attrs} ->> 'depositRequired', 'false')`,
+        "DEPOSIT",
+        "deposit required column",
+      ),
     ].join("");
+
+  // A deposit is a share of the total or a fixed amount, never both.
+  const oneDeposit =
+    has("depositBps") && has("depositAmount")
+      ? `
+  if v_row.${q("depositBps")} is not null and v_row.${q("depositAmount")} is not null then
+    ${fail("QUOTE_ATTRS_INVALID", "a deposit is a share (depositBps) or an amount (depositAmount), not both", "22023")}
+  end if;`
+      : "";
+
+  // Hands the actor of a staff call to the state machine's history.
+  const actor = (name: string): string =>
+    `\n  ${transitionActorSql(`${name}.actor`, "QUOTE_ACTOR_INVALID")}`;
+
+  const publishedBy = `coalesce(auth.uid(), nullif(send_quote.actor ->> 'id', '')::uuid)`;
+
+  // The published lines as rows with their own ids, when versionLines is on.
+  const versionLinesCopy = (() => {
+    if (!k.versionLines) {
+      return "";
+    }
+
+    const vl = (column: string): string => n.c("versionLines", column);
+
+    const copied = [
+      "position",
+      "description",
+      "quantity",
+      "unitAmount",
+      "periods",
+      "discountBps",
+      "taxRateBps",
+      "taxCode",
+      "section",
+      "optional",
+      "selected",
+      "productType",
+      "productId",
+    ].filter(
+      (column) =>
+        declared(ctx, "versionLines", column) && declared(ctx, "lines", column),
+    );
+
+    const value = (column: string): string =>
+      column === "productType"
+        ? ctx.cast("versionLines", column, `ql.${l(column)}::text`)
+        : `ql.${l(column)}`;
+
+    return `
+  insert into ${t("versionLines")} (${vl("tenant")}, ${vl("version")}, ${copied.map(vl).join(", ")})
+  select v_row.${q("tenant")}, v_version, ${copied.map(value).join(", ")}
+  from ${t("lines")} ql where ql.${l("parent")} = v_row.${q("id")};`;
+  })();
 
   const deals = ctx.installed("deals") ? ctx.of("deals") : undefined;
 
@@ -191,8 +258,9 @@ ${userGrant(`${fn("quote_from_deal")}(uuid)`)}
 -- Creates a draft quote. attrs: title (required), currency, company and
 -- contact ({ type, id }), ownerId, validUntil, terms, note, origin ({ type,
 -- id }, the record it was made from), pricesIncludeTax, discountBps,
--- discountAmount (minor units as text) and depositBps. lines: see
--- set_quote_lines.
+-- discountAmount (minor units as text), depositBps, or depositAmount (minor
+-- units as text) for a fixed deposit, and depositRequired, which makes the
+-- customer pay it before they accept. lines: see set_quote_lines.
 create or replace function ${fn("create_quote")}(tenant ${ctx.idType}, attrs jsonb, lines jsonb)
 returns jsonb
 language plpgsql
@@ -228,7 +296,7 @@ begin
   )}
   begin
     insert into ${t("quotes")} (${q("tenant")}, ${q("number")}, ${q("identifier")}, ${q("title")}${also("companyType")}${also("companyId")}${also("contactType")}${also("contactId")},
-      ${q("owner")}, ${q("currency")}, ${q("validUntil")}${also("terms")}${also("note")}${also("originType")}${also("originId")}${also("pricesIncludeTax")}${also("discountBps")}${also("discountAmount")}${also("depositBps")}${also("createdBy")}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").columns})
+      ${q("owner")}, ${q("currency")}, ${q("validUntil")}${also("terms")}${also("note")}${also("originType")}${also("originId")}${also("pricesIncludeTax")}${also("discountBps")}${also("discountAmount")}${also("depositBps")}${also("depositAmount")}${also("depositRequired")}${also("createdBy")}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").columns})
     values (${valueLines(
       "      ",
       [
@@ -278,13 +346,21 @@ begin
           "coalesce((create_quote.attrs ->> 'discountAmount')::bigint, 0)",
         ),
         present("depositBps", "(create_quote.attrs ->> 'depositBps')::integer"),
+        present(
+          "depositAmount",
+          "(create_quote.attrs ->> 'depositAmount')::bigint",
+        ),
+        present(
+          "depositRequired",
+          "coalesce((create_quote.attrs ->> 'depositRequired')::boolean, false)",
+        ),
         present("createdBy", "auth.uid()"),
       ],
     )}${insertExtraColumns(t("quotes"), n.extras, "coalesce(create_quote.attrs -> 'fields', '{}'::jsonb)").values})
     returning * into v_row;
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
-  end;
+  end;${oneDeposit}
   if create_quote.lines is not null then
     perform ${fn("set_quote_lines")}(v_row.${q("id")}, create_quote.lines);
   end if;${
@@ -303,8 +379,8 @@ ${userGrant(`${fn("create_quote")}(${ctx.idType}, jsonb, jsonb)`)}
 
 -- Changes a draft quote, or one the customer asked changes on: title,
 -- company, contact, currency, ownerId, validUntil, terms, note,
--- pricesIncludeTax, discountBps, discountAmount and depositBps. The totals
--- follow the new pricing.
+-- pricesIncludeTax, discountBps, discountAmount, depositBps, depositAmount
+-- and depositRequired. The totals follow the new pricing.${k.workingCopy ? "\n-- A sent quote changes too; the customer sees it once it is sent again." : ""}
 create or replace function ${fn("update_quote")}(quote uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -326,7 +402,7 @@ begin
       ${q("title")} = coalesce(nullif(trim(update_quote.attrs ->> 'title'), ''), x.${q("title")}),
       ${q("currency")} = coalesce(upper(update_quote.attrs ->> 'currency'), x.${q("currency")}),
       ${q("owner")} = case when update_quote.attrs ? 'ownerId' then (update_quote.attrs ->> 'ownerId')::uuid else x.${q("owner")} end,
-      ${q("validUntil")} = case when update_quote.attrs ? 'validUntil' then (update_quote.attrs ->> 'validUntil')::date else x.${q("validUntil")} end,${assign("terms", (col) => `case when update_quote.attrs ? 'terms' then update_quote.attrs ->> 'terms' else x.${col} end`)}${assign("note", (col) => `case when update_quote.attrs ? 'note' then update_quote.attrs ->> 'note' else x.${col} end`)}${assign("pricesIncludeTax", (col) => `case when update_quote.attrs ? 'pricesIncludeTax' then coalesce((update_quote.attrs ->> 'pricesIncludeTax')::boolean, false) else x.${col} end`)}${assign("discountBps", (col) => `case when update_quote.attrs ? 'discountBps' then coalesce((update_quote.attrs ->> 'discountBps')::integer, 0) else x.${col} end`)}${assign("discountAmount", (col) => `case when update_quote.attrs ? 'discountAmount' then coalesce((update_quote.attrs ->> 'discountAmount')::bigint, 0) else x.${col} end`)}${assign("depositBps", (col) => `case when update_quote.attrs ? 'depositBps' then (update_quote.attrs ->> 'depositBps')::integer else x.${col} end`)}${company ? assign("companyType", (col) => `case when update_quote.attrs ? 'company' then case when update_quote.attrs -> 'company' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'company' ->> 'type', ${sqlString(n.company)}) end else x.${col} end`) + assign("companyId", (col) => `case when update_quote.attrs ? 'company' then update_quote.attrs -> 'company' ->> 'id' else x.${col} end`) : ""}${contact ? assign("contactType", (col) => `case when update_quote.attrs ? 'contact' then case when update_quote.attrs -> 'contact' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)}) end else x.${col} end`) + assign("contactId", (col) => `case when update_quote.attrs ? 'contact' then update_quote.attrs -> 'contact' ->> 'id' else x.${col} end`) : ""}
+      ${q("validUntil")} = case when update_quote.attrs ? 'validUntil' then (update_quote.attrs ->> 'validUntil')::date else x.${q("validUntil")} end,${assign("terms", (col) => `case when update_quote.attrs ? 'terms' then update_quote.attrs ->> 'terms' else x.${col} end`)}${assign("note", (col) => `case when update_quote.attrs ? 'note' then update_quote.attrs ->> 'note' else x.${col} end`)}${assign("pricesIncludeTax", (col) => `case when update_quote.attrs ? 'pricesIncludeTax' then coalesce((update_quote.attrs ->> 'pricesIncludeTax')::boolean, false) else x.${col} end`)}${assign("discountBps", (col) => `case when update_quote.attrs ? 'discountBps' then coalesce((update_quote.attrs ->> 'discountBps')::integer, 0) else x.${col} end`)}${assign("discountAmount", (col) => `case when update_quote.attrs ? 'discountAmount' then coalesce((update_quote.attrs ->> 'discountAmount')::bigint, 0) else x.${col} end`)}${assign("depositBps", (col) => `case when update_quote.attrs ? 'depositBps' then (update_quote.attrs ->> 'depositBps')::integer else x.${col} end`)}${assign("depositAmount", (col) => `case when update_quote.attrs ? 'depositAmount' then (update_quote.attrs ->> 'depositAmount')::bigint else x.${col} end`)}${assign("depositRequired", (col) => `case when update_quote.attrs ? 'depositRequired' then coalesce((update_quote.attrs ->> 'depositRequired')::boolean, false) else x.${col} end`)}${k.workingCopy ? assign("unpublishedChanges", () => "true") : ""}${company ? assign("companyType", (col) => `case when update_quote.attrs ? 'company' then case when update_quote.attrs -> 'company' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'company' ->> 'type', ${sqlString(n.company)}) end else x.${col} end`) + assign("companyId", (col) => `case when update_quote.attrs ? 'company' then update_quote.attrs -> 'company' ->> 'id' else x.${col} end`) : ""}${contact ? assign("contactType", (col) => `case when update_quote.attrs ? 'contact' then case when update_quote.attrs -> 'contact' ->> 'id' is null then null else coalesce(update_quote.attrs -> 'contact' ->> 'type', ${sqlString(n.contact)}) end else x.${col} end`) + assign("contactId", (col) => `case when update_quote.attrs ? 'contact' then update_quote.attrs -> 'contact' ->> 'id' else x.${col} end`) : ""}
       ${q("updatedAt")} = now()
     where x.${q("id")} = v_row.${q("id")}
     returning * into v_row;${
@@ -337,7 +413,7 @@ begin
     }
   exception when check_violation or invalid_text_representation or datetime_field_overflow or numeric_value_out_of_range then
     ${fail("QUOTE_ATTRS_INVALID", "a quote field has an invalid value", "22023")}
-  end;
+  end;${oneDeposit}
   perform ${fn("set_quote_lines_recount")}(v_row.${q("id")});
   select * into v_row from ${t("quotes")} x where x.${q("id")} = v_row.${q("id")};
   ${record("quote.updated", "v_row")}
@@ -359,16 +435,24 @@ ${lineItemsSql(
     setter: "set_quote_lines",
     guard: `if not exists (select 1 from ${t("quotes")} x where x.${q("id")} = v_parent and ${editable("x")}) then
     ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
-  end if;`,
+  end if;${
+    k.workingCopy
+      ? `
+  update ${t("quotes")} x set ${q("unpublishedChanges")} = true where x.${q("id")} = v_parent;`
+      : ""
+  }`,
     ...(catalogPrice ? { fallback: catalogPrice } : {}),
+    ...(k.workingCopy ? { restorer: "quote_lines_restore" } : {}),
   },
 )}
 -- Sends a quote: it gets a public link the customer opens and a published
 -- version, a snapshot that never changes. The quote can't change until it is
 -- revised or the customer asks for changes; sending it again then publishes
 -- the next revision. Returns the quote with the link's token, which is stored
--- only as a hash and returned this once.
-create or replace function ${fn("send_quote")}(quote uuid)
+-- only as a hash and returned this once.${k.workingCopy ? "\n-- A sent quote keeps its link: sending it again publishes the working copy\n-- as the next revision on the same link, without a new token." : ""}
+-- actor: who sent it, for the state machine's history.
+drop function if exists ${fn("send_quote")}(uuid);
+create or replace function ${fn("send_quote")}(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -377,6 +461,7 @@ as $$
 declare
   v_row ${t("quotes")};
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
+  v_version uuid;${k.workingCopy ? "\n  v_linked boolean;" : ""}
 begin
   select * into v_row from ${t("quotes")} x where x.${q("id")} = send_quote.quote and ${editable("x")} for update;
   if v_row.${q("id")} is null then
@@ -387,27 +472,29 @@ begin
   end if;
   if not exists (select 1 from ${t("lines")} x where x.${l("parent")} = v_row.${q("id")}) then
     ${fail("QUOTE_EMPTY", "a quote needs a line before it is sent", "23514")}
-  end if;
-  ${ctx.hook("before_quote_send", [["uuid", `v_row.${q("id")}`]])}
-  update ${t("quotes")} x set ${q("status")} = ${sv("sent")}, ${q("sentAt")} = now(), ${q("tokenHash")} = ${sha256Hex("v_token")},
+  end if;${actor("send_quote")}
+  ${ctx.hook("before_quote_send", [["uuid", `v_row.${q("id")}`]])}${k.workingCopy ? `\n  v_linked := v_row.${q("tokenHash")} is not null;` : ""}
+  update ${t("quotes")} x set ${q("status")} = ${sv("sent")}, ${q("sentAt")} = now(), ${q("tokenHash")} = ${k.workingCopy ? `coalesce(x.${q("tokenHash")}, ${sha256Hex("v_token")})` : sha256Hex("v_token")},
     ${q("revision")} = case when exists (select 1 from ${t("versions")} v where v.${v("quote")} = x.${q("id")} and v.${v("revision")} = x.${q("revision")}) then x.${q("revision")} + 1 else x.${q("revision")} end,
-    ${decisionReset}${q("updatedAt")} = now()
+    ${decisionReset}${k.workingCopy ? `${q("unpublishedChanges")} = false, ` : ""}${q("updatedAt")} = now()
   where x.${q("id")} = v_row.${q("id")}
   returning * into v_row;
   insert into ${t("versions")} (${v("tenant")}, ${v("quote")}, ${v("revision")}, ${v("snapshot")}, ${v("total")}, ${v("currency")}${ctx.has("versions", "publishedBy") ? `, ${v("publishedBy")}` : ""})
-  values (v_row.${q("tenant")}, v_row.${q("id")}, v_row.${q("revision")}, ${row("v_row")}, v_row.${q("total")}, v_row.${q("currency")}${ctx.has("versions", "publishedBy") ? ", auth.uid()" : ""});
+  values (v_row.${q("tenant")}, v_row.${q("id")}, v_row.${q("revision")}, ${row("v_row")}, v_row.${q("total")}, v_row.${q("currency")}${ctx.has("versions", "publishedBy") ? `, ${publishedBy}` : ""})
+  returning ${v("id")} into v_version;${versionLinesCopy}
   ${record("quote.sent", "v_row", `, 'revision', v_row.${q("revision")}`)}
   ${ctx.hook("after_quote_send", [["uuid", `v_row.${q("id")}`]])}
-  return ${row("v_row")} || jsonb_build_object('token', v_token);
+  return ${row("v_row")} || jsonb_build_object('token', ${k.workingCopy ? "case when v_linked then null else v_token end" : "v_token"});
 end;
 $$;
-${userGrant(`${fn("send_quote")}(uuid)`)}
+${userGrant(`${fn("send_quote")}(uuid, jsonb)`)}
 
 -- Opens a sent or declined quote again as a draft of its next revision: the
 -- same quote, number and lines, a fresh valid-until date, and its link ends.
 -- The versions already published stay as they were. An accepted quote is
--- kept as the customer accepted it; start a new quote instead.
-create or replace function ${fn("revise_quote")}(quote uuid)
+-- kept as the customer accepted it; start a new quote instead.${k.workingCopy ? "\n-- With a working copy the link stays and so does a sent quote's status; a\n-- declined quote goes back to draft until it is sent again." : ""}
+drop function if exists ${fn("revise_quote")}(uuid);
+create or replace function ${fn("revise_quote")}(quote uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -425,17 +512,50 @@ begin
   end if;
   if ${st(`v_row.${q("status")}`, ["accepted"])} then
     ${fail("QUOTE_ACCEPTED", "an accepted quote stays as accepted; start a new quote", "55000")}
-  end if;
-  update ${t("quotes")} x set ${q("status")} = ${sv("draft")}, ${q("revision")} = x.${q("revision")} + 1, ${q("tokenHash")} = null, ${q("sentAt")} = null,${has("viewedAt") ? ` ${q("viewedAt")} = null,` : ""}
+  end if;${actor("revise_quote")}
+  ${
+    k.workingCopy
+      ? `update ${t("quotes")} x set ${q("status")} = case when ${st(`x.${q("status")}`, ["sent", "viewed"])} then x.${q("status")} else ${sv("draft")} end,
     ${q("validUntil")} = greatest(x.${q("validUntil")}, current_date + ${String(n.validDays)}),
-    ${decisionReset}${q("updatedAt")} = now()
+    ${decisionReset}${q("updatedAt")} = now()`
+      : `update ${t("quotes")} x set ${q("status")} = ${sv("draft")}, ${q("revision")} = x.${q("revision")} + 1, ${q("tokenHash")} = null, ${q("sentAt")} = null,${has("viewedAt") ? ` ${q("viewedAt")} = null,` : ""}
+    ${q("validUntil")} = greatest(x.${q("validUntil")}, current_date + ${String(n.validDays)}),
+    ${decisionReset}${q("updatedAt")} = now()`
+  }
   where x.${q("id")} = v_row.${q("id")}
   returning * into v_row;
   ${record("quote.revised", "v_row", `, 'revision', v_row.${q("revision")}`)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("revise_quote")}(uuid)`)}
+${userGrant(`${fn("revise_quote")}(uuid, jsonb)`)}
+
+-- Takes back a sent quote the customer hasn't accepted: it can't be answered
+-- any more until it is revised and sent again.
+create or replace function ${fn("withdraw_quote")}(quote uuid, actor jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t("quotes")};
+begin
+  select * into v_row from ${t("quotes")} x where x.${q("id")} = withdraw_quote.quote and ${editable("x")} for update;
+  if v_row.${q("id")} is null then
+    ${fail("QUOTE_NOT_FOUND", "no such quote you can edit", "P0002")}
+  end if;
+  if ${st(`v_row.${q("status")}`, ["sent", "viewed", "changes_requested"], true)} then
+    ${fail("QUOTE_NOT_OPEN", "only a sent quote that wasn't answered is withdrawn", "55000")}
+  end if;${actor("withdraw_quote")}
+  update ${t("quotes")} x set ${q("status")} = ${sv("withdrawn")}, ${q("updatedAt")} = now()
+  where x.${q("id")} = v_row.${q("id")}
+  returning * into v_row;
+  ${record("quote.withdrawn", "v_row", `, 'revision', v_row.${q("revision")}`)}
+  return ${row("v_row")};
+end;
+$$;
+${userGrant(`${fn("withdraw_quote")}(uuid, jsonb)`)}
 ${quoteDecisions(ctx, n, k)}
 -- Expires sent quotes past their valid date. Run it daily from a job.
 create or replace function ${fn("expire_quotes")}()

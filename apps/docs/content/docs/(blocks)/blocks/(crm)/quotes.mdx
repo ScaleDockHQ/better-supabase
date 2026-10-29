@@ -65,7 +65,7 @@ const rows = useQuotes({ limit: 50 });
 | `accepted`, `rejected` | the customer answered through the link, or `decide` recorded their answer   |
 | `changes_requested`    | the customer asked for changes; it can be edited and sent again, or revised |
 | `expired`              | its valid-until date passed (`expire_quotes`, or an answer after the date)  |
-| `withdrawn`            | set by your own code; the module doesn't use it                             |
+| `withdrawn`            | `withdraw`; the customer can't answer until it is revised and sent again    |
 
 `create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.subjects` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
@@ -93,6 +93,25 @@ const first = await db.quotes.version(quote.id, 1).orThrow();
 first.quote.totals.total; // what the customer saw at revision 1
 ```
 
+### Working copy
+
+With `options.workingCopy: true`, staff keep editing a sent quote: `update` and `setLines` work on a `sent` or `viewed` quote and set `unpublishedChanges`, while the link, `view` and `portalView` keep showing the last published version with the quote's current status. `publish(quoteId)` (or `send`) publishes the working copy as the next revision on the same link: no new token, so `publish` returns only the quote. `revise` keeps the link and a sent quote's status; a declined or withdrawn quote goes back to draft until it is sent again.
+
+When the customer accepts while the working copy has unpublished changes, the block puts the quote's title, currency, validity, terms, pricing, extra columns and lines back to the published version first, so the accepted quote is what the customer saw. A rejection or a change request leaves the working copy alone. The option needs the `unpublishedChanges` column; mapping it to `null` fails the render.
+
+```ts
+blocks: { quotes: { options: { workingCopy: true, versionLines: true } } }
+```
+
+```ts
+await db.quotes.update(quote.id, { title: "Website v2" }).orThrow(); // still sent
+await db.quotes.publish(quote.id, { actor: { name: "Sam" } }).orThrow(); // revision 2, same link
+```
+
+### Version lines
+
+With `options.versionLines: true`, each publish also copies the quote's lines to `quote_version_lines`: one row per line with its own id, the version's id and the line's position, amounts, rates, section and option flags. The rows never change (`QUOTE_VERSION_FROZEN`), so a stock hold or the optional lines a customer took can point at them. `view`, `portalView` and `version` return each line's `versionLineId`, and a decision's `selected` takes those ids as well as positions. Map `tables.versionLines` and its `columns` to keep the rows in your own table, as with the other quote tables.
+
 ## Pricing
 
 A quote can take prices that include tax, a discount on the whole document and a deposit:
@@ -107,6 +126,10 @@ await db.quotes.update(quote.id, {
 ```
 
 With `pricesIncludeTax`, unit amounts are gross and the tax is counted out of them, so `total` is the sum of the lines after discounts. Without it, tax is added on top. The document discount comes off after the line discounts: first `discountBps` of the net amount, then `discountAmount`, never more than the net amount.
+
+`depositAmount` asks a fixed deposit instead of `depositBps` (one or the other, `QUOTE_ATTRS_INVALID` for both); `depositDue` is the amount, at most the total. `depositRequired: true` makes the customer pay before they accept: their own `respond` or `portalRespond` with `accepted` fails with `QUOTE_DEPOSIT_REQUIRED`, and the app records the acceptance with `decide` once the payment arrived. The customer's view returns `depositAmount` and `depositRequired`.
+
+A subscription line counts its `periods` (default 1): `{ description: "Hosting", quantity: 2, periods: 12, unitAmount }` adds quantity times periods times the unit amount, and `invoices.fromQuote` copies it as that quantity.
 
 The database spreads the document discount over the tax rates in proportion to each rate's amount, then computes the tax per rate. `quote.taxLines` holds the result, one line per tax rate and tax code, with its `net`, `tax`, `gross` and its share of the `discount`. These lines add up exactly to `subtotal`, `taxTotal` and `total`, so an invoice can show the tax breakdown a VAT invoice needs. `pricing.depositDue` is `depositBps` of the total.
 
@@ -150,6 +173,21 @@ await quotes
 The customer's answer records their name, the time, their IP address (the last `x-forwarded-for` entry) and their user agent, in `decidedBy`, `decidedAt`, `decidedIp` and `decidedUserAgent`.
 
 `decide(quoteId, decision, { by, note, selected })` records an answer the customer gave another way, such as by phone, with the member who recorded it in `decidedUserId`.
+
+## In your own portal
+
+An app with its own customer portal, without the [guests](/docs/blocks/guests) block, reads and answers on the customer's behalf with the service role. `portalView` returns the customer's view of any quote that isn't a draft to the service role, and `decide` takes the customer as `actor`: their name, email, IP address and user agent go to `decidedBy`, `decidedIp` and `decidedUserAgent`, an `id` to `decidedUserId`, and a quote past its valid-until date expires instead, as with the link.
+
+```ts
+await quotes
+  .decide(quoteId, "accepted", {
+    selected: [versionLineId],
+    actor: { name: "Els Jansen", email: "els@example.com", ip, userAgent },
+  })
+  .orThrow();
+```
+
+`send`, `publish`, `revise` and `withdraw` take `{ actor }` too. The actor goes to the [state machine](/docs/blocks/state-machine#who-made-the-change)'s history when a machine runs over the quotes table, and the customer's own answers through the link or the portal pass their name, email, IP address and user agent there as well, so a machine can write its history rows itself.
 
 ## In the portal
 
@@ -224,6 +262,8 @@ The module calls `before_quote_send(quote uuid)`, `after_quote_send(quote uuid)`
 | `QUOTE_VERSION_FROZEN`                                                                 | a published version never changes                                        |
 | `QUOTE_VERSION_NOT_FOUND`                                                              | the quote has no version at that revision                                |
 | `QUOTE_PRICING_UNSUPPORTED`, `QUOTE_DISCOUNT_UNSUPPORTED`, `QUOTE_DEPOSIT_UNSUPPORTED` | your quotes table has no column for that setting                         |
+| `QUOTE_DEPOSIT_REQUIRED`                                                               | the customer pays the deposit before accepting; the app calls `decide`   |
+| `QUOTE_ACTOR_INVALID`                                                                  | `actor` isn't an object, or its `ip` or `id` isn't valid                 |
 | `QUOTE_EMPTY`                                                                          | a quote without lines can't be sent                                      |
 | `QUOTE_NOT_OPEN`                                                                       | the quote doesn't take an answer now                                     |
 | `QUOTE_NOT_SENT`                                                                       | a draft is edited, not revised                                           |

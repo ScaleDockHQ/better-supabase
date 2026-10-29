@@ -360,7 +360,12 @@ export interface Leave<F extends object = Record<never, never>> {
    */
   decide(
     requestId: string,
-    decision: { readonly approved: boolean; readonly note?: string },
+    decision: {
+      readonly approved: boolean;
+      readonly note?: string;
+      /** The user the service role decides for, kept as `decidedBy`. */
+      readonly decidedBy?: string;
+    },
   ): AsyncResult<LeaveRequest<F>>;
   /**
    * The approved leave behind a `leave_feed` share link (subject id: the
@@ -683,6 +688,9 @@ export function createLeave<S extends StandardSchemaV1 | undefined = undefined>(
           request_id: requestId,
           approved: decision.approved,
           note: decision.note ?? null,
+          ...(decision.decidedBy === undefined
+            ? {}
+            : { decided_by: decision.decidedBy }),
         },
         (value) => requestOf(value, "decide_leave_request"),
       ).andThen(fields.row),

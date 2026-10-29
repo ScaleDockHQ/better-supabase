@@ -171,8 +171,9 @@ export function expensesFunctions(ctx: BlockSqlContext): string {
 -- Approves or rejects a submitted report without the approvals block: the
 -- service role, or a member with the approve permission who doesn't own it.
 -- Approval books it like a final approval; a rejected report can change and
--- go in again.
-create or replace function ${fn("decide_expense_report")}(report_id uuid, approved boolean, note text default null)
+-- go in again. The service role names the user it decides for in decided_by.
+drop function if exists ${fn("decide_expense_report")}(uuid, boolean, text);
+create or replace function ${fn("decide_expense_report")}(report_id uuid, approved boolean, note text default null, decided_by uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -184,6 +185,10 @@ begin${loadReport("decide_expense_report.report_id", true)}
   if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${r("tenant")}`, approve)} and v_row.${r("user")} is distinct from auth.uid())) then
     ${forbidden("not allowed to decide this expense report")}
   end if;
+  if decide_expense_report.decided_by is not null and (not ${SERVICE_CALLER} and decide_expense_report.decided_by is distinct from auth.uid()
+    or decide_expense_report.decided_by = v_row.${r("user")}) then
+    ${forbidden("only the service role decides for another user, never for the owner")}
+  end if;
   if ${status("v_row", "")} <> 'submitted' then
     ${fail("EXPENSE_REPORT_LOCKED", "only a submitted report is decided", "55000")}
   end if;
@@ -192,13 +197,13 @@ begin${loadReport("decide_expense_report.report_id", true)}
   end if;
   if decide_expense_report.approved then
     perform ${fn("approve_expense_report")}(v_row.${r("id")});
-    update ${reports} x set ${r("updatedAt")} = now()${alsoSet("reports", "decidedBy", "auth.uid()")}${alsoSet("reports", "decisionNote", "nullif(trim(decide_expense_report.note), '')")}
+    update ${reports} x set ${r("updatedAt")} = now()${alsoSet("reports", "decidedBy", "coalesce(decide_expense_report.decided_by, auth.uid())")}${alsoSet("reports", "decisionNote", "nullif(trim(decide_expense_report.note), '')")}
       where x.${r("id")} = v_row.${r("id")}
       returning * into v_row;
   else${
     rejections
       ? `
-    update ${reports} x set ${r("rejectedAt")} = now(), ${r("updatedAt")} = now()${alsoSet("reports", "decidedBy", "auth.uid()")}${alsoSet("reports", "decisionNote", "nullif(trim(decide_expense_report.note), '')")}
+    update ${reports} x set ${r("rejectedAt")} = now(), ${r("updatedAt")} = now()${alsoSet("reports", "decidedBy", "coalesce(decide_expense_report.decided_by, auth.uid())")}${alsoSet("reports", "decisionNote", "nullif(trim(decide_expense_report.note), '')")}
       where x.${r("id")} = v_row.${r("id")}
       returning * into v_row;
     ${reportRecord("expense_report.rejected", "rejected an expense report")}`
@@ -209,7 +214,7 @@ begin${loadReport("decide_expense_report.report_id", true)}
   return ${reportJson("v_row", "")};
 end;
 $$;
-${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text)`)}
+${userGrant(`${fn("decide_expense_report")}(uuid, boolean, text, uuid)`)}
 `;
 
   const total = (row: string): string =>

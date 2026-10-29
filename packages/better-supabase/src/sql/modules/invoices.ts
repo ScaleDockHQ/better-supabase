@@ -416,10 +416,23 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "update_invoice", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "delete_invoice", args: ["uuid"], returns: "boolean" },
     { name: "set_invoice_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
-    { name: "issue_invoice", args: ["uuid", "date", "date"], returns: "jsonb" },
+    {
+      name: "issue_invoice",
+      args: ["uuid", "date", "date", "jsonb"],
+      returns: "jsonb",
+    },
     {
       name: "record_invoice_payment",
-      args: ["uuid", "bigint", "text", "timestamptz", "text", "text", "text"],
+      args: [
+        "uuid",
+        "bigint",
+        "text",
+        "timestamptz",
+        "text",
+        "text",
+        "text",
+        "jsonb",
+      ],
       returns: "jsonb",
     },
     {

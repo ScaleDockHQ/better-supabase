@@ -1,3 +1,4 @@
+import type { TransitionActor } from "../../core/block-helpers.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
@@ -78,17 +79,7 @@ export interface StatusChange {
   readonly createdAt: Temporal.Instant;
 }
 
-/**
- * Who made a change, for the history row: a portal visitor who isn't an auth
- * user, or the request's IP address and user agent.
- */
-export interface TransitionActor {
-  readonly name?: string;
-  readonly email?: string;
-  /** An IPv4 or IPv6 address; anything else fails with `STATE_ACTOR_INVALID`. */
-  readonly ip?: string;
-  readonly userAgent?: string;
-}
+export type { TransitionActor } from "../../core/block-helpers.ts";
 
 export interface TransitionOptions {
   readonly reason?: string;

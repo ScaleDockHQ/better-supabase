@@ -3641,7 +3641,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "discountBps": "discount_bps",
               "discountAmount": "discount_amount",
               "depositBps": "deposit_bps",
+              "depositAmount": "deposit_amount",
+              "depositRequired": "deposit_required",
               "depositDue": "deposit_due",
+              "unpublishedChanges": "unpublished_changes",
               "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at",
@@ -7310,6 +7313,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ApprovalApprovers"
         },
         {
+          "name": "ApprovalDecideOptions"
+        },
+        {
           "name": "ApprovalDecision"
         },
         {
@@ -7350,6 +7356,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ApprovalStep"
         },
         {
+          "name": "ApprovalStepInput"
+        },
+        {
           "name": "ApprovalTenantPolicy"
         }
       ],
@@ -7363,6 +7372,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "approval.expired",
           "approval.delegated",
           "approval.consumed",
+          "approval.escalated",
           "approval_policy.saved",
           "approval_policy.removed"
         ]
@@ -17187,7 +17197,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "quote.rejected",
           "quote.changes_requested",
           "quote.expired",
-          "quote.revised"
+          "quote.revised",
+          "quote.withdrawn"
         ]
       }
     },

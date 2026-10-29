@@ -1,5 +1,6 @@
 export {
   type ApprovalApprovers,
+  type ApprovalDecideOptions,
   type ApprovalDecision,
   type ApprovalListOptions,
   type ApprovalMode,
@@ -12,6 +13,7 @@ export {
   type ApprovalsOptions,
   type ApprovalStatus,
   type ApprovalStep,
+  type ApprovalStepInput,
   type ApprovalTenantPolicy,
   approvalFingerprint,
   createApprovals,

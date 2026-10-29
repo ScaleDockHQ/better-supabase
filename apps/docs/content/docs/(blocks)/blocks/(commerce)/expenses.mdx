@@ -195,7 +195,7 @@ rejects it: the service role, or a member with `expenses.approve` who doesn't
 own it. Approval posts on the ledger like a final approval; rejection sets
 `rejected_at` and records `expense_report.rejected`, and the owner can change
 the report and submit it again. The reports table takes optional
-`rejectedAt`, `decidedBy` and `decisionNote` columns.
+`rejectedAt`, `decidedBy` and `decisionNote` columns. The service role decides for a user with `decidedBy` (`decided_by` in SQL), which is kept in the `decidedBy` column instead of an empty value; a member passing someone else, or `decidedBy` naming the owner, fails with the forbidden error. `decideExpense` takes `decidedBy` the same way.
 
 ## Expenses without reports
 

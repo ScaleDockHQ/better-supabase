@@ -169,3 +169,46 @@ export function channelDefaults(ctx: BlockSqlContext, channel: string): string {
 
   return `case ${channel} ${[...cases, "when 'in_app' then true"].join(" ")} else false end`;
 }
+
+/**
+ * A query of the user ids that hold `permission` in `tenant` (SQL expressions),
+ * from the provider's or the custom model's `holdersOf`, or the members the
+ * roles and catalog models allow; `undefined` when the access model can't list
+ * holders.
+ */
+export function permissionHolders(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+  permission: string,
+  tenant: string,
+): string | undefined {
+  const model = accessModel(ctx);
+
+  if (model === "provider") {
+    const provider = layout.accessProvider;
+    const template = provider?.functions.holdersOf;
+
+    return provider === undefined || template === undefined
+      ? undefined
+      : `select h.u from ${fillTemplate("authorization.functions.holdersOf", template, { permission, tenant, scope: provider.scope })} as h(u)`;
+  }
+
+  if (model === "custom") {
+    const template = ctx.modules.permissions?.functions?.holdersOf;
+
+    return template === undefined
+      ? undefined
+      : `select h.u from ${fillTemplate("blocks.permissions.functions.holdersOf", template, { permission, tenant })} as h(u)`;
+  }
+
+  if (!ctx.installed("memberships")) {
+    return undefined;
+  }
+
+  const members = ctx.of("memberships");
+  const user = members.col("memberships", "user");
+
+  return `select m.${user} from ${members.table("memberships")} m
+        where m.${members.col("memberships", "tenant")} = ${tenant}
+          and ${ctx.scope.canUser(`m.${user}`, tenant, permission)}`;
+}

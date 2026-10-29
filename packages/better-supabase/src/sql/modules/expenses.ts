@@ -393,7 +393,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       : [
           {
             name: "decide_expense_report",
-            args: ["uuid", "boolean", "text"],
+            args: ["uuid", "boolean", "text", "uuid"],
             returns: "jsonb",
           },
         ]),

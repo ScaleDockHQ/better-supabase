@@ -93,12 +93,37 @@ export interface ApprovalApprovers {
 
 export interface ApprovalStep {
   readonly approvers: ApprovalApprovers;
+  /** Approvals the step needs; `0` with `all` until the request is filed. */
   readonly required: number;
+  /**
+   * Every holder of `approvers.permission` decides, resolved to `users` when
+   * the request is filed.
+   */
+  readonly all?: boolean;
+  /** A Postgres interval after which `escalateTo` may decide the step too. */
+  readonly escalateAfter?: string;
+  /** The fallback approvers once the step has waited `escalateAfter`. */
+  readonly escalateTo?: ApprovalApprovers;
+  /** Whether `escalate_approvals` let `escalateTo` decide this step. */
+  readonly escalated?: boolean;
+}
+
+/**
+ * A step to save. `required: "all"` with only `approvers.permission` asks every
+ * holder of the permission when a request is filed.
+ */
+export interface ApprovalStepInput {
+  readonly approvers: ApprovalApprovers;
+  readonly required?: number | "all";
+  /** A Postgres interval or ISO 8601 duration, such as `PT4H`. */
+  readonly escalateAfter?: string;
+  readonly escalateTo?: ApprovalApprovers;
 }
 
 export interface ApprovalRequest {
   readonly id: string;
-  readonly organizationId: string;
+  /** `null` for a request filed without an organization (`tenantless`). */
+  readonly organizationId: string | null;
   readonly subject: RecordRef;
   readonly action: string;
   readonly status: ApprovalStatus;
@@ -128,6 +153,8 @@ export interface ApprovalRequirement {
   readonly expiresIn?: string;
   /** The tenant policies that matched, in order. */
   readonly policies: readonly string[];
+  /** The floor's effects, which tenant and platform policies match on. */
+  readonly effects?: readonly string[];
 }
 
 /**
@@ -136,9 +163,14 @@ export interface ApprovalRequirement {
  */
 export interface ApprovalTenantPolicy {
   readonly id: string;
-  readonly organizationId: string;
+  /** `null` for a platform policy (`options.platformPolicies`). */
+  readonly organizationId: string | null;
+  /** `*` matches every subject type. */
   readonly subjectType: string;
+  /** `*` matches every action of the subject type. */
   readonly action: string;
+  /** Matches only requests whose floor carries this effect. */
+  readonly effect?: string;
   readonly name: string;
   /** Applies only to requests whose payload matches; none applies always. */
   readonly conditions?: FilterQuery;
@@ -155,13 +187,17 @@ export interface ApprovalTenantPolicy {
 /** A new policy needs `subjectType`, `action` and `name`; `id` changes one. */
 export interface ApprovalPolicyInput {
   readonly id?: string;
+  /** `*` for every subject type. */
   readonly subjectType?: string;
+  /** `*` for every action of the subject type. */
   readonly action?: string;
+  /** An effect a floor declares; `null` removes it. */
+  readonly effect?: string | null;
   readonly name?: string;
   /** `null` removes the conditions. */
   readonly conditions?: FilterQuery | null;
   readonly mode?: ApprovalMode;
-  readonly steps?: readonly ApprovalStep[];
+  readonly steps?: readonly ApprovalStepInput[];
   readonly selfApproval?: boolean;
   /** A Postgres interval such as `3 days`; `null` removes it. */
   readonly expiresIn?: string | null;
@@ -199,6 +235,17 @@ export interface ApprovalRequestInput {
    * fingerprint. Build it with `approvalFingerprint`.
    */
   readonly fingerprint?: string;
+  /**
+   * Files the request without an organization, for a subject type in
+   * `options.tenantless`; the block's `tenant` is not needed.
+   */
+  readonly tenantless?: boolean;
+}
+
+/** Who decides when the service role calls `approve` or `reject`. */
+export interface ApprovalDecideOptions {
+  /** The user the service role decides for, recorded as the approver. */
+  readonly decidedBy?: string;
 }
 
 export interface ApprovalListOptions {
@@ -211,6 +258,8 @@ export interface ApprovalListOptions {
   readonly pageSize?: number;
   /** Requests made before this time, for the next page. */
   readonly before?: Temporal.Instant;
+  /** Requests without an organization instead of the block's tenant. */
+  readonly tenantless?: boolean;
 }
 
 /**
@@ -226,10 +275,21 @@ export interface Approvals<F extends object = Record<never, never>> {
     subject: RecordRef,
     input: ApprovalRequestInput & Partial<F>,
   ): AsyncResult<ApprovalRequest & F>;
-  /** Approves the current step; the last step runs the policy's action. */
-  approve(id: string, comment?: string): AsyncResult<ApprovalRequest & F>;
+  /**
+   * Approves the current step; the last step runs the policy's action. The
+   * service role passes `decidedBy` to decide for a user.
+   */
+  approve(
+    id: string,
+    comment?: string,
+    options?: ApprovalDecideOptions,
+  ): AsyncResult<ApprovalRequest & F>;
   /** Rejects the request. */
-  reject(id: string, comment?: string): AsyncResult<ApprovalRequest & F>;
+  reject(
+    id: string,
+    comment?: string,
+    options?: ApprovalDecideOptions,
+  ): AsyncResult<ApprovalRequest & F>;
   /** Hands the caller's place on the current step to another member. */
   delegate(
     id: string,
@@ -254,6 +314,7 @@ export interface Approvals<F extends object = Record<never, never>> {
     subjectType: string,
     action: string,
     payload?: Readonly<Record<string, unknown>>,
+    options?: { readonly tenantless?: boolean },
   ): AsyncResult<ApprovalRequirement | null>;
   /**
    * Uses an approved request once, before its action runs. A second call fails
@@ -261,13 +322,23 @@ export interface Approvals<F extends object = Record<never, never>> {
    * `APPROVAL_FINGERPRINT_MISMATCH`.
    */
   consume(id: string, fingerprint?: string): AsyncResult<ApprovalRequest & F>;
-  /** The tenant's policies (`options.tenantPolicies`). */
+  /**
+   * The tenant's policies (`options.tenantPolicies`), or with `platform` the
+   * platform policies.
+   */
   listPolicies(options?: {
     readonly subjectType?: string;
     readonly pageSize?: number;
+    readonly platform?: boolean;
   }): AsyncResult<readonly ApprovalTenantPolicy[]>;
-  /** Creates or changes a tenant policy. Needs `approvals.manage`. */
-  savePolicy(input: ApprovalPolicyInput): AsyncResult<ApprovalTenantPolicy>;
+  /**
+   * Creates or changes a tenant policy. Needs `approvals.manage`; a platform
+   * policy (`platform: true`) needs it as platform staff.
+   */
+  savePolicy(
+    input: ApprovalPolicyInput,
+    options?: { readonly platform?: boolean },
+  ): AsyncResult<ApprovalTenantPolicy>;
   /** Deletes a tenant policy; `false` when it did not exist. */
   removePolicy(id: string): AsyncResult<boolean>;
 }
@@ -361,11 +432,31 @@ function approversOf(value: unknown): ApprovalApprovers {
   };
 }
 
-const stepsOf = (value: unknown, fn: string): readonly ApprovalStep[] =>
-  recordsOf(value ?? [], fn).map((step) => ({
+function stepOf(step: Readonly<Record<string, unknown>>): ApprovalStep {
+  const all = step["required"] === "all";
+  const escalateAfter = optionalText(step["escalateAfter"]);
+
+  return {
     approvers: approversOf(step["approvers"]),
-    required: Number(step["required"] ?? 1),
-  }));
+    required: all ? 0 : Number(step["required"] ?? 1),
+    ...(all ? { all } : {}),
+    ...(escalateAfter === undefined
+      ? {}
+      : {
+          escalateAfter,
+          escalateTo: approversOf(step["escalateTo"]),
+          escalated: step["escalated"] === true,
+        }),
+  };
+}
+
+const stepsOf = (value: unknown, fn: string): readonly ApprovalStep[] =>
+  recordsOf(value ?? [], fn).map(stepOf);
+
+const effectsOf = (value: unknown): readonly string[] | undefined =>
+  Array.isArray(value) && value.length > 0
+    ? value.map((effect) => textOf(effect))
+    : undefined;
 
 const modeOf = (value: unknown): ApprovalMode =>
   value === "confirm" ? "confirm" : "authorize";
@@ -379,7 +470,7 @@ function requestOf(value: unknown, fn: string): ApprovalRequest {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
+    organizationId: optionalText(row["organizationId"]) ?? null,
     subject: subjectRefOf(row["subjectType"], row["subjectId"]),
     action: textOf(row["action"]),
     status: statusOf(row["status"]),
@@ -407,6 +498,7 @@ function requirementOf(value: unknown): ApprovalRequirement | null {
 
   const row = recordOf(value, "approval_requirement");
   const expiresIn = optionalText(row["expiresIn"]);
+  const effects = effectsOf(row["effects"]);
 
   return {
     mode: modeOf(row["mode"]),
@@ -416,6 +508,7 @@ function requirementOf(value: unknown): ApprovalRequirement | null {
       ? row["policies"].map((id) => textOf(id))
       : [],
     ...(expiresIn === undefined ? {} : { expiresIn }),
+    ...(effects === undefined ? {} : { effects }),
   };
 }
 
@@ -434,13 +527,15 @@ function conditionsOf(value: unknown): FilterQuery {
 function tenantPolicyOf(value: unknown, fn: string): ApprovalTenantPolicy {
   const row = recordOf(value, fn);
   const expiresIn = optionalText(row["expiresIn"]);
+  const effect = optionalText(row["effect"]);
   const conditions = row["conditions"];
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organizationId"]),
+    organizationId: optionalText(row["organizationId"]) ?? null,
     subjectType: textOf(row["subjectType"]),
     action: textOf(row["action"]),
+    ...(effect === undefined ? {} : { effect }),
     name: textOf(row["name"]),
     mode: modeOf(row["mode"]),
     steps: stepsOf(row["steps"], fn),
@@ -534,7 +629,9 @@ export function createApprovals<
         allowed = await approverOf(approver, {
           kind: `${request.subject.type}.${request.action}`,
           subject: request.subject.id,
-          tenant: request.organizationId,
+          ...(request.organizationId === null
+            ? {}
+            : { tenant: request.organizationId }),
           ...(request.requestedBy === undefined
             ? {}
             : { requester: request.requestedBy }),
@@ -562,18 +659,34 @@ export function createApprovals<
       },
     );
 
-  const decide = (id: string, decision: string, comment?: string) =>
+  const decide = (
+    id: string,
+    decision: string,
+    comment?: string,
+    decideOptions?: ApprovalDecideOptions,
+  ) =>
     asApprover(id, () =>
       one("decide_approval", {
         request_id: id,
         decision,
         comment: comment ?? null,
+        ...(decideOptions?.decidedBy === undefined
+          ? {}
+          : { decided_by: decideOptions.decidedBy }),
       }),
     );
 
+  const tenantOr = (
+    tenantless: boolean | undefined,
+  ): AsyncResult<string | null> =>
+    tenantless === true ? AsyncResult.ok(null) : tenant();
+
   const client: Approvals<F> = {
-    request: (subject, { action, reason, payload, fingerprint, ...extra }) =>
-      tenant().andThen((organizationId) =>
+    request: (
+      subject,
+      { action, reason, payload, fingerprint, tenantless, ...extra },
+    ) =>
+      tenantOr(tenantless).andThen((organizationId) =>
         AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
           one("request_approval", {
             tenant: organizationId,
@@ -587,8 +700,10 @@ export function createApprovals<
           }),
         ),
       ),
-    approve: (id, comment) => decide(id, "approved", comment),
-    reject: (id, comment) => decide(id, "rejected", comment),
+    approve: (id, comment, decideOptions) =>
+      decide(id, "approved", comment, decideOptions),
+    reject: (id, comment, decideOptions) =>
+      decide(id, "rejected", comment, decideOptions),
     delegate: (id, userId, comment) =>
       asApprover(id, () =>
         one("delegate_approval", {
@@ -600,7 +715,7 @@ export function createApprovals<
     cancel: (id) => one("cancel_approval", { request_id: id }),
     get: getRequest,
     list: (list = {}) =>
-      tenant().andThen((organizationId) =>
+      tenantOr(list.tenantless).andThen((organizationId) =>
         call(
           "list_approvals",
           {
@@ -624,8 +739,8 @@ export function createApprovals<
         { subject_type: subject.type, subject_id: subject.id, action },
         (value) => value === true,
       ),
-    requirement: (subjectType, action, payload) =>
-      tenant().andThen((organizationId) =>
+    requirement: (subjectType, action, payload, requirementOptions) =>
+      tenantOr(requirementOptions?.tenantless).andThen((organizationId) =>
         call(
           "approval_requirement",
           {
@@ -643,7 +758,7 @@ export function createApprovals<
         fingerprint: fingerprint ?? null,
       }),
     listPolicies: (list = {}) =>
-      tenant().andThen((organizationId) =>
+      tenantOr(list.platform).andThen((organizationId) =>
         call(
           "list_approval_policies",
           {
@@ -657,8 +772,8 @@ export function createApprovals<
             ),
         ),
       ),
-    savePolicy: (input) =>
-      tenant().andThen((organizationId) =>
+    savePolicy: (input, saveOptions) =>
+      tenantOr(saveOptions?.platform).andThen((organizationId) =>
         call(
           "save_approval_policy",
           { tenant: organizationId, policy: input },

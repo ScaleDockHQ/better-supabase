@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:2865692d2c3721b5d26e2d0af3189b811f9476cbdb9e21ff036c7c74fd0addfc
+-- @bsb-hash sha256:62899f5d41801181bc0b565dad9e1f456aab5fd12fd37bbc546fd87b5870e9f8
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -521,8 +521,10 @@ grant execute on function "better_supabase"."set_invoice_lines"(uuid, jsonb) to 
 -- Issues a draft: it gets the next number of its kind (gapless, so a
 -- number is only taken when the invoice is final), its issue and due date,
 -- and its lines freeze. A credit note reduces the balance of its original.
+-- actor: who issued it, for the state machine's history.
 drop function if exists "better_supabase"."issue_invoice"(uuid, date);
-create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null)
+drop function if exists "better_supabase"."issue_invoice"(uuid, date, date);
+create or replace function "better_supabase"."issue_invoice"(invoice uuid, issued_on date, due_on date default null, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -551,6 +553,17 @@ begin
   if issue_invoice.due_on < v_issued_on then
     raise exception 'an invoice falls due on or after its issue date' using errcode = '22023', hint = 'INVOICE_DUE_INVALID';
   end if;
+  if issue_invoice.actor is not null then
+    if jsonb_typeof(issue_invoice.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(issue_invoice.actor ->> 'ip', '')::inet, nullif(issue_invoice.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(issue_invoice.actor::text, ''), true);
   declare
     v_hook regprocedure := to_regprocedure('"public"."before_invoice_issue"(uuid)');
   begin
@@ -620,16 +633,18 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date) from public, anon;
-grant execute on function "better_supabase"."issue_invoice"(uuid, date, date) to authenticated, service_role;
+revoke execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
 
 -- Records a payment (a negative amount is a refund) in the invoice's
 -- currency as a ledger transaction from the invoice's receivable account to
 -- cash. A reference, such as a bank or payment provider id, is unique per
--- organization, so recording the same payment twice adds it once.
+-- organization, so recording the same payment twice adds it once. actor:
+-- who recorded it, for the state machine's history.
 drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
 drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
-create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null)
+drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
+create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -657,6 +672,17 @@ begin
   if upper(record_invoice_payment.currency) is distinct from v_row."currency" then
     raise exception 'a payment must be in the invoice''s currency' using errcode = '22023', hint = 'INVOICE_CURRENCY_MISMATCH';
   end if;
+  if record_invoice_payment.actor is not null then
+    if jsonb_typeof(record_invoice_payment.actor) <> 'object' then
+      raise exception 'actor must be an object of id, name, email, ip and userAgent' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
+    end if;
+    begin
+      perform nullif(record_invoice_payment.actor ->> 'ip', '')::inet, nullif(record_invoice_payment.actor ->> 'id', '')::uuid;
+    exception when invalid_text_representation then
+      raise exception 'actor.ip must be an IP address and actor.id a user id' using errcode = '22023', hint = 'INVOICE_ACTOR_INVALID';
+    end;
+  end if;
+  perform set_config('better_supabase.transition_actor', coalesce(record_invoice_payment.actor::text, ''), true);
   -- A recorded reference is a replay that adds nothing, so it skips the check.
   v_reference := nullif(trim(record_invoice_payment.reference), '');
   if v_reference is not null and exists (
@@ -734,8 +760,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text) from public, anon;
-grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb) from public, anon;
+grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_invoice_payments"(invoice uuid)
 returns jsonb

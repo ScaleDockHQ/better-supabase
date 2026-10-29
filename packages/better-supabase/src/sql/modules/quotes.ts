@@ -32,6 +32,7 @@ import {
   quoteOrigin,
   quoteParty,
 } from "./quotes-functions.ts";
+import { versionLinesOn } from "./quotes-kit.ts";
 
 const QUOTE = [
   "organizationId",
@@ -61,6 +62,7 @@ const EVENTS: BlockSqlEvents<QuotesEvents> = {
   "quote.changes_requested": { subject: "quotes", payload: [...QUOTE, "note"] },
   "quote.expired": { subject: "quotes", payload: [...QUOTE] },
   "quote.revised": { subject: "quotes", payload: [...QUOTE, "revision"] },
+  "quote.withdrawn": { subject: "quotes", payload: [...QUOTE, "revision"] },
 };
 
 const NAMES: BlockSqlNames = {
@@ -90,6 +92,8 @@ const NAMES: BlockSqlNames = {
     "extraColumns",
     "lineExtraColumns",
     "lineRates",
+    "workingCopy",
+    "versionLines",
   ],
   tables: {
     quotes: {
@@ -128,7 +132,10 @@ const NAMES: BlockSqlNames = {
         discountBps: "discount_bps",
         discountAmount: "discount_amount",
         depositBps: "deposit_bps",
+        depositAmount: "deposit_amount",
+        depositRequired: "deposit_required",
         depositDue: "deposit_due",
+        unpublishedChanges: "unpublished_changes",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -152,7 +159,10 @@ const NAMES: BlockSqlNames = {
         "discountBps",
         "discountAmount",
         "depositBps",
+        "depositAmount",
+        "depositRequired",
         "depositDue",
+        "unpublishedChanges",
         "createdBy",
       ],
       typed: ["status"],
@@ -174,6 +184,42 @@ const NAMES: BlockSqlNames = {
         publishedAt: "published_at",
       },
       optional: ["publishedBy"],
+    },
+    versionLines: {
+      name: "quote_version_lines",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        version: "version_id",
+        position: "position",
+        description: "description",
+        quantity: "quantity",
+        unitAmount: "unit_amount",
+        periods: "periods",
+        discountBps: "discount_bps",
+        taxRateBps: "tax_rate_bps",
+        taxCode: "tax_code",
+        section: "section",
+        optional: "optional",
+        selected: "selected",
+        productType: "product_type",
+        productId: "product_id",
+      },
+      optional: [
+        "periods",
+        "discountBps",
+        "taxRateBps",
+        "taxCode",
+        "section",
+        "optional",
+        "selected",
+        "productType",
+        "productId",
+      ],
+      typed: ["productType"],
     },
     taxLines: {
       name: "quote_tax_lines",
@@ -215,6 +261,21 @@ function tables(ctx: BlockSqlContext, n: QuoteNames): string {
       ? `\n  ${q(logical)} ${typeof definition === "string" ? definition : definition(q(logical))},`
       : "";
 
+  // Columns a later version added, for quotes tables made before it.
+  const later: readonly (readonly [string, (name: string) => string])[] = [
+    ["depositAmount", (name) => `bigint check (${name} > 0)`],
+    ["depositRequired", () => "boolean not null default false"],
+    ["unpublishedChanges", () => "boolean not null default false"],
+  ];
+
+  const added = later
+    .filter(([logical]) => ctx.has("quotes", logical))
+    .map(
+      ([logical, type]) =>
+        `alter table ${t("quotes")} add column if not exists ${q(logical)} ${type(q(logical))};\n`,
+    )
+    .join("");
+
   const constraints = [
     `unique (${q("tenant")}, ${q("number")}, ${q("revision")})`,
     ...(company
@@ -240,13 +301,13 @@ create table if not exists ${t("quotes")} (
   ${q("tokenHash")} text unique,
   ${q("sentAt")} timestamptz,${column("viewedAt", "timestamptz")}
   ${q("decidedAt")} timestamptz,
-  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("decidedUser", "uuid")}${column("decidedIp", "text")}${column("decidedUserAgent", "text")}${column("pricesIncludeTax", "boolean not null default false")}${column("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${column("discountAmount", (amount) => `bigint not null default 0 check (${amount} >= 0)`)}${column("depositBps", (bps) => `integer check (${bps} > 0 and ${bps} < 10000)`)}${column("depositDue", "bigint not null default 0")}${column("createdBy", "uuid")}
+  ${q("decidedBy")} text,${column("decisionNote", "text")}${column("decidedUser", "uuid")}${column("decidedIp", "text")}${column("decidedUserAgent", "text")}${column("pricesIncludeTax", "boolean not null default false")}${column("discountBps", (bps) => `integer not null default 0 check (${bps} >= 0 and ${bps} <= 10000)`)}${column("discountAmount", (amount) => `bigint not null default 0 check (${amount} >= 0)`)}${column("depositBps", (bps) => `integer check (${bps} > 0 and ${bps} < 10000)`)}${column("depositAmount", (amount) => `bigint check (${amount} > 0)`)}${column("depositRequired", "boolean not null default false")}${column("depositDue", "bigint not null default 0")}${column("unpublishedChanges", "boolean not null default false")}${column("createdBy", "uuid")}
   ${q("createdAt")} timestamptz not null default now(),
   ${q("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "quotes")},
   ${constraints.join(",\n  ")}
 );
-create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
+${added}create index if not exists ${ctx.naming.rename("quotes_tenant_status_idx")} on ${t("quotes")} (${q("tenant")}, ${q("status")}, ${q("createdAt")} desc);${origin ? `\ncreate index if not exists ${ctx.naming.rename("quotes_origin_idx")} on ${t("quotes")} (${q("originType")}, ${q("originId")});` : ""}
 ${addExtraColumns(t("quotes"), n.extras)}${appUniqueIndex(ctx, "quotes", ["tokenHash"])}
 ${lockModuleTable(ctx, "quotes", { read: true })}
 ${renderPolicy(makePolicy({ table: t("quotes"), name: ctx.naming.rename("quotes_read"), command: "select", roles: ["authenticated"], using: guestOr(ctx.scope.check(q("tenant"), n.read), [quoteGuest(ctx, n, "")]) }), { drop: true, target: t("quotes") })}
@@ -273,6 +334,40 @@ function childTables(ctx: BlockSqlContext, n: QuoteNames): string {
     );
 
   const frozen = ctx.trigger("quote_versions_frozen");
+  const frozenFn = `better_supabase.${frozen.replaceAll('"', "")}()`;
+  const vl = (column: string): string => c("versionLines", column);
+
+  const vlColumn = (logical: string, definition: string): string =>
+    ctx.has("versionLines", logical) ? `\n  ${vl(logical)} ${definition},` : "";
+
+  const versionLines = versionLinesOn(ctx)
+    ? `
+create table if not exists ${t("versionLines")} (
+  ${vl("id")} uuid primary key default gen_random_uuid(),
+  ${vl("tenant")} ${ctx.idType} not null,
+  ${vl("version")} uuid not null references ${t("versions")} (${v("id")}) on delete cascade,
+  ${vl("position")} integer not null,
+  ${vl("description")} text not null,
+  ${vl("quantity")} numeric(18, 4) not null,
+  ${vl("unitAmount")} bigint not null,${vlColumn("periods", "integer not null default 1")}${vlColumn("discountBps", "integer not null default 0")}${vlColumn("taxRateBps", "integer not null default 0")}${vlColumn("taxCode", "text")}${vlColumn("section", "text")}${vlColumn("optional", "boolean not null default false")}${vlColumn("selected", "boolean not null default true")}${vlColumn("productType", "text")}${vlColumn("productId", "text")}
+  unique (${vl("version")}, ${vl("position")})
+);
+${lockModuleTable(ctx, "versionLines", { read: true })}
+${renderPolicy(
+  makePolicy({
+    table: t("versionLines"),
+    name: ctx.naming.rename(`${ctx.tableName("versionLines").name}_read`),
+    command: "select",
+    roles: ["authenticated"],
+    using: `exists (select 1 from ${t("versions")} v where v.${v("id")} = ${vl("version")})`,
+  }),
+  { drop: true, target: t("versionLines") },
+)}
+drop trigger if exists ${frozen} on ${t("versionLines")};
+create trigger ${frozen} before update on ${t("versionLines")}
+for each row execute function ${frozenFn};
+`
+    : "";
 
   const taxLines = ctx.hasTable("taxLines")
     ? `
@@ -318,7 +413,7 @@ ${triggerGrant(`better_supabase.${frozen.replaceAll('"', "")}()`)}
 drop trigger if exists ${frozen} on ${t("versions")};
 create trigger ${frozen} before update on ${t("versions")}
 for each row execute function better_supabase.${frozen.replaceAll('"', "")}();
-${taxLines}`;
+${versionLines}${taxLines}`;
 }
 
 function build(ctx: BlockSqlContext): string {
@@ -368,13 +463,14 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "update_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "set_quote_lines", args: ["uuid", "jsonb"], returns: "jsonb" },
-    { name: "send_quote", args: ["uuid"], returns: "jsonb" },
+    { name: "send_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
     {
       name: "decide_quote",
-      args: ["uuid", "text", "text", "text", "jsonb"],
+      args: ["uuid", "text", "text", "text", "jsonb", "jsonb"],
       returns: "jsonb",
     },
-    { name: "revise_quote", args: ["uuid"], returns: "jsonb" },
+    { name: "revise_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
+    { name: "withdraw_quote", args: ["uuid", "jsonb"], returns: "jsonb" },
     { name: "quote_versions", args: ["uuid"], returns: "jsonb" },
     { name: "quote_version", args: ["uuid", "integer"], returns: "jsonb" },
     { name: "portal_quote", args: ["uuid"], returns: "jsonb" },

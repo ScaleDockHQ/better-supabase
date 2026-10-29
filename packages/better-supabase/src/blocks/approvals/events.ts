@@ -21,6 +21,7 @@ export type ApprovalsEvents = {
   readonly "approval.expired": CollaborationEventData;
   readonly "approval.delegated": CollaborationEventData;
   readonly "approval.consumed": CollaborationEventData;
+  readonly "approval.escalated": CollaborationEventData;
   readonly "approval_policy.saved": ApprovalPolicyEventData;
   readonly "approval_policy.removed": ApprovalPolicyEventData;
 };
@@ -34,6 +35,7 @@ export const approvalsEvents: Events<ApprovalsEvents> = defineEvents({
   "approval.expired": event<CollaborationEventData>(),
   "approval.delegated": event<CollaborationEventData>(),
   "approval.consumed": event<CollaborationEventData>(),
+  "approval.escalated": event<CollaborationEventData>(),
   "approval_policy.saved": event<ApprovalPolicyEventData>(),
   "approval_policy.removed": event<ApprovalPolicyEventData>(),
 });

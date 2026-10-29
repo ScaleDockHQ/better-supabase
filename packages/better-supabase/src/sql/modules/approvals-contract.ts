@@ -32,6 +32,7 @@ const EVENTS: BlockSqlEvents<ApprovalsEvents> = {
   "approval.expired": { subject: "approval-requests", payload: PAYLOAD },
   "approval.delegated": { subject: "approval-requests", payload: PAYLOAD },
   "approval.consumed": { subject: "approval-requests", payload: PAYLOAD },
+  "approval.escalated": { subject: "approval-requests", payload: PAYLOAD },
   "approval_policy.saved": {
     subject: "approval-policies",
     payload: POLICY_PAYLOAD,
@@ -67,7 +68,14 @@ export const APPROVALS_NAMES: BlockSqlNames = {
     "before_approval_decide",
     "after_approval_decide",
   ],
-  options: ["policies", "tenantPolicies", "extraColumns"],
+  options: [
+    "policies",
+    "tenantPolicies",
+    "platformPolicies",
+    "conditions",
+    "tenantless",
+    "extraColumns",
+  ],
   tables: {
     requests: {
       name: "approval_requests",
@@ -142,7 +150,7 @@ export function approvalsContract(
     },
     {
       name: "decide_approval",
-      args: ["uuid", "text", "text"],
+      args: ["uuid", "text", "text", "uuid"],
       returns: "jsonb",
     },
     {
