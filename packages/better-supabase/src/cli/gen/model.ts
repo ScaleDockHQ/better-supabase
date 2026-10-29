@@ -312,10 +312,30 @@ function prepareCatalog(
   };
 }
 
+/**
+ * The columns the `updated-at` extension stamps on insert, which an insert may
+ * leave out. Under `stamp: "trigger"` only the table's own default fills them.
+ */
+function clientStampedColumns(
+  config: Pick<ResolvedConfig, "blocks" | "extensions">,
+): ReadonlySet<string> {
+  const timestamps = config.extensions.timestamps;
+
+  if (
+    timestamps === undefined ||
+    config.blocks["updated-at"]?.options?.["stamp"] === "trigger"
+  ) {
+    return new Set();
+  }
+
+  return new Set([timestamps.createdAt, timestamps.updatedAt]);
+}
+
 function draftTables(ctx: ModelContext): DraftTable[] {
   const { config, included, enumsByName, tsType, jsonTypeFor, optionsOf } = ctx;
   const storagePaths = storagePathsOf(config);
   const numbered = numberedColumnsOf(config);
+  const stamped = clientStampedColumns(config);
 
   const tables = included.map((table) => {
     const casing = optionsOf(table)?.casing ?? config.casing;
@@ -417,6 +437,7 @@ function draftTables(ctx: ModelContext): DraftTable[] {
       const filled =
         column.hasDefault ||
         insertOptional.has(column.name) ||
+        (table.insertable && stamped.has(column.name)) ||
         (numberedColumns?.has(column.name) ?? false) ||
         (narrowed &&
           fillers.some(
