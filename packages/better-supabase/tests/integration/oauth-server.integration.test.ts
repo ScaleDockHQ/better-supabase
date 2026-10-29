@@ -2,7 +2,7 @@ import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
 import {
-  createOAuthServer,
+  createOauthServer,
   sqlTransport,
 } from "../../src/blocks/oauth-server/index.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -25,7 +25,7 @@ describe.skipIf(!live)("oauth-server module", () => {
       const user = await s.user("oauth");
       await s.service();
       await s.client.query("set local role service_role");
-      const oauth = createOAuthServer({ transport: sqlTransport(s.sql) });
+      const oauth = createOauthServer({ transport: sqlTransport(s.sql) });
 
       const { client, clientSecret, registrationAccessToken } = await oauth
         .registerClient({
@@ -91,7 +91,7 @@ describe.skipIf(!live)("oauth-server module", () => {
       const user = await s.user("oauth-resource");
       await s.service();
       await s.client.query("set local role service_role");
-      const oauth = createOAuthServer({ transport: sqlTransport(s.sql) });
+      const oauth = createOauthServer({ transport: sqlTransport(s.sql) });
 
       const { client } = await oauth
         .registerClient({ name: "Desktop", redirectUris: [REDIRECT] })
@@ -151,7 +151,7 @@ describe.skipIf(!live)("oauth-server module", () => {
       const user = await s.user("device");
       await s.service();
       await s.client.query("set local role service_role");
-      const oauth = createOAuthServer({ transport: sqlTransport(s.sql) });
+      const oauth = createOauthServer({ transport: sqlTransport(s.sql) });
 
       const { client } = await oauth
         .registerClient({

@@ -3,7 +3,7 @@ import type { BetterPostgres } from "better-supabase/postgres";
 
 import { DbException, dbError } from "better-supabase";
 import { createApiKeys } from "better-supabase/blocks/api-keys";
-import { createOAuthServer } from "better-supabase/blocks/oauth-server";
+import { createOauthServer } from "better-supabase/blocks/oauth-server";
 import { createSigningKeys } from "better-supabase/blocks/signing-keys";
 import {
   createVercelMarketplace,
@@ -14,7 +14,7 @@ import { createPostgres } from "better-supabase/postgres";
 interface Blocks {
   readonly postgres: BetterPostgres;
   readonly apiKeys: ReturnType<typeof createApiKeys>;
-  readonly oauth: ReturnType<typeof createOAuthServer>;
+  readonly oauth: ReturnType<typeof createOauthServer>;
   readonly signingKeys: ReturnType<typeof createSigningKeys>;
 }
 
@@ -33,7 +33,7 @@ export function serviceBlocks(): Blocks {
     blocks = {
       postgres,
       apiKeys: createApiKeys({ transport }),
-      oauth: createOAuthServer({ transport }),
+      oauth: createOauthServer({ transport }),
       signingKeys: createSigningKeys({ transport }),
     };
   }

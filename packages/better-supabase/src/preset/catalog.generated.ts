@@ -16375,7 +16375,16 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/oauth-server"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "OauthServerEvents",
+        "types": [
+          "oauth_client.registered",
+          "oauth_client.deleted",
+          "oauth_grant.created",
+          "oauth_grant.revoked"
+        ]
+      }
     },
     {
       "name": "onboarding",

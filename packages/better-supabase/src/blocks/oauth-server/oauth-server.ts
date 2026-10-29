@@ -38,12 +38,12 @@ const GRANT_TYPES = [
 ] as const;
 
 /** How a client authenticates at the token endpoint (RFC 7591 section 2). */
-export type OAuthClientAuthMethod = (typeof AUTH_METHODS)[number];
+export type OauthClientAuthMethod = (typeof AUTH_METHODS)[number];
 
 /** A grant type a client may use. */
-export type OAuthGrantType = (typeof GRANT_TYPES)[number];
+export type OauthGrantType = (typeof GRANT_TYPES)[number];
 
-export interface OAuthServerOptions extends BlockOptions {
+export interface OauthServerOptions extends BlockOptions {
   /** How long an authorization code is valid, in seconds. Default: 60. */
   readonly codeSeconds?: number;
   /** How long a device code is valid, in seconds. Default: 600. */
@@ -51,23 +51,23 @@ export interface OAuthServerOptions extends BlockOptions {
   /** The minimum seconds between device code polls. Default: 5. */
   readonly deviceInterval?: number;
   /** `withBlockHooks` hooks around the client's methods. */
-  readonly hooks?: NoInfer<BlockHooks<OAuthServer>>;
+  readonly hooks?: NoInfer<BlockHooks<OauthServer>>;
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
 }
 
 /** The client metadata a registration sets (RFC 7591 section 2). */
-export interface OAuthClientMetadata {
+export interface OauthClientMetadata {
   readonly name?: string;
   /** Absolute `https` URIs, or `http` on a loopback host; no fragment. */
   readonly redirectUris?: readonly string[];
   /** Default: `["authorization_code"]`. */
-  readonly grantTypes?: readonly OAuthGrantType[];
+  readonly grantTypes?: readonly OauthGrantType[];
   /**
    * `none` registers a public client without a secret. Default:
    * `client_secret_basic`.
    */
-  readonly tokenEndpointAuthMethod?: OAuthClientAuthMethod;
+  readonly tokenEndpointAuthMethod?: OauthClientAuthMethod;
   /** Space-separated scopes the client may ask for. */
   readonly scope?: string;
   /**
@@ -78,12 +78,12 @@ export interface OAuthClientMetadata {
 }
 
 /** A registered client, without its secret. */
-export interface OAuthClient {
+export interface OauthClient {
   readonly clientId: string;
   readonly name: string | null;
   readonly redirectUris: readonly string[];
-  readonly grantTypes: readonly OAuthGrantType[];
-  readonly tokenEndpointAuthMethod: OAuthClientAuthMethod;
+  readonly grantTypes: readonly OauthGrantType[];
+  readonly tokenEndpointAuthMethod: OauthClientAuthMethod;
   readonly scope: string | null;
   readonly metadata: Readonly<Record<string, unknown>>;
   readonly createdBy: string | null;
@@ -95,8 +95,8 @@ export interface OAuthClient {
  * What `registerClient` returns. The secret and token are shown once and stored
  * hashed.
  */
-export interface RegisteredOAuthClient {
-  readonly client: OAuthClient;
+export interface RegisteredOauthClient {
+  readonly client: OauthClient;
   /** `null` for a public client (`tokenEndpointAuthMethod: "none"`). */
   readonly clientSecret: string | null;
   /** The RFC 7592 registration access token for reading and updating the client. */
@@ -154,7 +154,7 @@ export interface AuthorizationCodeRedemption {
 }
 
 /** A code or device code exchanged once: who to issue tokens for. */
-export interface OAuthAuthorization {
+export interface OauthAuthorization {
   readonly userId: string;
   readonly clientId: string;
   readonly grantId: string;
@@ -183,7 +183,7 @@ export interface DeviceRequest {
 
 /** A device code poll, mapped to the RFC 8628 section 3.5 token responses. */
 export type DeviceCodePoll =
-  | { readonly status: "ok"; readonly authorization: OAuthAuthorization }
+  | { readonly status: "ok"; readonly authorization: OauthAuthorization }
   | { readonly status: "authorization_pending"; readonly interval: number }
   | { readonly status: "slow_down"; readonly interval: number }
   | { readonly status: "access_denied" }
@@ -194,7 +194,7 @@ export type DeviceCodePoll =
  * A user's consent for a client, which the tokens issued under it carry as
  * `grant_id`.
  */
-export interface OAuthGrant {
+export interface OauthGrant {
   readonly id: string;
   readonly userId: string;
   readonly clientId: string;
@@ -219,21 +219,21 @@ export interface RevokeTokenOptions {
  * The `oauth-server` storage as typed calls. Service role only, except the
  * signed-in user's `my_oauth_grants` and `revoke_my_oauth_grant`.
  */
-export interface OAuthServer {
+export interface OauthServer {
   /**
    * Registers a client (RFC 7591) and returns its secret and registration token
    * once.
    */
   registerClient(
-    metadata: OAuthClientMetadata,
+    metadata: OauthClientMetadata,
     options?: RegisterClientOptions,
-  ): AsyncResult<RegisteredOAuthClient>;
-  readClient(clientId: string): AsyncResult<OAuthClient | null>;
+  ): AsyncResult<RegisteredOauthClient>;
+  readClient(clientId: string): AsyncResult<OauthClient | null>;
   /** Changes the given metadata (RFC 7592); `null` for an unknown client. */
   updateClient(
     clientId: string,
-    metadata: Omit<OAuthClientMetadata, "tokenEndpointAuthMethod">,
-  ): AsyncResult<OAuthClient | null>;
+    metadata: Omit<OauthClientMetadata, "tokenEndpointAuthMethod">,
+  ): AsyncResult<OauthClient | null>;
   /**
    * A new secret for a confidential client; `null` for an unknown or public
    * client.
@@ -248,7 +248,7 @@ export interface OAuthServer {
   verifyClient(
     clientId: string,
     secret: string | null,
-  ): AsyncResult<OAuthClient | null>;
+  ): AsyncResult<OauthClient | null>;
   /** Whether the RFC 7592 registration access token belongs to the client. */
   verifyRegistrationToken(
     clientId: string,
@@ -264,7 +264,7 @@ export interface OAuthServer {
    */
   redeemAuthorizationCode(
     redemption: AuthorizationCodeRedemption,
-  ): AsyncResult<OAuthAuthorization | null>;
+  ): AsyncResult<OauthAuthorization | null>;
   createDeviceCode(
     clientId: string,
     scope?: string,
@@ -282,7 +282,7 @@ export interface OAuthServer {
   listGrants(
     userId: string,
     options?: ListGrantsOptions,
-  ): AsyncResult<readonly OAuthGrant[]>;
+  ): AsyncResult<readonly OauthGrant[]>;
   /** Revokes a grant: every token carrying its `grant_id` fails `isRevoked`. */
   revokeGrant(grantId: string): AsyncResult<boolean>;
   /** Puts an access token's `jti` on the revocation list until `expiresAt`. */
@@ -364,7 +364,7 @@ async function s256(verifier: string): Promise<string> {
   return toBase64Url(new Uint8Array(digest));
 }
 
-function clientOf(value: unknown, fn: string): OAuthClient {
+function clientOf(value: unknown, fn: string): OauthClient {
   const row = recordOf(value, fn);
 
   return {
@@ -387,10 +387,10 @@ function clientOf(value: unknown, fn: string): OAuthClient {
   };
 }
 
-const optionalClient = (value: unknown, fn: string): OAuthClient | null =>
+const optionalClient = (value: unknown, fn: string): OauthClient | null =>
   value === null || value === undefined ? null : clientOf(value, fn);
 
-function grantOf(row: Record<string, unknown>): OAuthGrant {
+function grantOf(row: Record<string, unknown>): OauthGrant {
   return {
     id: textOf(row["id"]),
     userId: textOf(row["userId"]),
@@ -404,7 +404,7 @@ function grantOf(row: Record<string, unknown>): OAuthGrant {
   };
 }
 
-function authorizationOf(row: Record<string, unknown>): OAuthAuthorization {
+function authorizationOf(row: Record<string, unknown>): OauthAuthorization {
   return {
     userId: textOf(row["userId"]),
     clientId: textOf(row["clientId"]),
@@ -461,7 +461,7 @@ function pollOf(value: unknown): DeviceCodePoll {
  * sign them with `createSigningKeys` and verify them with
  * `accessTokenResolver`.
  */
-export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
+export function createOauthServer(options: OauthServerOptions): OauthServer {
   applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
   const codeSeconds = options.codeSeconds ?? 60;
@@ -489,7 +489,7 @@ export function createOAuthServer(options: OAuthServerOptions): OAuthServer {
       (value) => value === true,
     );
 
-  const client: OAuthServer = {
+  const client: OauthServer = {
     registerClient: (metadata, registerOptions = {}) => {
       const method = metadata.tokenEndpointAuthMethod ?? "client_secret_basic";
       const grantTypes = metadata.grantTypes ?? ["authorization_code"];

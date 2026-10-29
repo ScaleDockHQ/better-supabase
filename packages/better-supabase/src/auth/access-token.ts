@@ -14,7 +14,7 @@ import { JwsError, verifyCompact } from "../core/jws.ts";
 
 /**
  * Checks whether an access token was revoked, by its `jti` or by the grant it
- * was issued under. `createOAuthServer` from
+ * was issued under. `createOauthServer` from
  * `better-supabase/blocks/oauth-server` has this shape.
  */
 export interface AccessTokenRevocation {
