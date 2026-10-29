@@ -36,6 +36,13 @@ import {
   retentionSql,
 } from "./data-lifecycle-retention.ts";
 import { omitPatternOf, withOmitPattern } from "./data-lifecycle-secrets.ts";
+import {
+  recordColumnsSql,
+  subjectExportRows,
+  subjectExportSql,
+  subjectExportTables,
+  subjectExportsOn,
+} from "./data-lifecycle-subject.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
@@ -67,10 +74,18 @@ const NAMES: BlockSqlNames = {
         requestedAt: "requested_at",
         completedAt: "completed_at",
         expiresAt: "expires_at",
+        subjectType: "subject_type",
+        subjectId: "subject_id",
+        format: "format",
       },
       app: {},
-      optional: ["error"],
+      optional: ["error", "subjectType", "subjectId", "format"],
       typed: ["status", "subject"],
+    },
+    contents: {
+      name: "data_export_contents",
+      columns: { export: "export_id", parts: "parts" },
+      app: {},
     },
     deletions: {
       name: "organization_deletions",
@@ -163,6 +178,12 @@ function build(ctx: BlockSqlContext): string {
       ? listedBody
       : withOmitPattern(listedBody, omitPattern);
 
+  const records = subjectExportsOn(ctx);
+
+  const recordKeys = records
+    ? `, 'subjectType', v_row.${ce("subjectType")}, 'subjectId', v_row.${ce("subjectId")}`
+    : ", 'subjectType', null::text, 'subjectId', null::text";
+
   const exportEvent = (type: string, extra = "", retried = false): string =>
     ctx.record({
       type,
@@ -171,7 +192,7 @@ function build(ctx: BlockSqlContext): string {
             key: `${sqlString(`${type}:`)} || v_row.${ce("id")}::text || ':' || v_row.${ce("completedAt")}::text`,
           }
         : {}),
-      payload: `jsonb_build_object('exportId', v_row.${ce("id")}, 'subject', v_row.${ce("subject")}, 'organizationId', v_row.${ce("tenant")}::text, 'userId', v_row.${ce("user")}, 'requestedBy', v_row.${ce("requestedBy")}${extra})`,
+      payload: `jsonb_build_object('exportId', v_row.${ce("id")}, 'subject', v_row.${ce("subject")}, 'organizationId', v_row.${ce("tenant")}::text, 'userId', v_row.${ce("user")}, 'requestedBy', v_row.${ce("requestedBy")}${recordKeys}${extra})`,
       subject: `'data-exports/' || v_row.${ce("id")}::text`,
       tenant: `v_row.${ce("tenant")}`,
       audit: {
@@ -222,6 +243,26 @@ function build(ctx: BlockSqlContext): string {
 
   const tenantRow = tenantRowOf(ctx);
 
+  const recordColumns = recordColumnsSql(ctx);
+
+  const contents = records ? ctx.table("contents") : "";
+
+  const claimedTables = records
+    ? `case when v_row.${ce("subject")}::text = 'record' then ${subjectExportTables(ctx, "v_row")} else (
+    select coalesce(jsonb_agg(t.name order by t.name), '[]'::jsonb)
+    from ${fn("data_lifecycle_tables")}() t
+    where t.subject = ${subjectOf("v_row")} and t.exported and to_regclass(t.tbl) is not null
+  ) end`
+    : `(
+    select coalesce(jsonb_agg(t.name order by t.name), '[]'::jsonb)
+    from ${fn("data_lifecycle_tables")}() t
+    where t.subject = ${subjectOf("v_row")} and t.exported and to_regclass(t.tbl) is not null
+  )`;
+
+  const forgetContents = records
+    ? `delete from ${contents} c where c.${ctx.col("contents", "export")} = v_row.${ce("id")};\n  `
+    : "";
+
   // The tenant row goes last, after every table that references it.
   const organizationRow = tenantRow
     ? `begin
@@ -262,7 +303,7 @@ function build(ctx: BlockSqlContext): string {
 -- export job as one NDJSON file per table under {id}/ in the ${bucketOf(ctx)} bucket.
 create table if not exists ${e} (
   ${ce("id")} uuid primary key default gen_random_uuid(),
-  ${ce("subject")} text not null check (${ce("subject")} in ('user', 'organization')),
+  ${ce("subject")} text not null,
   ${ce("user")} uuid references auth.users (id) on delete cascade,
   ${ce("tenant")} ${id},
   ${ce("status")} text not null default 'pending' check (${ce("status")} in ('pending', 'running', 'ready', 'failed')),
@@ -271,11 +312,9 @@ create table if not exists ${e} (
 ${errored ? `  ${ce("error")} text,\n` : ""}  ${ce("requestedBy")} uuid references auth.users (id) on delete set null default auth.uid(),
   ${ce("requestedAt")} timestamptz not null default now(),
   ${ce("completedAt")} timestamptz,
-  ${ce("expiresAt")} timestamptz,
-  check ((${ce("subject")} = 'user') = (${ce("user")} is not null)),
-  check ((${ce("subject")} = 'organization') = (${ce("tenant")} is not null))
+  ${ce("expiresAt")} timestamptz
 );
-create unique index if not exists data_exports_open_user_idx on ${e} (${ce("user")}) where ${ce("status")} in ('pending', 'running') and ${ce("subject")} = 'user';
+${recordColumns}create unique index if not exists data_exports_open_user_idx on ${e} (${ce("user")}) where ${ce("status")} in ('pending', 'running') and ${ce("subject")} = 'user';
 create unique index if not exists data_exports_open_tenant_idx on ${e} (${ce("tenant")}) where ${ce("status")} in ('pending', 'running') and ${ce("subject")} = 'organization';
 create index if not exists data_exports_requested_by_idx on ${e} (${ce("requestedBy")});
 create index if not exists data_exports_user_idx on ${e} (${ce("user")}) where ${ce("user")} is not null;
@@ -373,7 +412,7 @@ begin
   return ${exportJson("v_row")};
 end;
 $$;
-
+${subjectExportSql(ctx, { exportJson, requestedEvent: exportEvent("data_export.requested"), can: (tenant) => can(tenant, "export") })}
 create or replace function ${fn("list_data_exports")}(tenant ${id} default null)
 returns jsonb
 language sql
@@ -384,7 +423,7 @@ as $$
   select coalesce(jsonb_agg(${exportJson("x", "x.*")} order by x.${ce("requestedAt")} desc, x.${ce("id")}), '[]'::jsonb)
   from ${e} x
   where case when list_data_exports.tenant is null
-    then x.${ce("subject")} = 'user' and x.${ce("user")} = auth.uid()
+    then (x.${ce("subject")} = 'user' and x.${ce("user")} = auth.uid())${records ? ` or (x.${ce("subject")} = 'record' and x.${ce("tenant")} is null and x.${ce("requestedBy")} = auth.uid())` : ""}
     else x.${ce("tenant")} = list_data_exports.tenant
   end
 $$;
@@ -419,11 +458,7 @@ begin
   if v_row.${ce("id")} is null then
     return null;
   end if;
-  return ${exportJson("v_row")} || jsonb_build_object('tables', (
-    select coalesce(jsonb_agg(t.name order by t.name), '[]'::jsonb)
-    from ${fn("data_lifecycle_tables")}() t
-    where t.subject = ${subjectOf("v_row")} and t.exported and to_regclass(t.tbl) is not null
-  ));
+  return ${exportJson("v_row")} || jsonb_build_object('tables', ${claimedTables});
 end;
 $$;
 
@@ -440,7 +475,7 @@ declare
   v_table record;
   v_type text;
   v_rows jsonb;
-  v_after text;
+  v_after text;${records ? "\n  v_offset integer;" : ""}
 begin
   if not (${SERVICE_CALLER}) then
     ${fail("DATA_EXPORT_FORBIDDEN", "Only the service role runs exports")}
@@ -449,7 +484,7 @@ begin
   if v_row.${ce("id")} is null then
     ${fail("DATA_EXPORT_NOT_FOUND", "No running export has this id", "P0002")}
   end if;
-  select * into v_table from ${fn("data_lifecycle_tables")}() t
+  ${subjectExportRows(ctx)}select * into v_table from ${fn("data_lifecycle_tables")}() t
   where t.subject = ${subjectOf("v_row")} and t.name = data_export_rows.table_name and t.exported;
   if v_table.tbl is null or to_regclass(v_table.tbl) is null then
     ${raise("The export has no table %", "22023", "DATA_EXPORT_TABLE", "data_export_rows.table_name")}
@@ -490,7 +525,7 @@ begin
   if v_row.${ce("id")} is null then
     ${fail("DATA_EXPORT_NOT_FOUND", "No running export has this id", "P0002")}
   end if;
-  ${exportEvent("data_export.completed", `, 'files', to_jsonb(v_row.${ce("files")}), 'expiresAt', v_row.${ce("expiresAt")}`, true)}
+  ${forgetContents}${exportEvent("data_export.completed", `, 'files', to_jsonb(v_row.${ce("files")}), 'expiresAt', v_row.${ce("expiresAt")}`, true)}
   return ${exportJson("v_row")};
 end;
 $$;
@@ -768,6 +803,11 @@ function contract(): readonly BlockSqlContractFunction[] {
     ...CREDENTIALS_CONTRACT,
     { name: "data_export_object_allowed", args: ["text"], returns: "boolean" },
     { name: "request_data_export", args: ["text", "{id}"], returns: "jsonb" },
+    {
+      name: "request_subject_export",
+      args: ["text", "text", "text"],
+      returns: "jsonb",
+    },
     { name: "list_data_exports", args: ["{id}"], returns: "jsonb" },
     { name: "get_data_export", args: ["uuid"], returns: "jsonb" },
     { name: "claim_data_export", args: ["uuid"], returns: "jsonb" },
@@ -809,7 +849,7 @@ export const DATA_LIFECYCLE: BlockSqlDefinition = {
   integrates: ["*"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   names: NAMES,
   contract,
   upgrades: [
@@ -841,6 +881,12 @@ export const DATA_LIFECYCLE: BlockSqlDefinition = {
       from: 5,
       description:
         "retention_policies and legal_holds: the modules' purges keep rows for each kind's policy and skip held ones, and purge_organization refuses a held tenant.",
+      sql: () => "",
+    },
+    {
+      from: 6,
+      description:
+        "request_subject_export exports one config.subjects record (subject 'record'): its row decrypted through its reveal function and every module's rows attached to it, held in data_export_contents until the export job writes them. data_exports gains subject_type, subject_id and format, one named subject check replaces the generated ones, and the data_export events carry subjectType and subjectId.",
       sql: () => "",
     },
   ],

@@ -140,6 +140,47 @@ describe("createDataLifecycle", () => {
     ]);
   });
 
+  it("requests a record export with its subject and format", async () => {
+    const { transport, calls } = fakeTransport({
+      request_subject_export: exportRow({
+        subject: "record",
+        user_id: null,
+        organization_id: "org-1",
+        subject_type: "chart",
+        subject_id: "c1",
+        format: "csv",
+        status: "pending",
+        files: [],
+      }),
+    });
+
+    const lifecycle = createDataLifecycle({ transport });
+
+    const pending = await lifecycle
+      .requestSubjectExport("chart", "c1", { format: "csv" })
+      .orThrow();
+
+    await lifecycle.requestSubjectExport("chart", "c1").orThrow();
+
+    expect(pending).toMatchObject({
+      subject: "record",
+      organizationId: "org-1",
+      subjectType: "chart",
+      subjectId: "c1",
+      format: "csv",
+    });
+    expect(calls).toEqual([
+      [
+        "request_subject_export",
+        { subject_type: "chart", subject_id: "c1", format: "csv" },
+      ],
+      [
+        "request_subject_export",
+        { subject_type: "chart", subject_id: "c1", format: "ndjson" },
+      ],
+    ]);
+  });
+
   it("signs each file of a ready export", async () => {
     const storage = fakeStorage();
 

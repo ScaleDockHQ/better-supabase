@@ -212,6 +212,9 @@ const OPTIONAL_SUBJECT = new Set([
   "workflow_run.cancelled",
   "work_order.created",
   "shipment.created",
+  "data_export.requested",
+  "data_export.completed",
+  "data_export.failed",
 ]);
 
 interface CatalogEntry {

@@ -492,4 +492,93 @@ describe("data-lifecycle module", () => {
       `('user', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'actor_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true)`,
     );
   });
+
+  describe("request_subject_export", () => {
+    const subjectSql = (
+      names: readonly string[],
+      layout: Omit<Parameters<typeof renderBlocks>[1], "modules"> = {},
+    ): string =>
+      renderBlocks(names, { modules: {}, ...layout })
+        .filter((file) => file.module === "data-lifecycle")
+        .map((file) => file.contents)
+        .join("\n");
+
+    const SUBJECTS = {
+      chart: {
+        table: "public.charts",
+        idType: "uuid",
+        permissions: { manage: "charts.manage" },
+      },
+      note: { table: "public.notes" },
+    } as const;
+
+    it("reads each subject type's record and the rows that point at it", () => {
+      const sql = subjectSql(["subjects", "comments", "data-lifecycle"], {
+        subjects: SUBJECTS,
+      });
+
+      expect(sql).toContain(
+        `create or replace function "better_supabase"."request_subject_export"(subject_type text, subject_id text, format text default 'ndjson')`,
+      );
+      expect(sql).toContain(`when 'chart' then`);
+      expect(sql).toContain(`from "public"."charts" s where`);
+      expect(sql).toContain("v_reveal := 'charts_reveal';");
+      expect(sql).toContain(`when 'note' then`);
+      expect(sql).toContain(
+        "v_parts := v_parts || jsonb_build_object('better_supabase.conversations', v_rows);",
+      );
+      expect(sql).toContain(
+        'create table if not exists "better_supabase"."data_export_contents"',
+      );
+    });
+
+    it("lets the record's manage action stand in for the export permission", () => {
+      const sql = subjectSql(["subjects", "data-lifecycle"], {
+        subjects: SUBJECTS,
+      });
+
+      expect(sql).toContain(
+        `request_subject_export.subject_type in ('chart') and coalesce("better_supabase"."can_subject"(request_subject_export.subject_type, request_subject_export.subject_id, 'manage'), false)`,
+      );
+      expect(sql).not.toContain("subject_type in ('chart', 'note')");
+    });
+
+    it("refuses every record without the subjects module's manage check", () => {
+      const sql = subjectSql(["data-lifecycle"], { subjects: SUBJECTS });
+
+      expect(sql).not.toContain("can_subject(");
+      expect(sql).toContain("DATA_EXPORT_FORBIDDEN");
+    });
+
+    it("strips sealed columns the reveal function returns instead of exporting ciphertext", () => {
+      const sql = subjectSql(["subjects", "data-lifecycle"], {
+        subjects: SUBJECTS,
+      });
+
+      expect(sql).toContain(
+        "v_record := (v_record - coalesce(v_sealed, '{}'::text[])) || coalesce(v_plain, '{}'::jsonb);",
+      );
+    });
+
+    it("renders a refusing stub when the app's exports table has no subject columns", () => {
+      const sql = renderBlocks(["data-lifecycle"], {
+        modules: {
+          "data-lifecycle": {
+            tables: { exports: "public.data_exports" },
+            columns: { exports: { subjectType: null, subjectId: null } },
+          },
+        },
+        ownTables: { "public.data_exports": "supabase/schemas/exports.sql" },
+        subjects: SUBJECTS,
+      })
+        .filter((file) => file.module === "data-lifecycle")
+        .map((file) => file.contents)
+        .join("\n");
+
+      expect(sql).toContain(
+        "The exports table has no subject_type and subject_id columns",
+      );
+      expect(sql).not.toContain("data_export_contents");
+    });
+  });
 });

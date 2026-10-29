@@ -121,10 +121,13 @@ export interface AttachmentEventData {
 /** `data_export.*`, written to the outbox by the data-lifecycle module. */
 export interface DataExportEventData {
   readonly exportId: string;
-  readonly subject: "user" | "organization";
+  readonly subject: "user" | "organization" | "record";
   readonly organizationId?: string;
   readonly userId?: string;
   readonly requestedBy?: string;
+  /** Subject `record`: the `config.subjects` type and id that was exported. */
+  readonly subjectType?: string;
+  readonly subjectId?: string;
   /** `data_export.completed`: the object paths and when they stop being served. */
   readonly files?: readonly string[];
   readonly expiresAt?: string;

@@ -518,12 +518,13 @@ export interface BlockNameRegistry {
   };
   readonly "data-lifecycle": {
     readonly tables: {
-      readonly "exports": "id" | "subject" | "user" | "tenant" | "status" | "bucket" | "files" | "error" | "requestedBy" | "requestedAt" | "completedAt" | "expiresAt";
+      readonly "exports": "id" | "subject" | "user" | "tenant" | "status" | "bucket" | "files" | "error" | "requestedBy" | "requestedAt" | "completedAt" | "expiresAt" | "subjectType" | "subjectId" | "format";
+      readonly "contents": "export" | "parts";
       readonly "deletions": "tenant" | "requestedBy" | "requestedAt" | "purgeAfter" | "cancelledAt" | "purgedAt" | "previouslyDisabled";
       readonly "policies": "id" | "tenant" | "plan" | "kind" | "keep" | "updatedAt";
       readonly "holds": "id" | "tenant" | "kind" | "reason" | "placedBy" | "placedAt" | "releasedBy" | "releasedAt";
     };
-    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "due_organization_deletions" | "expired_data_exports" | "fail_data_export" | "forget_data_exports" | "get_data_export" | "is_held" | "list_data_exports" | "list_legal_holds" | "list_retention_policies" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy";
+    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "due_organization_deletions" | "expired_data_exports" | "fail_data_export" | "forget_data_exports" | "get_data_export" | "is_held" | "list_data_exports" | "list_legal_holds" | "list_retention_policies" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy";
     readonly actions: "export" | "delete" | "cancelDelete" | "deletePlatform";
     readonly hooks: "on_organization_purge";
     readonly entities: {};
