@@ -5,7 +5,6 @@ import { attachmentsBlock } from "better-supabase/blocks/attachments";
 import { billableTimeBlock } from "better-supabase/blocks/billable-time";
 import { commentsBlock } from "better-supabase/blocks/comments";
 import { contractsBlock } from "better-supabase/blocks/contracts";
-import { defineRecordType } from "better-supabase/records";
 import { dispatchBlock } from "better-supabase/blocks/dispatch";
 import { donationsBlock } from "better-supabase/blocks/donations";
 import { enrollmentsBlock } from "better-supabase/blocks/enrollments";
@@ -22,12 +21,13 @@ import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
 import { tasksBlock } from "better-supabase/blocks/tasks";
+import { defineRecordType } from "better-supabase/records";
 
 import { blockConfig, permissions } from "../blocks.generated.ts";
 
 /**
- * The deal record type: each installed block that binds to it. Pass it
- * to `bsb.record`, `recordQueries` or `createRecordProvider`.
+ * The deal record type: each installed block that binds to it. Pass it to
+ * `bsb.record`, `recordQueries` or `createRecordProvider`.
  */
 export const dealRecord = defineRecordType({
   type: "deal",
