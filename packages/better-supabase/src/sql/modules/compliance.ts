@@ -17,7 +17,11 @@ import {
 } from "../shared.ts";
 import { controlsFunctions } from "./compliance-functions.ts";
 import { policyFunctions } from "./compliance-policies.ts";
-import { CONTROL_RESERVED, evidenceAttachments } from "./compliance-shared.ts";
+import {
+  CONTROL_RESERVED,
+  evidenceAttachments,
+  FRAMEWORK_KINDS,
+} from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<ComplianceEvents> = {
@@ -84,12 +88,13 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         key: "key",
         name: "name",
+        kind: "kind",
         version: "version",
         description: "description",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["version", "description", "createdAt", "updatedAt"],
+      optional: ["kind", "version", "description", "createdAt", "updatedAt"],
     },
     controls: {
       name: "controls",
@@ -104,10 +109,19 @@ const NAMES: BlockSqlNames = {
         description: "description",
         owner: "owner_id",
         applicable: "applicable",
+        source: "source",
+        jurisdiction: "jurisdiction",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["description", "owner", "createdAt", "updatedAt"],
+      optional: [
+        "description",
+        "owner",
+        "source",
+        "jurisdiction",
+        "createdAt",
+        "updatedAt",
+      ],
     },
     evidence: {
       name: "control_evidence",
@@ -208,6 +222,21 @@ function tables(ctx: BlockSqlContext): string {
   const opt = (logical: string, column: string, line: () => string): string =>
     ctx.has(logical, column) ? `\n  ${line()},` : "";
 
+  const added = (
+    logical: string,
+    column: string,
+    line: () => string,
+  ): string =>
+    ctx.has(logical, column)
+      ? `\nalter table ${ctx.table(logical)} add column if not exists ${line()};`
+      : "";
+
+  const kind = (): string =>
+    `${f("kind")} text not null default 'standard' check (${f("kind")} in (${FRAMEWORK_KINDS.map((item) => `'${item}'`).join(", ")}))`;
+
+  const label = (column: string) => (): string =>
+    `${k(column)} text check (${k(column)} is null or length(${k(column)}) between 1 and 200)`;
+
   const readPolicy = (logical: string, using: string): string => {
     const policy = ctx.owns(logical)
       ? name(logical, "read")
@@ -239,10 +268,10 @@ create table if not exists ${frameworks} (
   ${f("id")} uuid primary key default gen_random_uuid(),
   ${f("tenant")} ${ctx.idType} not null,
   ${f("key")} text not null check (${f("key")} ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  ${f("name")} text not null check (length(${f("name")}) between 1 and 200),${opt("frameworks", "version", () => `${f("version")} text check (${f("version")} is null or length(${f("version")}) <= 50)`)}${opt("frameworks", "description", () => `${f("description")} text check (${f("description")} is null or length(${f("description")}) <= 4000)`)}${opt("frameworks", "createdAt", () => `${f("createdAt")} timestamptz not null default now()`)}${opt("frameworks", "updatedAt", () => `${f("updatedAt")} timestamptz not null default now()`)}
+  ${f("name")} text not null check (length(${f("name")}) between 1 and 200),${opt("frameworks", "kind", kind)}${opt("frameworks", "version", () => `${f("version")} text check (${f("version")} is null or length(${f("version")}) <= 50)`)}${opt("frameworks", "description", () => `${f("description")} text check (${f("description")} is null or length(${f("description")}) <= 4000)`)}${opt("frameworks", "createdAt", () => `${f("createdAt")} timestamptz not null default now()`)}${opt("frameworks", "updatedAt", () => `${f("updatedAt")} timestamptz not null default now()`)}
   unique (${f("tenant")}, ${f("key")}),
   unique (${f("tenant")}, ${f("id")})
-);${appKey("frameworks", "tenant_key", `${f("tenant")}, ${f("key")}`)}${appKey("frameworks", "tenant_id", `${f("tenant")}, ${f("id")}`)}
+);${added("frameworks", "kind", kind)}${appKey("frameworks", "tenant_key", `${f("tenant")}, ${f("key")}`)}${appKey("frameworks", "tenant_id", `${f("tenant")}, ${f("id")}`)}
 ${lockTable(frameworks, { read: true })}
 ${readPolicy("frameworks", ctx.scope.check(f("tenant"), read))}
 
@@ -253,11 +282,11 @@ create table if not exists ${controls} (
   ${k("code")} text not null check (length(${k("code")}) between 1 and 50),
   ${k("title")} text not null check (length(${k("title")}) between 1 and 200),${opt("controls", "description", () => `${k("description")} text check (${k("description")} is null or length(${k("description")}) <= 10000)`)}${opt("controls", "owner", () => `${k("owner")} uuid`)}
   -- A control out of scope (excluded in the statement of applicability).
-  ${k("applicable")} boolean not null default true,${opt("controls", "createdAt", () => `${k("createdAt")} timestamptz not null default now()`)}${opt("controls", "updatedAt", () => `${k("updatedAt")} timestamptz not null default now()`)}
+  ${k("applicable")} boolean not null default true,${opt("controls", "source", label("source"))}${opt("controls", "jurisdiction", label("jurisdiction"))}${opt("controls", "createdAt", () => `${k("createdAt")} timestamptz not null default now()`)}${opt("controls", "updatedAt", () => `${k("updatedAt")} timestamptz not null default now()`)}
   unique (${k("framework")}, ${k("code")}),
   unique (${k("tenant")}, ${k("id")}),
   foreign key (${k("tenant")}, ${k("framework")}) references ${frameworks} (${f("tenant")}, ${f("id")}) on delete cascade
-);${addExtraColumns(controls, extras)}${appKey("controls", "framework_code", `${k("framework")}, ${k("code")}`)}${appKey("controls", "tenant_id", `${k("tenant")}, ${k("id")}`)}
+);${added("controls", "source", label("source"))}${added("controls", "jurisdiction", label("jurisdiction"))}${addExtraColumns(controls, extras)}${appKey("controls", "framework_code", `${k("framework")}, ${k("code")}`)}${appKey("controls", "tenant_id", `${k("tenant")}, ${k("id")}`)}
 create index if not exists ${name("controls", "tenant_idx")} on ${controls} (${k("tenant")}, ${k("framework")});${
     ctx.has("controls", "owner")
       ? `
@@ -366,7 +395,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     {
       name: "save_control_framework",
-      args: ["{id}", "text", "text", "text", "text"],
+      args: ["{id}", "text", "text", "text", "text", "text"],
       returns: "jsonb",
     },
     { name: "list_control_frameworks", args: ["{id}"], returns: "jsonb" },
@@ -380,6 +409,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "uuid",
         "boolean",
         "uuid",
+        "text",
+        "text",
         ...extra,
       ],
       returns: "jsonb",

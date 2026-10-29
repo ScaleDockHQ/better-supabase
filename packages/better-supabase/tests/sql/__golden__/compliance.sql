@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:fe38e56b070e70768228592a2131ed7be3113f6959589d00be4986f631736211
+-- @bsb-hash sha256:e91b3526a6537e8cf62399631ef8f6bc8c571202d06f4c50b92660ec401da4e7
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,6 +104,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
   "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract')),
   "version" text check ("version" is null or length("version") <= 50),
   "description" text check ("description" is null or length("description") <= 4000),
   "created_at" timestamptz not null default now(),
@@ -111,6 +112,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
+alter table "better_supabase"."control_frameworks" add column if not exists "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'));
 alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
@@ -130,12 +132,16 @@ create table if not exists "better_supabase"."controls" (
   "owner_id" uuid,
   -- A control out of scope (excluded in the statement of applicability).
   "applicable" boolean not null default true,
+  "source" text check ("source" is null or length("source") between 1 and 200),
+  "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("framework_id", "code"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "framework_id") references "better_supabase"."control_frameworks" ("tenant_id", "id") on delete cascade
 );
+alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
+alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
 create index if not exists "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
 create index if not exists "controls_owner_idx" on "better_supabase"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
 alter table "better_supabase"."controls" enable row level security;
@@ -253,7 +259,10 @@ create policy policy_acknowledgements_read on "better_supabase"."policy_acknowle
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
+-- kind is standard, legal (a register of legal obligations), internal or
+-- contract.
+drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);
+create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -269,17 +278,20 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
-  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+    raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROLS_INVALID';
+  end if;
+  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
+  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
-    set "name" = excluded."name", "version" = excluded."version",
+    set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -288,7 +300,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
   from "better_supabase"."control_frameworks" x
   where x."tenant_id" = list_control_frameworks.tenant
 $$;
@@ -297,8 +309,12 @@ grant execute on function "better_supabase"."list_control_frameworks"(uuid) to a
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
+-- source names where an obligation comes from (a law or a clause) and
+-- jurisdiction where it applies.
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
 drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null)
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text, jsonb);
+create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -327,15 +343,15 @@ begin
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROLS_INVALID';
   end if;
   if save_control.control_id is null then
-    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, coalesce(save_control.applicable, true))
+    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
+    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
-      set "title" = excluded."title", "description" = excluded."description",
+      set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
     update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "owner_id" = save_control.owner_id,
+      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
       "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
       where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
@@ -344,7 +360,7 @@ begin
     end if;
   end if;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -353,8 +369,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -371,7 +387,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -399,7 +415,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.doc order by x.framework, x.code), '[]'::jsonb)
   from (
-    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'status', case
+    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'source', y."source", 'jurisdiction', y."jurisdiction", 'status', case
     when not y."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = y."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = y."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -1037,7 +1053,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:2f0228ccaa9356d9543aedc467e16ef2fbf6c30f1de98e9800e5381f4a5281d0
+-- @bsb-hash sha256:096038ff03fa72264af1cd024eeeac9bc7c5e8ef72315693e2805a9e6591f911
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1140,6 +1156,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
   "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract')),
   "version" text check ("version" is null or length("version") <= 50),
   "description" text check ("description" is null or length("description") <= 4000),
   "created_at" timestamptz not null default now(),
@@ -1147,6 +1164,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
+alter table "better_supabase"."control_frameworks" add column if not exists "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'));
 alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
@@ -1166,12 +1184,16 @@ create table if not exists "better_supabase"."controls" (
   "owner_id" uuid,
   -- A control out of scope (excluded in the statement of applicability).
   "applicable" boolean not null default true,
+  "source" text check ("source" is null or length("source") between 1 and 200),
+  "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("framework_id", "code"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "framework_id") references "better_supabase"."control_frameworks" ("tenant_id", "id") on delete cascade
 );
+alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
+alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
 create index if not exists "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
 create index if not exists "controls_owner_idx" on "better_supabase"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
 alter table "better_supabase"."controls" enable row level security;
@@ -1289,7 +1311,10 @@ create policy policy_acknowledgements_read on "better_supabase"."policy_acknowle
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
+-- kind is standard, legal (a register of legal obligations), internal or
+-- contract.
+drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);
+create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -1305,17 +1330,20 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
-  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+    raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROLS_INVALID';
+  end if;
+  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
+  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
-    set "name" = excluded."name", "version" = excluded."version",
+    set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -1324,7 +1352,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
   from "better_supabase"."control_frameworks" x
   where x."tenant_id" = list_control_frameworks.tenant
 $$;
@@ -1333,8 +1361,12 @@ grant execute on function "better_supabase"."list_control_frameworks"(uuid) to a
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
+-- source names where an obligation comes from (a law or a clause) and
+-- jurisdiction where it applies.
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
 drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null)
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text, jsonb);
+create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1363,15 +1395,15 @@ begin
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROLS_INVALID';
   end if;
   if save_control.control_id is null then
-    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, coalesce(save_control.applicable, true))
+    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
+    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
-      set "title" = excluded."title", "description" = excluded."description",
+      set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
     update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "owner_id" = save_control.owner_id,
+      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
       "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
       where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
@@ -1389,7 +1421,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -1398,8 +1430,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -1416,7 +1448,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -1444,7 +1476,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.doc order by x.framework, x.code), '[]'::jsonb)
   from (
-    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'status', case
+    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'source', y."source", 'jurisdiction', y."jurisdiction", 'status', case
     when not y."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = y."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = y."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -2137,7 +2169,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:5187992ea0d8bdaca63ef8b1ac7da8634f07df86b2d9822e9b2e843087228c6d
+-- @bsb-hash sha256:24f15f688b60e24fa1faf4c29db6b64484fc76f8632322e4809cbe57ef8a6fe3
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2245,6 +2277,7 @@ create table if not exists "app_private"."control_frameworks" (
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
   "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract')),
   "version" text check ("version" is null or length("version") <= 50),
   "description" text check ("description" is null or length("description") <= 4000),
   "created_at" timestamptz not null default now(),
@@ -2252,6 +2285,7 @@ create table if not exists "app_private"."control_frameworks" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
+alter table "app_private"."control_frameworks" add column if not exists "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'));
 alter table "app_private"."control_frameworks" enable row level security;
 revoke all on "app_private"."control_frameworks" from public, anon, authenticated;
 grant select on "app_private"."control_frameworks" to authenticated;
@@ -2271,12 +2305,16 @@ create table if not exists "app_private"."controls" (
   "owner_id" uuid,
   -- A control out of scope (excluded in the statement of applicability).
   "applicable" boolean not null default true,
+  "source" text check ("source" is null or length("source") between 1 and 200),
+  "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("framework_id", "code"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "framework_id") references "app_private"."control_frameworks" ("tenant_id", "id") on delete cascade
 );
+alter table "app_private"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
+alter table "app_private"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
 create index if not exists "controls_tenant_idx" on "app_private"."controls" ("tenant_id", "framework_id");
 create index if not exists "controls_owner_idx" on "app_private"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
 alter table "app_private"."controls" enable row level security;
@@ -2394,7 +2432,10 @@ create policy policy_acknowledgements_read on "app_private"."policy_acknowledgem
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
-create or replace function "app_private"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
+-- kind is standard, legal (a register of legal obligations), internal or
+-- contract.
+drop function if exists "app_private"."save_control_framework"(uuid, text, text, text, text);
+create or replace function "app_private"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -2410,17 +2451,20 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
-  insert into "app_private"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+    raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROLS_INVALID';
+  end if;
+  insert into "app_private"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
+  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
-    set "name" = excluded."name", "version" = excluded."version",
+    set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_control_framework"(uuid, text, text, text, text) from public, anon;
-grant execute on function "app_private"."save_control_framework"(uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "app_private"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "app_private"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "app_private"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -2429,7 +2473,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
   from "app_private"."control_frameworks" x
   where x."tenant_id" = list_control_frameworks.tenant
 $$;
@@ -2438,8 +2482,12 @@ grant execute on function "app_private"."list_control_frameworks"(uuid) to authe
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
+-- source names where an obligation comes from (a law or a clause) and
+-- jurisdiction where it applies.
+drop function if exists "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
 drop function if exists "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
-create or replace function "app_private"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null)
+drop function if exists "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text, jsonb);
+create or replace function "app_private"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2468,15 +2516,15 @@ begin
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROLS_INVALID';
   end if;
   if save_control.control_id is null then
-    insert into "app_private"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, coalesce(save_control.applicable, true))
+    insert into "app_private"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
+    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
-      set "title" = excluded."title", "description" = excluded."description",
+      set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
     update "app_private"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "owner_id" = save_control.owner_id,
+      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
       "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
       where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
@@ -2485,7 +2533,7 @@ begin
     end if;
   end if;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "app_private"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "app_private"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -2494,8 +2542,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "app_private"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "app_private"."get_control"(control_id uuid)
@@ -2512,7 +2560,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "app_private"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "app_private"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -2540,7 +2588,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.doc order by x.framework, x.code), '[]'::jsonb)
   from (
-    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'status', case
+    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'source', y."source", 'jurisdiction', y."jurisdiction", 'status', case
     when not y."applicable" then 'not_applicable'
     when exists (select 1 from "app_private"."evidence_tasks" st where st."control_id" = y."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "app_private"."control_evidence" se where se."control_id" = y."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -3178,7 +3226,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:a4c35043297f4a9209cc8029fbe9773cc737f0fb8d2b50d6a155fc79a726e719
+-- @bsb-hash sha256:57e3949c758979f6c49f7acb9af5275d0774949e55c8312829367f4c7bdd7b61
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3281,6 +3329,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
   "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract')),
   "version" text check ("version" is null or length("version") <= 50),
   "description" text check ("description" is null or length("description") <= 4000),
   "created_at" timestamptz not null default now(),
@@ -3288,6 +3337,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
+alter table "better_supabase"."control_frameworks" add column if not exists "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'));
 alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
@@ -3307,12 +3357,16 @@ create table if not exists "better_supabase"."controls" (
   "owner_id" uuid,
   -- A control out of scope (excluded in the statement of applicability).
   "applicable" boolean not null default true,
+  "source" text check ("source" is null or length("source") between 1 and 200),
+  "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("framework_id", "code"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "framework_id") references "better_supabase"."control_frameworks" ("tenant_id", "id") on delete cascade
 );
+alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
+alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
 create index if not exists "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
 create index if not exists "controls_owner_idx" on "better_supabase"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
 alter table "better_supabase"."controls" enable row level security;
@@ -3430,7 +3484,10 @@ create policy policy_acknowledgements_read on "better_supabase"."policy_acknowle
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
+-- kind is standard, legal (a register of legal obligations), internal or
+-- contract.
+drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);
+create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -3446,17 +3503,20 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
-  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+    raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROLS_INVALID';
+  end if;
+  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
+  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
-    set "name" = excluded."name", "version" = excluded."version",
+    set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -3465,7 +3525,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
   from "better_supabase"."control_frameworks" x
   where x."tenant_id" = list_control_frameworks.tenant
 $$;
@@ -3474,8 +3534,12 @@ grant execute on function "better_supabase"."list_control_frameworks"(uuid) to a
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
+-- source names where an obligation comes from (a law or a clause) and
+-- jurisdiction where it applies.
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
 drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null)
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text, jsonb);
+create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3504,15 +3568,15 @@ begin
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROLS_INVALID';
   end if;
   if save_control.control_id is null then
-    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, coalesce(save_control.applicable, true))
+    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
+    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
-      set "title" = excluded."title", "description" = excluded."description",
+      set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
     update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "owner_id" = save_control.owner_id,
+      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
       "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
       where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
@@ -3521,7 +3585,7 @@ begin
     end if;
   end if;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -3530,8 +3594,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -3548,7 +3612,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -3576,7 +3640,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.doc order by x.framework, x.code), '[]'::jsonb)
   from (
-    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'status', case
+    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'source', y."source", 'jurisdiction', y."jurisdiction", 'status', case
     when not y."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = y."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = y."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -4188,7 +4252,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."policy_acknowledgeme
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."save_control_framework"(uuid, text, text, text, text);
+drop function if exists "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
 drop function if exists "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
+drop function if exists "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text, jsonb);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -4208,14 +4275,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
+create or replace function "api"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_control_framework"($1, $2, $3, $4, $5) $$;
-revoke execute on function "api"."save_control_framework"(uuid, text, text, text, text) from public, anon;
-grant execute on function "api"."save_control_framework"(uuid, text, text, text, text) to authenticated, service_role;
+as $$ select "better_supabase"."save_control_framework"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "api"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -4226,14 +4293,14 @@ as $$ select "better_supabase"."list_control_frameworks"($1) $$;
 revoke execute on function "api"."list_control_frameworks"(uuid) from public, anon;
 grant execute on function "api"."list_control_frameworks"(uuid) to authenticated, service_role;
 
-create or replace function "api"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null)
+create or replace function "api"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_control"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."save_control"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "api"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 create or replace function "api"."get_control"(control_id uuid)
 returns jsonb
@@ -4391,7 +4458,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:844dec21d54979d17c57c6f5182fe5d53c95b2ac188614f5a28f376f32269d3f
+-- @bsb-hash sha256:fa959786fe53a8575eb6569692ac364fc2dbf2878eb0902b9f52f60a958303c9
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4494,10 +4561,12 @@ alter table "better_supabase"."control_frameworks" add column if not exists "id"
 alter table "better_supabase"."control_frameworks" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."control_frameworks" add column if not exists "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$');
 alter table "better_supabase"."control_frameworks" add column if not exists "name" text check (length("name") between 1 and 200);
+alter table "better_supabase"."control_frameworks" add column if not exists "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'));
 alter table "better_supabase"."control_frameworks" add column if not exists "version" text check ("version" is null or length("version") <= 50);
 alter table "better_supabase"."control_frameworks" add column if not exists "description" text check ("description" is null or length("description") <= 4000);
 alter table "better_supabase"."control_frameworks" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."control_frameworks" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."control_frameworks" add column if not exists "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'));
 create unique index if not exists "bsb_control_frameworks_tenant_key_key" on "better_supabase"."control_frameworks" ("tenant_id", "key");
 create unique index if not exists "bsb_control_frameworks_tenant_id_key" on "better_supabase"."control_frameworks" ("tenant_id", "id");
 alter table "better_supabase"."control_frameworks" enable row level security;
@@ -4517,8 +4586,12 @@ alter table "better_supabase"."controls" add column if not exists "title" text c
 alter table "better_supabase"."controls" add column if not exists "description" text check ("description" is null or length("description") <= 10000);
 alter table "better_supabase"."controls" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."controls" add column if not exists "applicable" boolean not null default true;
+alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
+alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
 alter table "better_supabase"."controls" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."controls" add column if not exists "updated_at" timestamptz not null default now();
+alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
+alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
 create unique index if not exists "bsb_controls_framework_code_key" on "better_supabase"."controls" ("framework_id", "code");
 create unique index if not exists "bsb_controls_tenant_id_key" on "better_supabase"."controls" ("tenant_id", "id");
 create index if not exists "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
@@ -4620,7 +4693,10 @@ create policy bsb_policy_acknowledgements_read on "better_supabase"."policy_ackn
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
+-- kind is standard, legal (a register of legal obligations), internal or
+-- contract.
+drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);
+create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -4636,17 +4712,20 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
-  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+    raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROLS_INVALID';
+  end if;
+  insert into "better_supabase"."control_frameworks" ("tenant_id", "key", "name", "kind", "version", "description")
+  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
   on conflict ("tenant_id", "key") do update
-    set "name" = excluded."name", "version" = excluded."version",
+    set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -4655,7 +4734,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
   from "better_supabase"."control_frameworks" x
   where x."tenant_id" = list_control_frameworks.tenant
 $$;
@@ -4664,8 +4743,12 @@ grant execute on function "better_supabase"."list_control_frameworks"(uuid) to a
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
+-- source names where an obligation comes from (a law or a clause) and
+-- jurisdiction where it applies.
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
 drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null)
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text, jsonb);
+create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4694,15 +4777,15 @@ begin
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROLS_INVALID';
   end if;
   if save_control.control_id is null then
-    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "applicable")
-    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, coalesce(save_control.applicable, true))
+    insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
+    values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
-      set "title" = excluded."title", "description" = excluded."description",
+      set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
     update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "owner_id" = save_control.owner_id,
+      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
       "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
       where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
@@ -4711,7 +4794,7 @@ begin
     end if;
   end if;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -4720,8 +4803,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -4738,7 +4821,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -4766,7 +4849,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.doc order by x.framework, x.code), '[]'::jsonb)
   from (
-    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'status', case
+    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'source', y."source", 'jurisdiction', y."jurisdiction", 'status', case
     when not y."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = y."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = y."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -5404,7 +5487,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:248129f7aafcaeae71f02d72030d405ef1e7534a8fd0a8976c95c82297e6008f
+-- @bsb-hash sha256:8bb70fa2a4cc4e071390cf6f6fe20abf8bb9d07984964347ae860c5ed2c7ae81
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5507,6 +5590,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
   "name" text not null check (length("name") between 1 and 200),
+  "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract')),
   "version" text check ("version" is null or length("version") <= 50),
   "description" text check ("description" is null or length("description") <= 4000),
   "created_at" timestamptz not null default now(),
@@ -5514,6 +5598,7 @@ create table if not exists "better_supabase"."control_frameworks" (
   unique ("org_id", "key"),
   unique ("org_id", "id")
 );
+alter table "better_supabase"."control_frameworks" add column if not exists "kind" text not null default 'standard' check ("kind" in ('standard', 'legal', 'internal', 'contract'));
 alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
@@ -5533,12 +5618,16 @@ create table if not exists "better_supabase"."controls" (
   "owner_id" uuid,
   -- A control out of scope (excluded in the statement of applicability).
   "applicable" boolean not null default true,
+  "source" text check ("source" is null or length("source") between 1 and 200),
+  "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("framework_id", "code"),
   unique ("org_id", "id"),
   foreign key ("org_id", "framework_id") references "better_supabase"."control_frameworks" ("org_id", "id") on delete cascade
 );
+alter table "better_supabase"."controls" add column if not exists "source" text check ("source" is null or length("source") between 1 and 200);
+alter table "better_supabase"."controls" add column if not exists "jurisdiction" text check ("jurisdiction" is null or length("jurisdiction") between 1 and 200);
 create index if not exists "controls_tenant_idx" on "better_supabase"."controls" ("org_id", "framework_id");
 create index if not exists "controls_owner_idx" on "better_supabase"."controls" ("org_id", "owner_id") where "owner_id" is not null;
 alter table "better_supabase"."controls" enable row level security;
@@ -5656,7 +5745,10 @@ create policy policy_acknowledgements_read on "better_supabase"."policy_acknowle
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('controls.read')));
 
 -- Creates or updates a framework (SOC 2, ISO 27001, an internal one) by key.
-create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null)
+-- kind is standard, legal (a register of legal obligations), internal or
+-- contract.
+drop function if exists "better_supabase"."save_control_framework"(uuid, text, text, text, text);
+create or replace function "better_supabase"."save_control_framework"(tenant uuid, key text, name text, version text default null, description text default null, kind text default 'standard')
 returns jsonb
 language plpgsql
 security definer
@@ -5672,17 +5764,20 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_control_framework.tenant, 'controls.manage'), false)) then
     raise exception 'not allowed to manage controls' using errcode = '42501', hint = 'CONTROLS_FORBIDDEN';
   end if;
-  insert into "better_supabase"."control_frameworks" ("org_id", "key", "name", "version", "description")
-  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
+  if save_control_framework.kind is null or save_control_framework.kind not in ('standard', 'legal', 'internal', 'contract') then
+    raise exception 'kind must be one of standard, legal, internal, contract' using errcode = '22023', hint = 'CONTROLS_INVALID';
+  end if;
+  insert into "better_supabase"."control_frameworks" ("org_id", "key", "name", "kind", "version", "description")
+  values (save_control_framework.tenant, save_control_framework.key, trim(save_control_framework.name), save_control_framework.kind, nullif(trim(save_control_framework.version), ''), nullif(trim(save_control_framework.description), ''))
   on conflict ("org_id", "key") do update
-    set "name" = excluded."name", "version" = excluded."version",
+    set "name" = excluded."name", "kind" = excluded."kind", "version" = excluded."version",
       "description" = excluded."description", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'kind', v_row."kind", 'version', v_row."version", 'description', v_row."description", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) from public, anon;
-grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control_framework"(uuid, text, text, text, text, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_control_frameworks"(tenant uuid)
 returns jsonb
@@ -5691,7 +5786,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'kind', x."kind", 'version', x."version", 'description', x."description", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."name"), '[]'::jsonb)
   from "better_supabase"."control_frameworks" x
   where x."org_id" = list_control_frameworks.tenant
 $$;
@@ -5700,8 +5795,12 @@ grant execute on function "better_supabase"."list_control_frameworks"(uuid) to a
 
 -- Creates a control in a framework, or changes one (control_id). Without
 -- control_id, a control with the same code in the framework is updated.
+-- source names where an obligation comes from (a law or a clause) and
+-- jurisdiction where it applies.
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid);
 drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, jsonb);
-create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null)
+drop function if exists "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text, jsonb);
+create or replace function "better_supabase"."save_control"(framework_id uuid, code text, title text, description text default null, owner_id uuid default null, applicable boolean default true, control_id uuid default null, source text default null, jurisdiction text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -5730,15 +5829,15 @@ begin
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROLS_INVALID';
   end if;
   if save_control.control_id is null then
-    insert into "better_supabase"."controls" ("org_id", "framework_id", "code", "title", "description", "owner_id", "applicable")
-    values (v_framework."org_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, coalesce(save_control.applicable, true))
+    insert into "better_supabase"."controls" ("org_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
+    values (v_framework."org_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
-      set "title" = excluded."title", "description" = excluded."description",
+      set "title" = excluded."title", "description" = excluded."description", "source" = excluded."source", "jurisdiction" = excluded."jurisdiction",
         "owner_id" = excluded."owner_id", "applicable" = excluded."applicable", "updated_at" = now()
     returning * into v_row;
   else
     update "better_supabase"."controls" x set "code" = trim(save_control.code), "title" = trim(save_control.title),
-      "description" = nullif(trim(save_control.description), ''), "owner_id" = save_control.owner_id,
+      "description" = nullif(trim(save_control.description), ''), "source" = nullif(trim(save_control.source), ''), "jurisdiction" = nullif(trim(save_control.jurisdiction), ''), "owner_id" = save_control.owner_id,
       "applicable" = coalesce(save_control.applicable, true), "updated_at" = now()
       where x."id" = save_control.control_id and x."framework_id" = v_framework."id"
       returning * into v_row;
@@ -5747,7 +5846,7 @@ begin
     end if;
   end if;
   null;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -5756,8 +5855,8 @@ begin
   end, 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) from public, anon;
-grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_control"(uuid, text, text, text, uuid, boolean, uuid, text, text) to authenticated, service_role;
 
 -- A control with its evidence (the newest first) and its evidence tasks.
 create or replace function "better_supabase"."get_control"(control_id uuid)
@@ -5774,7 +5873,7 @@ begin
   if not found then
     raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'status', case
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = v_row."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'
@@ -5802,7 +5901,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.doc order by x.framework, x.code), '[]'::jsonb)
   from (
-    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'status', case
+    select y."framework_id" as framework, y."code" as code, jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'frameworkId', y."framework_id", 'code', y."code", 'title', y."title", 'description', y."description", 'ownerId', y."owner_id", 'applicable', y."applicable", 'source', y."source", 'jurisdiction', y."jurisdiction", 'status', case
     when not y."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = y."id" and (st."active" and st."due_on" < current_date)) then 'failing'
     when exists (select 1 from "better_supabase"."control_evidence" se where se."control_id" = y."id" and (se."valid_until" is null or se."valid_until" >= current_date)) then 'passing'

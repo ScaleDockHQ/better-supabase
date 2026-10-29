@@ -88,6 +88,38 @@ A control's `status` is computed, never stored:
 | `passing`        | it has evidence that is still valid                                |
 | `not_started`    | it has no evidence yet                                             |
 
+## Legal registers
+
+A framework has a `kind`: `standard` (the default, for SOC 2 or ISO 27001),
+`legal`, `internal` or `contract`. A legal register is a framework of kind
+`legal` whose controls are the obligations that apply to the organization.
+Each control takes a `source`, such as the law or the clause it comes from,
+and a `jurisdiction`, both up to 200 characters. Evidence tasks then work as
+the recurring compliance checks, and the posture shows which obligations are
+met.
+
+```ts
+const register = await db.compliance
+  .saveFramework(organizationId, {
+    key: "gdpr",
+    name: "GDPR register",
+    kind: "legal",
+  })
+  .orThrow();
+
+await db.compliance
+  .saveControl({
+    frameworkId: register.id,
+    code: "ART30",
+    title: "Keep records of processing",
+    source: "GDPR article 30",
+    jurisdiction: "EU",
+  })
+  .orThrow();
+```
+
+A kind outside the list fails with `CONTROLS_INVALID`.
+
 ## Evidence and tasks
 
 ```ts
