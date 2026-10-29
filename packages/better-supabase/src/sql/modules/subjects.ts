@@ -23,6 +23,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import {
+  checkCall,
   registeredIdMatches,
   registeredSubjects,
   urlExpression,
@@ -92,6 +93,10 @@ function entryCheck(
     return held(value);
   }
 
+  if (value.check !== undefined && user !== undefined) {
+    return "false";
+  }
+
   const rows = rowGrant(where, subject, value, provider, user);
 
   const parts = [
@@ -102,9 +107,17 @@ function entryCheck(
       : [`s.${sqlIdent(value.owner)} = ${user ?? "auth.uid()"}`]),
   ];
 
-  const any = parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+  const all = [
+    ...(value.also === undefined ? [] : [held(value.also)]),
+    ...(parts.length === 0
+      ? []
+      : [parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`]),
+    ...(value.check === undefined
+      ? []
+      : [`coalesce(${checkCall(value.check, subject.id)}, false)`]),
+  ];
 
-  return value.also === undefined ? any : `(${held(value.also)} and ${any})`;
+  return all.length === 1 ? all[0]! : `(${all.join(" and ")})`;
 }
 
 /**
@@ -454,7 +467,8 @@ ${userGrant(`${fn("subject_titles")}(jsonb)`)}
 
 -- True when the caller can see the subject row and, for an action with a
 -- key in config.subjects.<type>.permissions, holds that key in the
--- subject's tenant (or on the record, through the subject's scope).
+-- subject's tenant (or on the record, through the subject's scope), and the
+-- action's check function, when it names one, returns true for the row.
 create or replace function ${fn("can_subject")}(subject_type text, subject_id text, action text)
 returns boolean
 language plpgsql

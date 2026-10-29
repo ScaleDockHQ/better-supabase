@@ -16,6 +16,7 @@ import { SUBJECT_TYPE_PATTERN } from "../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { accessModel } from "./modules/permissions-model.ts";
 import { quotedTable, splitTable } from "./shared.ts";
+import { checkCall } from "./subject-registry.ts";
 
 /**
  * One subject type a module's rows belong to (`on`): the table its ids point
@@ -98,6 +99,8 @@ function fromRegistry(
       extraKeys.includes("held") && { held: entry.held }),
     ...(entry.versions !== undefined &&
       extraKeys.includes("versions") && { versions: entry.versions }),
+    ...(entry.readAccess !== undefined &&
+      extraKeys.includes("readAccess") && { readAccess: entry.readAccess }),
   };
 }
 
@@ -195,8 +198,9 @@ function withAlways(
 }
 
 /**
- * The registered read entry of `entry` when it grants per row or to an owner
- * and `permission` (the subject's resolved key) is still the registry's.
+ * The registered read entry of `entry` when it grants per row, to an owner or
+ * through a check function, and `permission` (the subject's resolved key) is
+ * still the registry's.
  */
 function registeredRead(
   entry: SubjectConfig | undefined,
@@ -208,7 +212,8 @@ function registeredRead(
     read === undefined ||
     (read.rows === undefined &&
       read.owner === undefined &&
-      read.also === undefined) ||
+      read.also === undefined &&
+      read.check === undefined) ||
     read.key !== permission
   ) {
     return undefined;
@@ -519,10 +524,10 @@ export function subjectTableBindings(
 }
 
 /**
- * The grants of a registered `permissions.read` with `rows` or `owner` on
- * subject row `s`, as `can_subject` runs them: the key in the tenant (and on
- * the subject's scope), the provider's row grants for it, and the owner column,
- * or-ed.
+ * The grants of a registered `permissions.read` with `rows`, `owner`, `also` or
+ * `check` on subject row `s`, as `can_subject` runs them: the key in the tenant
+ * (and on the subject's scope), the provider's row grants for it, and the owner
+ * column, or-ed, then `also` and `check` on top.
  */
 function recordGrant(
   ctx: Pick<BlockSqlContext, "scope" | "can" | "providerRowsWith">,
@@ -566,10 +571,27 @@ function recordGrant(
     parts.push(`s.${sqlIdent(entry.owner)} = auth.uid()`);
   }
 
-  const any = parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
+  const any =
+    parts.length === 0
+      ? undefined
+      : parts.length === 1
+        ? parts[0]!
+        : `(${parts.join(" or ")})`;
+
+  const checked =
+    entry.check === undefined
+      ? undefined
+      : `coalesce(${checkCall(entry.check, sqlIdent(subject.id ?? "id"))}, false)`;
+
+  const granted =
+    any === undefined
+      ? checked!
+      : checked === undefined
+        ? any
+        : `(${any} and ${checked})`;
 
   if (entry.also === undefined) {
-    return any;
+    return granted;
   }
 
   const also = [
@@ -577,7 +599,7 @@ function recordGrant(
     ...(scope === undefined ? [] : [ctx.can(scope, id, sqlString(entry.also))]),
   ];
 
-  return `((${also.join(" or ")}) and ${any})`;
+  return `((${also.join(" or ")}) and ${granted})`;
 }
 
 /**

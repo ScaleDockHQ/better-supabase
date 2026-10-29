@@ -400,7 +400,7 @@ $$;`,
       /add the subjects block/u,
     );
     expect(keyed({ rankType: "integer" })).toThrow(
-      /apply only to layout "keyed"/u,
+      /applies only to layout "keyed"/u,
     );
   });
 });

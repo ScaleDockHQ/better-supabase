@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:6deaefa5b91eb348daedd5c353714eadf28d39a5f014480bea10073d4ad05d9d
+-- @bsb-hash sha256:3cffc7b0135edbb2f86fea760ce7097412b30a4806e6e320c6cc8502cf588a50
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -463,7 +463,8 @@ grant execute on function "better_supabase"."subject_titles"(jsonb) to authentic
 
 -- True when the caller can see the subject row and, for an action with a
 -- key in config.subjects.<type>.permissions, holds that key in the
--- subject's tenant (or on the record, through the subject's scope).
+-- subject's tenant (or on the record, through the subject's scope), and the
+-- action's check function, when it names one, returns true for the row.
 create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
 returns boolean
 language plpgsql
@@ -831,8 +832,9 @@ begin
         select 1 from "better_supabase"."drive_nodes" s
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.read'), false)
+          when 'read' then (coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false))
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'drive.manage'), false)
+          when 'fields' then coalesce("better_supabase"."drive_node_writable"(s."id"), false)
           else true
         end)
       );
@@ -1311,8 +1313,9 @@ begin
         select 1 from "better_supabase"."drive_nodes" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'drive.read'), false)
+          when 'read' then false
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'drive.manage'), false)
+          when 'fields' then false
           else false
         end
       );

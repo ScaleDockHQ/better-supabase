@@ -35,6 +35,7 @@ const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
 const ID_TYPE = /^[a-z][a-z0-9_ ]{0,62}$/;
 const ACTION = /^[a-z][a-z0-9_.-]{0,62}$/;
 const PLACEHOLDER = /\{([^}]*)\}/g;
+const CHECK_FUNCTION = /^[a-z_][a-z0-9_]{0,62}\.[a-z_][a-z0-9_]{0,62}$/;
 
 function column(where: string, value: unknown): string {
   if (typeof value !== "string" || !COLUMN.test(value)) {
@@ -87,7 +88,10 @@ function checkSearchSources(where: string, entry: SubjectConfig): void {
   }
 }
 
-/** One `permissions.<action>` entry: a key, or `{ key?, rows?, owner?, also? }`. */
+/**
+ * One `permissions.<action>` entry: a key, or `{ key?, rows?, owner?, also?,
+ * check? }`.
+ */
 function checkPermission(where: string, action: string, value: unknown): void {
   if (!ACTION.test(action)) {
     throw new TypeError(`${where}: use an action name with a permission key`);
@@ -103,21 +107,21 @@ function checkPermission(where: string, action: string, value: unknown): void {
 
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     throw new TypeError(
-      `${where}: use a permission key or { key, rows, owner, also }`,
+      `${where}: use a permission key or { key, rows, owner, also, check }`,
     );
   }
 
   const entry: Readonly<Record<string, unknown>> = { ...value };
 
   for (const name of Object.keys(entry)) {
-    if (!["key", "rows", "owner", "also"].includes(name)) {
+    if (!["key", "rows", "owner", "also", "check"].includes(name)) {
       throw new TypeError(
-        `${where}.${name} is not an option. Options: key, rows, owner, also`,
+        `${where}.${name} is not an option. Options: key, rows, owner, also, check`,
       );
     }
   }
 
-  const { key, rows, owner, also } = entry;
+  const { key, rows, owner, also, check } = entry;
 
   if (also !== undefined && (typeof also !== "string" || also === "")) {
     throw new TypeError(`${where}.also must be a permission key`);
@@ -145,9 +149,25 @@ function checkPermission(where: string, action: string, value: unknown): void {
     column(`${where}.owner`, owner);
   }
 
-  if (key === undefined && owner === undefined) {
-    throw new TypeError(`${where} needs a key or an owner column`);
+  if (
+    check !== undefined &&
+    (typeof check !== "string" || !CHECK_FUNCTION.test(check))
+  ) {
+    throw new TypeError(
+      `${where}.check must be a schema-qualified function name, such as better_supabase.drive_node_writable`,
+    );
   }
+
+  if (key === undefined && owner === undefined && check === undefined) {
+    throw new TypeError(`${where} needs a key, an owner column or a check`);
+  }
+}
+
+/** The SQL call of a `check` function on `id` (quoted) of row `alias`. */
+export function checkCall(check: string, id: string, alias = "s"): string {
+  const [schema = "", name = ""] = check.split(".");
+
+  return `${sqlIdent(schema)}.${sqlIdent(name)}(${alias}.${id})`;
 }
 
 /**
@@ -226,6 +246,16 @@ export function registeredSubjects(
 
     for (const [action, value] of Object.entries(entry.permissions ?? {})) {
       checkPermission(`${where}.permissions.${action}`, action, value);
+    }
+
+    const readAccess: unknown = entry.readAccess;
+
+    if (
+      readAccess !== undefined &&
+      readAccess !== "tenant" &&
+      readAccess !== "record"
+    ) {
+      throw new TypeError(`${where}.readAccess must be "tenant" or "record"`);
     }
 
     if (

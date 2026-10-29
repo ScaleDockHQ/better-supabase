@@ -182,13 +182,22 @@ record's own policies and its `read` action decide, and `permissions.read` is
 not checked. It needs the `subjects` block. The keyed layout has no sensitive
 values, so `permissions.sensitive` is not checked either.
 
+To check only some records, set `readAccess: "record"` on their type in
+`config.subjects` (or in `on`) instead of the option. Values of those types
+follow the record's `read` entry, and the other types keep the tenant key.
+`driveSubject()` sets it for `drive_node`, so a member without a grant on a
+node can't read its field values. This works in every layout; in the
+normalized and inline layouts, a record-checked value skips
+`custom_fields.read`, and a sensitive value still needs the field's
+permission.
+
 `rank` is a fractional text key by default, ordered with `collate "C"`. With
 `options.rankType: "integer"`, the managed table's `rank` column is an
 `integer`, and over your own table the rank text is cast to the type of the
 column `rank` maps to, so an existing `position integer` column works. Pass the
 rank as a string of digits, such as `rank: "3"`; reads return it as a string too.
 A new field without a rank goes after the record's last one.
-`rankType` and `readAccess` apply only to the keyed layout.
+`rankType` applies only to the keyed layout.
 
 ```ts title="better-supabase.config.ts"
 "custom-fields": {

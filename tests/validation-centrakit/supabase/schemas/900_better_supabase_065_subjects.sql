@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:0c447759ec1072fde6da4fd82b604ff6cd7afc6609a9a331088f6785569f43c7
+-- @bsb-hash sha256:2f642f5ed19891c76ff81fadd42d352199d039b2196f15185d16e8eeb1a3d3cb
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -158,7 +158,8 @@ grant execute on function "better_supabase"."subject_titles"(jsonb) to authentic
 
 -- True when the caller can see the subject row and, for an action with a
 -- key in config.subjects.<type>.permissions, holds that key in the
--- subject's tenant (or on the record, through the subject's scope).
+-- subject's tenant (or on the record, through the subject's scope), and the
+-- action's check function, when it names one, returns true for the row.
 create or replace function "better_supabase"."can_subject"(subject_type text, subject_id text, action text)
 returns boolean
 language plpgsql

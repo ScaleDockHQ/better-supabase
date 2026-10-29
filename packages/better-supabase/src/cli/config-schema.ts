@@ -788,6 +788,7 @@ const FLAT = {
         cascade: v.optional(v.boolean()),
         deletedAt: v.optional(v.string()),
         held: v.optional(v.string()),
+        readAccess: v.optional(v.picklist(["tenant", "record"])),
         search: v.optional(blockSchemas.subjectSearchSchema),
         rank: v.optional(
           v.strictObject({ column: v.string(), group: v.optional(v.string()) }),
