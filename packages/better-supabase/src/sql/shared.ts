@@ -1377,6 +1377,14 @@ create trigger ${trigger} after insert or update or delete on ${options.table}
 }
 
 /**
+ * PL/pgSQL that hands `reason` (a text SQL expression) to the state machine's
+ * history for the status changes that follow, or without one clears it, so
+ * later changes in the transaction don't inherit it.
+ */
+export const transitionReasonSql = (reason?: string): string =>
+  `perform set_config('better_supabase.transition_reason', ${reason === undefined ? "''" : `coalesce(nullif(trim(${reason}), ''), '')`}, true);`;
+
+/**
  * PL/pgSQL that hands `actor` (a jsonb SQL expression of `id`, `name`, `email`,
  * `ip` and `userAgent`) to the state machine's history trigger for the status
  * changes that follow in the transaction. `id` stands in for the acting user
