@@ -530,7 +530,7 @@ const many =
   (value: unknown): readonly T[] =>
     recordsOf(value, fn).map((row) => of(row, fn));
 
-/** The `controls` SQL module as typed calls. */
+/** The `compliance` SQL module as typed calls. */
 export function createCompliance<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ComplianceOptions<S>): Compliance<FieldsOf<S>> {

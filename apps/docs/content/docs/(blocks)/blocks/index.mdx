@@ -196,7 +196,7 @@ blocks that take a `transport`, and `createOutbox`, which takes a transport in
 place of the SQL client), and the `pgmq_public` RPCs for jobs. The
 TypeScript helpers of the idempotency keys, the webhook inbox, incoming
 webhooks, route rate limits and `exportAuditLog` still need a SQL connection,
-but every function a module grants, the service-role ones of `jobs`,
+but every function a module grants, the service-role ones of `queue`,
 `idempotency`, `webhook-inbox` and `access` included, gets an entry point in
 the API schema, so a server can call them over the Data API. Give
 the module an API schema (`blocks.<module>.api`, see
@@ -206,132 +206,132 @@ expose the module schema itself.
 
 ## Blocks
 
-| Block                                                       | Subpath                                                                          | SQL modules                            |
-| ----------------------------------------------------------- | -------------------------------------------------------------------------------- | -------------------------------------- |
-| [Access contract](/docs/repository/permissions)             | `better-supabase/blocks/permissions`                                             | `access`, `tenant`                     |
-| [Subjects](/docs/repository/record-types)                   | `better-supabase/blocks/subjects`                                                | `subjects`                             |
-| [Organizations and invitations](/docs/blocks/organizations) | `better-supabase/blocks/organizations`                                           | `organizations`, `invitations`         |
-| [Profiles](/docs/blocks/profiles)                           | `better-supabase/blocks/profiles`                                                | `profiles`                             |
-| [Audit log](/docs/blocks/audit)                             | `better-supabase/blocks/audit`                                                   | `audit`                                |
-| [Jobs, idempotency and webhook inbox](/docs/blocks/queue)   | `better-supabase/blocks/queue`                                                   | `jobs`, `idempotency`, `webhook-inbox` |
-| [Outbox](/docs/blocks/outbox)                               | `better-supabase/blocks/outbox`                                                  | `outbox`                               |
-| [Durable streams](/docs/blocks/streams)                     | `better-supabase/streams`, `better-supabase/streams/redis`                       | `streams`                              |
-| [Workflows](/docs/blocks/workflows)                         | `better-supabase/blocks/workflows`                                               | `workflows`                            |
-| [Workflow SDK](/docs/blocks/workflow-sdk)                   | `better-supabase/workflow-sdk`, `better-supabase/workflow-sdk/world`             | `workflow-sdk`                         |
-| [Workflow builder](/docs/blocks/workflow-editor)            | `better-supabase/blocks/workflow-editor`, `better-supabase/workflow-sdk/builder` | `workflow-editor`                      |
-| [Notifications](/docs/blocks/notifications)                 | `better-supabase/blocks/notifications`                                           | `notifications`                        |
-| [Inbox](/docs/blocks/inbox)                                 | `better-supabase/blocks/inbox`, `better-supabase/chat-sdk`                       | `inbox`, `chat-sdk-state`              |
-| [Outgoing webhooks](/docs/blocks/webhooks-out)              | `better-supabase/blocks/webhooks`                                                | `webhooks-out`                         |
-| [Incoming webhooks](/docs/blocks/webhooks-in)               | `better-supabase/blocks/webhooks`                                                | `webhooks-in`, `webhook-inbox`         |
-| [API keys](/docs/blocks/api-keys)                           | `better-supabase/blocks/api-keys`                                                | `api-keys`                             |
-| [Settings](/docs/blocks/settings)                           | `better-supabase/blocks/settings`                                                | `settings`                             |
-| [Usage and quotas](/docs/blocks/usage)                      | `better-supabase/blocks/usage`                                                   | `usage`                                |
-| [Billing](/docs/blocks/billing)                             | `better-supabase/blocks/billing`                                                 | `billing`                              |
-| [Feature flags](/docs/blocks/flags)                         | `better-supabase/blocks/flags`                                                   | `flags`                                |
-| [Comments](/docs/blocks/comments)                           | `better-supabase/blocks/comments`                                                | `comments`                             |
-| [Activity](/docs/blocks/timeline)                           | `better-supabase/blocks/timeline`                                                | `activity`                             |
-| [Attachments](/docs/blocks/attachments)                     | `better-supabase/blocks/attachments`                                             | `attachments`                          |
-| [Data lifecycle](/docs/blocks/data-lifecycle)               | `better-supabase/blocks/data-lifecycle`                                          | `data-lifecycle`                       |
-| [SSO and SCIM](/docs/blocks/sso)                            | `better-supabase/blocks/sso`                                                     | `sso`                                  |
-| [Onboarding](/docs/blocks/onboarding)                       | `better-supabase/blocks/onboarding`                                              | `onboarding`                           |
-| [Waitlist and invite codes](/docs/blocks/waitlist)          | `better-supabase/blocks/waitlist`                                                | `waitlist`                             |
-| [Announcements](/docs/blocks/announcements)                 | `better-supabase/blocks/announcements`                                           | `announcements`                        |
-| [Entitlements](/docs/blocks/entitlements)                   | `better-supabase/blocks/entitlements`                                            | `entitlements`                         |
-| [Vector search](/docs/blocks/vector-search)                 | none (`db.$search` in the core)                                                  | `vector-search`                        |
-| [AI chat](/docs/blocks/ai-chat)                             | `better-supabase/blocks/ai-chat`                                                 | `ai-chat`                              |
-| [AI files](/docs/blocks/ai-files)                           | `better-supabase/blocks/ai-files`                                                | `ai-files`                             |
-| [Knowledge](/docs/blocks/knowledge)                         | `better-supabase/blocks/knowledge`                                               | `knowledge`                            |
-| [Memory](/docs/blocks/memory)                               | `better-supabase/blocks/memory`                                                  | `memory`                               |
-| [Messaging](/docs/blocks/messaging)                         | `better-supabase/blocks/messaging`                                               | `messaging`                            |
-| [Channels](/docs/blocks/channels)                           | `better-supabase/blocks/channels`                                                | `channels`                             |
-| [Agents](/docs/blocks/agents)                               | `better-supabase/blocks/agents`                                                  | `agents`                               |
-| [Connectors](/docs/blocks/connectors)                       | `better-supabase/blocks/connectors`                                              | `connectors`                           |
-| [AI tasks](/docs/blocks/ai-schedules)                       | `better-supabase/blocks/ai-schedules`                                            | `ai-schedules`                         |
-| [Push notifications](/docs/blocks/push)                     | `better-supabase/blocks/push`                                                    | `push`                                 |
-| [AI cache](/docs/blocks/ai-cache)                           | `better-supabase/blocks/ai-cache`                                                | `ai-cache`                             |
-| [AI providers](/docs/blocks/ai-keys)                        | `better-supabase/blocks/ai-keys`                                                 | `ai-keys`                              |
-| [Number sequences](/docs/blocks/numbering)                  | `better-supabase/blocks/numbering`                                               | `numbering`                            |
-| [Teams](/docs/blocks/teams)                                 | `better-supabase/blocks/teams`                                                   | `teams`                                |
-| [Tags](/docs/blocks/tags)                                   | `better-supabase/blocks/tags`                                                    | `tags`                                 |
-| [State machine](/docs/blocks/state-machine)                 | `better-supabase/blocks/state-machine`                                           | `state-machine`                        |
-| [Custom fields](/docs/blocks/custom-fields)                 | `better-supabase/blocks/custom-fields`                                           | `custom-fields`                        |
-| [Share links](/docs/blocks/share-links)                     | `better-supabase/blocks/share-links`                                             | `share-links`                          |
-| [Reminders](/docs/blocks/reminders)                         | `better-supabase/blocks/reminders`                                               | `reminders`                            |
-| [Imports](/docs/blocks/imports)                             | `better-supabase/blocks/imports`                                                 | `imports`                              |
-| [Rank](/docs/blocks/rank)                                   | `better-supabase/blocks/rank`                                                    | `rank`                                 |
-| [Saved views](/docs/blocks/saved-views)                     | `better-supabase/blocks/saved-views`                                             | `saved-views`                          |
-| [Relations](/docs/blocks/relations)                         | `better-supabase/blocks/relations`                                               | `relations`                            |
-| [Bulk actions](/docs/blocks/bulk)                           | `better-supabase/blocks/bulk`                                                    | `bulk`                                 |
-| [Undo](/docs/blocks/undo)                                   | `better-supabase/blocks/undo`                                                    |                                        |
-| [Search](/docs/blocks/search)                               | `better-supabase/blocks/search`                                                  | `search`                               |
-| [Metrics](/docs/blocks/metrics)                             | `better-supabase/blocks/metrics`                                                 | `metrics`                              |
-| [Calendar](/docs/blocks/calendar)                           | `better-supabase/blocks/calendar`                                                | `calendar`                             |
-| [Bookings](/docs/blocks/bookings)                           | `better-supabase/blocks/bookings`                                                | `bookings`                             |
-| [Versions](/docs/blocks/versions)                           | `better-supabase/blocks/versions`                                                | `versions`                             |
-| [Trash](/docs/blocks/trash)                                 | `better-supabase/blocks/trash`                                                   | `trash`                                |
-| [Reactions](/docs/blocks/reactions)                         | `better-supabase/blocks/reactions`                                               | `reactions`                            |
-| [Approvals](/docs/blocks/approvals)                         | `better-supabase/blocks/approvals`                                               | `approvals`                            |
-| [Access requests](/docs/blocks/access-requests)             | `better-supabase/blocks/access-requests`                                         | `access-requests`                      |
-| [Documents](/docs/blocks/documents)                         | `better-supabase/blocks/documents`, `better-supabase/yjs`                        | `documents`                            |
-| [Catalog](/docs/blocks/catalog)                             | `better-supabase/blocks/catalog`                                                 | `catalog`                              |
-| [Ledger](/docs/blocks/ledger)                               | `better-supabase/blocks/ledger`                                                  | `ledger`                               |
-| [Assets and locations](/docs/blocks/assets)                 | `better-supabase/blocks/assets`                                                  | `assets`                               |
-| [Guests](/docs/blocks/guests)                               | `better-supabase/blocks/guests`                                                  | `guests`                               |
-| [Passes](/docs/blocks/passes)                               | `better-supabase/blocks/passes`                                                  | `passes`                               |
-| [Billable time](/docs/blocks/billable-time)                 | `better-supabase/blocks/billable-time`                                           | `billable-time`                        |
-| [Leases](/docs/blocks/leases)                               | `better-supabase/blocks/leases`                                                  | `leases`                               |
-| [Expenses](/docs/blocks/expenses)                           | `better-supabase/blocks/expenses`                                                | `expenses`                             |
-| [Donations](/docs/blocks/donations)                         | `better-supabase/blocks/donations`                                               | `donations`                            |
-| [Dispatch](/docs/blocks/dispatch)                           | `better-supabase/blocks/dispatch`                                                | `dispatch`                             |
-| [Shipments](/docs/blocks/shipments)                         | `better-supabase/blocks/shipments`                                               | `shipments`                            |
-| [Contracts](/docs/blocks/contracts)                         | `better-supabase/blocks/contracts`                                               | `contracts`                            |
-| [Controls](/docs/blocks/compliance)                         | `better-supabase/blocks/compliance`                                              | `controls`                             |
-| [Incidents](/docs/blocks/incidents)                         | `better-supabase/blocks/incidents`                                               | `incidents`                            |
-| [Inventory](/docs/blocks/inventory)                         | `better-supabase/blocks/inventory`                                               | `inventory`                            |
-| [Drive](/docs/blocks/drive)                                 | `better-supabase/blocks/drive`                                                   | `drive`, `drive-files`                 |
-| [Orders](/docs/blocks/orders)                               | `better-supabase/blocks/orders`                                                  | `orders`                               |
-| [Promotions](/docs/blocks/promotions)                       | `better-supabase/blocks/promotions`                                              | `promotions`                           |
-| [Forms](/docs/blocks/forms)                                 | `better-supabase/blocks/forms`                                                   | `forms`                                |
-| [Signatures](/docs/blocks/signatures)                       | `better-supabase/blocks/signatures`                                              | `signatures`                           |
-| [Time tracking](/docs/blocks/time-tracking)                 | `better-supabase/blocks/time-tracking`                                           | `time-tracking`                        |
-| [Templates](/docs/blocks/templates)                         | `better-supabase/blocks/templates`                                               | `templates`                            |
-| [Pipelines](/docs/blocks/pipelines)                         | `better-supabase/blocks/pipelines`                                               | `pipelines`                            |
-| [Parties](/docs/blocks/contacts)                            | `better-supabase/blocks/contacts`                                                | `parties`                              |
-| [Engagements](/docs/blocks/activities)                      | `better-supabase/blocks/activities`                                              | `engagements`                          |
-| [Mail sync](/docs/blocks/mail-sync)                         | `better-supabase/blocks/mail-sync`                                               | `mail-sync`                            |
-| [Segments](/docs/blocks/segments)                           | `better-supabase/blocks/segments`                                                | `segments`                             |
-| [Assignment](/docs/blocks/assignment)                       | `better-supabase/blocks/assignment`                                              | `assignment`                           |
-| [Enrichment](/docs/blocks/enrichment)                       | `better-supabase/blocks/enrichment`                                              | `enrichment`                           |
-| [Sequences](/docs/blocks/sequences)                         | `better-supabase/blocks/sequences`                                               | `sequences`                            |
-| [Lead scoring](/docs/blocks/lead-scoring)                   | `better-supabase/blocks/lead-scoring`                                            | `lead-scoring`                         |
-| [Posts](/docs/blocks/posts)                                 | `better-supabase/blocks/posts`                                                   | `posts`                                |
-| [Content](/docs/blocks/content)                             | `better-supabase/blocks/content`                                                 | `content`                              |
-| [Forecasts](/docs/blocks/forecasts)                         | `better-supabase/blocks/forecasts`                                               | `forecasts`                            |
-| [Field history](/docs/blocks/field-history)                 | `better-supabase/blocks/field-history`                                           | `field-history`                        |
-| [Deals](/docs/blocks/deals)                                 | `better-supabase/blocks/deals`                                                   | `deals`                                |
-| [Work items](/docs/blocks/tasks)                            | `better-supabase/blocks/tasks`                                                   | `tasks`                                |
-| [Quotes](/docs/blocks/quotes)                               | `better-supabase/blocks/quotes`                                                  | `quotes`                               |
-| [Invoices](/docs/blocks/invoices)                           | `better-supabase/blocks/invoices`                                                | `invoices`                             |
-| [Service levels](/docs/blocks/sla)                          | `better-supabase/blocks/sla`                                                     | `sla`                                  |
-| [Targets](/docs/blocks/goals)                               | `better-supabase/blocks/goals`                                                   | `targets`                              |
-| [Hiring](/docs/blocks/hiring)                               | `better-supabase/blocks/hiring`                                                  | `hiring`                               |
-| [Employees](/docs/blocks/employees)                         | `better-supabase/blocks/employees`                                               | `employees`                            |
-| [Collections](/docs/blocks/collections)                     | `better-supabase/blocks/collections`                                             | `collections`                          |
-| [Identities](/docs/blocks/identities)                       | `better-supabase/blocks/identities`                                              | `identities`                           |
-| [Service principals](/docs/blocks/service-accounts)         | `better-supabase/blocks/service-accounts`                                        | `service-accounts`                     |
-| [Signing keys](/docs/blocks/signing-keys)                   | `better-supabase/blocks/signing-keys`                                            | `signing-keys`                         |
-| [Shared signals](/docs/blocks/security-events)              | `better-supabase/blocks/security-events`                                         | `security-events`                      |
-| [OAuth server](/docs/blocks/oauth-server)                   | `better-supabase/blocks/oauth-server`                                            | `oauth-server`                         |
-| [Custom domains](/docs/blocks/domains)                      | `better-supabase/blocks/domains`                                                 | `domains`                              |
-| [Reviews](/docs/blocks/reviews)                             | `better-supabase/blocks/reviews`                                                 | `reviews`                              |
-| [Moderation](/docs/blocks/moderation)                       | `better-supabase/blocks/moderation`                                              | `moderation`                           |
-| [Enrollments](/docs/blocks/enrollments)                     | `better-supabase/blocks/enrollments`                                             | `enrollments`                          |
-| [Courses](/docs/blocks/courses)                             | `better-supabase/blocks/courses`                                                 | `courses`                              |
-| [Leave](/docs/blocks/leave)                                 | `better-supabase/blocks/leave`                                                   | `leave`                                |
-| [Rules](/docs/blocks/automations)                           | `better-supabase/blocks/automations`                                             | `rules`                                |
-| [Scores](/docs/blocks/scores)                               | `better-supabase/blocks/scores`                                                  | `scores`                               |
-| [Vercel Marketplace](/docs/blocks/vercel-marketplace)       | `better-supabase/blocks/vercel-marketplace`                                      | `vercel-marketplace`                   |
-| [Credentials](/docs/extending/credentials)                  | `better-supabase/credentials`, `better-supabase/vercel-connect`                  | `credentials`                          |
+| Block                                                       | Subpath                                                                          | SQL modules                                           |
+| ----------------------------------------------------------- | -------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [Permissions](/docs/blocks/permissions)                     | `better-supabase/blocks/permissions`                                             | `permissions`, `memberships`                          |
+| [Subjects](/docs/blocks/subjects)                           | `better-supabase/blocks/subjects`                                                | `subjects`                                            |
+| [Organizations and invitations](/docs/blocks/organizations) | `better-supabase/blocks/organizations`                                           | `organizations`, `invitations`                        |
+| [Profiles](/docs/blocks/profiles)                           | `better-supabase/blocks/profiles`                                                | `profiles`                                            |
+| [Audit log](/docs/blocks/audit)                             | `better-supabase/blocks/audit`                                                   | `audit`                                               |
+| [Queue](/docs/blocks/queue)                                 | `better-supabase/blocks/queue`                                                   | `queue`, `idempotency`, `rate-limit`, `webhook-inbox` |
+| [Outbox](/docs/blocks/outbox)                               | `better-supabase/blocks/outbox`                                                  | `outbox`                                              |
+| [Durable streams](/docs/blocks/streams)                     | `better-supabase/streams`, `better-supabase/streams/redis`                       | `streams`                                             |
+| [Workflows](/docs/blocks/workflows)                         | `better-supabase/blocks/workflows`                                               | `workflows`                                           |
+| [Workflow SDK](/docs/blocks/workflow-sdk)                   | `better-supabase/workflow-sdk`, `better-supabase/workflow-sdk/world`             | `workflow-sdk`                                        |
+| [Workflow editor](/docs/blocks/workflow-editor)             | `better-supabase/blocks/workflow-editor`, `better-supabase/workflow-sdk/builder` | `workflow-editor`                                     |
+| [Notifications](/docs/blocks/notifications)                 | `better-supabase/blocks/notifications`                                           | `notifications`                                       |
+| [Inbox](/docs/blocks/inbox)                                 | `better-supabase/blocks/inbox`, `better-supabase/chat-sdk`                       | `inbox`, `chat-sdk-state`                             |
+| [Outgoing webhooks](/docs/blocks/webhooks)                  | `better-supabase/blocks/webhooks`                                                | `webhooks-out`                                        |
+| [Incoming webhooks](/docs/blocks/incoming-webhooks)         | `better-supabase/blocks/webhooks`                                                | `webhooks-in`, `webhook-inbox`                        |
+| [API keys](/docs/blocks/api-keys)                           | `better-supabase/blocks/api-keys`                                                | `api-keys`                                            |
+| [Settings](/docs/blocks/settings)                           | `better-supabase/blocks/settings`                                                | `settings`                                            |
+| [Usage and quotas](/docs/blocks/usage)                      | `better-supabase/blocks/usage`                                                   | `usage`                                               |
+| [Billing](/docs/blocks/billing)                             | `better-supabase/blocks/billing`                                                 | `billing`                                             |
+| [Feature flags](/docs/blocks/flags)                         | `better-supabase/blocks/flags`                                                   | `flags`                                               |
+| [Comments](/docs/blocks/comments)                           | `better-supabase/blocks/comments`                                                | `comments`                                            |
+| [Timeline](/docs/blocks/timeline)                           | `better-supabase/blocks/timeline`                                                | `timeline`                                            |
+| [Attachments](/docs/blocks/attachments)                     | `better-supabase/blocks/attachments`                                             | `attachments`                                         |
+| [Data lifecycle](/docs/blocks/data-lifecycle)               | `better-supabase/blocks/data-lifecycle`                                          | `data-lifecycle`                                      |
+| [SSO and SCIM](/docs/blocks/sso)                            | `better-supabase/blocks/sso`                                                     | `sso`                                                 |
+| [Onboarding](/docs/blocks/onboarding)                       | `better-supabase/blocks/onboarding`                                              | `onboarding`                                          |
+| [Waitlist and invite codes](/docs/blocks/waitlist)          | `better-supabase/blocks/waitlist`                                                | `waitlist`                                            |
+| [Announcements](/docs/blocks/announcements)                 | `better-supabase/blocks/announcements`                                           | `announcements`                                       |
+| [Entitlements](/docs/blocks/entitlements)                   | `better-supabase/blocks/entitlements`                                            | `entitlements`                                        |
+| [Vector search](/docs/blocks/vector-search)                 | none (`db.$search` in the core)                                                  | `vector-search`                                       |
+| [AI chat](/docs/blocks/ai-chat)                             | `better-supabase/blocks/ai-chat`                                                 | `ai-chat`                                             |
+| [AI files](/docs/blocks/ai-files)                           | `better-supabase/blocks/ai-files`                                                | `ai-files`                                            |
+| [Knowledge](/docs/blocks/knowledge)                         | `better-supabase/blocks/knowledge`                                               | `knowledge`                                           |
+| [Memory](/docs/blocks/memory)                               | `better-supabase/blocks/memory`                                                  | `memory`                                              |
+| [Messaging](/docs/blocks/messaging)                         | `better-supabase/blocks/messaging`                                               | `messaging`                                           |
+| [Channels](/docs/blocks/channels)                           | `better-supabase/blocks/channels`                                                | `channels`                                            |
+| [Agents](/docs/blocks/agents)                               | `better-supabase/blocks/agents`                                                  | `agents`                                              |
+| [Connectors](/docs/blocks/connectors)                       | `better-supabase/blocks/connectors`                                              | `connectors`                                          |
+| [AI schedules](/docs/blocks/ai-schedules)                   | `better-supabase/blocks/ai-schedules`                                            | `ai-schedules`                                        |
+| [Push notifications](/docs/blocks/push)                     | `better-supabase/blocks/push`                                                    | `push`                                                |
+| [AI cache](/docs/blocks/ai-cache)                           | `better-supabase/blocks/ai-cache`                                                | `ai-cache`                                            |
+| [AI keys](/docs/blocks/ai-keys)                             | `better-supabase/blocks/ai-keys`                                                 | `ai-keys`                                             |
+| [Numbering](/docs/blocks/numbering)                         | `better-supabase/blocks/numbering`                                               | `numbering`                                           |
+| [Teams](/docs/blocks/teams)                                 | `better-supabase/blocks/teams`                                                   | `teams`                                               |
+| [Tags](/docs/blocks/tags)                                   | `better-supabase/blocks/tags`                                                    | `tags`                                                |
+| [State machine](/docs/blocks/state-machine)                 | `better-supabase/blocks/state-machine`                                           | `state-machine`                                       |
+| [Custom fields](/docs/blocks/custom-fields)                 | `better-supabase/blocks/custom-fields`                                           | `custom-fields`                                       |
+| [Share links](/docs/blocks/share-links)                     | `better-supabase/blocks/share-links`                                             | `share-links`                                         |
+| [Reminders](/docs/blocks/reminders)                         | `better-supabase/blocks/reminders`                                               | `reminders`                                           |
+| [Imports](/docs/blocks/imports)                             | `better-supabase/blocks/imports`                                                 | `imports`                                             |
+| [Rank](/docs/blocks/rank)                                   | `better-supabase/blocks/rank`                                                    | `rank`                                                |
+| [Saved views](/docs/blocks/saved-views)                     | `better-supabase/blocks/saved-views`                                             | `saved-views`                                         |
+| [Relations](/docs/blocks/relations)                         | `better-supabase/blocks/relations`                                               | `relations`                                           |
+| [Bulk actions](/docs/blocks/bulk)                           | `better-supabase/blocks/bulk`                                                    | `bulk`                                                |
+| [Undo](/docs/blocks/undo)                                   | `better-supabase/blocks/undo`                                                    |                                                       |
+| [Search](/docs/blocks/search)                               | `better-supabase/blocks/search`                                                  | `search`                                              |
+| [Metrics](/docs/blocks/metrics)                             | `better-supabase/blocks/metrics`                                                 | `metrics`                                             |
+| [Calendar](/docs/blocks/calendar)                           | `better-supabase/blocks/calendar`                                                | `calendar`                                            |
+| [Bookings](/docs/blocks/bookings)                           | `better-supabase/blocks/bookings`                                                | `bookings`                                            |
+| [Versions](/docs/blocks/versions)                           | `better-supabase/blocks/versions`                                                | `versions`                                            |
+| [Trash](/docs/blocks/trash)                                 | `better-supabase/blocks/trash`                                                   | `trash`                                               |
+| [Reactions](/docs/blocks/reactions)                         | `better-supabase/blocks/reactions`                                               | `reactions`                                           |
+| [Approvals](/docs/blocks/approvals)                         | `better-supabase/blocks/approvals`                                               | `approvals`                                           |
+| [Access requests](/docs/blocks/access-requests)             | `better-supabase/blocks/access-requests`                                         | `access-requests`                                     |
+| [Documents](/docs/blocks/documents)                         | `better-supabase/blocks/documents`, `better-supabase/yjs`                        | `documents`                                           |
+| [Catalog](/docs/blocks/catalog)                             | `better-supabase/blocks/catalog`                                                 | `catalog`                                             |
+| [Ledger](/docs/blocks/ledger)                               | `better-supabase/blocks/ledger`                                                  | `ledger`                                              |
+| [Assets and locations](/docs/blocks/assets)                 | `better-supabase/blocks/assets`                                                  | `assets`                                              |
+| [Guests](/docs/blocks/guests)                               | `better-supabase/blocks/guests`                                                  | `guests`                                              |
+| [Passes](/docs/blocks/passes)                               | `better-supabase/blocks/passes`                                                  | `passes`                                              |
+| [Billable time](/docs/blocks/billable-time)                 | `better-supabase/blocks/billable-time`                                           | `billable-time`                                       |
+| [Leases](/docs/blocks/leases)                               | `better-supabase/blocks/leases`                                                  | `leases`                                              |
+| [Expenses](/docs/blocks/expenses)                           | `better-supabase/blocks/expenses`                                                | `expenses`                                            |
+| [Donations](/docs/blocks/donations)                         | `better-supabase/blocks/donations`                                               | `donations`                                           |
+| [Dispatch](/docs/blocks/dispatch)                           | `better-supabase/blocks/dispatch`                                                | `dispatch`                                            |
+| [Shipments](/docs/blocks/shipments)                         | `better-supabase/blocks/shipments`                                               | `shipments`                                           |
+| [Contracts](/docs/blocks/contracts)                         | `better-supabase/blocks/contracts`                                               | `contracts`                                           |
+| [Compliance](/docs/blocks/compliance)                       | `better-supabase/blocks/compliance`                                              | `compliance`                                          |
+| [Incidents](/docs/blocks/incidents)                         | `better-supabase/blocks/incidents`                                               | `incidents`                                           |
+| [Inventory](/docs/blocks/inventory)                         | `better-supabase/blocks/inventory`                                               | `inventory`                                           |
+| [Drive](/docs/blocks/drive)                                 | `better-supabase/blocks/drive`                                                   | `drive`, `drive-files`                                |
+| [Orders](/docs/blocks/orders)                               | `better-supabase/blocks/orders`                                                  | `orders`                                              |
+| [Promotions](/docs/blocks/promotions)                       | `better-supabase/blocks/promotions`                                              | `promotions`                                          |
+| [Forms](/docs/blocks/forms)                                 | `better-supabase/blocks/forms`                                                   | `forms`                                               |
+| [Signatures](/docs/blocks/signatures)                       | `better-supabase/blocks/signatures`                                              | `signatures`                                          |
+| [Time tracking](/docs/blocks/time-tracking)                 | `better-supabase/blocks/time-tracking`                                           | `time-tracking`                                       |
+| [Templates](/docs/blocks/templates)                         | `better-supabase/blocks/templates`                                               | `templates`                                           |
+| [Pipelines](/docs/blocks/pipelines)                         | `better-supabase/blocks/pipelines`                                               | `pipelines`                                           |
+| [Contacts](/docs/blocks/contacts)                           | `better-supabase/blocks/contacts`                                                | `contacts`                                            |
+| [Activities](/docs/blocks/activities)                       | `better-supabase/blocks/activities`                                              | `activities`                                          |
+| [Mail sync](/docs/blocks/mail-sync)                         | `better-supabase/blocks/mail-sync`                                               | `mail-sync`                                           |
+| [Segments](/docs/blocks/segments)                           | `better-supabase/blocks/segments`                                                | `segments`                                            |
+| [Assignment](/docs/blocks/assignment)                       | `better-supabase/blocks/assignment`                                              | `assignment`                                          |
+| [Enrichment](/docs/blocks/enrichment)                       | `better-supabase/blocks/enrichment`                                              | `enrichment`                                          |
+| [Sequences](/docs/blocks/sequences)                         | `better-supabase/blocks/sequences`                                               | `sequences`                                           |
+| [Lead scoring](/docs/blocks/lead-scoring)                   | `better-supabase/blocks/lead-scoring`                                            | `lead-scoring`                                        |
+| [Posts](/docs/blocks/posts)                                 | `better-supabase/blocks/posts`                                                   | `posts`                                               |
+| [Content](/docs/blocks/content)                             | `better-supabase/blocks/content`                                                 | `content`                                             |
+| [Forecasts](/docs/blocks/forecasts)                         | `better-supabase/blocks/forecasts`                                               | `forecasts`                                           |
+| [Field history](/docs/blocks/field-history)                 | `better-supabase/blocks/field-history`                                           | `field-history`                                       |
+| [Deals](/docs/blocks/deals)                                 | `better-supabase/blocks/deals`                                                   | `deals`                                               |
+| [Tasks](/docs/blocks/tasks)                                 | `better-supabase/blocks/tasks`                                                   | `tasks`                                               |
+| [Quotes](/docs/blocks/quotes)                               | `better-supabase/blocks/quotes`                                                  | `quotes`                                              |
+| [Invoices](/docs/blocks/invoices)                           | `better-supabase/blocks/invoices`                                                | `invoices`                                            |
+| [Service levels](/docs/blocks/sla)                          | `better-supabase/blocks/sla`                                                     | `sla`                                                 |
+| [Goals](/docs/blocks/goals)                                 | `better-supabase/blocks/goals`                                                   | `goals`                                               |
+| [Hiring](/docs/blocks/hiring)                               | `better-supabase/blocks/hiring`                                                  | `hiring`                                              |
+| [Employees](/docs/blocks/employees)                         | `better-supabase/blocks/employees`                                               | `employees`                                           |
+| [Collections](/docs/blocks/collections)                     | `better-supabase/blocks/collections`                                             | `collections`                                         |
+| [Identities](/docs/blocks/identities)                       | `better-supabase/blocks/identities`                                              | `identities`                                          |
+| [Service accounts](/docs/blocks/service-accounts)           | `better-supabase/blocks/service-accounts`                                        | `service-accounts`                                    |
+| [Signing keys](/docs/blocks/signing-keys)                   | `better-supabase/blocks/signing-keys`                                            | `signing-keys`                                        |
+| [Security events](/docs/blocks/security-events)             | `better-supabase/blocks/security-events`                                         | `security-events`                                     |
+| [OAuth server](/docs/blocks/oauth-server)                   | `better-supabase/blocks/oauth-server`                                            | `oauth-server`                                        |
+| [Custom domains](/docs/blocks/domains)                      | `better-supabase/blocks/domains`                                                 | `domains`                                             |
+| [Reviews](/docs/blocks/reviews)                             | `better-supabase/blocks/reviews`                                                 | `reviews`                                             |
+| [Moderation](/docs/blocks/moderation)                       | `better-supabase/blocks/moderation`                                              | `moderation`                                          |
+| [Enrollments](/docs/blocks/enrollments)                     | `better-supabase/blocks/enrollments`                                             | `enrollments`                                         |
+| [Courses](/docs/blocks/courses)                             | `better-supabase/blocks/courses`                                                 | `courses`                                             |
+| [Leave](/docs/blocks/leave)                                 | `better-supabase/blocks/leave`                                                   | `leave`                                               |
+| [Automations](/docs/blocks/automations)                     | `better-supabase/blocks/automations`                                             | `automations`                                         |
+| [Scores](/docs/blocks/scores)                               | `better-supabase/blocks/scores`                                                  | `scores`                                              |
+| [Vercel Marketplace](/docs/blocks/vercel-marketplace)       | `better-supabase/blocks/vercel-marketplace`                                      | `vercel-marketplace`                                  |
+| [Credentials in Vault](/docs/blocks/credentials)            | `better-supabase/credentials`, `better-supabase/vercel-connect`                  | `credentials`                                         |
 
 ## SDK adapters
 

@@ -12,7 +12,7 @@ import { createQueue } from "./queue.ts";
 import { createRateLimit } from "./rate-limit.ts";
 import { createWebhookInbox } from "./webhook-inbox.ts";
 
-/** The `jobs` block's manifest (ADR 0029). */
+/** The `queue` block's manifest (ADR 0029). */
 export const queueBlock: BlockOf<"queue", typeof createQueue> = defineBlock({
   name: "queue",
   sql: ["queue"],
@@ -41,7 +41,7 @@ export const idempotencyBlock: BlockOf<
   name: "idempotency",
   sql: ["idempotency"],
   create: createIdempotency,
-  category: "developer",
+  category: "automation",
 });
 
 /** The `rate-limit` block's manifest (ADR 0029). */
@@ -51,7 +51,7 @@ export const rateLimitBlock: BlockOf<"rate-limit", typeof createRateLimit> =
     sql: ["rate-limit"],
     options: { "rate-limit": rateLimitSqlOptions },
     create: createRateLimit,
-    category: "developer",
+    category: "automation",
   });
 
 /** The `webhook-inbox` block's manifest (ADR 0029). */
@@ -63,5 +63,5 @@ export const webhookInboxBlock: BlockOf<
   sql: ["webhook-inbox"],
   options: { "webhook-inbox": webhookInboxSqlOptions },
   create: createWebhookInbox,
-  category: "developer",
+  category: "automation",
 });

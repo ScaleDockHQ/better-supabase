@@ -8,7 +8,7 @@ import "./env.ts";
 
 const withMDX = createMDX();
 
-// Block pages renamed in 0.15, so links from older guides keep working.
+// Block pages renamed since 0.15, so links from older guides keep working.
 const RENAMED_BLOCK_PAGES = {
   "work-items": "tasks",
   parties: "contacts",
@@ -29,6 +29,8 @@ const RENAMED_BLOCK_PAGES = {
   rules: "automations",
   "linked-identities": "identities",
   activity: "timeline",
+  "webhooks-out": "webhooks",
+  "webhooks-in": "incoming-webhooks",
 } as const satisfies Readonly<Record<string, string>>;
 
 // Plugin pages that moved to their blocks and to the repository section.
@@ -125,11 +127,6 @@ const config = createNextConfig({
         permanent: true,
       },
       {
-        source: "/docs/blocks/subjects",
-        destination: "/docs/repository/record-types",
-        permanent: true,
-      },
-      {
         source: "/docs/blocks/records",
         destination: "/docs/repository/record-bindings",
         permanent: true,
@@ -140,8 +137,8 @@ const config = createNextConfig({
         permanent: true,
       },
       {
-        source: "/docs/blocks/permissions",
-        destination: "/docs/repository/permissions",
+        source: "/docs/registry/ui-recipes/service-principals-table",
+        destination: "/docs/registry/ui-recipes/service-accounts-table",
         permanent: true,
       },
       ...Object.entries(MOVED_PLUGIN_PAGES).map(([from, to]) => ({

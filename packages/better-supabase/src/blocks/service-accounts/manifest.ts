@@ -18,5 +18,5 @@ export const serviceAccountsBlock: BlockOf<
   events: serviceAccountsEvents,
   create: createServiceAccounts,
   category: "developer",
-  recipes: ["service-principals-table"],
+  recipes: ["service-accounts-table"],
 });

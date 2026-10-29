@@ -1,9 +1,9 @@
 ---
-title: Targets
+title: Goals
 description: Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 ---
 
-`targets` keeps goals: a sales quota per rep per quarter, a number of completed work items per team per sprint, cash collected per month. Each target names a metric, a period, an owner or team when it isn't for the whole organization, and a goal. The database computes the progress of the metrics the other blocks own, and the app keeps the value of any other metric.
+`goals` keeps an organization's targets: a sales quota per rep per quarter, a number of completed work items per team per sprint, cash collected per month. Each target names a metric, a period, an owner or team when it isn't for the whole organization, and a goal. The database computes the progress of the metrics the other blocks own, and the app keeps the value of any other metric.
 
 Reading needs `targets.read`, and setting targets needs `targets.manage`. Admins get both, and members get `targets.read`.
 

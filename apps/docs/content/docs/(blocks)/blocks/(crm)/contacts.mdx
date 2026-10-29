@@ -1,9 +1,9 @@
 ---
-title: Parties
+title: Contacts
 description: Companies and people an organization works with, with lifecycle stages, owners, who works where with a role and a primary contact, dedupe by domain and email, merges and keyset-paged search.
 ---
 
-`parties` keeps the companies and people an organization sells to, supports or hires: the counterparty that deals, quotes, invoices, tickets and applications point at. A company has a name, a domain, a website, a VAT id, an address, an owner and a lifecycle stage. A person has a name, an email, a phone, a title, an owner, a lifecycle stage and optionally the user they sign in as. `company_people` records who works where, with a role and one primary contact per company.
+`contacts` keeps the companies and people an organization sells to, supports or hires: the counterparty that deals, quotes, invoices, tickets and applications point at. A company has a name, a domain, a website, a VAT id, an address, an owner and a lifecycle stage. A person has a name, an email, a phone, a title, an owner, a lifecycle stage and optionally the user they sign in as. `company_people` records who works where, with a role and one primary contact per company.
 
 Reading needs `parties.read`, creating, changing, linking and archiving needs `parties.write`, and merging needs `parties.manage`. Admins get every permission, and members get `parties.read` and `parties.write`.
 

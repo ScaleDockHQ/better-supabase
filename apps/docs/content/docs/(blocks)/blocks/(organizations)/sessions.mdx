@@ -1,0 +1,16 @@
+---
+title: Session revocation
+description: Stop a signed-out or banned user's access token from working before it expires.
+---
+
+`sessions` installs `session_active()` for restrictive policies. It returns
+false once the caller's session was signed out or expired, or the user was
+banned or deleted, so a revoked access token stops working right away
+instead of at its expiry. The `policies` option writes the restrictive policy
+on every table.
+
+```bash
+better-supabase add sessions
+```
+
+The [Sessions guide](/docs/auth/sessions) has the setup and the full reference.

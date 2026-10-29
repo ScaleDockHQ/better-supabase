@@ -96,7 +96,7 @@ is an optional peer loaded on the first call; pass a client instead of
 
 `parseWebhook` turns Stripe's `payment_intent.*` and `refund.*` events into
 `PaymentEvent`s and returns none for other types. A redelivered event
-repeats its `id`, so record it in the [webhook inbox](/docs/blocks/webhooks-in)
+repeats its `id`, so record it in the [webhook inbox](/docs/blocks/incoming-webhooks)
 or the `idempotency` module and handle it once:
 
 ```ts title="app/api/stripe/payments/route.ts"

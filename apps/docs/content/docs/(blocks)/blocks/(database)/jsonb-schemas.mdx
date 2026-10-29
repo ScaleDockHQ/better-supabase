@@ -1,0 +1,42 @@
+---
+title: JSON Schema checks
+description: Enforce the shape of a jsonb column in the database with pg_jsonschema, from the same schema the generated types use.
+---
+
+`jsonb-schemas` makes the database reject a `jsonb` value that doesn't match
+its JSON Schema. Give a `gen.json` entry a `schema`, and the module adds a
+[pg_jsonschema](https://supabase.com/docs/guides/database/extensions/pg_jsonschema)
+check constraint on that column, so a row the generated types would reject
+never lands, whichever client wrote it.
+
+```bash
+better-supabase add jsonb-schemas
+```
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  gen: {
+    json: {
+      "customers.metadata": {
+        import: "./lib/metadata.ts#CustomerMetadata",
+        schema: CustomerMetadata,
+      },
+    },
+  },
+  blocks: ["jsonb-schemas"],
+});
+```
+
+`schema` takes a JSON Schema object, or any Standard JSON Schema value (zod 4,
+valibot, arktype).
+
+## What it installs
+
+The module enables `pg_jsonschema` and adds `better_supabase.check_json_schema()`,
+a trigger that runs before the check constraint of the same name. It raises
+`23514` with the hint `JSON_SCHEMA_INVALID` and the schema errors as a JSON
+array in the detail, which the client maps to a validation error on the
+column. A SQL null passes, as it does for the check.
+
+The [SQL modules page](/docs/blocks/sql#enforcing-jsonb-shapes) covers
+existing rows that don't match.

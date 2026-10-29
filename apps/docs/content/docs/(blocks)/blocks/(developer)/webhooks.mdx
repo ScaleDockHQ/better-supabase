@@ -3,9 +3,9 @@ title: Outgoing webhooks
 description: Signed webhooks to your customers' endpoints, with event subscriptions, retries, a queryable delivery log, secret rotation, URL checks and auto-disable.
 ---
 
-The `webhooks-out` [SQL module](/docs/blocks/sql) stores the endpoints
-your customers register, their signing secrets and one delivery row per
-event and endpoint. `createWebhooks` from
+The `webhooks` block stores the endpoints your customers register, their
+signing secrets and one delivery row per event and endpoint, in the
+`webhooks-out` [SQL module](/docs/blocks/sql). `createWebhooks` from
 `better-supabase/blocks/webhooks` queues events, signs and sends the deliveries,
 retries failures and keeps the log.
 

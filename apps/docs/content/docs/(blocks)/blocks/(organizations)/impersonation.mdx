@@ -1,0 +1,16 @@
+---
+title: Support sessions
+description: Let platform staff view the app as a user, time-limited, read-only by default, approved by a second admin and audited.
+---
+
+`impersonation` lets platform staff view the app as a user. A support
+session is time-limited and read-only by default, needs `is_platform()` and a
+second admin's approval, and lands in the audit log. Your access token hook
+builds the target user's claims, and security definer writes refuse a
+read-only session.
+
+```bash
+better-supabase add impersonation
+```
+
+The [Impersonation guide](/docs/auth/impersonation) has the setup and the full reference.

@@ -1,0 +1,14 @@
+---
+title: Read sets
+description: One stable SQL function per read set, so a page's related queries come back in a single request.
+---
+
+`read-sets` writes one `stable` function per `defineReadSet` in the
+`readSets` config, so `db.$many(readSet, params)` reads several related
+queries in a single GET instead of one request each.
+
+```bash
+better-supabase add read-sets
+```
+
+The [Read sets guide](/docs/repository/read-sets) has the setup and the full reference.

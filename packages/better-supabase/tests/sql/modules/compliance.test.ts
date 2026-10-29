@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
-import { CONTROLS } from "../../../src/sql/modules/compliance.ts";
+import { COMPLIANCE } from "../../../src/sql/modules/compliance.ts";
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
 
@@ -19,7 +19,7 @@ const sqlOf = (
     .map((file) => file.contents)
     .join("\n");
 
-describe("controls module", () => {
+describe("compliance module", () => {
   it("links evidence to an attachment only when attachments owns its table", () => {
     const sql = sqlOf();
     expect(sql).toMatch(
@@ -64,7 +64,7 @@ describe("controls module", () => {
     expect(sqlOf(custom).trim()).toBe("");
     // SAFETY: custom mode returns before reading anything else on the context.
     const context = { mode: "custom" } as unknown as BlockSqlContext;
-    expect(CONTROLS.build(context, {})).toBe("");
+    expect(COMPLIANCE.build(context, {})).toBe("");
     const [contract] = customContracts(["compliance"], custom);
     expect(contract?.functions.map((fn) => fn.name)).toEqual(
       expect.arrayContaining([

@@ -609,7 +609,7 @@ Every hook is optional. A slot passed to a block directly wins over the hook.
 | `automation.mayPublish`          | whether the publisher may publish a version whose nodes need the stored permissions       | [Workflow builder](/docs/blocks/workflow-editor)        |
 | `automation.runAs`               | the claims each step of a published version runs with; `null` fails the step              | [Workflow builder](/docs/blocks/workflow-editor)        |
 | `support.authorize`              | a support session start: `true` still needs a second approver, `{ approvedBy }` names one | [Support sessions](/docs/auth/impersonation)            |
-| `delivery.subscribers`           | which webhook endpoints, outbox consumers and realtime members may read an event          | [Outgoing webhooks](/docs/blocks/webhooks-out)          |
+| `delivery.subscribers`           | which webhook endpoints, outbox consumers and realtime members may read an event          | [Outgoing webhooks](/docs/blocks/webhooks)              |
 | `delivery.audience`              | which notification recipients may read a notification                                     | [Notifications](/docs/blocks/notifications)             |
 | `identities.principalByIdentity` | the user or contact a verified email address or chat user links to                        | [Identities](/docs/blocks/identities)                   |
 | `chat.onAction`                  | a button a linked chat user pressed, such as an approval                                  | [Chat SDK](/docs/chat-sdk)                              |

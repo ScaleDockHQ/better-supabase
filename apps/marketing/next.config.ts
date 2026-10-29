@@ -36,6 +36,11 @@ export default createNextConfig({
         permanent: false,
       },
       { source: "/changelog", destination: "/docs/changelog", permanent: true },
+      {
+        source: "/recipes/service-principals-table",
+        destination: "/recipes/service-accounts-table",
+        permanent: true,
+      },
     ]);
   },
   rewrites() {

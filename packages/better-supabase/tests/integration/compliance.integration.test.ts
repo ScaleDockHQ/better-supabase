@@ -22,7 +22,7 @@ const hint = (result: Result<unknown>): string =>
 
 const today = (): Temporal.PlainDate => Temporal.Now.plainDateISO("UTC");
 
-describe.skipIf(!live)("controls", () => {
+describe.skipIf(!live)("compliance", () => {
   const pool = new Pool({ connectionString: dbUrl, max: 2 });
 
   afterAll(() => pool.end());

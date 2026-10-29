@@ -239,7 +239,7 @@ place of `{ type, timestamp, data }`, signed per Standard Webhooks. A
 `transform` returns only the event's `data`. Receivers read `data`, `type`
 and `id` from the CloudEvent. `publish_webhook_event` takes `subject` and
 `read_permission`, and delivers only to endpoints whose owner may read the
-event. See [Outgoing webhooks](/docs/blocks/webhooks-out).
+event. See [Outgoing webhooks](/docs/blocks/webhooks).
 
 `sql upgrade` keeps endpoints created before 0.9 on the 0.8 body: they get
 `format = 'standard'`, and new endpoints get `cloudevents`
@@ -301,7 +301,7 @@ await inbox
 ```
 
 See [Realtime](/docs/platform/realtime) and
-[Outgoing webhooks](/docs/blocks/webhooks-out).
+[Outgoing webhooks](/docs/blocks/webhooks).
 
 ## Agent actors
 

@@ -27,10 +27,10 @@ whatever they require:
 
 | Block                                   | Role in the app                                             |
 | --------------------------------------- | ----------------------------------------------------------- |
-| [controls](/docs/blocks/compliance)     | Frameworks, controls, evidence tasks and versioned policies |
+| [compliance](/docs/blocks/compliance)   | Frameworks, controls, evidence tasks and versioned policies |
 | [attachments](/docs/blocks/attachments) | Evidence files                                              |
 
-The controls block requires [versions](/docs/blocks/versions), which the
+The compliance block requires [versions](/docs/blocks/versions), which the
 preset installs with it, and the `audit` block from `saas` keeps who changed
 a control or its evidence.
 
@@ -43,7 +43,7 @@ assignee. A control's status follows from its evidence and tasks: it fails
 when a task is overdue or all its evidence has lapsed, and `posture` rolls
 the statuses up per framework. `publishPolicy` freezes a policy as a version,
 and each member acknowledges that version with `acknowledgePolicy`
-([controls](/docs/blocks/compliance)).
+([compliance](/docs/blocks/compliance)).
 
 ## With ReUI
 
