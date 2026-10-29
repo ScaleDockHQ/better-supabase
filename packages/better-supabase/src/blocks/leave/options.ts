@@ -52,6 +52,12 @@ export type LeaveSqlOptions = {
   readonly approvals?: boolean;
   readonly owner?: "user" | "employee";
   readonly reapprove?: boolean;
+  /**
+   * `"employee"` makes the request's employee the approval's requester, so they
+   * can't approve their own leave, and points a manager step at their manager
+   * instead of the filer's. Needs `owner: "employee"`. Default `"filer"`.
+   */
+  readonly approvalOwner?: "filer" | "employee";
 };
 
 export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
@@ -66,4 +72,5 @@ export const leaveSqlOptions: BlockOptionsSchema<LeaveSqlOptions> =
     approvals: option.boolean({ default: true }),
     owner: option.string<"user" | "employee">({ default: "user" }),
     reapprove: option.boolean({ default: false }),
+    approvalOwner: option.string<"filer" | "employee">({ default: "filer" }),
   });

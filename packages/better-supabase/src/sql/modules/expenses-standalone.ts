@@ -17,8 +17,9 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
+import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { lockModuleTable } from "./over-app.ts";
-import { moduleOperations } from "./permissions-model.ts";
+import { moduleOperations, OPERATIONS } from "./permissions-model.ts";
 import { ownerIsEmployee, recordOwner } from "./record-owner.ts";
 
 export const expenseKey = (ctx: BlockSqlContext, action: string): string =>
@@ -81,6 +82,54 @@ export const EXPENSE_TABLE: BlockSqlTableSpec = {
   ],
   typed: ["status"],
 };
+
+/** The subject type of an expense the approvals block decides. */
+export const EXPENSE_SUBJECT = "expense";
+
+/**
+ * Whether each standalone expense goes through the approvals block:
+ * `options.standaloneApprovals`, which needs `tables.reports: null`.
+ */
+export function standaloneApprovals(ctx: BlockSqlContext): boolean {
+  const on = ctx.flag("standaloneApprovals", false);
+
+  if (on && !expensesStandalone(ctx)) {
+    throw new TypeError(
+      "blocks.expenses.options.standaloneApprovals needs tables.reports: null; reports go through approvals already",
+    );
+  }
+
+  return on;
+}
+
+/** `options.policy`, or one step for holders of the approve permission. */
+function standalonePolicy(ctx: BlockSqlContext): string {
+  const policy = policyOf(
+    EXPENSE_SUBJECT,
+    "approve",
+    ctx.option("policy") ?? {
+      steps: [
+        {
+          approvers: {
+            permission: ctx.permissionKey(
+              "approve",
+              OPERATIONS["expenses.approve"],
+            ),
+          },
+        },
+      ],
+    },
+    "blocks.expenses.options.policy",
+  );
+
+  if (policy.run !== undefined) {
+    throw new TypeError(
+      "blocks.expenses.options.policy.run is not allowed; the final approval approves the expense",
+    );
+  }
+
+  return policySnapshot(policy);
+}
 
 export function expensesStandalone(ctx: BlockSqlContext): boolean {
   const reports = ctx.config.tables["reports"] === null;
@@ -207,6 +256,37 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const extra = extraFieldsArg(extras);
   const statusColumn = has("status");
   const company = ctx.flag("companyExpenses", false);
+  const linked = standaloneApprovals(ctx) ? ctx.of("approvals") : undefined;
+
+  if (linked?.mode === "custom") {
+    throw new TypeError(
+      "blocks.expenses needs the approvals tables; approvals can't be in custom mode",
+    );
+  }
+
+  const ar = linked?.table("requests") ?? "";
+  const a = (column: string): string => linked?.col("requests", column) ?? "";
+
+  // The pending approval request of v_row, when approvals decide expenses.
+  const pending = `exists (select 1 from ${ar} x where x.${a("subjectType")} = ${sqlString(EXPENSE_SUBJECT)} and x.${a("subjectId")} = v_row.${e("id")}::text and x.${a("status")} = 'pending')`;
+
+  const openApproval =
+    linked === undefined
+      ? ""
+      : `
+  perform ${linked.fn("open_approval")}(
+    v_row.${e("tenant")}, ${sqlString(EXPENSE_SUBJECT)}, v_row.${e("id")}::text, 'approve',
+    ${sqlString(standalonePolicy(ctx))}::jsonb${employee ? ` || jsonb_build_object('managerOf', v_row.${e("employee")}::text)` : ""}, null,
+    jsonb_build_object('userId', ${owner.requester("v_row")}${employee ? `, 'employeeId', v_row.${e("employee")}` : ""}, 'amount', v_row.${e("amount")}::text, 'currency', v_row.${e("currency")}, 'spentOn', v_row.${e("spentOn")}),
+    ${owner.requester("v_row")}
+  );`;
+
+  const cancelApproval =
+    linked === undefined
+      ? ""
+      : `
+  update ${ar} x set ${a("status")} = 'cancelled'${linked.has("requests", "decidedAt") ? `, ${a("decidedAt")} = now()` : ""}
+    where x.${a("subjectType")} = ${sqlString(EXPENSE_SUBJECT)} and x.${a("subjectId")} = v_row.${e("id")}::text and x.${a("status")} = 'pending';`;
 
   const inserted = insertExtraColumns(
     table,
@@ -474,7 +554,7 @@ declare
 begin${load("submit_expense.expense_id")}${ownerOrManager(updateOthers)}${editable}
   update ${table} x set ${e("submittedAt")} = now()${setStatus("submitted")}${set("rejectedAt", "null")}${set("approvedAt", "null")}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
-    returning * into v_row;
+    returning * into v_row;${openApproval}
   ${record("expense.submitted", "submitted an expense")}
   return ${json("v_row")};
 end;
@@ -495,7 +575,7 @@ begin${load("withdraw_expense.expense_id")}${ownerOrManager(withdrawApproved ? w
   end if;
   update ${table} x set ${e("submittedAt")} = null${setStatus("draft")}${withdrawApproved ? `${set("approvedAt", "null")}${set("decidedBy", "null")}${set("decidedAt", "null")}` : ""}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
-    returning * into v_row;
+    returning * into v_row;${cancelApproval}
   ${record("expense.withdrawn", "withdrew an expense")}
   return ${json("v_row")};
 end;
@@ -524,6 +604,7 @@ begin${load("delete_expense.expense_id")}${
   if ${status("v_row")} <> 'draft'${deleteSubmitted === undefined ? "" : ` and ${status("v_row")} not in ('submitted', 'approved')`} then
     ${fail("EXPENSE_LOCKED", deleteSubmitted === undefined ? "only a draft expense is deleted" : "only a draft, submitted or approved expense is deleted", "55000")}
   end if;
+${cancelApproval}
   delete from ${table} x where x.${e("id")} = v_row.${e("id")};
   ${record("expense.deleted", "deleted an expense")}
   return true;
@@ -551,7 +632,14 @@ begin${load("decide_expense.expense_id")}
   end if;
   if ${status("v_row")} <> 'submitted' then
     ${fail("EXPENSE_LOCKED", "only a submitted expense is decided", "55000")}
-  end if;
+  end if;${
+    linked === undefined
+      ? ""
+      : `
+  if ${pending} then
+    ${fail("EXPENSE_IN_APPROVAL", "this expense is decided through its approval request", "55000")}
+  end if;`
+  }
   if decide_expense.approved is null then
     ${invalid("approved must be true or false")}
   end if;${unsupported("decisionNote", "nullif(trim(decide_expense.note), '')")}
@@ -570,7 +658,41 @@ begin${load("decide_expense.expense_id")}
 end;
 $$;
 ${userGrant(`${fn("decide_expense")}(uuid, boolean, text, uuid)`)}
-
+${
+  linked === undefined
+    ? ""
+    : `
+-- Applies the final decision of an expense's approval request: approvals
+-- calls it, with the user who decided. It isn't granted to anyone.
+create or replace function ${fn("expense_approval_decided")}(expense_id uuid, approved boolean, note text, decided_by uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${table}%rowtype;
+begin
+  select * into v_row from ${table} x where x.${e("id")} = expense_approval_decided.expense_id for update;
+  if not found or ${status("v_row")} <> 'submitted' then
+    return;
+  end if;
+  if expense_approval_decided.approved then
+    update ${table} x set ${e("updatedAt")} = now()${setStatus("approved")}${set("approvedAt", "now()")}${set("decidedBy", "expense_approval_decided.decided_by")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(expense_approval_decided.note), '')")}
+      where x.${e("id")} = v_row.${e("id")}
+      returning * into v_row;
+    ${record("expense.approved", "approved an expense")}
+  else
+    update ${table} x set ${e("updatedAt")} = now()${setStatus("rejected")}${set("rejectedAt", "now()")}${set("decidedBy", "expense_approval_decided.decided_by")}${set("decidedAt", "now()")}${set("decisionNote", "nullif(trim(expense_approval_decided.note), '')")}
+      where x.${e("id")} = v_row.${e("id")}
+      returning * into v_row;
+    ${record("expense.rejected", "rejected an expense")}
+  end if;
+end;
+$$;
+revoke execute on function ${fn("expense_approval_decided")}(uuid, boolean, text, uuid) from public, anon, authenticated;
+`
+}
 create or replace function ${fn("reimburse_expense")}(expense_id uuid, reference text default null)
 returns jsonb
 language plpgsql

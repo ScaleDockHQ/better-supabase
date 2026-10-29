@@ -154,7 +154,7 @@ export function timeOwner(
 
   if (employeeMode && !statusMode) {
     throw new TypeError(
-      `${WHERE}.owner "employee" keeps timesheets in a status column, so it needs ${WHERE}.approvals: false`,
+      `${WHERE}.owner "employee" keeps timesheets in a status column`,
     );
   }
 

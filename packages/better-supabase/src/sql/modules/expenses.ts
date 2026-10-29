@@ -19,8 +19,10 @@ import {
   expensesFunctions,
 } from "./expenses-functions.ts";
 import {
+  EXPENSE_SUBJECT,
   EXPENSE_TABLE,
   expensesStandalone,
+  standaloneApprovals,
   standaloneContract,
 } from "./expenses-standalone.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -112,6 +114,8 @@ const NAMES: BlockSqlNames = {
     "owner",
     "companyExpenses",
     "withdrawApproved",
+    "standaloneApprovals",
+    "policy",
   ],
   tables: {
     categories: {
@@ -408,16 +412,27 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 
 const CONTRIBUTES: BlockContributes = {
   approvals: (own) =>
-    expenseApprovals(own)
+    standaloneApprovals(own)
       ? [
           {
-            subject: EXPENSE_REPORT_SUBJECT,
+            subject: EXPENSE_SUBJECT,
             access: "declared",
-            approve: ({ subjectId }) =>
-              `perform ${own.fn("approve_expense_report")}(${subjectId}::uuid);`,
+            approve: ({ subjectId, comment, approver }) =>
+              `perform ${own.fn("expense_approval_decided")}(${subjectId}::uuid, true, ${comment}, ${approver});`,
+            reject: ({ subjectId, comment, approver }) =>
+              `perform ${own.fn("expense_approval_decided")}(${subjectId}::uuid, false, ${comment}, ${approver});`,
           },
         ]
-      : [],
+      : expenseApprovals(own)
+        ? [
+            {
+              subject: EXPENSE_REPORT_SUBJECT,
+              access: "declared",
+              approve: ({ subjectId }) =>
+                `perform ${own.fn("approve_expense_report")}(${subjectId}::uuid);`,
+            },
+          ]
+        : [],
 };
 
 const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
@@ -434,7 +449,9 @@ export const EXPENSES: BlockSqlDefinition = {
     const expenses = layout.modules?.["expenses"];
 
     if (expenses?.tables?.["reports"] === null) {
-      return ["memberships", "permissions"];
+      return expenses.options?.["standaloneApprovals"] === true
+        ? ["memberships", "permissions", "approvals"]
+        : ["memberships", "permissions"];
     }
 
     return expenses?.options?.["approvals"] === false

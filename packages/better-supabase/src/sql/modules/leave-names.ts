@@ -57,6 +57,7 @@ export const LEAVE_NAMES: BlockSqlNames = {
     "approvals",
     "owner",
     "reapprove",
+    "approvalOwner",
   ],
   tables: {
     types: {

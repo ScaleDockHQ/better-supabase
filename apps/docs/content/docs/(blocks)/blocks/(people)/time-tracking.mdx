@@ -193,10 +193,21 @@ that type, cast to its type, and clears the others; reads, events and the
 With `options.owner: "employee"` and the [employees](/docs/blocks/employees)
 block installed, every entry and timesheet belongs to an employee
 (`columns.entries.employee` and `columns.timesheets.employee`, default
-`employee_id`), so an employee without an account has timesheets too. It
-needs `options.approvals: false`. The timesheet key is the tenant, the
-employee and the week, and the timesheets table needs no user column (map
-`columns.timesheets.user` to `null`).
+`employee_id`), so an employee without an account has timesheets too. Its
+timesheets keep their state in the status column. The timesheet key is the
+tenant, the employee and the week, and the timesheets table needs no user
+column (map `columns.timesheets.user` to `null`).
+
+Unless `options.approvals` is `false`, a submitted week also files a request
+with the [approvals block](/docs/blocks/approvals) under `options.policy`
+(subject type `timesheet`, action `approve`). The employee's user is its
+requester, so they can't approve their own week, and a manager step asks the
+employee's manager. The request's final approval or rejection sets the week's
+status, `decidedBy`, `decidedAt` and `decisionNote` (the decision's comment).
+While it is pending, `approve` and `reject` on the timesheet fail with
+`TIMESHEET_IN_APPROVAL`; once the request is cancelled or expires, the week can
+be submitted again. With `approvals: false`, members with
+`time_tracking.approve` decide weeks directly, as before.
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -219,7 +230,16 @@ without an account. In SQL, `log_time`, `list_time_entries`, `get_timesheet`,
 `submit_timesheet` and `list_timesheets` take a trailing `employee_id`, and
 `userTimeZone.key` holds the employee id.
 
-Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_NOT_APPROVED`, without approvals `TIMESHEET_NOT_SUBMITTED`, and per employee `TIME_EMPLOYEE_MISSING` and `TIME_EMPLOYEE_INVALID`.
+```ts title="better-supabase.config.ts"
+"time-tracking": {
+  options: {
+    owner: "employee",
+    policy: { steps: [{ approvers: { manager: true } }] },
+  },
+},
+```
+
+Errors carry these hints: `TIME_FORBIDDEN`, `TIME_SUBJECT_INVALID`, `TIME_ENTRY_INVALID`, `TIME_ENTRY_OVERLAP`, `TIME_ENTRY_NOT_FOUND`, `TIME_USER_INVALID`, `TIME_NO_TIMER`, `TIME_PERIOD_LOCKED`, `TIMESHEET_NOT_FOUND`, `TIMESHEET_TIMER_RUNNING`, `TIMESHEET_SUBMITTED`, `TIMESHEET_APPROVED`, `TIMESHEET_NOT_APPROVED`, without approvals `TIMESHEET_NOT_SUBMITTED`, and per employee `TIME_EMPLOYEE_MISSING`, `TIME_EMPLOYEE_INVALID` and `TIMESHEET_IN_APPROVAL`.
 
 ## Events and hooks
 
