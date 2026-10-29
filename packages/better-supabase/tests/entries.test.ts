@@ -137,6 +137,7 @@ const PURE_BARRELS = [
   "query",
   "react",
   "realtime",
+  "rate-limit",
   "sql",
   "storage",
   "streams",

@@ -12,6 +12,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import {
   createMcpAuth,
+  MCP_AUTH_STATE_KEY,
   withBetterSupabaseMcp,
 } from "../../src/mcp/sdk/index.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
@@ -242,6 +243,40 @@ describe("createMcpAuth", () => {
     } as never);
 
     expect(forged.auth.kind).toBe("none");
+  });
+
+  it("reads the bearer token from a Request or Headers", async () => {
+    const token = await signer.sign({ sub: USER });
+    const headers = new Headers({ authorization: `Bearer ${token}` });
+
+    expect((await auth.contextOf(headers)).auth.kind).toBe("user");
+    expect(
+      (await auth.contextOf(new Request("http://localhost/mcp", { headers })))
+        .auth.kind,
+    ).toBe("user");
+    expect((await auth.contextOf(new Headers())).auth.kind).toBe("none");
+    expect(
+      (await auth.contextOf(new Headers({ authorization: "Basic abc" }))).auth
+        .kind,
+    ).toBe("none");
+  });
+
+  it("falls back to the clientId option without a client claim", async () => {
+    const named = createMcpAuth(betterSupabase, {
+      env,
+      auth: { jwks: signer.jwks },
+      clientId: "lienlink",
+    });
+
+    const info = await named.verifier.verifyAccessToken(
+      await signer.sign({ sub: USER }),
+    );
+
+    expect(info.clientId).toBe("lienlink");
+  });
+
+  it("exports where serve keeps the auth state", () => {
+    expect(MCP_AUTH_STATE_KEY).toBe("betterSupabase");
   });
 });
 

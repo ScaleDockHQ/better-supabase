@@ -95,7 +95,18 @@ export interface ResolvedSqlConfig {
   /** Unset means `tenant`. */
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
+  /**
+   * `schema`, `api`, `ownTablePolicies` and `tenantScope` as the config sets
+   * them, for blocks added after the config was resolved. Unset without any.
+   */
+  readonly blockDefaults?: SqlBlockDefaults;
 }
+
+/** The `sql` keys every block takes unless it sets its own. */
+export type SqlBlockDefaults = Pick<
+  SqlConfig,
+  "schema" | "api" | "ownTablePolicies" | "tenantScope"
+>;
 
 export interface SeedConfig {
   /** Module exporting `defineSeed(...)` as `seed` or default. */

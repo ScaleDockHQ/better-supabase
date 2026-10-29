@@ -109,19 +109,6 @@ export { createQueue } from "./queue.ts";
 
 export type { JobsSource } from "./queue.ts";
 
-export { createRateLimit, rateLimited } from "./rate-limit.ts";
-
-export type {
-  RateLimit,
-  RateLimitAllDecision,
-  RateLimitDecision,
-  RateLimitHit,
-  RateLimitOptions,
-  RateLimitRule,
-  RateLimitSettings,
-  RateLimitSource,
-} from "./rate-limit.ts";
-
 export type {
   ClaimOptions,
   DeadJob,
@@ -164,3 +151,16 @@ export {
   rateLimitBlock,
   webhookInboxBlock,
 } from "./manifest.ts";
+
+export * from "./deprecated.ts";
+
+export type {
+  RateLimit,
+  RateLimitAllDecision,
+  RateLimitDecision,
+  RateLimitHit,
+  RateLimitOptions,
+  RateLimitRule,
+  RateLimitSettings,
+  RateLimitSource,
+} from "./rate-limit.ts";

@@ -1,4 +1,8 @@
-export { createMcpAuth, withBetterSupabaseMcp } from "./sdk.ts";
+export {
+  createMcpAuth,
+  MCP_AUTH_STATE_KEY,
+  withBetterSupabaseMcp,
+} from "./sdk.ts";
 
 export {
   supabaseMcpHandler,

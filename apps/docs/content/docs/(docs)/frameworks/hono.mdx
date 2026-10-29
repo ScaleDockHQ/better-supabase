@@ -160,7 +160,7 @@ A refused request gets a `problem+json` 429 with `Retry-After`, and `key`
 returning `undefined` skips the limit:
 
 ```ts
-import { createRateLimit } from "better-supabase/blocks/queue";
+import { createRateLimit } from "better-supabase/rate-limit";
 
 const limiter = createRateLimit({ sql: postgres.admin });
 

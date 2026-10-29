@@ -233,7 +233,7 @@ adds the `RateLimit` field to the response, plus `RateLimit-Policy` with a
 `Retry-After`:
 
 ```ts
-import { createRateLimit } from "better-supabase/blocks/queue";
+import { createRateLimit } from "better-supabase/rate-limit";
 
 const limiter = createRateLimit({ sql: postgres.admin });
 
@@ -250,7 +250,33 @@ const limited = os.$context<OrpcRequestContext>().use(
 );
 ```
 
-The headers reach the client only through `bsb.fetchHandler`.
+The headers reach the client through `bsb.fetchHandler`, or through oRPC's
+own handler when it uses `ResponseHeadersPlugin`: the middleware then sets
+them on `context.resHeaders`.
+
+To count one call against several limits, such as per user and per
+organization, pass `hits` instead of `scope` and `key`. It returns the limits
+for the call, and an empty list skips them. They count through
+[`checkAll`](/docs/rate-limit#several-limits-at-once), so a refused
+call leaves every counter as it was, and the `RateLimit` field lists each
+limit under its scope:
+
+```ts
+bsb.rateLimit({
+  limiter,
+  hits: ({ request }) => {
+    const org = request.headers.get("x-org-id");
+    return org === null
+      ? []
+      : [{ scope: "rpc:org", key: org, rule: { max: 600, period: 60 } }];
+  },
+});
+```
+
+When the procedure declares `TOO_MANY_REQUESTS` with `.errors()`, a refused
+call throws the declared error, so a typed client sees it as defined, with the
+problem details as its `data`. Set `code` to throw another declared code
+instead.
 
 ## Permissions
 

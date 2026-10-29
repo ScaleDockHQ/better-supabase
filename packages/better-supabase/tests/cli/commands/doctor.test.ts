@@ -1,4 +1,12 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { parseArgs } from "citty";
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  rm,
+  writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,7 +17,9 @@ import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { doctorCommand, runDoctor } from "../../../src/cli/commands/doctor.ts";
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
+import { runSql } from "../../../src/cli/commands/sql.ts";
 import { parseCommandArgs } from "../../../src/cli/core/command.ts";
+import { SQL_ARGS } from "../../../src/cli/sql/args.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 import { fakeConnect } from "../fixtures/fake-connect.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
@@ -461,6 +471,33 @@ describe("doctor command", () => {
     );
 
     expect(findings(skipped)).toEqual([]);
+  });
+
+  it("finds no BS304 right after add renders a module under sql.api", async () => {
+    const config: BetterSupabaseConfig = { database: { sql: { api: "api" } } };
+
+    const added = await runSql(
+      resolveConfig(config, root),
+      parseArgs(["add", "rate-limit"], SQL_ARGS),
+    );
+
+    expect(added.code).toBe(0);
+    const dir = join(root, "supabase/schemas");
+    const files = await readdir(dir);
+
+    const texts = await Promise.all(
+      files.map((file) => readFile(join(dir, file), "utf-8")),
+    );
+
+    expect(texts.join("\n")).toContain('function "api"."set_rate_limit"');
+
+    const result = await doctor(
+      ["--only", "BS304", "--json"],
+      { snapshot: await parseSnapshot(fixture) },
+      { ...config, blocks: ["rate-limit"] },
+    );
+
+    expect(findings(result)).toEqual([]);
   });
 
   it("reads the content mapper setup from the project for BS602", async () => {

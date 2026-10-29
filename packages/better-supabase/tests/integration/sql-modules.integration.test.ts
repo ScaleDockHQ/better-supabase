@@ -22,7 +22,6 @@ import {
   createIdempotency,
   createWebhookInbox,
   createQueue,
-  createRateLimit,
   sqlQueueProvider,
   transportQueueProvider,
   withLease,
@@ -34,6 +33,7 @@ import { defineSupabase } from "../../src/core/define.ts";
 import { mapDbError } from "../../src/core/errors.ts";
 import { defineReadSet } from "../../src/core/read-set.ts";
 import { createPostgres } from "../../src/postgres/pool.ts";
+import { createRateLimit } from "../../src/rate-limit/index.ts";
 import { defineSchema } from "../../src/schema/define.ts";
 import { withBlock } from "../../src/server/entries/block.ts";
 import { apiWrappers } from "../../src/sql/api-schema.ts";

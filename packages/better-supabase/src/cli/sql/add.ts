@@ -68,11 +68,12 @@ export async function addModules(
     ...names.filter((name) => !config.blockNames.includes(name)),
   ];
 
-  const sqlLayout = await layoutFor(config, args, listed);
+  const withAdded = withAddedBlocks(config, names);
+  const sqlLayout = await layoutFor(withAdded, args, listed);
   const added = resolveBlocks(names, sqlLayout).map((module) => module.name);
   const affected = integratingModules(config.blockNames, added);
 
-  const written = await write(config, args, listed, sqlLayout, deps.now, [
+  const written = await write(withAdded, args, listed, sqlLayout, deps.now, [
     ...added,
     ...affected.map((entry) => entry.name),
   ]);
@@ -113,7 +114,7 @@ export async function addModules(
   }
 
   if (args["dry-run"] !== true) {
-    lines.push(...(await unlistedModuleFiles(config, names, sqlLayout)));
+    lines.push(...(await unlistedModuleFiles(withAdded, names, sqlLayout)));
   }
 
   return {
@@ -151,6 +152,34 @@ export function integratingModules(
 
     return touched.length === 0 ? [] : [{ name, with: [...new Set(touched)] }];
   });
+}
+
+/**
+ * `config` with the `sql` defaults on the named blocks and their dependencies
+ * it doesn't list yet, so they render the way doctor renders them once `blocks`
+ * lists them.
+ */
+function withAddedBlocks(
+  config: ResolvedConfig,
+  names: readonly string[],
+): ResolvedConfig {
+  const defaults = config.sql.blockDefaults;
+
+  const unlisted = resolveBlocks(names)
+    .map((module) => module.name)
+    .filter((name) => !(name in config.blocks));
+
+  if (defaults === undefined || unlisted.length === 0) {
+    return config;
+  }
+
+  return {
+    ...config,
+    blocks: {
+      ...config.blocks,
+      ...Object.fromEntries(unlisted.map((name) => [name, defaults])),
+    },
+  };
 }
 
 /**

@@ -496,7 +496,22 @@ To keep your own HTTP wiring, use the pieces instead: `auth.verifier` is an
 `verifyBearerToken`, `auth.metadata(request)` is the metadata response, and
 `auth.contextOf(ctx)` returns the caller's context from a tool's `ctx`. A tool
 call whose `authInfo` did not come from `auth.verifier` is verified again from
-its token, and one without a token runs as `anon`.
+its token, and one without a token runs as `anon`. `auth.contextOf` also takes
+a `Request` or `Headers`, for routes next to the MCP server that read the
+bearer token from the `Authorization` header.
+
+The verifier keeps the verified caller in `AuthInfo.extra` under
+`MCP_AUTH_STATE_KEY`, so middleware that runs before the tool can read it
+without verifying the token again. `AuthInfo.clientId` is the token's
+`client_id` or `azp` claim; a user's own session has neither, so set the
+`clientId` option when a library downstream needs a non-empty value:
+
+```ts
+const auth = createMcpAuth(betterSupabase, {
+  resource: "https://crm.example.com/mcp",
+  clientId: "crm-web",
+});
+```
 
 To check permissions with a library that wraps the SDK's `McpServer`, wrap
 the server with it first and `withBetterSupabaseMcp` second. The library then

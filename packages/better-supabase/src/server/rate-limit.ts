@@ -1,5 +1,9 @@
 import type { DbError } from "../core/errors.ts";
 import type { ProblemFormat } from "../core/problem.ts";
+import type {
+  RateLimitPolicy,
+  RateLimitState,
+} from "../core/ratelimit-headers.ts";
 import type { Result } from "../core/result.ts";
 
 import { dbError } from "../core/errors.ts";
@@ -25,9 +29,21 @@ export interface RouteRateLimitRule {
   readonly period: number | string;
 }
 
+/** One limit of a `hits` list: its own scope and key, and an optional rule. */
+export interface RouteRateLimitHit {
+  readonly scope: string;
+  readonly key: string;
+  readonly rule?: RouteRateLimitRule;
+}
+
+/** What `checkAll` answers: one verdict per hit, in the order of the hits. */
+export interface RateLimitAllVerdict extends RateLimitVerdict {
+  readonly results: readonly RateLimitVerdict[];
+}
+
 /**
  * What `rateLimit()` counts hits with: `createRateLimit()` from
- * `better-supabase/blocks/queue`.
+ * `better-supabase/rate-limit`.
  */
 export interface RateLimiter {
   check(
@@ -37,8 +53,25 @@ export interface RateLimiter {
   ): PromiseLike<Result<RateLimitVerdict>>;
 }
 
-/** The options of the Hono and oRPC `rateLimit()` middleware. */
-export interface RateLimitRouteOptions<I> {
+/** A limiter that counts one hit against several limits, as `checkAll` does. */
+export interface MultiRateLimiter {
+  checkAll(
+    hits: readonly RouteRateLimitHit[],
+  ): PromiseLike<Result<RateLimitAllVerdict>>;
+}
+
+interface RateLimitCommonOptions {
+  /**
+   * Let the request through when the limiter fails. Default: answer with its
+   * error.
+   */
+  readonly failOpen?: boolean;
+  /** The app's error body for the 429. */
+  readonly problem?: ProblemFormat;
+}
+
+/** One limit: a scope, whose key the request names. */
+export interface SingleRateLimitOptions<I> extends RateLimitCommonOptions {
   readonly limiter: RateLimiter;
   /** The scope the hits count against, and its rule from `set_rate_limit`. */
   readonly scope: string;
@@ -56,14 +89,28 @@ export interface RateLimitRouteOptions<I> {
   readonly rule?: RouteRateLimitRule;
   /** The policy name in the headers. Default: `scope`. */
   readonly policy?: string;
-  /**
-   * Let the request through when the limiter fails. Default: answer with its
-   * error.
-   */
-  readonly failOpen?: boolean;
-  /** The app's error body for the 429. */
-  readonly problem?: ProblemFormat;
 }
+
+/**
+ * Several limits counted in one `checkAll` round trip, such as a per-user, a
+ * per-IP and a per-organization limit. The call counts only when every limit
+ * allows it.
+ */
+export interface MultiRateLimitOptions<I> extends RateLimitCommonOptions {
+  readonly limiter: MultiRateLimiter;
+  /**
+   * The limits this request counts against; each scope names its policy in the
+   * headers. An empty list skips the limit.
+   */
+  readonly hits: (
+    input: I,
+  ) => readonly RouteRateLimitHit[] | PromiseLike<readonly RouteRateLimitHit[]>;
+}
+
+/** The options of the Hono and oRPC `rateLimit()` middleware. */
+export type RateLimitRouteOptions<I> =
+  | SingleRateLimitOptions<I>
+  | MultiRateLimitOptions<I>;
 
 export type RateLimitOutcome =
   | { readonly kind: "skip" }
@@ -74,48 +121,63 @@ export type RateLimitOutcome =
       readonly headers: Headers;
     };
 
-/** Counts a hit for each request and builds the RateLimit fields or the refusal. */
-export function rateLimitGate<I>(
-  options: RateLimitRouteOptions<I>,
-): (input: I) => Promise<RateLimitOutcome> {
-  const policy = options.policy ?? options.scope;
-
+function assertPolicyName(policy: string): void {
   if (!isRateLimitPolicyName(policy)) {
     throw new TypeError(
       `rateLimit(): "${policy}" can't name a RateLimit policy; pass a printable ASCII \`policy\``,
     );
   }
+}
 
-  const window =
-    options.rule === undefined ? undefined : periodSeconds(options.rule.period);
+function policyOf(name: string, rule: RouteRateLimitRule): RateLimitPolicy {
+  const window = periodSeconds(rule.period);
 
-  const policyHeader =
-    options.rule === undefined
-      ? undefined
-      : rateLimitPolicyHeader([
-          {
-            name: policy,
-            quota: options.rule.max,
-            ...(window === undefined ? {} : { window }),
-          },
-        ]);
+  return { name, quota: rule.max, ...(window === undefined ? {} : { window }) };
+}
 
-  const headersFor = (remaining: number, reset?: number): Headers => {
-    const headers = new Headers();
+function limitHeaders(
+  policies: readonly RateLimitPolicy[],
+  states: readonly RateLimitState[],
+): Headers {
+  const headers = new Headers();
 
-    if (policyHeader !== undefined) {
-      headers.set("ratelimit-policy", policyHeader);
-    }
+  if (policies.length > 0) {
+    headers.set("ratelimit-policy", rateLimitPolicyHeader(policies));
+  }
 
-    headers.set(
-      "ratelimit",
-      rateLimitHeader([
-        { policy, remaining, ...(reset === undefined ? {} : { reset }) },
-      ]),
-    );
+  headers.set("ratelimit", rateLimitHeader(states));
 
-    return headers;
+  return headers;
+}
+
+function refusal(
+  verdict: RateLimitVerdict,
+  policies: readonly RateLimitPolicy[],
+  states: (retryAfter: number) => readonly RateLimitState[],
+): RateLimitOutcome {
+  const retryAfter = Math.max(1, Math.ceil(verdict.retryAfter));
+  const headers = limitHeaders(policies, states(retryAfter));
+  headers.set("retry-after", String(retryAfter));
+
+  return {
+    kind: "deny",
+    error: dbError(
+      "rate_limited",
+      `Too many requests. Retry after ${retryAfter} seconds.`,
+      { retryAfter },
+    ),
+    headers,
   };
+}
+
+function singleGate<I>(
+  options: SingleRateLimitOptions<I>,
+): (input: I) => Promise<RateLimitOutcome> {
+  const policy = options.policy ?? options.scope;
+  assertPolicyName(policy);
+
+  const policies =
+    options.rule === undefined ? [] : [policyOf(policy, options.rule)];
 
   return async (input) => {
     const key = await options.key(input);
@@ -141,22 +203,75 @@ export function rateLimitGate<I>(
     if (verdict.allowed) {
       return {
         kind: "allow",
-        headers: headersFor(Math.max(0, verdict.remaining)),
+        headers: limitHeaders(policies, [
+          { policy, remaining: Math.max(0, verdict.remaining) },
+        ]),
       };
     }
 
-    const retryAfter = Math.max(1, Math.ceil(verdict.retryAfter));
-    const headers = headersFor(0, retryAfter);
-    headers.set("retry-after", String(retryAfter));
-
-    return {
-      kind: "deny",
-      error: dbError(
-        "rate_limited",
-        `Too many requests. Retry after ${retryAfter} seconds.`,
-        { retryAfter },
-      ),
-      headers,
-    };
+    return refusal(verdict, policies, (reset) => [
+      { policy, remaining: 0, reset },
+    ]);
   };
+}
+
+function multiGate<I>(
+  options: MultiRateLimitOptions<I>,
+): (input: I) => Promise<RateLimitOutcome> {
+  return async (input) => {
+    const hits = await options.hits(input);
+
+    if (hits.length === 0) {
+      return { kind: "skip" };
+    }
+
+    for (const hit of hits) {
+      assertPolicyName(hit.scope);
+    }
+
+    const checked = await options.limiter.checkAll(hits);
+
+    if (!checked.ok) {
+      return options.failOpen
+        ? { kind: "skip" }
+        : { kind: "deny", error: checked.error, headers: new Headers() };
+    }
+
+    const verdict = checked.data;
+
+    const policies = hits.flatMap((hit) =>
+      hit.rule === undefined ? [] : [policyOf(hit.scope, hit.rule)],
+    );
+
+    const states = (reset?: number): RateLimitState[] =>
+      hits.map((hit, index) => {
+        const result = verdict.results[index];
+
+        return result === undefined || result.allowed
+          ? {
+              policy: hit.scope,
+              remaining: Math.max(0, result?.remaining ?? 0),
+            }
+          : {
+              policy: hit.scope,
+              remaining: 0,
+              ...(reset === undefined
+                ? {}
+                : { reset: Math.max(1, Math.ceil(result.retryAfter)) }),
+            };
+      });
+
+    if (verdict.allowed) {
+      return { kind: "allow", headers: limitHeaders(policies, states()) };
+    }
+
+    return refusal(verdict, policies, (retryAfter) => states(retryAfter));
+  };
+}
+
+/** Counts a hit for each request and builds the RateLimit fields or the refusal. */
+export function rateLimitGate<I>(
+  options: RateLimitRouteOptions<I>,
+): (input: I) => Promise<RateLimitOutcome> {
+  return "hits" in options ? multiGate(options) : singleGate(options);
 }

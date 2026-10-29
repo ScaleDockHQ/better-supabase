@@ -9,7 +9,11 @@ import type {
   ResolvedConfig,
   ResolvedExtensions,
 } from "./types/config.ts";
-import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
+import type {
+  SqlBlockDefaults,
+  SqlConfig,
+  VectorSearchConfig,
+} from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
 import type { AppTablesInput } from "./types/groups.ts";
 
@@ -147,6 +151,21 @@ function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
       ? {}
       : { tenantScope }),
   };
+}
+
+function blockDefaultsOf(sql: SqlConfig = {}): {
+  readonly blockDefaults?: SqlBlockDefaults;
+} {
+  const { schema, api, ownTablePolicies, tenantScope } = sql;
+
+  const defaults: SqlBlockDefaults = {
+    ...(schema === undefined ? {} : { schema }),
+    ...(api === undefined ? {} : { api }),
+    ...(ownTablePolicies === undefined ? {} : { ownTablePolicies }),
+    ...(tenantScope === undefined ? {} : { tenantScope }),
+  };
+
+  return Object.keys(defaults).length === 0 ? {} : { blockDefaults: defaults };
 }
 
 export const CONFIG_SCHEMA_URL =
@@ -372,6 +391,7 @@ export function resolveConfig(
       ...(config.sql?.tenantColumn === undefined
         ? {}
         : { tenantColumn: config.sql.tenantColumn }),
+      ...blockDefaultsOf(config.sql),
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),
     ...blocks,

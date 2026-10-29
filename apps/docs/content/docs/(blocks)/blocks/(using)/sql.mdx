@@ -1225,11 +1225,11 @@ The hook runs only for the Data API. Queries through
 Public endpoints often limit by something other than a claim: a token in the
 URL, an organization, an AI chat thread. `hit_rate_limit(scope, key)` counts
 one hit of `key` with the same rules and counters, and `createRateLimit` from
-`better-supabase/blocks/queue` calls it from a route handler. `rateLimited()`
+[`better-supabase/rate-limit`](/docs/rate-limit) calls it from a route handler. `rateLimited()`
 answers a refused hit with a `problem+json` 429 and `Retry-After`:
 
 ```ts
-import { createRateLimit, rateLimited } from "better-supabase/blocks/queue";
+import { createRateLimit, rateLimited } from "better-supabase/rate-limit";
 
 const limits = createRateLimit({ sql: postgres.admin });
 

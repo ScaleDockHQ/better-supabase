@@ -52,6 +52,7 @@ export type {
   RealtimeConfig,
   ResolvedSqlConfig,
   SeedConfig,
+  SqlBlockDefaults,
   SqlConfig,
   SqlWorkflow,
   TopicTriggerConfig,

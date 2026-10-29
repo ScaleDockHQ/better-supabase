@@ -315,6 +315,11 @@
       "types": "./dist/realtime/index.d.ts",
       "default": "./dist/realtime/index.js"
     },
+    "./rate-limit": {
+      "@better-supabase/source": "./src/rate-limit/index.ts",
+      "types": "./dist/rate-limit/index.d.ts",
+      "default": "./dist/rate-limit/index.js"
+    },
     "./events": {
       "@better-supabase/source": "./src/events/index.ts",
       "types": "./dist/events/index.d.ts",
@@ -1305,6 +1310,10 @@
       "./realtime": {
         "types": "./dist/realtime/index.d.ts",
         "default": "./dist/realtime/index.js"
+      },
+      "./rate-limit": {
+        "types": "./dist/rate-limit/index.d.ts",
+        "default": "./dist/rate-limit/index.js"
       },
       "./events": {
         "types": "./dist/events/index.d.ts",
