@@ -139,7 +139,7 @@ export default defineConfig({
 ```
 
 It needs the [relations](/docs/blocks/relations) and
-[parties](/docs/blocks/contacts#representatives) blocks. Invite the
+[contacts](/docs/blocks/contacts#representatives) blocks. Invite the
 representative with `party: { type: "person", id }`; once they accept, every
 active `represents` link from that person to a record of a listed type counts
 as a grant. `authority: "inform"` gives `read`, and `authority: "act"` adds
@@ -150,7 +150,7 @@ The access is read from the links on every query, not copied into
 it) closes the record at once, a link that starts later opens it on its
 `valid_from`, and a grant you made by hand stays as it was. Because no grant
 row exists, `grants(subject)` doesn't list these guests; `representativesOf`
-on the parties client does, and the guest sees their records through
+on the contacts client does, and the guest sees their records through
 `representedByMe`.
 
 ## With an authorization provider
