@@ -440,5 +440,6 @@ export default defineConfig({
     "data-lifecycle": { options: { omitPattern: true } },
     acknowledgements: {},
     cases: {},
+    qualifications: {},
   },
 });

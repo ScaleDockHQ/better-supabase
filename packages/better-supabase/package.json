@@ -862,6 +862,11 @@
       "types": "./dist/blocks/cases/index.d.ts",
       "default": "./dist/blocks/cases/index.js"
     },
+    "./blocks/qualifications": {
+      "@better-supabase/source": "./src/blocks/qualifications/index.ts",
+      "types": "./dist/blocks/qualifications/index.d.ts",
+      "default": "./dist/blocks/qualifications/index.js"
+    },
     "./blocks/documents": {
       "@better-supabase/source": "./src/blocks/documents/index.ts",
       "types": "./dist/blocks/documents/index.d.ts",
@@ -1753,6 +1758,10 @@
       "./blocks/cases": {
         "types": "./dist/blocks/cases/index.d.ts",
         "default": "./dist/blocks/cases/index.js"
+      },
+      "./blocks/qualifications": {
+        "types": "./dist/blocks/qualifications/index.d.ts",
+        "default": "./dist/blocks/qualifications/index.js"
       },
       "./blocks/documents": {
         "types": "./dist/blocks/documents/index.d.ts",

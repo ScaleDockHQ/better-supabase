@@ -90,6 +90,7 @@ const PURE_BARRELS = [
   "blocks/access-requests",
   "blocks/acknowledgements",
   "blocks/cases",
+  "blocks/qualifications",
   "blocks/documents",
   "blocks/catalog",
   "blocks/inventory",

@@ -128,6 +128,7 @@ const entries = [
   "blocks/access-requests/index",
   "blocks/acknowledgements/index",
   "blocks/cases/index",
+  "blocks/qualifications/index",
   "blocks/documents/index",
   "blocks/drive/index",
   "blocks/signatures/index",

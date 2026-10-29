@@ -6967,6 +6967,40 @@
       "RpcClient"
     ]
   },
+  "./blocks/qualifications": {
+    "values": [
+      "createQualifications",
+      "dbTransport",
+      "extendBlock",
+      "qualificationsBlock",
+      "qualificationsEvents",
+      "qualificationTypeInputSchema",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Qualification",
+      "QualificationExpiringEventData",
+      "QualificationGap",
+      "QualificationGrantedEventData",
+      "QualificationGrantInput",
+      "QualificationRequirement",
+      "QualificationRevokedEventData",
+      "Qualifications",
+      "QualificationsEvents",
+      "QualificationsOptions",
+      "QualificationType",
+      "QualificationTypeInput",
+      "QualificationTypeInputSchema",
+      "QualificationTypeSavedEventData",
+      "RpcClient"
+    ]
+  },
   "./blocks/documents": {
     "values": [
       "createDocuments",

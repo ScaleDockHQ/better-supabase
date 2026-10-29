@@ -107,4 +107,5 @@ lead-scoring
 posts
 content
 cases
+qualifications
 acknowledgements

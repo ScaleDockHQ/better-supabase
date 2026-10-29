@@ -1,0 +1,89 @@
+---
+title: Qualifications
+description: Qualification types and requirements, holdings for members, companies and assets, gaps by role, expiry and renewal.
+---
+
+`qualifications` records who holds which competence, licence or certificate,
+what each role needs, and what is missing or expiring. A type decides who can
+hold it, how long it lasts and whether evidence is required.
+
+```bash
+better-supabase add qualifications
+```
+
+```ts
+import { createQualifications } from "better-supabase/blocks/qualifications";
+```
+
+## Tables
+
+| Table                          | Holds                                                    |
+| ------------------------------ | -------------------------------------------------------- |
+| `qualification_types`          | The type, its holders, validity and evidence requirement  |
+| `qualification_requirements`   | Which role, team, job title, asset kind or segment needs it |
+| `qualifications`               | One holding, its grant date, expiry and source            |
+
+## Types and requirements
+
+```ts
+await client.saveType(organizationId, {
+  key: "forklift",
+  name: "Forklift licence",
+  holderTypes: ["member", "company"],
+  validForMonths: 36,
+  evidenceRequired: true,
+});
+
+await client.addRequirement(typeId, "role", "member");
+```
+
+A requirement targets a role, a team, a job title, an asset kind, a segment or
+one holder. `gaps` resolves the role requirements against memberships.
+
+## Granting and revoking
+
+`grant(organizationId, { typeKey, holderType, holderId, evidenceNote })`
+records a holding. The expiry comes from the type's validity. A newer grant
+does not delete older rows. `revoke` keeps the row with a reason.
+
+## Reading
+
+`of(holderType, holderId)` returns the holdings with a status: `valid`,
+`expiring` within 30 days, `expired` or `revoked`. `gaps(organizationId)`
+returns one row per member and required type that is missing, expired or
+expiring.
+
+## Renewal
+
+`notifyExpiring()` is a service call: it records `qualification.expired` for
+each holding that expires within 30 days. Run it from a scheduled job.
+
+## Errors
+
+| Hint code                         | Meaning                                      |
+| --------------------------------- | -------------------------------------------- |
+| `QUALIFICATION_FORBIDDEN`         | The caller lacks the permission              |
+| `QUALIFICATION_NOT_FOUND`         | The holding does not exist                   |
+| `QUALIFICATION_TYPE_NOT_FOUND`    | The type does not exist or is archived       |
+| `QUALIFICATION_TYPE_INVALID`      | The key or holder types are invalid          |
+| `QUALIFICATION_HOLDER_INVALID`    | The holder type is not allowed for the type  |
+| `QUALIFICATION_EVIDENCE_REQUIRED` | The type requires evidence                   |
+| `QUALIFICATION_REQUIREMENT_INVALID` | The requirement is invalid or missing      |
+
+## Events
+
+| Type                              | Payload                                                          |
+| --------------------------------- | ---------------------------------------------------------------- |
+| `qualification_type.created`      | `organizationId`, `typeId`, `key`                                |
+| `qualification_type.updated`      | `organizationId`, `typeId`, `key`                                |
+| `qualification.granted`           | `organizationId`, `qualificationId`, `typeKey`, `holderType`, `holderId` |
+| `qualification.revoked`           | `organizationId`, `qualificationId`                              |
+| `qualification.expired`           | `organizationId`, `qualificationId`, `holderType`, `holderId`, `expiresOn` |
+
+## Without the client
+
+`save_qualification_type`, `archive_qualification_type`,
+`list_qualification_types`, `add_qualification_requirement`,
+`remove_qualification_requirement`, `list_qualification_requirements`,
+`grant_qualification`, `revoke_qualification`, `qualifications_of`,
+`qualification_gaps` and `notify_expiring_qualifications`.

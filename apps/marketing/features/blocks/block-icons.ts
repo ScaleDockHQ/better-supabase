@@ -161,6 +161,7 @@ export const BLOCK_ICONS = {
   "access-requests": DoorOpenIcon,
   acknowledgements: BadgeCheckIcon,
   cases: ClipboardCheckIcon,
+  qualifications: BadgeCheckIcon,
   identities: FingerprintIcon,
   // Tenancy & accounts
   memberships: BuildingIcon,

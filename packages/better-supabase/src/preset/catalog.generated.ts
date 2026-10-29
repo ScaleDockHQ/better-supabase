@@ -6930,6 +6930,94 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "qualifications",
+      "title": "Qualifications",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "qualifications",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "types",
+      "entities": {
+        "specs": {
+          "qualification": {
+            "table": "qualifications",
+            "singular": "qualification",
+            "primary": true
+          },
+          "qualification_type": {
+            "table": "types",
+            "singular": "qualification_type"
+          },
+          "qualification_requirement": {
+            "table": "requirements",
+            "singular": "qualification_requirement"
+          }
+        },
+        "tables": {
+          "qualifications": {
+            "name": "qualifications",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "type": "type_id",
+              "holderType": "holder_type",
+              "holderId": "holder_id",
+              "grantedOn": "granted_on",
+              "expiresOn": "expires_on",
+              "revokedAt": "revoked_at",
+              "revokeReason": "revoke_reason",
+              "evidenceNote": "evidence_note",
+              "source": "source",
+              "grantedBy": "granted_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "types": {
+            "name": "qualification_types",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "description": "description",
+              "holderTypes": "holder_types",
+              "validForMonths": "valid_for_months",
+              "evidenceRequired": "evidence_required",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "requirements": {
+            "name": "qualification_requirements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "type": "type_id",
+              "targetType": "target_type",
+              "targetValue": "target_value",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "qualifications.read",
+          "grant": "qualifications.grant",
+          "manage": "qualifications.manage"
+        }
+      }
+    },
+    {
       "name": "acknowledgements",
       "title": "Acknowledgements",
       "category": "collaboration",
@@ -7336,6 +7424,96 @@ export const PRESET_CATALOG: PresetCatalog = {
           "case_kind.created",
           "case_kind.updated"
         ]
+      }
+    },
+    {
+      "name": "qualifications",
+      "sql": [
+        "qualifications"
+      ],
+      "category": "people",
+      "client": {
+        "export": "qualificationsBlock",
+        "subpath": "better-supabase/blocks/qualifications"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "qualification_type": {
+          "input": {
+            "title": "QualificationTypeInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 41
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true
+              },
+              "holderTypes": {
+                "kind": "string",
+                "optional": true,
+                "array": true
+              },
+              "validForMonths": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 240
+              },
+              "evidenceRequired": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "QualificationTypeInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 41
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string"
+                },
+                "holderTypes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "validForMonths": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 240
+                },
+                "evidenceRequired": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "key",
+                "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
       }
     },
     {

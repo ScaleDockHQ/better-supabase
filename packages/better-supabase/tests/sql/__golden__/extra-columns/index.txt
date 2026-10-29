@@ -63,4 +63,5 @@ courses
 messaging
 posts
 cases
+qualifications
 acknowledgements
