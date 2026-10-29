@@ -444,6 +444,16 @@ msgctxt "projects.1eG-hs"
 msgid "One tasks table as a grid, a board, a calendar, a timeline and a Gantt chart."
 msgstr "Eén takentabel als raster, bord, agenda, tijdlijn en Gantt-diagram."
 
+#: src/app/[locale]/(app)/qualifications/page.tsx
+msgctxt "qualifications.9q2Nej"
+msgid "Qualifications"
+msgstr "Kwalificaties"
+
+#: src/app/[locale]/(app)/qualifications/page.tsx
+msgctxt "qualifications.gfuJNy"
+msgid "The certificates and licences members hold, and the required ones that are missing or about to expire."
+msgstr "De certificaten en vergunningen die leden hebben, en de verplichte die ontbreken of bijna verlopen."
+
 #: src/app/[locale]/(app)/rules/[rule]/page.tsx
 msgctxt "rules.XkosHt"
 msgid "All rules"
@@ -8005,6 +8015,11 @@ msgid "Compliance"
 msgstr "Compliance"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.9q2Nej"
+msgid "Qualifications"
+msgstr "Kwalificaties"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Meldingen"
@@ -9716,6 +9731,140 @@ msgctxt "push.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
 
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.iiTeG-"
+msgid "Your qualifications didn't load"
+msgstr "Je kwalificaties zijn niet geladen"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/qualifications/components/my-qualifications.tsx
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.BN5yXZ"
+msgid "Valid"
+msgstr "Geldig"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.FsQ6XB"
+msgid "Expiring"
+msgstr "Verloopt binnenkort"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.RahCRH"
+msgid "Expired"
+msgstr "Verlopen"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.f0W26f"
+msgid "Revoked"
+msgstr "Ingetrokken"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.d9ZLIj"
+msgid "My qualifications"
+msgstr "Mijn kwalificaties"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.zPdMFv"
+msgid "The certificates and licences you hold, and the ones your role still requires."
+msgstr "De certificaten en vergunningen die je hebt, en die je rol nog vereist."
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.PaYY_O"
+msgid "Nothing to show yet"
+msgstr "Nog niets te tonen"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.HncnQa"
+msgid "Qualifications appear here once an admin grants one or you complete a course that awards one."
+msgstr "Kwalificaties verschijnen hier zodra een beheerder er een toekent of je een cursus afrondt die er een oplevert."
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications._VQpyO"
+msgid "Expires {date}"
+msgstr "Verloopt op {date}"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.CLPZEn"
+msgid "Never expires"
+msgstr "Verloopt nooit"
+
+#: src/features/qualifications/components/my-qualifications.tsx
+msgctxt "qualifications.-JirHd"
+msgid "Still required"
+msgstr "Nog vereist"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.6EXyFZ"
+msgid "The qualification gaps didn't load"
+msgstr "De ontbrekende kwalificaties zijn niet geladen"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.iB4NL8"
+msgid "No qualifications yet"
+msgstr "Nog geen kwalificaties"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.IR-dXM"
+msgid "Add a qualification type such as a forklift licence, then name the roles or teams that must hold it."
+msgstr "Voeg een kwalificatietype toe, zoals een heftruckcertificaat, en noem dan de rollen of teams die het moeten hebben."
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.pGk7PH"
+msgid "Read the qualifications guide"
+msgstr "Lees de handleiding voor kwalificaties"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.DkkVJF"
+msgid "Missing"
+msgstr "Ontbreekt"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.k6d5sB"
+msgid "Qualification gaps"
+msgstr "Ontbrekende kwalificaties"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.JViQiM"
+msgid "Members who lack a required qualification, hold an expired one or will lose one soon."
+msgstr "Leden die een verplichte kwalificatie missen, een verlopen hebben of er binnenkort een verliezen."
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.320L3T"
+msgid "Every member holds the qualifications their role requires."
+msgstr "Elk lid heeft de kwalificaties die de rol vereist."
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.7L86Z5"
+msgid "Member"
+msgstr "Lid"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.sQk2Pd"
+msgid "Qualification"
+msgstr "Kwalificatie"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/qualifications/components/qualification-matrix.tsx
+msgctxt "qualifications.xhQMeQ"
+msgid "Expires"
+msgstr "Verloopt"
+
 #: src/features/roles/components/permission-matrix.tsx
 msgctxt "roles.JzR7p4"
 msgid "Search permissions"
@@ -10762,14 +10911,14 @@ msgid "Damaged"
 msgstr "Beschadigd"
 
 #: src/features/shop/components/adjust-stock-dialog.tsx
-msgctxt "shop.PvBlVy"
-msgid "Scrapped"
-msgstr "Afgeschreven"
-
-#: src/features/shop/components/adjust-stock-dialog.tsx
 msgctxt "shop.FL6lKX"
 msgid "Lost"
 msgstr "Kwijt"
+
+#: src/features/shop/components/adjust-stock-dialog.tsx
+msgctxt "shop.PvBlVy"
+msgid "Scrapped"
+msgstr "Afgeschreven"
 
 #: src/features/shop/components/adjust-stock-dialog.tsx
 msgctxt "shop.wm96Jx"
@@ -11330,14 +11479,14 @@ msgid "Draft"
 msgstr "Concept"
 
 #: src/features/shop/components/order-status-badge.tsx
-msgctxt "shop.dX7-Rv"
-msgid "Confirmed"
-msgstr "Bevestigd"
-
-#: src/features/shop/components/order-status-badge.tsx
 msgctxt "shop.M1w9up"
 msgid "Awaiting payment"
 msgstr "Wacht op betaling"
+
+#: src/features/shop/components/order-status-badge.tsx
+msgctxt "shop.dX7-Rv"
+msgid "Confirmed"
+msgstr "Bevestigd"
 
 #: src/features/shop/components/order-status-badge.tsx
 msgctxt "shop.jY-f2f"
