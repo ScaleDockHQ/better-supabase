@@ -87,7 +87,7 @@ await invoices.create(organizationId, {
 
 ## Change or delete a draft
 
-`update(invoiceId, patch)` changes a draft's header: `title`, `company`, `contact`, `termsDays`, `note`, `depositBps`, `pricesIncludeTax` and `fields`. A key left out keeps its value, `null` clears it, and the block's columns and the extra columns are written in one `update`, so a check across both holds. Changing `pricesIncludeTax` counts the totals again. `delete(invoiceId)` deletes a draft with its lines and charges and returns `true`; an issued invoice keeps its number and is voided instead (`INVOICE_NOT_DRAFT`).
+`update(invoiceId, patch)` changes a draft's header: `title`, `company`, `contact`, `termsDays`, `note`, `depositBps`, `pricesIncludeTax`, `discountBps`, `discountAmount` and `fields`. A key left out keeps its value, `null` clears it, and the block's columns and the extra columns are written in one `update`, so a check across both holds. Changing `pricesIncludeTax` or the header discount counts the totals again. `delete(invoiceId)` deletes a draft with its lines and charges and returns `true`; an issued invoice keeps its number and is voided instead (`INVOICE_NOT_DRAFT`).
 
 ```ts
 await db.invoices.update(draftId, {
@@ -203,7 +203,7 @@ The functions check the keys themselves, so a member without `invoice.send` can'
 
 ### Totals the app keeps
 
-By default the block recounts an invoice's totals from its lines, rounding each line once. When the app computes them itself, for example VAT per rate on the summed lines or a document discount, set `options.totals: "app"`. The block then installs no totals trigger, never writes `subtotal`, `taxTotal` or `total`, and reads what they hold for the balance, credits, events and aging. `listTotal` and `discountTotal` can map to `null` then; reads fill them from the subtotal and zero.
+By default the block recounts an invoice's totals from its lines, rounding each line once, from each line's `discountBps` and `taxRateBps` and the header's pricing. It knows no fixed discount per line and no VAT regime that keeps the line rates but counts no VAT (reverse charge, exempt, a small-business scheme). When the app computes them itself, for those or for VAT per rate on the summed lines, set `options.totals: "app"`. The block then installs no totals trigger, never writes `subtotal`, `taxTotal` or `total`, and reads what they hold for the balance, credits, events and aging. `listTotal` and `discountTotal` can map to `null` then; reads fill them from the subtotal and zero.
 
 ### A customer, contact or quote as a foreign key
 
@@ -240,6 +240,36 @@ const final = await invoices.fromQuote(quoteId).orThrow();
 
 The quote must be accepted (`INVOICE_QUOTE_NOT_ACCEPTED`). A deposit invoice has one line for that share of the quote's subtotal at the quote's average tax rate, or of its total when the quote's prices include tax. The final invoice copies the lines the customer accepted (required lines and the optional lines they selected), adds one `Discount` line per tax rate for the quote's document discount, and subtracts each deposit invoice already issued; it is made once per quote, so calling it again returns the same draft. It takes the quote's `pricesIncludeTax`, so its totals and tax match the accepted quote.
 
+`fromQuote(quoteId, { depositAmount })` makes a deposit invoice for a fixed amount, tax included, at most the quote's total; a share and an amount together answer `INVOICE_DEPOSIT_INVALID`. Both invoices copy the line extra columns (`lineExtraColumns`) and the header extra columns (`extraColumns`) the quote has under the same name, such as a unit, a line type or a VAT regime.
+
+These columns of the invoices table are opt-in: name them in `columns.invoices` to use them, and the block adds them to its own table. An app table made before them keeps working without them.
+
+| Column           | What it does                                                                                    |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| `depositAmount`  | holds a fixed deposit invoice's amount and marks it as a deposit; `create` and `update` take it |
+| `discountBps`    | a percentage off the whole invoice, counted like a quote's document discount                    |
+| `discountAmount` | an amount off the whole invoice, after `discountBps`                                            |
+
+With `discountBps` (and `discountAmount`, when the quote has it), the final invoice keeps the quote's document discount on its header instead of `Discount` lines. While deposits are deducted and the block counts the totals, it keeps the lines: a header discount would take its share off the deductions too. With `totals: "app"`, the header always gets it.
+
+A deposit invoice is told from the final one by `depositBps` or `depositAmount`. `options.depositKind` marks it by the kind column instead: one of the values the `invoice` kind maps to, which `fromQuote` writes on a deposit invoice and finds the deposits to deduct by, with the link to the quote. The block treats it as an invoice everywhere else.
+
+```ts
+blocks: {
+  invoices: {
+    columns: { invoices: { depositBps: null, discountBps: "discount_bps", discountAmount: "discount_amount_cents" } },
+    options: { totals: "app", depositKind: "deposit" },
+    values: { invoices: { kind: { invoice: ["invoice", "deposit"] } } },
+  },
+}
+```
+
+```ts
+const deposit = await invoices
+  .fromQuote(quoteId, { depositAmount: money(50_000n, "EUR") })
+  .orThrow();
+```
+
 An invoice with `pricesIncludeTax: true` counts tax out of its unit amounts instead of adding it. `create` takes it, a credit note copies it, and `invoice.pricesIncludeTax` reads it. An invoices table of yours without the `prices_include_tax` column refuses it (`INVOICE_PRICING_UNSUPPORTED`).
 
 ## Aging
@@ -264,35 +294,37 @@ The module calls `before_invoice_issue(invoice uuid)`, `after_invoice_issue(invo
 
 ## Errors
 
-| Hint                          | Cause                                                                                       |
-| ----------------------------- | ------------------------------------------------------------------------------------------- |
-| `INVOICE_FORBIDDEN`           | the caller lacks `invoices.write`                                                           |
-| `INVOICE_ATTRS_INVALID`       | a missing title or a field with a bad value                                                 |
-| `INVOICE_NOT_FOUND`           | no invoice the caller can edit (or manage, for void)                                        |
-| `INVOICE_NOT_DRAFT`           | the invoice was already issued, so it no longer changes and isn't deleted                   |
-| `INVOICE_EMPTY`               | an invoice without lines can't be issued                                                    |
-| `INVOICE_NOT_PAYABLE`         | only an issued invoice takes payments, or a written-off one with `paymentsAfterWriteOff`    |
-| `INVOICE_PAYMENT_INVALID`     | a payment needs an amount                                                                   |
-| `INVOICE_CURRENCY_MISMATCH`   | a payment isn't in the invoice's currency                                                   |
-| `INVOICE_REFUND_TOO_LARGE`    | a refund is more than was paid                                                              |
-| `INVOICE_NOT_CREDITABLE`      | only an issued invoice is credited                                                          |
-| `INVOICE_CREDIT_TOO_LARGE`    | the credit is more than the total less earlier credits                                      |
-| `INVOICE_DUE_INVALID`         | the due date is before the issue date                                                       |
-| `INVOICE_PAYMENT_NOT_FOUND`   | no such payment on an invoice the caller can manage                                         |
-| `INVOICE_PAYMENT_PROVIDER`    | the payment came from a payment provider and is refunded there                              |
-| `INVOICE_PAYMENT_REVERSED`    | the payment is a reversal or is already reversed                                            |
-| `INVOICE_CHARGE_NOT_FOUND`    | no such charge on an invoice the caller can edit                                            |
-| `INVOICE_NOT_VOIDABLE`        | an invoice with payments or credits is credited instead                                     |
-| `INVOICE_NOT_OPEN`            | only an open invoice is written off                                                         |
-| `INVOICE_QUOTE_NOT_ACCEPTED`  | the quote isn't accepted                                                                    |
-| `INVOICE_DEPOSIT_INVALID`     | a deposit is between 0 and 100 percent                                                      |
-| `INVOICE_ORIGIN_NOT_FOUND`    | no quote the caller can invoice                                                             |
-| `INVOICE_NOT_CHARGEABLE`      | only an issued invoice takes charges                                                        |
-| `INVOICE_CHARGE_INVALID`      | a charge has a positive amount                                                              |
-| `INVOICE_COMPANY_UNSUPPORTED` | the invoices table takes only the fixed company type                                        |
-| `CURRENCY_MISMATCH`           | a line, credit or payment isn't in the record's currency; returned before any database call |
-| `CURRENCY_INVALID`            | the currency isn't an ISO 4217 code                                                         |
-| `LINES_CURRENCY`              | a line sent straight to SQL isn't in the record's currency                                  |
+| Hint                           | Cause                                                                                       |
+| ------------------------------ | ------------------------------------------------------------------------------------------- |
+| `INVOICE_FORBIDDEN`            | the caller lacks `invoices.write`                                                           |
+| `INVOICE_ATTRS_INVALID`        | a missing title or a field with a bad value                                                 |
+| `INVOICE_NOT_FOUND`            | no invoice the caller can edit (or manage, for void)                                        |
+| `INVOICE_NOT_DRAFT`            | the invoice was already issued, so it no longer changes and isn't deleted                   |
+| `INVOICE_EMPTY`                | an invoice without lines can't be issued                                                    |
+| `INVOICE_NOT_PAYABLE`          | only an issued invoice takes payments, or a written-off one with `paymentsAfterWriteOff`    |
+| `INVOICE_PAYMENT_INVALID`      | a payment needs an amount                                                                   |
+| `INVOICE_CURRENCY_MISMATCH`    | a payment isn't in the invoice's currency                                                   |
+| `INVOICE_REFUND_TOO_LARGE`     | a refund is more than was paid                                                              |
+| `INVOICE_NOT_CREDITABLE`       | only an issued invoice is credited                                                          |
+| `INVOICE_CREDIT_TOO_LARGE`     | the credit is more than the total less earlier credits                                      |
+| `INVOICE_DUE_INVALID`          | the due date is before the issue date                                                       |
+| `INVOICE_PAYMENT_NOT_FOUND`    | no such payment on an invoice the caller can manage                                         |
+| `INVOICE_PAYMENT_PROVIDER`     | the payment came from a payment provider and is refunded there                              |
+| `INVOICE_PAYMENT_REVERSED`     | the payment is a reversal or is already reversed                                            |
+| `INVOICE_CHARGE_NOT_FOUND`     | no such charge on an invoice the caller can edit                                            |
+| `INVOICE_NOT_VOIDABLE`         | an invoice with payments or credits is credited instead                                     |
+| `INVOICE_NOT_OPEN`             | only an open invoice is written off                                                         |
+| `INVOICE_QUOTE_NOT_ACCEPTED`   | the quote isn't accepted                                                                    |
+| `INVOICE_DEPOSIT_INVALID`      | a deposit is between 0 and 100 percent, or an amount up to the quote's total, not both      |
+| `INVOICE_DEPOSIT_UNSUPPORTED`  | the invoices table has no column for that deposit                                           |
+| `INVOICE_DISCOUNT_UNSUPPORTED` | the invoices table has no column for a header discount                                      |
+| `INVOICE_ORIGIN_NOT_FOUND`     | no quote the caller can invoice                                                             |
+| `INVOICE_NOT_CHARGEABLE`       | only an issued invoice takes charges                                                        |
+| `INVOICE_CHARGE_INVALID`       | a charge has a positive amount                                                              |
+| `INVOICE_COMPANY_UNSUPPORTED`  | the invoices table takes only the fixed company type                                        |
+| `CURRENCY_MISMATCH`            | a line, credit or payment isn't in the record's currency; returned before any database call |
+| `CURRENCY_INVALID`             | the currency isn't an ISO 4217 code                                                         |
+| `LINES_CURRENCY`               | a line sent straight to SQL isn't in the record's currency                                  |
 
 ## Without the client
 

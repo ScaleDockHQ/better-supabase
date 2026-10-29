@@ -250,6 +250,11 @@ export interface LineItems {
    */
   readonly totals?: boolean;
   readonly extras?: readonly ExtraColumn[];
+  /**
+   * Whether the record table has a logical column, for a module whose optional
+   * columns are opt-in. Defaults to `declared`.
+   */
+  readonly parentHas?: (column: string) => boolean;
   /** The logical table the recount writes the record's tax per rate to. */
   readonly taxLines?: string;
   /**
@@ -651,10 +656,12 @@ export function documentTotals(
   ctx: BlockSqlContext,
   items: LineItems,
 ): boolean {
+  const parentHas =
+    items.parentHas ??
+    ((column: string): boolean => declared(ctx, items.parent, column));
+
   return (
-    ["pricesIncludeTax", "discountBps", "discountAmount"].some((column) =>
-      declared(ctx, items.parent, column),
-    ) ||
+    ["pricesIncludeTax", "discountBps", "discountAmount"].some(parentHas) ||
     declared(ctx, items.lines, "optional") ||
     (items.taxLines !== undefined && ctx.hasTable(items.taxLines))
   );
@@ -684,8 +691,9 @@ function documentRecountSql(
   const l = (column: string): string =>
     lineColumn(ctx, items.lines, "l", column);
 
-  const parentHas = (column: string): boolean =>
-    declared(ctx, items.parent, column);
+  const parentHas =
+    items.parentHas ??
+    ((column: string): boolean => declared(ctx, items.parent, column));
 
   const parent = `${options.setter}_recount.parent`;
   const amount = lineAmount(ctx, items.lines, "l");

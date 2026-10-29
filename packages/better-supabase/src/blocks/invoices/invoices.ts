@@ -112,6 +112,12 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly origin?: RecordRef;
   /** For a deposit invoice: its share of the quote in basis points. */
   readonly depositBps?: number;
+  /** For a fixed deposit invoice: its amount, tax included. */
+  readonly depositAmount?: Money;
+  /** A percentage off the whole invoice, when the table has the column. */
+  readonly discountBps?: number;
+  /** An amount off the whole invoice, after `discountBps`. */
+  readonly discountAmount?: Money;
   /** Unit amounts include tax, so tax is counted out of them. */
   readonly pricesIncludeTax: boolean;
   readonly lines: readonly Line[];
@@ -133,6 +139,10 @@ export interface InvoiceInput<F extends object = Record<never, never>> {
   readonly origin?: RecordRef;
   /** Unit amounts include tax. Needs the `prices_include_tax` column. */
   readonly pricesIncludeTax?: boolean;
+  /** A percentage off the whole invoice. Needs the `discountBps` column. */
+  readonly discountBps?: number;
+  /** An amount off the whole invoice. Needs the `discountAmount` column. */
+  readonly discountAmount?: Money;
   /** Values for the extra columns, by column name. */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -145,6 +155,8 @@ export interface InvoicePatch<F extends object = Record<never, never>> {
   readonly note?: string | null;
   readonly depositBps?: number | null;
   readonly pricesIncludeTax?: boolean;
+  readonly discountBps?: number;
+  readonly discountAmount?: Money;
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -256,11 +268,12 @@ export interface Invoices<F extends object = Record<never, never>> {
   payments(invoiceId: string): AsyncResult<readonly InvoicePayment[]>;
   /**
    * An invoice from an accepted quote: the full invoice once, minus the
-   * deposits already issued, or a deposit invoice for `depositBps` of it.
+   * deposits already issued, or a deposit invoice for `depositBps` of it or a
+   * fixed `depositAmount`, tax included.
    */
   fromQuote(
     quoteId: string,
-    options?: { readonly depositBps?: number },
+    options?: { readonly depositBps?: number; readonly depositAmount?: Money },
   ): AsyncResult<Invoice<F>>;
 }
 
@@ -306,6 +319,9 @@ const KNOWN = new Set([
   "origin_type",
   "origin_id",
   "deposit_bps",
+  "deposit_amount",
+  "discount_bps",
+  "discount_amount",
   "prices_include_tax",
   "created_by",
   "created_at",
@@ -397,6 +413,16 @@ function invoiceOf(value: unknown): Invoice {
     origin: refOf(row["origin_type"], row["origin_id"]),
     depositBps:
       typeof row["deposit_bps"] === "number" ? row["deposit_bps"] : undefined,
+    depositAmount:
+      typeof row["deposit_amount"] === "string"
+        ? moneyOf(row["deposit_amount"], currency, "invoice depositAmount")
+        : undefined,
+    discountBps:
+      typeof row["discount_bps"] === "number" ? row["discount_bps"] : undefined,
+    discountAmount:
+      typeof row["discount_amount"] === "string"
+        ? moneyOf(row["discount_amount"], currency, "invoice discountAmount")
+        : undefined,
     pricesIncludeTax: row["prices_include_tax"] === true,
     lines: recordsOf(row["lines"], "invoice lines").map((line) =>
       lineOf(line, currency),
@@ -439,7 +465,7 @@ export function createInvoices<
 
   const client: Invoices<F> = {
     create: (organizationId, input, lines) => {
-      const { fields: extra, ...rest } = input;
+      const { fields: extra, discountAmount, ...rest } = input;
       const amounts = (lines ?? []).map((line) => line.unitAmount);
       const invalid = amountsError(input.currency, amounts);
 
@@ -456,6 +482,9 @@ export function createInvoices<
             attrs: attrsArg({
               ...rest,
               ...(currency === undefined ? {} : { currency }),
+              ...(discountAmount === undefined
+                ? {}
+                : { discountAmount: amountText(discountAmount) }),
               ...valid,
             }),
             lines: lines === undefined ? null : lines.map(lineArg),
@@ -463,13 +492,19 @@ export function createInvoices<
       );
     },
     update: (invoiceId, patch) => {
-      const { fields: extra, ...rest } = patch;
+      const { fields: extra, discountAmount, ...rest } = patch;
 
       return AsyncResult.from(() => fields.write({ ...extra })).andThen(
         (valid) =>
           invoice("update_invoice", {
             invoice: invoiceId,
-            attrs: attrsArg({ ...rest, ...valid }),
+            attrs: attrsArg({
+              ...rest,
+              ...(discountAmount === undefined
+                ? {}
+                : { discountAmount: amountText(discountAmount) }),
+              ...valid,
+            }),
           }),
       );
     },
@@ -600,6 +635,9 @@ export function createInvoices<
       invoice("invoice_from_quote", {
         quote: quoteId,
         deposit_bps: fromQuote.depositBps ?? null,
+        ...(fromQuote.depositAmount === undefined
+          ? {}
+          : { deposit_amount: amountText(fromQuote.depositAmount) }),
       }),
   };
 
