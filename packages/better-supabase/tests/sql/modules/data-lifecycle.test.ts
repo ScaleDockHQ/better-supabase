@@ -23,7 +23,7 @@ const sqlOf = (
 describe("data-lifecycle module", () => {
   it("leaves share link token hashes out of exports", () => {
     expect(sqlOf(["data-lifecycle", "share-links"])).toContain(
-      `'"better_supabase"."share_links"', 'created_by', true, array['token_hash']::text[]`,
+      `'"better_supabase"."share_links"', 'created_by', true, array['token_hash', 'password_hash']::text[]`,
     );
   });
 

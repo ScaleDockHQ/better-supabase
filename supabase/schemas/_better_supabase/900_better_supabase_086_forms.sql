@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:5ce94d80e9dc349f99975c9ecd3083ee77f34255c2faa63e2a6d8c24956e3197
+-- @bsb-hash sha256:67332042f552785b2bc67c53bdf44f7aeea8a5d99daa369141828a35ceca685c
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -952,6 +952,7 @@ begin
     and k."revoked_at" is null
     and (k."expires_at" is null or k."expires_at" > now())
     and (k."max_uses" is null or k."use_count" < k."max_uses")
+    and k."password_hash" is null
     and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';
@@ -993,6 +994,7 @@ begin
     and k."revoked_at" is null
     and (k."expires_at" is null or k."expires_at" > now())
     and (k."max_uses" is null or k."use_count" < k."max_uses")
+    and k."password_hash" is null
     and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';

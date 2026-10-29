@@ -13,9 +13,7 @@ better-supabase add share-links
 import { createShareLinks } from "better-supabase/blocks/share-links";
 ```
 
-When the rate-limit module is installed, resolve is a place to apply it.
-
-`create(subject, { role, versionId, expiresAt })` takes the subject as a `RecordRef` (`{ type, id }`) and acts in the block's `tenant`. It takes the role (`view` by default), an optional `Temporal.Instant` after which the link stops resolving and, with the [versions](/docs/blocks/versions#share-a-version) module installed, a version of the subject to pin the link to. An `expiresAt` that is not in the future fails with `SHARE_EXPIRY_INVALID`. `resolve(token)` returns the link's id, `organizationId`, `subject` (a `RecordRef`), role, `versionId` and `expiresAt`, or `null` when the token is unknown, revoked or expired.
+`create(subject, { role, versionId, expiresAt, maxUses, password, downloadAllowed })` takes the subject as a `RecordRef` (`{ type, id }`) and acts in the block's `tenant`. It takes the role (`view` by default), an optional `Temporal.Instant` after which the link stops resolving and, with the [versions](/docs/blocks/versions#share-a-version) module installed, a version of the subject to pin the link to. An `expiresAt` that is not in the future fails with `SHARE_EXPIRY_INVALID`. `resolve(token, { password })` returns the link's id, `organizationId`, `subject` (a `RecordRef`), role, `versionId`, `expiresAt`, `downloadAllowed` and `passwordRequired`, or `null` when the token is unknown, revoked or expired.
 
 ```ts
 const link = await shareLinks
@@ -31,6 +29,42 @@ links, `recordView(subject, viewerKind, viewer?)` counts a view in the
 block's tenant, and `setState(subject, starred)` stars or unstars it for the
 caller. A call that needs a tenant and has none fails with `invalid_request`
 and the hint `TENANT_REQUIRED`.
+
+## Passwords
+
+Pass `password` to `create` to make a link that opens only with it. It needs at least 8 characters (`SHARE_LINK_PASSWORD_INVALID` otherwise), and the table keeps only its bcrypt hash (`extensions.crypt` with `gen_salt('bf')`) in `password_hash`, which data exports leave out.
+
+```ts
+const link = await shareLinks
+  .create({ type: "doc", id: docId }, { password: "correct horse battery" })
+  .orThrow();
+
+const opened = await shareLinks.resolve(token, { password: input });
+```
+
+Until the call passes the right password, `resolve` fails with `unauthorized`, the hint `SHARE_LINK_PASSWORD_REQUIRED`, the code `28P01` and the details `{"required":true}`, so a guest page can ask for it. Underneath, `resolve_share_link(token, password)` returns `{ "passwordRequired": true }` instead of raising, which keeps the attempt it counted, and a locked resolve counts no use of the link.
+
+With the [rate-limit](/docs/blocks/sql) module installed, each wrong password counts against the link under the scope `share_link_password`: 10 per 15 minutes, unless `set_rate_limit('share_link_password', ...)` sets another rule. Once a link is over the limit, every resolve with a password fails with `rate_limited` and the hint `SHARE_LINK_RATE_LIMITED` until the window ends, the right password included. Without rate-limit, wrong passwords are not counted.
+
+The functions other modules serve a link through (calendar feeds, booking pages, public forms, drive links, shared AI chats and leave feeds) take no password, so they don't open a link that has one.
+
+## Download and upload links
+
+`downloadAllowed: false` makes a view-only link: `resolve` and `list` return `downloadAllowed: false`. The block serves no files itself, so the page or block that serves the subject's files checks the flag before it offers a download. It defaults to `true`.
+
+The roles a link may carry depend on its subject type. A type that another block shares lists them in its contribution (`roles`, `["view"]` unless set), and `create` refuses any other role with `SHARE_LINK_ROLE_INVALID`. Public forms take `respond`. Types from `config.subjects` and `blocks["share-links"].on` take any role.
+
+## Errors
+
+| Hint                           | When                                                                                 |
+| ------------------------------ | ------------------------------------------------------------------------------------ |
+| `SHARE_EXPIRY_INVALID`         | `expiresAt` is not in the future                                                     |
+| `SHARE_MAX_USES_INVALID`       | `maxUses` is below 1                                                                 |
+| `SHARE_LINK_PASSWORD_INVALID`  | the password is shorter than 8 characters, or the links table has no password column |
+| `SHARE_LINK_DOWNLOAD_INVALID`  | `downloadAllowed: false` on a links table without a `download_allowed` column        |
+| `SHARE_LINK_ROLE_INVALID`      | the subject type's links can't carry the role                                        |
+| `SHARE_LINK_PASSWORD_REQUIRED` | `resolve` got no password or a wrong one                                             |
+| `SHARE_LINK_RATE_LIMITED`      | too many wrong passwords for the link                                                |
 
 ## Permissions
 

@@ -129,8 +129,8 @@ backlogs too large to clear in the upgrade.
   in `apps/examples/expo-powersync`, which runs the dev server and exports
   and never ships in the package. It ends when a fixed `node-forge` ships or
   `@expo/cli` drops it.
-- `pnpm audit` also ignores GHSA-vcc3-ghjq-m6fr. The fixed
-  `decode-uri-component` (0.5) is ESM-only, and the only path to it is
+- `pnpm audit` also ignores GHSA-vcc3-ghjq-m6fr and GHSA-qr28-fpjm-wq7f. The fixed
+  `decode-uri-component` (0.5, and 0.5.1 for the second) is ESM-only, and the only path to it is
   `expo-router` through `query-string` 7 in `apps/examples/expo-powersync`,
   which requires it as a function, so an override would break the example.
   It ends when `expo-router` moves to `query-string` 8 or later.

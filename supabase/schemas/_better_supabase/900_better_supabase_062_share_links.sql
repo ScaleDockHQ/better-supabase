@@ -1,7 +1,7 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:f7729baf8462d0585b0910d15b2172c2a7881c916f6f64626ec228feacd9ee8d
--- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed.
+-- @bsb-hash sha256:854e12a628169b1f41399285bae34e308ad6045a4b9445d2317e0109b85b46ae
+-- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -72,6 +72,8 @@ create table if not exists "better_supabase"."share_links" (
 alter table "better_supabase"."share_links" add column if not exists "version_id" uuid;
 alter table "better_supabase"."share_links" add column if not exists "use_count" integer not null default 0;
 alter table "better_supabase"."share_links" add column if not exists "last_used_at" timestamptz;
+alter table "better_supabase"."share_links" add column if not exists "password_hash" text;
+alter table "better_supabase"."share_links" add column if not exists "download_allowed" boolean not null default true;
 alter table "better_supabase"."share_links" enable row level security;
 revoke all on "better_supabase"."share_links" from public, anon, authenticated;
 grant select on "better_supabase"."share_links" to authenticated;
@@ -114,8 +116,17 @@ drop function if exists "better_supabase"."create_share_link"(uuid, text, text, 
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz);
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, jsonb);
 -- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer);
 drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, jsonb);
-create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null, max_uses integer default null)
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text);
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, jsonb);
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, boolean, jsonb);
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, text, boolean);
+drop function if exists "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, text, boolean, jsonb);
+-- password: at least 8 characters; resolve_share_link then needs it.
+-- download_allowed: false tells the block that serves the subject not to offer
+-- a download.
+create or replace function "better_supabase"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null, max_uses integer default null, password text default null, download_allowed boolean default true)
 returns jsonb
 language plpgsql
 security definer
@@ -125,6 +136,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -138,7 +150,20 @@ begin
   if create_share_link.max_uses is not null and create_share_link.max_uses < 1 then
     raise exception 'max_uses must be at least 1' using errcode = '22023', hint = 'SHARE_MAX_USES_INVALID';
   end if;
+  if create_share_link.password is not null and char_length(create_share_link.password) < 8 then
+    raise exception 'a link password needs at least 8 characters' using errcode = '22023', hint = 'SHARE_LINK_PASSWORD_INVALID';
+  end if;
 
+  if coalesce(create_share_link.role, 'view') <> all (case create_share_link.subject_type
+    when 'ai-chat' then array['view']::text[]
+    when 'calendar' then array['view']::text[]
+    when 'booking_service' then array['view']::text[]
+    when 'drive_node' then array['view']::text[]
+    when 'form' then array['respond']::text[]
+    else array[coalesce(create_share_link.role, 'view')]
+  end) then
+    raise exception 'this subject type''s links can''t carry that role' using errcode = '22023', hint = 'SHARE_LINK_ROLE_INVALID';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     v_subject_ok := case create_share_link.subject_type
     when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.organization_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
@@ -210,15 +235,18 @@ begin
     where x."tenant_id" = create_share_link.tenant and x."subject_type" = create_share_link.subject_type
       and x."subject_id" = create_share_link.subject_id and x."created_by" is not distinct from auth.uid() and x."revoked_at" is null;
   end if;
-  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id)
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
+  insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   perform "better_supabase".emit_event('share_link.created', jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id), 'share-links/' || v_id::text, (create_share_link.tenant)::text, null, 'better-supabase/share-links');
   return jsonb_build_object('id', v_id, 'token', v_token);
 end;
 $$;
-revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) from public, anon;
-grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) to authenticated, service_role;
+revoke execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, boolean) from public, anon;
+grant execute on function "better_supabase"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, boolean) to authenticated, service_role;
 
 -- The link's creator, or a caller who may create links in its tenant, may
 -- revoke it. Anyone else gets SHARE_NOT_FOUND, so ids can't be probed.
@@ -258,8 +286,11 @@ grant execute on function "better_supabase"."revoke_share_link"(uuid) to authent
 
 -- Each resolve counts one use, so a link with max_uses stops resolving once
 -- it is spent. The row lock keeps two concurrent resolves from both taking
--- the last use.
-create or replace function "better_supabase"."resolve_share_link"(token text)
+-- the last use. A link with a password returns only
+-- { "passwordRequired": true } until the call passes the password, and
+-- counts no use for it.
+drop function if exists "better_supabase"."resolve_share_link"(text);
+create or replace function "better_supabase"."resolve_share_link"(token text, password text default null)
 returns jsonb
 language plpgsql
 volatile
@@ -268,6 +299,7 @@ set search_path = ''
 as $$
 declare
   v_link "better_supabase"."share_links"%rowtype;
+  v_retry integer;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -282,12 +314,29 @@ begin
   if not found then
     return null;
   end if;
+  if v_link."password_hash" is not null then
+    if resolve_share_link.password is null then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+    select greatest(1, ceil(extract(epoch from k."window_start" + k."period" - now()))::integer) into v_retry
+    from "better_supabase"."rate_limits" k
+    where k."scope" = 'share_link_password' and k."key" = v_link."id"::text
+      and k."window_start" + k."period" > now()
+      and k."hits" >= coalesce((select q."max_requests" from "better_supabase"."rate_limit_rules" q where q."scope" = 'share_link_password'), 10);
+    if v_retry is not null then
+      raise exception 'too many wrong passwords for this link' using errcode = 'BS429', hint = 'SHARE_LINK_RATE_LIMITED', detail = 'retry after ' || v_retry;
+    end if;
+    if extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash" then
+      perform 1 from "better_supabase"."hit_rate_limit"('share_link_password', v_link."id"::text, case when exists (select 1 from "better_supabase"."rate_limit_rules" q where q."scope" = 'share_link_password') then null else 10 end, case when exists (select 1 from "better_supabase"."rate_limit_rules" q where q."scope" = 'share_link_password') then null else interval '15 minutes' end);
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+  end if;
   update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
-  return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses");
+  return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses", 'downloadAllowed', v_link."download_allowed", 'passwordRequired', v_link."password_hash" is not null);
 end;
 $$;
-revoke all on function "better_supabase"."resolve_share_link"(text) from public, anon, authenticated;
-grant execute on function "better_supabase"."resolve_share_link"(text) to anon, authenticated, service_role;
+revoke all on function "better_supabase"."resolve_share_link"(text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."resolve_share_link"(text, text) to anon, authenticated, service_role;
 
 create or replace function "better_supabase"."record_view"(tenant uuid, subject_type text, subject_id text, viewer_kind text, viewer text)
 returns boolean
@@ -321,7 +370,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'role', l."role", 'expiresAt', l."expires_at", 'revokedAt', l."revoked_at")), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', l."id", 'role', l."role", 'expiresAt', l."expires_at", 'revokedAt', l."revoked_at", 'downloadAllowed', l."download_allowed", 'passwordRequired', l."password_hash" is not null)), '[]'::jsonb)
   from "better_supabase"."share_links" l
   where l."subject_type" = list_share_links.subject_type
     and l."subject_id" = list_share_links.subject_id
@@ -426,7 +475,8 @@ begin
     and l."subject_type" = 'ai-chat'
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
-    and (l."max_uses" is null or l."use_count" < l."max_uses");
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+    and l."password_hash" is null;
   if not found or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     return null;
   end if;
@@ -485,7 +535,14 @@ drop function if exists "api"."create_share_link"(uuid, text, text, text);
 drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid);
 drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz);
 drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, jsonb);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer);
 drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, jsonb);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, jsonb);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, boolean, jsonb);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, text, boolean);
+drop function if exists "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, text, boolean, jsonb);
+drop function if exists "api"."resolve_share_link"(text);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -505,14 +562,14 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null, max_uses integer default null)
+create or replace function "api"."create_share_link"(tenant uuid, subject_type text, subject_id text, role text, version_id uuid default null, expires_at timestamptz default null, max_uses integer default null, password text default null, download_allowed boolean default true)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."create_share_link"($1, $2, $3, $4, $5, $6, $7) $$;
-revoke execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) from public, anon;
-grant execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer) to authenticated, service_role;
+as $$ select "better_supabase"."create_share_link"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, boolean) from public, anon;
+grant execute on function "api"."create_share_link"(uuid, text, text, text, uuid, timestamptz, integer, text, boolean) to authenticated, service_role;
 
 create or replace function "api"."revoke_share_link"(id uuid)
 returns boolean
@@ -523,14 +580,14 @@ as $$ select "better_supabase"."revoke_share_link"($1) $$;
 revoke execute on function "api"."revoke_share_link"(uuid) from public, anon;
 grant execute on function "api"."revoke_share_link"(uuid) to authenticated, service_role;
 
-create or replace function "api"."resolve_share_link"(token text)
+create or replace function "api"."resolve_share_link"(token text, password text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."resolve_share_link"($1) $$;
-revoke execute on function "api"."resolve_share_link"(text) from public;
-grant execute on function "api"."resolve_share_link"(text) to anon, authenticated, service_role;
+as $$ select "better_supabase"."resolve_share_link"($1, $2) $$;
+revoke execute on function "api"."resolve_share_link"(text, text) from public;
+grant execute on function "api"."resolve_share_link"(text, text) to anon, authenticated, service_role;
 
 create or replace function "api"."record_view"(tenant uuid, subject_type text, subject_id text, viewer_kind text, viewer text)
 returns boolean

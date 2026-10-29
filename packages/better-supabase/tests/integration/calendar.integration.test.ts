@@ -310,6 +310,13 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
       [org, calendarId],
     );
 
+    expect(
+      await session.hint(
+        "better_supabase.create_share_link($1, 'calendar', $2, 'edit')",
+        [org, calendarId],
+      ),
+    ).toBe("SHARE_LINK_ROLE_INVALID");
+
     const other = await session.organization(outsider);
     await session.as(outsider);
 
@@ -340,6 +347,15 @@ describe.skipIf(!live)("calendar block in Postgres", () => {
     await session.value("better_supabase.revoke_share_link($1)", [link.id]);
     await session.as("anon");
     expect(await calendar.feed(link.token).orThrow()).toBeNull();
+    await session.as(owner);
+
+    const locked = await session.value<{ token: string }>(
+      "better_supabase.create_share_link($1, 'calendar', $2, 'view', password => 'correct horse')",
+      [org, calendarId],
+    );
+
+    await session.as("anon");
+    expect(await calendar.feed(locked.token).orThrow()).toBeNull();
   });
 
   it("deletes an event with its overrides and its reminders rule", async () => {

@@ -161,6 +161,8 @@ describe("createShareLinks", () => {
       organizationId: "org-1",
       subject: thread,
       role: "view",
+      downloadAllowed: true,
+      passwordRequired: false,
       createdBy: "u1",
     });
 
@@ -180,5 +182,69 @@ describe("createShareLinks", () => {
       ["find_share_link", "a".repeat(64)],
       ["list_share_links", false],
     ]);
+  });
+
+  it("sends a password and the download flag, and reads them back", async () => {
+    const transport = fakeTransport({
+      create_share_link: { id: "s1", token: "once" },
+      resolve_share_link: {
+        id: "s1",
+        organizationId: "org",
+        subjectType: "files",
+        subjectId: "f1",
+        role: "view",
+        downloadAllowed: false,
+        passwordRequired: true,
+      },
+      list_share_links: [
+        {
+          id: "s1",
+          role: "view",
+          expiresAt: null,
+          revokedAt: null,
+          downloadAllowed: false,
+          passwordRequired: true,
+        },
+      ],
+    });
+
+    const links = createShareLinks({ transport, schema: "app", tenant: "org" });
+
+    await links
+      .create(FILE, { password: "correct horse", downloadAllowed: false })
+      .orThrow();
+    await links.create(FILE).orThrow();
+    expect(
+      await links.resolve("once", { password: "correct horse" }).orThrow(),
+    ).toMatchObject({ downloadAllowed: false, passwordRequired: true });
+    await links.resolve("once").orThrow();
+    expect(await links.list(FILE).orThrow()).toMatchObject([
+      { downloadAllowed: false, passwordRequired: true },
+    ]);
+    expect(transport.calls.map(([, args]) => args)).toEqual([
+      expect.objectContaining({
+        password: "correct horse",
+        download_allowed: false,
+      }),
+      expect.objectContaining({ password: null, download_allowed: true }),
+      { token: "once", password: "correct horse" },
+      { token: "once" },
+      expect.anything(),
+    ]);
+  });
+
+  it("fails a locked link with SHARE_LINK_PASSWORD_REQUIRED", async () => {
+    const transport = fakeTransport({
+      resolve_share_link: { passwordRequired: true },
+    });
+
+    const links = createShareLinks({ transport, schema: "app", tenant: "org" });
+
+    expect((await links.resolve("once")).error).toMatchObject({
+      kind: "unauthorized",
+      code: "28P01",
+      hint: "SHARE_LINK_PASSWORD_REQUIRED",
+      details: '{"required":true}',
+    });
   });
 });
