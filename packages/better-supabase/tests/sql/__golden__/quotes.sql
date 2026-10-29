@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:c2b9d6a77ad853c05eb607a2d98c1c2ca02bb15ea866107dfad9d9bf64cccf94
+-- @bsb-hash sha256:ded6baae4764f0bba4ad3c3f86d8d7c9a80bca86195212da770575a6989748a1
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -677,8 +677,10 @@ revoke execute on function "better_supabase"."revise_quote"(uuid, jsonb) from pu
 grant execute on function "better_supabase"."revise_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- Takes back a sent or expired quote the customer hasn't accepted: it can't
--- be answered any more until it is revised and sent again.
-create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null)
+-- be answered any more until it is revised and sent again. The actor and
+-- reason go to the state machine's history.
+drop function if exists "better_supabase"."withdraw_quote"(uuid, jsonb);
+create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -708,18 +710,22 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(withdraw_quote.actor::text, ''), true);
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(withdraw_quote.reason), ''), ''), true);
   update "better_supabase"."quotes" x set "status" = 'withdrawn', "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   null;
   return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Records the customer's answer taken another way (by phone, by email):
--- decision is accepted, rejected or changes_requested; by is their name.
+-- decision is accepted, rejected or changes_requested; by is their name,
+-- and without it or an actor the answer names no one. The note is also the
+-- reason in the state machine's history.
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
@@ -789,10 +795,12 @@ begin
     end if;
   end;
   end if;
-  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)), ''),
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(decide_quote.note), ''), ''), true);
+  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')), ''),
     "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   case decide_quote.decision
     when 'accepted' then
       null;
@@ -1331,7 +1339,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:b88e199d1deab26ecbded79b9543248d2818b5e4b4e058e7f5eeb3b9734377e5
+-- @bsb-hash sha256:0ddf33298706bd420c2c539e2df8fb0fc3828fe6ebcaa98c6fb8c8b93a2d0ffa
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2013,8 +2021,10 @@ revoke execute on function "better_supabase"."revise_quote"(uuid, jsonb) from pu
 grant execute on function "better_supabase"."revise_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- Takes back a sent or expired quote the customer hasn't accepted: it can't
--- be answered any more until it is revised and sent again.
-create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null)
+-- be answered any more until it is revised and sent again. The actor and
+-- reason go to the state machine's history.
+drop function if exists "better_supabase"."withdraw_quote"(uuid, jsonb);
+create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -2044,18 +2054,22 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(withdraw_quote.actor::text, ''), true);
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(withdraw_quote.reason), ''), ''), true);
   update "better_supabase"."quotes" x set "status" = 'withdrawn', "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   perform "better_supabase".emit_event('quote.withdrawn', jsonb_build_object('organizationId', v_row."tenant_id", 'quoteId', v_row."id", 'subjectType', 'quote', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'revision', v_row."revision"), 'quotes/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/quotes');
   return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Records the customer's answer taken another way (by phone, by email):
--- decision is accepted, rejected or changes_requested; by is their name.
+-- decision is accepted, rejected or changes_requested; by is their name,
+-- and without it or an actor the answer names no one. The note is also the
+-- reason in the state machine's history.
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
@@ -2125,10 +2139,12 @@ begin
     end if;
   end;
   end if;
-  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)), ''),
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(decide_quote.note), ''), ''), true);
+  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')), ''),
     "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   case decide_quote.decision
     when 'accepted' then
       perform "better_supabase".emit_event('quote.accepted', jsonb_build_object('organizationId', v_row."tenant_id", 'quoteId', v_row."id", 'subjectType', 'quote', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'total', v_row."total"::text, 'currency', v_row."currency", 'byName', v_row."decided_by", 'revision', v_row."revision", 'depositDue', v_row."deposit_due"::text), 'quotes/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/quotes');
@@ -2145,6 +2161,7 @@ begin
       'tenant', v_row."tenant_id",
       'subject_type', 'quote',
       'subject_id', v_row."id"::text,
+      'subject_label', v_row."identifier" || ' ' || v_row."title",
       'summary', v_row."identifier" || ' ' || v_row."title",
       'recipients', jsonb_build_array(v_row."owner_user_id"),
       'key', 'quote.decided:' || v_row."id"::text,
@@ -2306,6 +2323,7 @@ begin
       'tenant', v_row."tenant_id",
       'subject_type', 'quote',
       'subject_id', v_row."id"::text,
+      'subject_label', v_row."identifier" || ' ' || v_row."title",
       'summary', v_row."identifier" || ' ' || v_row."title",
       'recipients', jsonb_build_array(v_row."owner_user_id"),
       'key', 'quote.decided:' || v_row."id"::text,
@@ -2485,6 +2503,7 @@ begin
       'tenant', v_row."tenant_id",
       'subject_type', 'quote',
       'subject_id', v_row."id"::text,
+      'subject_label', v_row."identifier" || ' ' || v_row."title",
       'summary', v_row."identifier" || ' ' || v_row."title",
       'recipients', jsonb_build_array(v_row."owner_user_id"),
       'key', 'quote.decided:' || v_row."id"::text,
@@ -2761,7 +2780,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:621fab3ad66ba6dcb34028f17d4b48b649dd447dbe947296677b9968bee0ba7b
+-- @bsb-hash sha256:5f50d1737c329cfbb52e229c9afef51b80ba4cc7135340662a41fe381e12f69e
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3442,8 +3461,10 @@ revoke execute on function "app_private"."revise_quote"(uuid, jsonb) from public
 grant execute on function "app_private"."revise_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- Takes back a sent or expired quote the customer hasn't accepted: it can't
--- be answered any more until it is revised and sent again.
-create or replace function "app_private"."withdraw_quote"(quote uuid, actor jsonb default null)
+-- be answered any more until it is revised and sent again. The actor and
+-- reason go to the state machine's history.
+drop function if exists "app_private"."withdraw_quote"(uuid, jsonb);
+create or replace function "app_private"."withdraw_quote"(quote uuid, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -3473,18 +3494,22 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(withdraw_quote.actor::text, ''), true);
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(withdraw_quote.reason), ''), ''), true);
   update "app_private"."quotes" x set "status" = 'withdrawn', "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   null;
   return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "app_private"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "app_private"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "app_private"."withdraw_quote"(uuid, jsonb) from public, anon;
-grant execute on function "app_private"."withdraw_quote"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."withdraw_quote"(uuid, jsonb, text) from public, anon;
+grant execute on function "app_private"."withdraw_quote"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Records the customer's answer taken another way (by phone, by email):
--- decision is accepted, rejected or changes_requested; by is their name.
+-- decision is accepted, rejected or changes_requested; by is their name,
+-- and without it or an actor the answer names no one. The note is also the
+-- reason in the state machine's history.
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
@@ -3554,10 +3579,12 @@ begin
     end if;
   end;
   end if;
-  update "app_private"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)), ''),
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(decide_quote.note), ''), ''), true);
+  update "app_private"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')), ''),
     "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   case decide_quote.decision
     when 'accepted' then
       null;
@@ -4096,7 +4123,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:43db758a4e693c413edd3699a40baf353504b3607b209ef3b8cf5f74bf62fbf5
+-- @bsb-hash sha256:8333ae68de8a2a8a89351156b780411d11d45490bb7446ba1fdf31e344137a75
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4772,8 +4799,10 @@ revoke execute on function "better_supabase"."revise_quote"(uuid, jsonb) from pu
 grant execute on function "better_supabase"."revise_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- Takes back a sent or expired quote the customer hasn't accepted: it can't
--- be answered any more until it is revised and sent again.
-create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null)
+-- be answered any more until it is revised and sent again. The actor and
+-- reason go to the state machine's history.
+drop function if exists "better_supabase"."withdraw_quote"(uuid, jsonb);
+create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -4803,18 +4832,22 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(withdraw_quote.actor::text, ''), true);
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(withdraw_quote.reason), ''), ''), true);
   update "better_supabase"."quotes" x set "status" = 'withdrawn', "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   null;
   return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Records the customer's answer taken another way (by phone, by email):
--- decision is accepted, rejected or changes_requested; by is their name.
+-- decision is accepted, rejected or changes_requested; by is their name,
+-- and without it or an actor the answer names no one. The note is also the
+-- reason in the state machine's history.
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
@@ -4884,10 +4917,12 @@ begin
     end if;
   end;
   end if;
-  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)), ''),
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(decide_quote.note), ''), ''), true);
+  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')), ''),
     "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   case decide_quote.decision
     when 'accepted' then
       null;
@@ -5402,6 +5437,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 drop function if exists "api"."send_quote"(uuid);
 drop function if exists "api"."revise_quote"(uuid);
+drop function if exists "api"."withdraw_quote"(uuid, jsonb);
 drop function if exists "api"."decide_quote"(uuid, text, text, text);
 drop function if exists "api"."decide_quote"(uuid, text, text, text, jsonb);
 drop function if exists "api"."respond_to_quote"(text, text, text, text);
@@ -5470,14 +5506,14 @@ as $$ select "better_supabase"."revise_quote"($1, $2) $$;
 revoke execute on function "api"."revise_quote"(uuid, jsonb) from public, anon;
 grant execute on function "api"."revise_quote"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."withdraw_quote"(quote uuid, actor jsonb default null)
+create or replace function "api"."withdraw_quote"(quote uuid, actor jsonb default null, reason text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."withdraw_quote"($1, $2) $$;
-revoke execute on function "api"."withdraw_quote"(uuid, jsonb) from public, anon;
-grant execute on function "api"."withdraw_quote"(uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."withdraw_quote"($1, $2, $3) $$;
+revoke execute on function "api"."withdraw_quote"(uuid, jsonb, text) from public, anon;
+grant execute on function "api"."withdraw_quote"(uuid, jsonb, text) to authenticated, service_role;
 
 create or replace function "api"."decide_quote"(quote uuid, decision text, note text, by text, selected jsonb default null, actor jsonb default null)
 returns jsonb
@@ -5581,7 +5617,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:188d93363ccf96552e86f7e59e6482d1ba41a7b7e7bcc0bd75b626eb6ca4bc69
+-- @bsb-hash sha256:ff85651180530f7a685fd12605d8e8fe7f756889211fb3624ce2b43deaa5ed72
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6111,7 +6147,7 @@ begin
     select v_tenant,
       v_parent,
       better_supabase.as_column_type(x.value -> 'product' ->> 'type', (null::"better_supabase"."quote_lines")."product_type"),
-      x.value -> 'product' ->> 'id',
+      better_supabase.as_column_type(x.value -> 'product' ->> 'id', (null::"better_supabase"."quote_lines")."product_id"),
       x.value ->> 'description',
       coalesce((x.value ->> 'quantity')::numeric, 1),
       (x.value ->> 'unitAmount')::bigint,
@@ -6263,8 +6299,10 @@ revoke execute on function "better_supabase"."revise_quote"(uuid, jsonb) from pu
 grant execute on function "better_supabase"."revise_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- Takes back a sent or expired quote the customer hasn't accepted: it can't
--- be answered any more until it is revised and sent again.
-create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null)
+-- be answered any more until it is revised and sent again. The actor and
+-- reason go to the state machine's history.
+drop function if exists "better_supabase"."withdraw_quote"(uuid, jsonb);
+create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -6294,18 +6332,22 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(withdraw_quote.actor::text, ''), true);
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(withdraw_quote.reason), ''), ''), true);
   update "better_supabase"."quotes" x set "status" = 'withdrawn', "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   null;
   return (to_jsonb(v_row) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Records the customer's answer taken another way (by phone, by email):
--- decision is accepted, rejected or changes_requested; by is their name.
+-- decision is accepted, rejected or changes_requested; by is their name,
+-- and without it or an actor the answer names no one. The note is also the
+-- reason in the state machine's history.
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
@@ -6375,10 +6417,12 @@ begin
     end if;
   end;
   end if;
-  update "better_supabase"."quotes" x set "status" = better_supabase.as_column_type(decide_quote.decision, (null::"better_supabase"."quotes")."status"), "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)), ''),
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(decide_quote.note), ''), ''), true);
+  update "better_supabase"."quotes" x set "status" = better_supabase.as_column_type(decide_quote.decision, (null::"better_supabase"."quotes")."status"), "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')), ''),
     "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   case decide_quote.decision
     when 'accepted' then
       null;
@@ -6917,7 +6961,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:0b12d433c7cc8fc2bdc09c918094ab39ae2f9fd26b0d58f9352f3076295072e3
+-- @bsb-hash sha256:0b2e9230f85c9fd535c28a8066496c66031c6331a0906be28f3fadd73e65b99a
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7593,8 +7637,10 @@ revoke execute on function "better_supabase"."revise_quote"(uuid, jsonb) from pu
 grant execute on function "better_supabase"."revise_quote"(uuid, jsonb) to authenticated, service_role;
 
 -- Takes back a sent or expired quote the customer hasn't accepted: it can't
--- be answered any more until it is revised and sent again.
-create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null)
+-- be answered any more until it is revised and sent again. The actor and
+-- reason go to the state machine's history.
+drop function if exists "better_supabase"."withdraw_quote"(uuid, jsonb);
+create or replace function "better_supabase"."withdraw_quote"(quote uuid, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -7624,18 +7670,22 @@ begin
     end;
   end if;
   perform set_config('better_supabase.transition_actor', coalesce(withdraw_quote.actor::text, ''), true);
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(withdraw_quote.reason), ''), ''), true);
   update "better_supabase"."quotes" x set "status" = 'withdrawn', "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   null;
   return ((to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) - 'token_hash') || jsonb_build_object('number', v_row."number"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text, 'discount_amount', v_row."discount_amount"::text, 'deposit_due', v_row."deposit_due"::text) || jsonb_build_object('lines', coalesce((select jsonb_agg(jsonb_build_object('position', ql."position", 'description', ql."description", 'quantity', ql."quantity", 'unitAmount', ql."unit_amount"::text, 'discountBps', ql."discount_bps", 'taxRateBps', ql."tax_rate_bps", 'taxCode', ql."tax_code", 'section', ql."section", 'optional', ql."optional", 'selected', ql."selected", 'periods', ql."periods", 'product', case when ql."product_type" is null then null else jsonb_build_object('type', ql."product_type", 'id', ql."product_id") end) order by ql."position") from "better_supabase"."quote_lines" ql where ql."parent_id" = v_row."id"), '[]'::jsonb), 'taxLines', coalesce((select jsonb_agg(jsonb_build_object('taxRateBps', tl."tax_rate_bps", 'taxCode', tl."tax_code", 'net', tl."net"::text, 'tax', tl."tax"::text, 'gross', tl."gross"::text, 'discount', tl."discount"::text) order by tl."tax_rate_bps", tl."tax_code" nulls first) from "better_supabase"."quote_tax_lines" tl where tl."parent_id" = v_row."id"), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."withdraw_quote"(uuid, jsonb, text) to authenticated, service_role;
 
 -- Records the customer's answer taken another way (by phone, by email):
--- decision is accepted, rejected or changes_requested; by is their name.
+-- decision is accepted, rejected or changes_requested; by is their name,
+-- and without it or an actor the answer names no one. The note is also the
+-- reason in the state machine's history.
 -- selected lists the positions of the optional lines they took. actor is
 -- the customer when the app takes the answer in its own portal: id, name,
 -- email, ip and userAgent, kept with the answer and in the state machine's
@@ -7705,10 +7755,12 @@ begin
     end if;
   end;
   end if;
-  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email', auth.uid()::text)), ''),
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(decide_quote.note), ''), ''), true);
+  update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')), ''),
     "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   case decide_quote.decision
     when 'accepted' then
       null;

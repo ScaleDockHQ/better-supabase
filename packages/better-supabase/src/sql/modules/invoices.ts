@@ -482,6 +482,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "text",
         "jsonb",
+        "text",
       ],
       returns: "jsonb",
     },

@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:e95981acba4d3e3f665274041cdefb939319aff252d14090e0234dea70b88603
+-- @bsb-hash sha256:1b48ba09b1eee4857fb8682c69d7dde14eb5c4938ffaa3d8c71ba91eeb5692bc
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -821,11 +821,13 @@ grant execute on function "better_supabase"."issue_invoice"(uuid, date, date, js
 -- currency as a ledger transaction from the invoice's receivable account to
 -- cash. A reference, such as a bank or payment provider id, is unique per
 -- organization, so recording the same payment twice adds it once. actor:
--- who recorded it, for the state machine's history.
+-- who recorded it, and reason: why the status changes, for the state
+-- machine's history.
 drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
 drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
 drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
-create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null)
+drop function if exists "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
+create or replace function "better_supabase"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -892,6 +894,7 @@ begin
     end if;
   end;
   v_was := v_row."status";
+  perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(record_invoice_payment.reason), ''), ''), true);
   v_payment := "better_supabase"."ledger_post"(v_row."tenant_id", case when record_invoice_payment.amount < 0 then 'invoice.refund' else 'invoice.payment' end,
     jsonb_build_array(
       jsonb_build_object('account', "better_supabase"."ledger_account_for"(v_row."tenant_id", 'receivable',
@@ -918,6 +921,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  perform set_config('better_supabase.transition_reason', '', true);
   perform "better_supabase".emit_event('invoice.payment_recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   if v_row."status" = 'paid' and v_was <> 'paid' then
     perform "better_supabase".emit_event('invoice.paid', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'total', v_row."total"::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
@@ -941,8 +945,8 @@ begin
         where e."account_id" = (select a."id" from "better_supabase"."ledger_accounts" a where a."tenant_id" = v_row."tenant_id" and a."code" = 'invoice:' || v_row."id"::text)), '[]'::jsonb));
 end;
 $$;
-revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb) from public, anon;
-grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb, text) from public, anon;
+grant execute on function "better_supabase"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb, text) to authenticated, service_role;
 
 create or replace function "better_supabase"."list_invoice_payments"(invoice uuid)
 returns jsonb
@@ -1600,6 +1604,7 @@ drop function if exists "api"."issue_invoice"(uuid, date, date);
 drop function if exists "api"."record_invoice_payment"(uuid, bigint, timestamptz, text, text);
 drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text);
 drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text);
+drop function if exists "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb);
 drop function if exists "api"."void_invoice"(uuid, text);
 drop function if exists "api"."write_off_invoice"(uuid);
 drop function if exists "api"."write_off_invoice"(uuid, text);
@@ -1672,14 +1677,14 @@ as $$ select "better_supabase"."issue_invoice"($1, $2, $3, $4) $$;
 revoke execute on function "api"."issue_invoice"(uuid, date, date, jsonb) from public, anon;
 grant execute on function "api"."issue_invoice"(uuid, date, date, jsonb) to authenticated, service_role;
 
-create or replace function "api"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null)
+create or replace function "api"."record_invoice_payment"(invoice uuid, amount bigint, currency text, paid_at timestamptz, method text, reference text, note text default null, actor jsonb default null, reason text default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."record_invoice_payment"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb) from public, anon;
-grant execute on function "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."record_invoice_payment"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb, text) from public, anon;
+grant execute on function "api"."record_invoice_payment"(uuid, bigint, text, timestamptz, text, text, text, jsonb, text) to authenticated, service_role;
 
 create or replace function "api"."list_invoice_payments"(invoice uuid)
 returns jsonb
