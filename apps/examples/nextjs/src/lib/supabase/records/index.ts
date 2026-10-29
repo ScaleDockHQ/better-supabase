@@ -28,4 +28,5 @@ export { productRecord } from "./product.ts";
 export { productVariantRecord } from "./product-variant.ts";
 export { projectRecord } from "./project.ts";
 export { quoteRecord } from "./quote.ts";
+export { riskRecord } from "./risk.ts";
 export { taskRecord } from "./task.ts";

@@ -7001,6 +7001,47 @@
       "RpcClient"
     ]
   },
+  "./blocks/risks": {
+    "values": [
+      "createRisks",
+      "dbTransport",
+      "extendBlock",
+      "riskInputSchema",
+      "risksBlock",
+      "risksEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Risk",
+      "RiskAssessedEventData",
+      "RiskAssessment",
+      "RiskAssessmentInput",
+      "RiskBand",
+      "RiskChange",
+      "RiskCreatedEventData",
+      "RiskHeatmap",
+      "RiskHeatmapCell",
+      "RiskInput",
+      "RiskInputSchema",
+      "RiskLevel",
+      "RiskLifecycleEventData",
+      "RiskListOptions",
+      "RiskMatrix",
+      "RiskMatrixSavedEventData",
+      "Risks",
+      "RisksEvents",
+      "RisksOptions",
+      "RiskTreatmentChangedEventData",
+      "RiskUpdatedEventData",
+      "RpcClient"
+    ]
+  },
   "./blocks/documents": {
     "values": [
       "createDocuments",

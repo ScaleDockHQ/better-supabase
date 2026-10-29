@@ -2,6 +2,7 @@ import type { accessRequestsBlock } from "../../src/blocks/access-requests/manif
 import type { acknowledgementsBlock } from "../../src/blocks/acknowledgements/manifest.ts";
 import type { casesBlock } from "../../src/blocks/cases/manifest.ts";
 import type { qualificationsBlock } from "../../src/blocks/qualifications/manifest.ts";
+import type { risksBlock } from "../../src/blocks/risks/manifest.ts";
 import type { activitiesBlock } from "../../src/blocks/activities/manifest.ts";
 import type { agentsBlock } from "../../src/blocks/agents/manifest.ts";
 import type { aiCacheBlock } from "../../src/blocks/ai-cache/manifest.ts";
@@ -154,6 +155,7 @@ export type AllBlocks = {
   readonly acknowledgements: typeof acknowledgementsBlock;
   readonly cases: typeof casesBlock;
   readonly qualifications: typeof qualificationsBlock;
+  readonly risks: typeof risksBlock;
   readonly access: typeof permissionsBlock;
   readonly actor: typeof createdByBlock;
   readonly agents: typeof agentsBlock;

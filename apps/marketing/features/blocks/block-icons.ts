@@ -162,6 +162,7 @@ export const BLOCK_ICONS = {
   acknowledgements: BadgeCheckIcon,
   cases: ClipboardCheckIcon,
   qualifications: BadgeCheckIcon,
+  risks: ChartLineIcon,
   identities: FingerprintIcon,
   // Tenancy & accounts
   memberships: BuildingIcon,

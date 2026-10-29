@@ -7018,6 +7018,133 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "risks",
+      "title": "Risks",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit"
+      ],
+      "manifest": "risks",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "risks",
+      "entities": {
+        "specs": {
+          "risk": {
+            "table": "risks",
+            "singular": "risk",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "number",
+                  "description",
+                  "cause",
+                  "consequence"
+                ]
+              },
+              "deletedAt": "archivedAt"
+            }
+          },
+          "risk_matrix": {
+            "table": "matrices",
+            "singular": "risk_matrix"
+          },
+          "risk_assessment": {
+            "table": "assessments",
+            "singular": "risk_assessment"
+          }
+        },
+        "tables": {
+          "risks": {
+            "name": "risks",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "matrix": "matrix_id",
+              "number": "number",
+              "title": "title",
+              "description": "description",
+              "category": "category",
+              "cause": "cause",
+              "consequence": "consequence",
+              "owner": "owner_id",
+              "status": "status",
+              "treatment": "treatment",
+              "reviewIntervalMonths": "review_interval_months",
+              "nextReviewOn": "next_review_on",
+              "inherentLikelihood": "inherent_likelihood",
+              "inherentImpact": "inherent_impact",
+              "inherentScore": "inherent_score",
+              "inherentBand": "inherent_band",
+              "residualLikelihood": "residual_likelihood",
+              "residualImpact": "residual_impact",
+              "residualScore": "residual_score",
+              "residualBand": "residual_band",
+              "currentAssessment": "current_assessment_id",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "matrices": {
+            "name": "risk_matrices",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "likelihoodLevels": "likelihood_levels",
+              "impactLevels": "impact_levels",
+              "bands": "bands",
+              "scoring": "scoring",
+              "isDefault": "is_default",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "assessments": {
+            "name": "risk_assessments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "risk": "risk_id",
+              "inherentLikelihood": "inherent_likelihood",
+              "inherentImpact": "inherent_impact",
+              "inherentScore": "inherent_score",
+              "inherentBand": "inherent_band",
+              "residualLikelihood": "residual_likelihood",
+              "residualImpact": "residual_impact",
+              "residualScore": "residual_score",
+              "residualBand": "residual_band",
+              "rationale": "rationale",
+              "assessedBy": "assessed_by",
+              "assessedAt": "assessed_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "risks.read",
+          "write": "risks.write",
+          "assess": "risks.assess",
+          "manage": "risks.manage"
+        }
+      }
+    },
+    {
       "name": "acknowledgements",
       "title": "Acknowledgements",
       "category": "collaboration",
@@ -7438,6 +7565,50 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Qualification"
+        },
+        {
+          "name": "QualificationExpiringEventData"
+        },
+        {
+          "name": "QualificationGap"
+        },
+        {
+          "name": "QualificationGrantedEventData"
+        },
+        {
+          "name": "QualificationGrantInput"
+        },
+        {
+          "name": "QualificationRequirement"
+        },
+        {
+          "name": "QualificationRevokedEventData"
+        },
+        {
+          "name": "Qualifications"
+        },
+        {
+          "name": "QualificationsEvents"
+        },
+        {
+          "name": "QualificationsOptions"
+        },
+        {
+          "name": "QualificationType"
+        },
+        {
+          "name": "QualificationTypeInput"
+        },
+        {
+          "name": "QualificationTypeInputSchema"
+        },
+        {
+          "name": "QualificationTypeSavedEventData"
+        }
+      ],
       "entitySchemas": {
         "qualification_type": {
           "input": {
@@ -7509,6 +7680,114 @@ export const PRESET_CATALOG: PresetCatalog = {
               "required": [
                 "key",
                 "name"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "QualificationsEvents",
+        "types": [
+          "qualification_type.created",
+          "qualification_type.updated",
+          "qualification.granted",
+          "qualification.revoked",
+          "qualification.expired"
+        ]
+      }
+    },
+    {
+      "name": "risks",
+      "sql": [
+        "risks"
+      ],
+      "category": "work",
+      "client": {
+        "export": "risksBlock",
+        "subpath": "better-supabase/blocks/risks"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "risk": {
+          "input": {
+            "title": "RiskInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "description": {
+                "kind": "string",
+                "optional": true
+              },
+              "category": {
+                "kind": "string",
+                "optional": true
+              },
+              "cause": {
+                "kind": "string",
+                "optional": true
+              },
+              "consequence": {
+                "kind": "string",
+                "optional": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "matrixId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "reviewIntervalMonths": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 120
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "RiskInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "description": {
+                  "type": "string"
+                },
+                "category": {
+                  "type": "string"
+                },
+                "cause": {
+                  "type": "string"
+                },
+                "consequence": {
+                  "type": "string"
+                },
+                "ownerId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "matrixId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reviewIntervalMonths": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 120
+                }
+              },
+              "required": [
+                "title"
               ],
               "additionalProperties": false
             }

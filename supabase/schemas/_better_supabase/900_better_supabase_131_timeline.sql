@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:c723f32e6ce22d39a79308875acd74c895f3f85497072a68e6bbd900213fe47c
+-- @bsb-hash sha256:fe111485cb972d525e9e15ad834c591a11610750de1e015e0ce4a95d169d3fa6
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,7 @@ create policy activity_entries_read on "better_supabase"."activity_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read'))
     and ("subject_type" is null or "subject_id" is null
-      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,customer,drive_node,application,change_request,project,task}'::text[]))
+      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,risk,customer,drive_node,application,change_request,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));
 -- The deliveries of the notifications about a registered subject, for
 -- list_activity. Deliveries are readable only by their recipient, so this
@@ -79,7 +79,7 @@ begin
   from "better_supabase"."notification_deliveries" d
   join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
-  where activity_subject_deliveries.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,customer,drive_node,application,change_request,project,task}'::text[])
+  where activity_subject_deliveries.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,risk,customer,drive_node,application,change_request,project,task}'::text[])
     and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
       or (coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'timeline.read'), false) and coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'notifications.send'), false)))
     and ev."organization_id" = activity_subject_deliveries.tenant
@@ -151,7 +151,7 @@ declare
   v_rows jsonb;
   v_table text;
 begin
-  if list_activity.subject_id is not null and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,customer,drive_node,application,change_request,project,task}'::text[])
+  if list_activity.subject_id is not null and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,risk,customer,drive_node,application,change_request,project,task}'::text[])
     and not "better_supabase"."activity_subject_readable"(list_activity.subject_type, list_activity.subject_id) then
     return '[]'::jsonb;
   end if;
@@ -192,6 +192,7 @@ begin
       when 'form' then 'better_supabase.forms'
       when 'document' then 'better_supabase.documents'
       when 'case' then 'better_supabase.cases'
+      when 'risk' then 'better_supabase.risks'
       when 'customer' then 'public.customers'
       when 'drive_node' then 'better_supabase.drive_nodes'
       when 'application' then 'better_supabase.applications'
@@ -231,7 +232,7 @@ begin
       r."created_at" as at, r."id"::text as id
     from "better_supabase"."workflow_runs" r
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,customer,drive_node,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,risk,customer,drive_node,application,change_request,project,task}'::text[])
       and (list_activity.sources is null or 'run' = any (list_activity.sources))
       and r."tenant_id" = list_activity.tenant
       and r."subject_type" = list_activity.subject_type
@@ -244,7 +245,7 @@ begin
       h."created_at" as at, h."id"::text as id
     from "better_supabase"."status_history" h
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,customer,drive_node,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,risk,customer,drive_node,application,change_request,project,task}'::text[])
       and list_activity.subject_type = any ('{work_item,change_request}'::text[])
       and (list_activity.sources is null or 'transition' = any (list_activity.sources))
       and h."tenant_id" = list_activity.tenant
@@ -259,7 +260,7 @@ begin
     from "better_supabase"."messages" m
     join "better_supabase"."conversations" c on c."id" = m."conversation_id"
     where list_activity.subject_id is not null
-      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,customer,drive_node,application,change_request,project,task}'::text[])
+      and list_activity.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,risk,customer,drive_node,application,change_request,project,task}'::text[])
       and (list_activity.sources is null or 'message' = any (list_activity.sources))
       and c."tenant_id" = list_activity.tenant
       and c."subject_type" = list_activity.subject_type
@@ -309,7 +310,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."activity_entries" as
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read'))
     and ("subject_type" is null or "subject_id" is null
-      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,customer,drive_node,application,change_request,project,task}'::text[]))
+      or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,incident,content_entry,form,document,case,risk,customer,drive_node,application,change_request,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."activity_entries";

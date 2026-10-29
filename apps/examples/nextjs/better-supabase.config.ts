@@ -441,5 +441,6 @@ export default defineConfig({
     acknowledgements: {},
     cases: {},
     qualifications: {},
+    risks: {},
   },
 });

@@ -1,0 +1,81 @@
+---
+title: Risks
+description: Risk matrices, a register, versioned assessments, treatment decisions, reviews and a heatmap.
+---
+
+`risks` keeps a risk register with one matrix per organization, inherent and
+residual assessments, treatment decisions, review dates and a heatmap.
+
+```bash
+better-supabase add risks
+```
+
+```ts
+import { createRisks } from "better-supabase/blocks/risks";
+```
+
+## Tables
+
+| Table              | Holds                                                        |
+| ------------------ | ------------------------------------------------------------ |
+| `risk_matrices`    | Likelihood and impact levels, bands and the scoring rule      |
+| `risks`            | The register, its current assessment and review date          |
+| `risk_assessments` | Every assessment with its rationale                           |
+
+## Matrices
+
+`saveMatrix` stores the levels and bands. A default 5 by 5 matrix is created on
+the first `create`. `isDefault` marks the matrix a heatmap uses when none is
+named.
+
+## The register
+
+`create(organizationId, input)` numbers the risk (`RSK-0001`) and stores its
+category, cause, consequence and owner. `update` changes the register fields
+while the risk is not closed.
+
+## Assessing
+
+`assess(riskId, { inherentLikelihood, inherentImpact, residualLikelihood,
+residualImpact, rationale })` computes the scores and bands from the matrix,
+stores an assessment and moves an identified risk to `assessed`.
+
+## Treatment and reviews
+
+`setTreatment` takes `mitigate`, `transfer`, `accept` or `avoid`. `accept`
+needs `risks.manage`. `review` moves the next review date forward by the
+risk's review interval. `close` needs `risks.manage`.
+
+## The heatmap
+
+`heatmap(organizationId, { basis })` returns the matrix and one cell per
+likelihood and impact pair with its count and risk ids.
+
+## Errors
+
+| Hint code                  | Meaning                                   |
+| -------------------------- | ----------------------------------------- |
+| `RISK_FORBIDDEN`           | The caller lacks the permission           |
+| `RISK_NOT_FOUND`           | The risk does not exist                   |
+| `RISK_INVALID`             | An input is invalid                       |
+| `RISK_CLOSED`              | A closed risk cannot change               |
+| `RISK_LEVEL_OUT_OF_RANGE`  | A level is outside the matrix             |
+| `RISK_MATRIX_INVALID`      | The matrix shape is invalid               |
+| `RISK_MATRIX_NOT_FOUND`    | The matrix does not exist                 |
+
+## Events
+
+| Type                         | Payload                                                        |
+| ---------------------------- | -------------------------------------------------------------- |
+| `risk_matrix.created`, `risk_matrix.updated` | `organizationId`, `matrixId`, `key`           |
+| `risk.created`               | `organizationId`, `riskId`, `number`                           |
+| `risk.updated`               | the same and `changed`                                         |
+| `risk.assessed`              | the same and `inherentBand`, `residualBand`                    |
+| `risk.treatment_changed`     | the same and `treatment`                                       |
+| `risk.reviewed`, `risk.closed`, `risk.review_reminded` | the same and `nextReviewOn` for a reminder |
+
+## Without the client
+
+`save_risk_matrix`, `list_risk_matrices`, `create_risk`, `update_risk`,
+`assess_risk`, `set_risk_treatment`, `review_risk`, `close_risk`, `get_risk`,
+`list_risks`, `risk_heatmap` and `notify_due_risk_reviews`.
