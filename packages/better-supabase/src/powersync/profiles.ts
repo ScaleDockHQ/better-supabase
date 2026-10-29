@@ -43,6 +43,16 @@ export interface PowerSyncProfilesOptions {
   readonly table?: string;
   /** Function names, when the instance renames them (`blocks.<name>.entities`). */
   readonly functions?: Partial<Record<LocalProfileFunction, string>>;
+  /**
+   * The signed-in user's id, such as `() => session?.user.id`. The local reads
+   * pick that user's row, so a row another user left behind before the next
+   * sync is never returned. Without it, the transport reads the first row.
+   */
+  readonly userId?: () =>
+    | string
+    | null
+    | undefined
+    | PromiseLike<string | null | undefined>;
 }
 
 type Row = Readonly<Record<string, unknown>>;
@@ -60,6 +70,8 @@ const isRow = (value: unknown): value is Row =>
  * const profiles = createProfiles({
  *   transport: powersyncProfilesTransport(powersync, {
  *     server: rpcTransport(supabase),
+ *     userId: async () =>
+ *       (await supabase.auth.getSession()).data.session?.user.id,
  *   }),
  * });
  * ```
@@ -79,8 +91,21 @@ export function powersyncProfilesTransport(
     FUNCTIONS.map((fn) => [options.functions?.[fn] ?? fn, fn]),
   );
 
-  const mine = async (): Promise<Row | undefined> =>
-    (await database.getAll<Row>(`SELECT * FROM ${table} LIMIT 1`))[0];
+  const mine = async (): Promise<Row | undefined> => {
+    if (options.userId === undefined) {
+      return (await database.getAll<Row>(`SELECT * FROM ${table} LIMIT 1`))[0];
+    }
+
+    const id = await options.userId();
+
+    return id === null || id === undefined
+      ? undefined
+      : (
+          await database.getAll<Row>(`SELECT * FROM ${table} WHERE id = ?`, [
+            id,
+          ])
+        )[0];
+  };
 
   const local = async (
     fn: LocalProfileFunction,

@@ -31,7 +31,7 @@ describe("blocks.generated.ts", () => {
     expect(entries["attachments"]).toEqual({
       schema: "better_supabase",
       api: "api",
-      options: { requireScan: false, publicBuckets: [] },
+      options: { requireScan: false, publicBuckets: [], topic: "attachments" },
     });
     expect(entries["notifications"]).toEqual({
       schema: "app_blocks",
@@ -455,6 +455,7 @@ describe("blocks.generated.ts", () => {
     schema: "better_supabase",
     options: {
       publicBuckets: [],
+      topic: "attachments",
     },
   },`,
     );

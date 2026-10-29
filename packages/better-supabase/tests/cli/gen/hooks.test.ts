@@ -30,13 +30,36 @@ describe("hooks.ts", () => {
       'import { defineDataHooks } from "better-supabase/react";',
     );
     expect(file?.contents).toContain(
-      'export const { useList: useCustomers, useOne: useCustomer } =\n  defineDataHooks("customers", (db: AppDb) => db.customers);',
+      'export const { useList: useCustomers, useOne: useCustomer } = defineDataHooks(\n  "customers",\n  (db: AppDb) => db.customers,\n);',
     );
     expect(file?.contents).not.toContain('"comments"');
 
     expect(
       emitHooks({ ...config, hooks: false }, ["customers"]),
     ).toBeUndefined();
+  });
+
+  it("wraps each select in gen.hooks.select", () => {
+    const config = resolveConfig(
+      {
+        gen: {
+          hooks: {
+            framework: "vue",
+            select: { module: "./scope", export: "scoped" },
+          },
+        },
+      },
+      "/project",
+    );
+
+    expect(config.hooks).toBe("vue");
+
+    const contents = emitHooks(config, ["notes"])?.contents;
+
+    expect(contents).toContain('import { scoped } from "./scope";');
+    expect(contents).toContain(
+      '  "notes",\n  scoped((db: AppDb) => db.notes),\n);',
+    );
   });
 
   it("imports the framework the config names", () => {

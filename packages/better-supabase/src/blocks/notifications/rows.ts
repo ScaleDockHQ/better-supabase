@@ -52,6 +52,7 @@ export function toItem(row: Record<string, unknown>): NotificationItem {
 
   return {
     id: String(row["id"]),
+    recipientId: String(row["id"]),
     eventId: String(row["event_id"]),
     type: String(row["type"]),
     data: row["data"] ?? {},

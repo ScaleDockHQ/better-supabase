@@ -127,9 +127,12 @@ export async function scopedSeed<
   D,
   F extends AnyFunctions,
   E,
+  C,
+  P,
+  B,
   const S extends SeedFixtures<M>,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   build: (scope: Scope) => S & ExactSeed<M, S>,
   options: ScopedSeedOptions<M> = {},
 ): Promise<ScopedSeed<M, S>> {
@@ -262,10 +265,11 @@ export async function withRollback<
   M extends AnyModels,
   F extends AnyFunctions,
   E,
+  B,
   T,
 >(
-  user: TestUser<M, F, E>,
-  fn: (db: Db<M, F, E, unknown>) => Promise<T>,
+  user: TestUser<M, F, E, B>,
+  fn: (db: Db<M, F, E, unknown, B>) => Promise<T>,
 ): Promise<T> {
   const internal = internalsOf(user);
 
@@ -277,7 +281,7 @@ export async function withRollback<
 
   return rolledBack(internal.postgres, internal.claims, async (client) => {
     // SAFETY: connect builds the repositories asUser gave this user, over the transaction's client.
-    const db = internal.connect(client) as Db<M, F, E, unknown>;
+    const db = internal.connect(client) as Db<M, F, E, unknown, B>;
 
     return fn(db);
   });

@@ -731,6 +731,42 @@ function subjectCleanup(ctx: BlockSqlContext, n: NotifyNames): string {
   );
 }
 
+/**
+ * With `api` set, a `security_invoker` view per table the client reads by name
+ * (the recipients, and the preferences PowerSync uploads), so the Data API
+ * reaches them while the tables stay in the module schema. Row level security
+ * on the table still decides every row.
+ */
+function apiViews(ctx: BlockSqlContext, n: NotifyNames): string {
+  const api = ctx.config.api;
+
+  if (api === undefined || api.schema === ctx.schemaName) {
+    return "";
+  }
+
+  return (["recipients", "preferences"] as const)
+    .flatMap((table) => {
+      if (!ctx.hasTable(table)) {
+        return [];
+      }
+
+      const source = n.table(table);
+      const view = `${sqlIdent(api.schema)}.${sqlIdent(ctx.tableName(table).name)}`;
+
+      return source === view
+        ? []
+        : [
+            `
+create or replace view ${view} with (security_invoker = true) as
+  select * from ${source};
+revoke all on ${view} from public, anon;
+grant select${table === "preferences" ? ", insert, update, delete" : ""} on ${view} to authenticated;
+grant all on ${view} to service_role;`,
+          ];
+    })
+    .join("\n");
+}
+
 function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   if (ctx.mode === "custom") {
     return "";
@@ -746,6 +782,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     functions(ctx, n, layout),
     realtime(ctx, n),
     subjectCleanup(ctx, n),
+    apiViews(ctx, n),
   ].join("\n");
 }
 

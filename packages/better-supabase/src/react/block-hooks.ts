@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import type {
   BlockArgsOf,
   BlockDataOf,
+  BlockEngineOptions,
   BlockEventSource,
   BlockMethodName,
   BlockMutationActions,
@@ -42,7 +43,14 @@ export function useBlockQuery<
 ): BlockQueryState<BlockDataOf<C, K>> & BlockQueryActions {
   return useController(
     () => createBlockQuery(client, method, args, options),
-    [client, method, blockArgsKey(args), options.refetchOn?.source],
+    [
+      client,
+      method,
+      blockArgsKey(args),
+      options.refetchOn?.source,
+      options.engine,
+      options.engine === undefined ? undefined : options.instance,
+    ],
   ).view;
 }
 
@@ -53,11 +61,17 @@ export function useBlockMutation<
 >(
   client: C,
   method: K,
+  options: BlockEngineOptions = {},
 ): BlockMutationState<BlockDataOf<C, K>> &
   BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>> {
   return useController(
-    () => createBlockMutation(client, method),
-    [client, method],
+    () => createBlockMutation(client, method, options),
+    [
+      client,
+      method,
+      options.engine,
+      options.engine === undefined ? undefined : options.instance,
+    ],
   ).view;
 }
 

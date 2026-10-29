@@ -56,6 +56,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {
       publicBuckets: [],
+      topic: "attachments",
     },
   },
   audit: {
@@ -454,5 +455,6 @@ export const blockEventSchemas = {
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */
 export const topics = {
+  attachments: () => "attachments",
   notifications: (v: { readonly userId: string }) => `notifications:${String(v.userId)}`,
 } as const;

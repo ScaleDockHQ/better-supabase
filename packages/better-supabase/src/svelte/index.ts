@@ -99,6 +99,7 @@ export type {
 } from "../bindings/data-hooks.ts";
 
 export type {
+  BlockEngineOptions,
   BlockEventSource,
   BlockMutationActions,
   BlockMutationState,

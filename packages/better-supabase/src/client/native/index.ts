@@ -23,6 +23,10 @@ export type {
   WebBrowserLike,
 } from "./auth-link.ts";
 
+export { AUTHZ_EVENT, authzUserTopic } from "../../core/authz-topic.ts";
+
+export type { AuthzVersionSource } from "../../core/authz-topic.ts";
+
 export { startNativeAuthzRefresh } from "./authz-refresh.ts";
 
 export type {

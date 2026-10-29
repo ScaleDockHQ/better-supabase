@@ -62,6 +62,7 @@ export const blockConfig = {
     options: {
       requireScan: false,
       publicBuckets: ["attachments"],
+      topic: "attachments",
     },
   },
   audit: {
@@ -501,5 +502,6 @@ export const urls = {
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */
 export const topics = {
+  attachments: () => "attachments",
   notifications: (v: { readonly userId: string }) => `notifications:${String(v.userId)}`,
 } as const;

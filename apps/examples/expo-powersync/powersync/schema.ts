@@ -31,6 +31,16 @@ export const notification_events = new Table({
   created_at: column.text,
 });
 
+export const notification_preferences = new Table({
+  user_id: column.text,
+  organization_id: column.text,
+  type: column.text,
+  channel: column.text,
+  enabled: column.integer,
+  created_at: column.text,
+  updated_at: column.text,
+});
+
 export const memberships = new Table({
   organization_id: column.text,
   user_id: column.text,
@@ -43,6 +53,8 @@ export const memberships = new Table({
 export const organizations = new Table({
   name: column.text,
   slug: column.text,
+  disabled_at: column.text,
+  deleted_at: column.text,
 });
 
 export const teams = new Table({
@@ -84,6 +96,7 @@ export const profiles = new Table({
 export const blockTables = {
   notification_recipients,
   notification_events,
+  notification_preferences,
   memberships,
   organizations,
   teams,

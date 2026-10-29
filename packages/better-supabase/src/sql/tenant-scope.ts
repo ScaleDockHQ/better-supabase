@@ -40,6 +40,90 @@ export interface TenantScopeTarget {
    * staff, invitees, a user's own rows, anonymous readers).
    */
   readonly by?: Partial<Record<ScopeCommand, Branches>>;
+  /**
+   * Database roles the scope lets through (`tenantScope.exemptRoles`), such as
+   * `supabase_auth_admin`, which reads without `auth.uid()`.
+   */
+  readonly exempt?: readonly string[];
+}
+
+/** The exempt roles, deduplicated and sorted. */
+function exemptNames(roles: readonly string[] | undefined): string[] {
+  return roles === undefined ? [] : [...new Set(roles)].toSorted();
+}
+
+/** The `current_user = any(...)` branch for the exempt roles, or none. */
+function exemptBranch(roles: readonly string[] | undefined): string[] {
+  const names = exemptNames(roles);
+
+  return names.length === 0
+    ? []
+    : [
+        `current_user = any (array[${names.map(sqlString).join(", ")}]::name[])`,
+      ];
+}
+
+const QUALIFIED_CALL = /"?([a-z_]\w*)"?\s*\.\s*"?([a-z_]\w*)"?\s*\(/gi;
+
+const SYSTEM_SCHEMAS: ReadonlySet<string> = new Set([
+  "auth",
+  "extensions",
+  "pg_catalog",
+  "realtime",
+  "storage",
+  "vault",
+]);
+
+/**
+ * `grant execute` to the exempt roles on the functions the scope clauses call.
+ * Postgres checks `execute` on every function of a policy when it starts the
+ * query, before `or` skips a branch, so an exempt role without the grant fails
+ * with `permission denied` instead of passing.
+ */
+function exemptGrants(
+  clauses: readonly string[],
+  roles: readonly string[],
+): string {
+  const calls = new Map<string, readonly [string, string]>();
+
+  for (const text of clauses) {
+    for (const [, schema = "", name = ""] of text.matchAll(QUALIFIED_CALL)) {
+      if (!SYSTEM_SCHEMAS.has(schema.toLowerCase())) {
+        calls.set(`${schema}.${name}`, [schema, name]);
+      }
+    }
+  }
+
+  if (calls.size === 0) {
+    return "";
+  }
+
+  const pairs = [...calls.values()]
+    .map(([schema, name]) => `(${sqlString(schema)}, ${sqlString(name)})`)
+    .join(", ");
+
+  return `
+-- The exempt roles still need execute on the functions the scope calls.
+do $$
+declare
+  v_fn regprocedure;
+  v_role text;
+begin
+  for v_fn in
+    select p.oid::regprocedure from pg_catalog.pg_proc p
+    join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+    where (n.nspname::text, p.proname::text) in (${pairs})
+  loop
+    foreach v_role in array array[${roles.map(sqlString).join(", ")}] loop
+      if exists (select 1 from pg_catalog.pg_roles where rolname = v_role) then
+        begin
+          execute format('grant execute on function %s to %I', v_fn, v_role);
+        exception when insufficient_privilege then null;
+        end;
+      end if;
+    end loop;
+  end loop;
+end $$;`;
 }
 
 function clause(base: string, extra: readonly string[]): string {
@@ -76,11 +160,12 @@ export const TENANT_SCOPE_NAMES: readonly string[] =
  */
 export function tenantScopePolicy(table: TenantScopeTarget): string {
   const base = `${table.column} in (select ${table.members})`;
+  const exempt = exemptBranch(table.exempt);
 
   const make = (command: ScopeCommand): string => {
     const branch = table.by?.[command];
-    const using = clause(base, branch?.using ?? []);
-    const check = clause(base, branch?.check ?? []);
+    const using = clause(base, [...(branch?.using ?? []), ...exempt]);
+    const check = clause(base, [...(branch?.check ?? []), ...exempt]);
 
     return renderPolicy(
       buildPolicy({
@@ -96,9 +181,20 @@ export function tenantScopePolicy(table: TenantScopeTarget): string {
     );
   };
 
+  const roles = exemptNames(table.exempt);
+
+  const clauses = [
+    base,
+    ...SCOPE_COMMANDS.flatMap((command) => [
+      ...(table.by?.[command]?.using ?? []),
+      ...(table.by?.[command]?.check ?? []),
+    ]),
+  ];
+
   return [
     `drop policy if exists ${TENANT_SCOPE_POLICY} on ${table.target};`,
     ...SCOPE_COMMANDS.map(make),
+    ...(roles.length === 0 ? [] : [exemptGrants(clauses, roles)]),
   ].join("\n");
 }
 
@@ -246,6 +342,7 @@ export function applyTenantScope(sql: string, ctx: BlockSqlContext): string {
         column: ctx.col(logical, tenant),
         members: ctx.scope.members(),
         by: grantedBy(own),
+        exempt: ctx.config.tenantScopeExempt,
       }),
     );
   }

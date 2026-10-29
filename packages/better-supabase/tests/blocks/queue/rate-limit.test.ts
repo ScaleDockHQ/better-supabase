@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createRateLimit,
-  rateLimited,
-} from "../../../src/blocks/queue/index.ts";
+import { createRateLimit, rateLimited } from "../../../src/rate-limit/index.ts";
 import { fakeSql } from "../../fixtures/fake-sql.ts";
 
 describe("createRateLimit", () => {

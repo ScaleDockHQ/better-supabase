@@ -15,7 +15,6 @@ import { createOutbox } from "../../src/blocks/outbox/index.ts";
 import { createPipelines } from "../../src/blocks/pipelines/index.ts";
 import { createPromotions } from "../../src/blocks/promotions/index.ts";
 import { createPush } from "../../src/blocks/push/index.ts";
-import { createRateLimit } from "../../src/blocks/queue/index.ts";
 import { createRank } from "../../src/blocks/rank/index.ts";
 import { createRelations } from "../../src/blocks/relations/index.ts";
 import { createReminders } from "../../src/blocks/reminders/index.ts";
@@ -26,6 +25,7 @@ import {
   defineSettings,
 } from "../../src/blocks/settings/index.ts";
 import { dbError } from "../../src/core/errors.ts";
+import { createRateLimit } from "../../src/rate-limit/index.ts";
 
 /** A transport that answers each function and records the calls. */
 function fake(

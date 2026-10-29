@@ -1,7 +1,7 @@
 -- ==== memberships
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:5c3df060080908b10f9835866b2af99eacffe2ff13ffff35d408f4312173b809
+-- @bsb-hash sha256:72c4c23e31303922082803a7b8d9ae769db7668ab00dbba1809caa9346a07935
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -72,7 +72,8 @@ where m."role" is not null
 on conflict do nothing;
 
 -- Writing "role" directly (update_member_role, a client policy, the service
--- role) replaces the set with that one role.
+-- role) swaps the previous primary role for the new one and keeps the written
+-- one primary. The member's other roles, custom ones included, stay in the set.
 create or replace function "better_supabase"."membership_roles_from_role"()
 returns trigger
 language plpgsql
@@ -83,9 +84,13 @@ begin
   if new."role" is null or current_setting('better_supabase.membership_role_sync', true) = 'on' then
     return null;
   end if;
-  delete from "better_supabase"."membership_roles" r where r."organization_id" = new."organization_id" and r."user_id" = new."user_id" and r."role" <> new."role"::text;
+  perform set_config('better_supabase.membership_role_sync', 'on', true);
+  if tg_op = 'UPDATE' and old."role" is not null and old."role"::text <> new."role"::text then
+    delete from "better_supabase"."membership_roles" r where r."organization_id" = new."organization_id" and r."user_id" = new."user_id" and r."role" = old."role"::text;
+  end if;
   insert into "better_supabase"."membership_roles" ("organization_id", "user_id", "role") values (new."organization_id", new."user_id", new."role"::text)
   on conflict do nothing;
+  perform set_config('better_supabase.membership_role_sync', '', true);
   return null;
 end;
 $$;
@@ -107,6 +112,9 @@ declare
   v_user uuid := coalesce(new."user_id", old."user_id");
   v_primary text;
 begin
+  if current_setting('better_supabase.membership_role_sync', true) = 'on' then
+    return null;
+  end if;
   select r."role" into v_primary from "better_supabase"."membership_roles" r
   where r."organization_id" = v_tenant and r."user_id" = v_user
   order by array_position(array['owner', 'admin', 'member', 'viewer']::text[], r."role"), r."role"

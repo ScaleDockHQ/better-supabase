@@ -3,6 +3,7 @@ import { onMount } from "svelte";
 import type {
   BlockArgsOf,
   BlockDataOf,
+  BlockEngineOptions,
   BlockEventSource,
   BlockMethodName,
   BlockMutationActions,
@@ -49,11 +50,12 @@ export function useBlockMutation<
 >(
   client: C,
   method: K,
+  options: BlockEngineOptions = {},
 ): SvelteController<
   BlockMutationState<BlockDataOf<C, K>>,
   BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>>
 > {
-  return bindSvelteController(createBlockMutation(client, method));
+  return bindSvelteController(createBlockMutation(client, method, options));
 }
 
 /**

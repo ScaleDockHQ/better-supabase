@@ -3,7 +3,11 @@ import type {
   BucketPolicyName,
 } from "../../schema/types.ts";
 import type { BucketLifecycle } from "../../storage/versioning.ts";
-import type { BlockScope, OwnTablePolicies } from "../blocks.ts";
+import type {
+  BlockScope,
+  OwnTablePolicies,
+  TenantScopeConfig,
+} from "../blocks.ts";
 
 export interface BucketConfig {
   readonly id?: string;
@@ -73,6 +77,11 @@ export interface SqlConfig {
    * them.
    */
   readonly ownTablePolicies?: OwnTablePolicies;
+  /**
+   * The restrictive `bsb_tenant_scope_*` policies, unless
+   * `blocks.<name>.tenantScope` sets its own.
+   */
+  readonly tenantScope?: TenantScopeConfig;
   readonly tenantColumn?: string;
 }
 
@@ -86,7 +95,18 @@ export interface ResolvedSqlConfig {
   /** Unset means `tenant`. */
   readonly scope?: BlockScope;
   readonly tenantColumn?: string;
+  /**
+   * `schema`, `api`, `ownTablePolicies` and `tenantScope` as the config sets
+   * them, for blocks added after the config was resolved. Unset without any.
+   */
+  readonly blockDefaults?: SqlBlockDefaults;
 }
+
+/** The `sql` keys every block takes unless it sets its own. */
+export type SqlBlockDefaults = Pick<
+  SqlConfig,
+  "schema" | "api" | "ownTablePolicies" | "tenantScope"
+>;
 
 export interface SeedConfig {
   /** Module exporting `defineSeed(...)` as `seed` or default. */

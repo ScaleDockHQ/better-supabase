@@ -632,6 +632,44 @@ function secretProblem(secret: string): string | undefined {
     : undefined;
 }
 
+/** The restrictive select policy the tenant scope puts on a table. */
+const TENANT_SCOPE_SELECT = "bsb_tenant_scope_select";
+
+/**
+ * The tables a `security invoker` hook reads that a restrictive tenant scope
+ * keeps `supabase_auth_admin` out of: the scope calls `auth.uid()`, which is
+ * null inside the hook, so it matches no rows.
+ */
+function scopedTablesRead(
+  context: DoctorContext,
+  fn: ExtrasHookFunction,
+): readonly string[] {
+  const source = fn.source;
+
+  if (fn.securityDefiner || source === undefined) {
+    return [];
+  }
+
+  return context.snapshot.extras.tables.flatMap((table) => {
+    const scope = table.policies.find(
+      (policy) => policy.name === TENANT_SCOPE_SELECT && !policy.permissive,
+    );
+
+    if (
+      !scope ||
+      (scope.using ?? "").includes("supabase_auth_admin") ||
+      !new RegExp(
+        `(?<![\\w"])"?${escapeRegExp(table.schema)}"?\\s*\\.\\s*"?${escapeRegExp(table.name)}(?![\\w])`,
+        "i",
+      ).test(source)
+    ) {
+      return [];
+    }
+
+    return [`${table.schema}.${table.name}`];
+  });
+}
+
 export const HOOK_RULES: readonly Rule[] = [
   {
     code: "BS404",
@@ -778,6 +816,35 @@ export const HOOK_RULES: readonly Rule[] = [
 
       return findings;
     },
+  },
+  {
+    code: "BS421",
+    severity: "error",
+    title: "Access token hook behind the tenant scope",
+    description:
+      "Auth runs the custom access token hook as `supabase_auth_admin`, where `auth.uid()` is null. The restrictive `bsb_tenant_scope_*` policies are `to public`, so they apply to that role too and let it see no rows. A `security invoker` hook that reads a tenant-scoped table then finds nothing, and every token misses the claims it should carry. Add `supabase_auth_admin` to `database.sql.tenantScope.exemptRoles` (or the block's `tenantScope.exemptRoles`), or make the hook `security definer` owned by a role that bypasses row level security.",
+    check: (context) =>
+      configuredHooks(context).flatMap(({ config, extras }) =>
+        config.hook !== "custom_access_token" || !extras
+          ? []
+          : extras.functions.flatMap((fn): FindingInput[] => {
+              const tables = scopedTablesRead(context, fn);
+
+              return tables.length === 0
+                ? []
+                : [
+                    {
+                      message: `${signatureOf(fn)} is security invoker and reads ${tables.join(", ")}, whose restrictive tenant scope lets supabase_auth_admin see no rows. Add supabase_auth_admin to database.sql.tenantScope.exemptRoles, or make the hook security definer.`,
+                      target: signatureOf(fn),
+                      object: {
+                        kind: "function",
+                        schema: fn.schema,
+                        name: fn.name,
+                      },
+                    },
+                  ];
+            }),
+      ),
   },
   {
     code: "BS407",

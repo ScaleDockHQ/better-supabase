@@ -15,26 +15,36 @@ export const { useList: useChangeRequests, useOne: useChangeRequest } =
 export const { useList: useClientNotes, useOne: useClientNote } =
   defineDataHooks("clientNotes", (db: AppDb) => db.clientNotes);
 
-export const { useList: useContacts, useOne: useContact } =
-  defineDataHooks("contacts", (db: AppDb) => db.contacts);
+export const { useList: useContacts, useOne: useContact } = defineDataHooks(
+  "contacts",
+  (db: AppDb) => db.contacts,
+);
 
 export const { useList: useCustomerTags, useOne: useCustomerTag } =
   defineDataHooks("customerTags", (db: AppDb) => db.customerTags);
 
-export const { useList: useCustomers, useOne: useCustomer } =
-  defineDataHooks("customers", (db: AppDb) => db.customers);
+export const { useList: useCustomers, useOne: useCustomer } = defineDataHooks(
+  "customers",
+  (db: AppDb) => db.customers,
+);
 
-export const { useList: useCustomersWithOwnerList, useOne: useCustomersWithOwner } =
-  defineDataHooks("customersWithOwner", (db: AppDb) => db.customersWithOwner);
+export const {
+  useList: useCustomersWithOwnerList,
+  useOne: useCustomersWithOwner,
+} = defineDataHooks("customersWithOwner", (db: AppDb) => db.customersWithOwner);
 
-export const { useList: useLocations, useOne: useLocation } =
-  defineDataHooks("locations", (db: AppDb) => db.locations);
+export const { useList: useLocations, useOne: useLocation } = defineDataHooks(
+  "locations",
+  (db: AppDb) => db.locations,
+);
 
 export const { useList: useMemberships, useOne: useMembership } =
   defineDataHooks("memberships", (db: AppDb) => db.memberships);
 
-export const { useList: useNotes, useOne: useNote } =
-  defineDataHooks("notes", (db: AppDb) => db.notes);
+export const { useList: useNotes, useOne: useNote } = defineDataHooks(
+  "notes",
+  (db: AppDb) => db.notes,
+);
 
 export const { useList: useOrganizations, useOne: useOrganization } =
   defineDataHooks("organizations", (db: AppDb) => db.organizations);
@@ -42,26 +52,36 @@ export const { useList: useOrganizations, useOne: useOrganization } =
 export const { useList: usePlanFeatures, useOne: usePlanFeature } =
   defineDataHooks("planFeatures", (db: AppDb) => db.planFeatures);
 
-export const { useList: usePlans, useOne: usePlan } =
-  defineDataHooks("plans", (db: AppDb) => db.plans);
+export const { useList: usePlans, useOne: usePlan } = defineDataHooks(
+  "plans",
+  (db: AppDb) => db.plans,
+);
 
-export const { useList: useProjects, useOne: useProject } =
-  defineDataHooks("projects", (db: AppDb) => db.projects);
+export const { useList: useProjects, useOne: useProject } = defineDataHooks(
+  "projects",
+  (db: AppDb) => db.projects,
+);
 
 export const { useList: useProjectsViewList, useOne: useProjectsView } =
   defineDataHooks("projectsView", (db: AppDb) => db.projectsView);
 
-export const { useList: useSavedViews, useOne: useSavedView } =
-  defineDataHooks("savedViews", (db: AppDb) => db.savedViews);
+export const { useList: useSavedViews, useOne: useSavedView } = defineDataHooks(
+  "savedViews",
+  (db: AppDb) => db.savedViews,
+);
 
 export const { useList: useSubscriptions, useOne: useSubscription } =
   defineDataHooks("subscriptions", (db: AppDb) => db.subscriptions);
 
-export const { useList: useTags, useOne: useTag } =
-  defineDataHooks("tags", (db: AppDb) => db.tags);
+export const { useList: useTags, useOne: useTag } = defineDataHooks(
+  "tags",
+  (db: AppDb) => db.tags,
+);
 
-export const { useList: useTasks, useOne: useTask } =
-  defineDataHooks("tasks", (db: AppDb) => db.tasks);
+export const { useList: useTasks, useOne: useTask } = defineDataHooks(
+  "tasks",
+  (db: AppDb) => db.tasks,
+);
 
 export const { useList: useTasksViewList, useOne: useTasksView } =
   defineDataHooks("tasksView", (db: AppDb) => db.tasksView);

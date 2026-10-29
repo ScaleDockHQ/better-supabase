@@ -601,6 +601,42 @@ describe("buildModel comments", () => {
     );
   });
 
+  it("leaves the columns the updated-at extension stamps out of Insert", async () => {
+    const noDefault: Edit = (generator) => ({
+      columns: generator.columns.map((column) =>
+        column.table === "customers" &&
+        (column.name === "created_at" || column.name === "updated_at")
+          ? { ...column, default_value: null }
+          : column,
+      ),
+    });
+
+    const optional = (built: Awaited<ReturnType<typeof model>>) =>
+      Object.fromEntries(
+        built.tables
+          .find((table) => table.key === "customers")!
+          .columns.filter((column) =>
+            ["created_at", "updated_at"].includes(column.db),
+          )
+          .map((column) => [column.app, column.optional]),
+      );
+
+    expect(optional(await model(noDefault))).toEqual({
+      createdAt: false,
+      updatedAt: false,
+    });
+    expect(
+      optional(await model(noDefault, { blocks: { "updated-at": {} } })),
+    ).toEqual({ createdAt: true, updatedAt: true });
+    expect(
+      optional(
+        await model(noDefault, {
+          blocks: { "updated-at": { options: { stamp: "trigger" } } },
+        }),
+      ),
+    ).toEqual({ createdAt: false, updatedAt: false });
+  });
+
   it("types an encrypted app table column as its configured type", async () => {
     const built = await model(() => ({}), {
       appTables: {

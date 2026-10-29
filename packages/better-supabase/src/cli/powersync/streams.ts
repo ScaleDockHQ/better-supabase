@@ -1,7 +1,7 @@
 import type { BlockSqlFile } from "../../sql/index.ts";
 
 import { SPEC_PINS } from "../../index.ts";
-import { declaredColumnTypes } from "../../sql/index.ts";
+import { addedColumnTypes, declaredColumnTypes } from "../../sql/index.ts";
 
 /** The blocks `gen.powersync` can sync. */
 export const POWERSYNC_BLOCKS = [
@@ -38,6 +38,12 @@ export interface PowerSyncInput {
     string,
     ReadonlyMap<string, ReadonlyMap<string, string>>
   >;
+  /**
+   * By attachments instance key, the roles that hold its `read` permission
+   * under the `roles` access model. Without an entry, every active member of an
+   * organization syncs its files.
+   */
+  readonly readRoles?: ReadonlyMap<string, readonly string[]>;
 }
 
 /** A synced table: `schema.table`, its stream query and its columns. */
@@ -46,14 +52,18 @@ interface SyncedTable {
   readonly name: string;
   readonly stream: string;
   readonly query: string;
+  /** The stream's CTEs (`with:`), by name. */
+  readonly with?: Readonly<Record<string, string>>;
   readonly columns: ReadonlyMap<string, string>;
 }
 
 export interface PowerSyncOutput {
   /** `sync-streams.yaml` for the PowerSync service. */
   readonly streams: string;
-  /** Adds the synced tables to the `powersync` publication. */
+  /** Creates the `powersync` publication with the synced tables. */
   readonly publication: string;
+  /** The synced tables, as `schema.table`. */
+  readonly published: readonly string[];
   /** The PowerSync `Table` definitions, as a TypeScript module. */
   readonly schema: string;
   /** The SQLite table names, by instance key. */
@@ -115,16 +125,70 @@ function tablesOf(
       : [],
   );
 
-  const schemas = new Set(
-    files.flatMap(({ text }) =>
-      [...text.matchAll(CREATE_TABLE)].map((match) => unquote(match[1]!)),
+  const schemas = [
+    ...new Set(
+      files.flatMap(({ text }) =>
+        [...text.matchAll(CREATE_TABLE)].map((match) => unquote(match[1]!)),
+      ),
     ),
+  ];
+
+  const own: ReadonlyMap<string, ReadonlyMap<string, string>> = input.own?.get(
+    key,
+  ) ?? new Map();
+
+  const added = addedColumnTypes(
+    input.files.flatMap((file) =>
+      file.kind === "schema" ? [{ text: file.contents }] : [],
+    ),
+    [
+      ...schemas,
+      ...[...own.keys()].map((table) => table.slice(0, table.indexOf("."))),
+    ],
   );
 
-  return new Map([
-    ...declaredColumnTypes(files, [...schemas]),
-    ...(input.own?.get(key) ?? []),
-  ]);
+  return new Map(
+    [...declaredColumnTypes(files, schemas), ...own].map(([table, columns]) => [
+      table,
+      new Map([
+        ...columns,
+        ...[...(added.get(table) ?? [])].filter(
+          ([column]) => !columns.has(column),
+        ),
+      ]),
+    ]),
+  );
+}
+
+const ROLE_SET_TABLE =
+  /create table (?:if not exists )?((?:"(?:[^"]|"")+"|[a-z_][a-z0-9_$]*)\.(?:"(?:[^"]|"")+"|[a-z_][a-z0-9_$]*)) \((?:(?!\n\);)[\s\S])*primary key \([^)]*"?role"?\)/gi;
+
+/**
+ * The tables of `key` whose primary key ends in the `role` column, such as
+ * `membership_roles`: one row per role a member holds.
+ */
+function roleSetTables(
+  input: PowerSyncInput,
+  key: string,
+): ReadonlySet<string> {
+  const found = new Set<string>();
+
+  for (const file of input.files) {
+    if (file.kind !== "schema" || (file.instance ?? file.module) !== key) {
+      continue;
+    }
+
+    for (const match of file.contents.matchAll(ROLE_SET_TABLE)) {
+      found.add(
+        match[1]!
+          .split(".")
+          .map((part) => unquote(part.trim()))
+          .join("."),
+      );
+    }
+  }
+
+  return found;
 }
 
 /** The table of `tables` that has every one of `columns`. */
@@ -164,6 +228,13 @@ function notificationTables(
 
   const mine = `${qualifiedIdent(recipients)} WHERE user_id = auth.user_id()`;
 
+  const preferences = [...tables].find(
+    ([, declared]) =>
+      declared.has("user_id") &&
+      declared.has("channel") &&
+      declared.has("enabled"),
+  );
+
   return [
     {
       qualified: recipients,
@@ -179,17 +250,73 @@ function notificationTables(
       query: `SELECT * FROM ${qualifiedIdent(events)} WHERE id IN (SELECT event_id FROM ${mine})`,
       columns: eventColumns,
     },
+    ...(preferences === undefined
+      ? []
+      : [
+          {
+            qualified: preferences[0],
+            name: baseName(preferences[0]),
+            stream: `${instance.key}_preferences`,
+            query: `SELECT * FROM ${qualifiedIdent(preferences[0])} WHERE user_id = auth.user_id()`,
+            columns: preferences[1],
+          },
+        ]),
   ];
 }
 
-/** The memberships table: the one with `user_id` and `role`. */
+/**
+ * The memberships table: the one with `user_id` and `role` that is not a role
+ * set (`membership_roles`).
+ */
 function membershipsTable(
   input: PowerSyncInput,
   key: string,
 ): readonly [string, ReadonlyMap<string, string>] | undefined {
+  const roleSets = roleSetTables(input, key);
+
   return [...tablesOf(input, key)].find(
-    ([, declared]) => declared.has("user_id") && declared.has("role"),
+    ([table, declared]) =>
+      !roleSets.has(table) && declared.has("user_id") && declared.has("role"),
   );
+}
+
+/** The role set table (`roles.many`), when the memberships block has one. */
+function roleSetTable(
+  input: PowerSyncInput,
+  key: string,
+): readonly [string, ReadonlyMap<string, string>] | undefined {
+  const roleSets = roleSetTables(input, key);
+
+  return [...tablesOf(input, key)].find(([table]) => roleSets.has(table));
+}
+
+/** `AND disabled_at IS NULL` when the memberships table can disable a member. */
+const active = (columns: ReadonlyMap<string, string>): string =>
+  columns.has("disabled_at") ? " AND disabled_at IS NULL" : "";
+
+/**
+ * The CTE of the organizations the signed-in user is an active member of, as
+ * the tenant column of the memberships block's table.
+ */
+function activeOrganizations(
+  input: PowerSyncInput,
+  what: string,
+): { readonly tenant: string; readonly query: string } {
+  const memberships = membershipsTable(input, "memberships");
+
+  if (memberships === undefined) {
+    throw new Error(
+      `gen.powersync: ${what} syncs the rows of the user's organizations, which needs the memberships block`,
+    );
+  }
+
+  const [table, columns] = memberships;
+  const tenant = membershipTenant(columns, "memberships");
+
+  return {
+    tenant,
+    query: `SELECT ${ident(tenant)} FROM ${qualifiedIdent(table)} WHERE user_id = auth.user_id()${active(columns)}`,
+  };
 }
 
 /** The tenant column of the memberships table: its `*_id` besides `user_id`. */
@@ -233,17 +360,31 @@ function membershipTables(
 
   const [memberships, columns] = found;
   const tenant = membershipTenant(columns, `${instance.key} memberships`);
-  const mine = `SELECT ${ident(tenant)} FROM ${qualifiedIdent(memberships)} WHERE user_id = auth.user_id()`;
+  const mine = `SELECT ${ident(tenant)} FROM ${qualifiedIdent(memberships)} WHERE user_id = auth.user_id()${active(columns)}`;
 
   const synced: SyncedTable[] = [
     {
       qualified: memberships,
       name: baseName(memberships),
       stream: `${instance.key}_memberships`,
-      query: `SELECT ${ident(tenant)} || ':' || user_id AS id, * FROM ${qualifiedIdent(memberships)} WHERE user_id = auth.user_id()`,
+      query: `SELECT ${columns.has("id") ? "" : `${ident(tenant)} || ':' || user_id AS id, `}* FROM ${qualifiedIdent(memberships)} WHERE user_id = auth.user_id()${active(columns)}`,
       columns,
     },
   ];
+
+  const roleSet = roleSetTable(input, instance.key);
+
+  if (roleSet !== undefined) {
+    const [table, roleColumns] = roleSet;
+
+    synced.push({
+      qualified: table,
+      name: baseName(table),
+      stream: `${instance.key}_roles`,
+      query: `SELECT ${ident(tenant)} || ':' || user_id || ':' || role AS id, * FROM ${qualifiedIdent(table)} WHERE user_id = auth.user_id()`,
+      columns: roleColumns,
+    });
+  }
 
   const organizations = [...tablesOf(input, "organizations")].find(
     ([, declared]) =>
@@ -287,21 +428,42 @@ function teamTables(
     `${instance.key} teams`,
   );
 
-  const myTeams = `SELECT team_id FROM ${qualifiedIdent(members)} WHERE user_id = auth.user_id()`;
+  const orgs = activeOrganizations(input, instance.key);
+
+  const tenantOf = (
+    columns: ReadonlyMap<string, string>,
+    what: string,
+  ): string => {
+    const found = [...columns.keys()].find(
+      (column) =>
+        column.endsWith("_id") && column !== "team_id" && column !== "user_id",
+    );
+
+    if (found === undefined) {
+      throw new Error(`gen.powersync: ${what} has no organization column`);
+    }
+
+    return found;
+  };
+
+  const teamTenant = tenantOf(teamColumns, `${instance.key} teams`);
+  const memberTenant = tenantOf(memberColumns, `${instance.key} team members`);
 
   return [
     {
       qualified: teams,
       name: baseName(teams),
       stream: `${instance.key}_teams`,
-      query: `SELECT * FROM ${qualifiedIdent(teams)} WHERE id IN (${myTeams})`,
+      with: { my_orgs: orgs.query },
+      query: `SELECT * FROM ${qualifiedIdent(teams)} WHERE ${ident(teamTenant)} IN my_orgs`,
       columns: teamColumns,
     },
     {
       qualified: members,
       name: baseName(members),
       stream: `${instance.key}_members`,
-      query: `SELECT team_id || ':' || user_id AS id, * FROM ${qualifiedIdent(members)} WHERE team_id IN (${myTeams})`,
+      with: { my_orgs: orgs.query },
+      query: `SELECT team_id || ':' || user_id AS id, * FROM ${qualifiedIdent(members)} WHERE ${ident(memberTenant)} IN my_orgs`,
       columns: memberColumns,
     },
   ];
@@ -338,22 +500,13 @@ function attachmentTables(
     `${instance.key} attachments`,
   );
 
-  const memberships = membershipsTable(input, "memberships");
+  const orgs = activeOrganizations(input, instance.key);
 
-  if (memberships === undefined) {
-    throw new Error(
-      `gen.powersync: ${instance.key} syncs the files of the user's organizations, which needs the memberships block`,
-    );
-  }
-
-  const [membershipTable, membershipColumns] = memberships;
-
-  const tenant = [...columns.keys()].find(
-    (column) =>
-      column.endsWith("_id") &&
-      column !== "user_id" &&
-      membershipColumns.has(column),
-  );
+  const tenant = columns.has(orgs.tenant)
+    ? orgs.tenant
+    : [...columns.keys()].find(
+        (column) => column.endsWith("_id") && column !== "user_id",
+      );
 
   if (tenant === undefined) {
     throw new Error(
@@ -361,15 +514,55 @@ function attachmentTables(
     );
   }
 
+  const readers = readerOrganizations(input, instance.key, orgs.tenant);
+
   return [
     {
       qualified: attachments,
       name: baseName(attachments),
       stream: instance.key,
-      query: `SELECT * FROM ${qualifiedIdent(attachments)} WHERE ${ident(tenant)} IN (SELECT ${ident(tenant)} FROM ${qualifiedIdent(membershipTable)} WHERE user_id = auth.user_id())`,
+      with: {
+        active_orgs: orgs.query,
+        ...(readers === undefined ? {} : { reader_orgs: readers }),
+      },
+      query: `SELECT * FROM ${qualifiedIdent(attachments)} WHERE ${ident(tenant)} IN active_orgs${readers === undefined ? "" : ` AND ${ident(tenant)} IN reader_orgs`}`,
       columns,
     },
   ];
+}
+
+/**
+ * The CTE of the organizations where the user holds a role with the instance's
+ * `read` permission, read from the role set when the memberships block keeps
+ * one. Undefined when every member reads.
+ */
+function readerOrganizations(
+  input: PowerSyncInput,
+  key: string,
+  tenant: string,
+): string | undefined {
+  const roles = input.readRoles?.get(key);
+
+  if (roles === undefined) {
+    return undefined;
+  }
+
+  const source =
+    roleSetTable(input, "memberships") ??
+    membershipsTable(input, "memberships");
+
+  if (source === undefined) {
+    return undefined;
+  }
+
+  const matches =
+    roles.length === 0
+      ? "FALSE"
+      : roles
+          .map((role) => `role = '${role.replaceAll("'", "''")}'`)
+          .join(" OR ");
+
+  return `SELECT ${ident(tenant)} FROM ${qualifiedIdent(source[0])} WHERE user_id = auth.user_id() AND (${matches})`;
 }
 
 function syncedTables(
@@ -410,6 +603,14 @@ function streamsYaml(tables: readonly SyncedTable[]): string {
   const streams = tables.flatMap((table) => [
     `  ${table.stream}:`,
     "    auto_subscribe: true",
+    ...(table.with === undefined || Object.keys(table.with).length === 0
+      ? []
+      : [
+          "    with:",
+          ...Object.entries(table.with).map(
+            ([name, query]) => `      ${name}: ${yamlString(query)}`,
+          ),
+        ]),
     `    query: ${yamlString(table.query)}`,
   ]);
 
@@ -424,35 +625,27 @@ function streamsYaml(tables: readonly SyncedTable[]): string {
   ].join("\n");
 }
 
-function publicationSql(tables: readonly SyncedTable[]): string {
-  const names = tables
-    .map((table) => `('${table.qualified.replaceAll("'", "''")}')`)
-    .join(", ");
+/**
+ * The publication migration for `tables`: `create publication` when no earlier
+ * migration made it, otherwise one `alter publication` per table that
+ * `published` lacks. Undefined when there is nothing to add.
+ */
+export function publicationSql(
+  tables: readonly string[],
+  published?: ReadonlySet<string>,
+): string | undefined {
+  const quoted = (table: string): string => qualifiedIdent(table);
+  const header = `-- ${GENERATED}: the block tables PowerSync replicates.`;
 
-  return `-- ${GENERATED}: the block tables PowerSync replicates.
-do $$
-declare
-  t record;
-begin
-  if not exists (select 1 from pg_publication where pubname = 'powersync') then
-    create publication powersync;
-  end if;
+  if (published === undefined) {
+    return `${header}\ncreate publication powersync for table ${tables.map(quoted).join(", ")};\n`;
+  }
 
-  for t in
-    select n.nspname as schema_name, c.relname as table_name
-    from (values ${names}) as wanted (name)
-    join pg_class c on c.oid = wanted.name::regclass
-    join pg_namespace n on n.oid = c.relnamespace
-    where not exists (
-      select 1 from pg_publication_tables p
-      where p.pubname = 'powersync' and p.schemaname = n.nspname and p.tablename = c.relname
-    )
-  loop
-    execute format('alter publication powersync add table %I.%I', t.schema_name, t.table_name);
-  end loop;
-end;
-$$;
-`;
+  const added = tables.filter((table) => !published.has(table));
+
+  return added.length === 0
+    ? undefined
+    : `${header}\n${added.map((table) => `alter publication powersync add table ${quoted(table)};`).join("\n")}\n`;
 }
 
 const propertyName = (name: string): string =>
@@ -494,10 +687,12 @@ export function powersyncOutput(input: PowerSyncInput): PowerSyncOutput {
   );
 
   const tables = byInstance.flatMap(([, synced]) => synced);
+  const published = [...new Set(tables.map(({ qualified }) => qualified))];
 
   return {
     streams: streamsYaml(tables),
-    publication: publicationSql(tables),
+    publication: publicationSql(published) ?? "",
+    published,
     schema: schemaModule(tables, input.importFrom),
     tables: Object.fromEntries(
       byInstance.map(([key, synced]) => [key, synced.map(({ name }) => name)]),

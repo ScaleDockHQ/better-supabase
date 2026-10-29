@@ -3,6 +3,7 @@ import { posix } from "node:path";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 
 import { GENERATED_HEADER } from "./emit.ts";
+import { destructuredCall, importGroup, sortImports } from "./layout.ts";
 import { pascal, q, runtimeSubpath, singular } from "./shared.ts";
 
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/;
@@ -36,7 +37,7 @@ export function hookNames(property: string): {
  * `undefined` with `hooks: false`.
  */
 export function emitHooks(
-  config: Pick<ResolvedConfig, "hooks" | "output">,
+  config: Pick<ResolvedConfig, "hooks" | "hooksSelect" | "output">,
   tables: readonly string[],
   options: { readonly runtimeImport?: string } = {},
 ): GeneratedFile | undefined {
@@ -50,6 +51,18 @@ export function emitHooks(
     return undefined;
   }
 
+  const select = config.hooksSelect;
+
+  const wrap = (fn: string): string =>
+    select === undefined ? fn : `${select.export}(${fn})`;
+
+  const hooksImport = `import { defineDataHooks } from ${q(runtimeSubpath(runtime, config.hooks))};`;
+
+  const selectImport =
+    select && `import { ${select.export} } from ${q(select.module)};`;
+
+  const group = select && importGroup(select.module);
+
   return {
     path: hooksPath(config),
     contents: [
@@ -58,9 +71,13 @@ export function emitHooks(
       "",
       `import type { DbOf } from ${q(runtime)};`,
       "",
-      `import { defineDataHooks } from ${q(runtimeSubpath(runtime, config.hooks))};`,
+      ...(selectImport && group === "external"
+        ? sortImports([hooksImport, selectImport])
+        : [hooksImport]),
+      ...(selectImport && group === "internal" ? ["", selectImport] : []),
       "",
       'import type { betterSupabase } from "./index";',
+      ...(selectImport && group === "relative" ? ["", selectImport] : []),
       "",
       "type AppDb = DbOf<typeof betterSupabase>;",
       ...tables.flatMap((property) => {
@@ -68,8 +85,14 @@ export function emitHooks(
 
         return [
           "",
-          `export const { useList: ${names.list}, useOne: ${names.one} } =`,
-          `  defineDataHooks(${q(property)}, (db: AppDb) => ${access(property)});`,
+          ...destructuredCall(
+            [
+              ["useList", names.list],
+              ["useOne", names.one],
+            ],
+            "defineDataHooks",
+            [q(property), wrap(`(db: AppDb) => ${access(property)}`)],
+          ),
         ];
       }),
       "",

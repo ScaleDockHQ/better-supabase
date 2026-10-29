@@ -4,9 +4,10 @@
  * `build`, `dev`, `typecheck`, `lint` and `test` tasks depend on it. It also
  * writes the preset catalog (`src/preset/catalog.generated.ts`), which
  * `better-supabase/preset` resolves against without importing the SQL
- * renderers, and the adoptable-tables table on the own-schemas docs page. Both
- * are committed, and `pnpm catalog:check` (`--check`, part of `pnpm verify`)
- * fails when either is stale.
+ * renderers, the block hint codes (`src/blocks/hint-codes.generated.ts`) and
+ * the adoptable-tables table on the own-schemas docs page. All are committed,
+ * and `pnpm catalog:check` (`--check`, part of `pnpm verify`) fails when one is
+ * stale.
  */
 import {
   existsSync,
@@ -64,6 +65,7 @@ import {
   OWN_SCHEMAS_PAGE,
   withAdoptableTables,
 } from "./adoptable-tables.ts";
+import { blockHints, formatBlockHints } from "./block-hints.ts";
 
 /**
  * The blocks a block works with: what it integrates and the generic blocks it
@@ -102,6 +104,11 @@ export const NAME_REGISTRY_FILE: string = join(
 );
 
 const BLOCKS_SRC = join(ROOT, "packages/better-supabase/src/blocks");
+
+export const HINT_CODES_FILE: string = join(
+  BLOCKS_SRC,
+  "hint-codes.generated.ts",
+);
 
 export const CATEGORIES = [
   "Identity & access",
@@ -797,6 +804,7 @@ if (import.meta.main) {
   try {
     const preset = formatPresetCatalog(buildPresetCatalog());
     const nameSets = formatNameRegistry(Object.values(SQL_MODULES));
+    const hints = formatBlockHints(blockHints(BLOCK_MANIFESTS, BLOCKS_SRC));
 
     if (argv.includes("--check")) {
       if (readFileSync(PRESET_CATALOG_FILE, "utf-8") !== preset) {
@@ -813,6 +821,13 @@ if (import.meta.main) {
         exit(1);
       }
 
+      if (readFileSync(HINT_CODES_FILE, "utf-8") !== hints) {
+        console.error(
+          "build-catalog: src/blocks/hint-codes.generated.ts is stale; run `pnpm catalog`.",
+        );
+        exit(1);
+      }
+
       if (!adoptableTablesCurrent(readFileSync(OWN_SCHEMAS_PAGE, "utf-8"))) {
         console.error(
           "build-catalog: the adoptable tables on blocks/own-schemas.mdx are stale; run `pnpm catalog`.",
@@ -822,6 +837,7 @@ if (import.meta.main) {
     } else {
       writeFileSync(PRESET_CATALOG_FILE, preset);
       writeFileSync(NAME_REGISTRY_FILE, nameSets);
+      writeFileSync(HINT_CODES_FILE, hints);
       mkdirSync(dirname(CATALOG_FILE), { recursive: true });
       writeFileSync(CATALOG_FILE, formatCatalog(buildCatalog()));
 

@@ -108,6 +108,12 @@ begin
   if v_row.object_path <> '${PATH}' then
     raise exception 'path %', v_row.object_path;
   end if;
+  if exists (
+    select 1 from pg_attribute
+    where attrelid = 'better_supabase.attachments'::regclass and attname = 'object_path' and attgenerated <> ''
+  ) then
+    raise exception 'object_path is a generated column, which logical replication skips';
+  end if;
   insert into storage.objects (bucket_id, name, metadata)
   values ('attachments', '${PATH}', '{"size": 42, "mimetype": "Application/PDF"}');
   select * into v_row from better_supabase.attachments where id = '${FILE}';

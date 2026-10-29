@@ -82,6 +82,7 @@ export type { Conflicts } from "./sync.ts";
 export type { RejectedChange } from "../powersync/connector.ts";
 
 export type {
+  BlockEngineOptions,
   BlockEventSource,
   BlockMutationActions,
   BlockMutationState,

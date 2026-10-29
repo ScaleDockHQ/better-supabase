@@ -65,8 +65,8 @@ await notifications
   .orThrow();
 ```
 
-`send` returns `{ id, recipients }`, the notification id and the user ids
-that hold it after the watchers, the audience hook, preferences and the read
+`send` returns `{ id, eventId, recipients }`: the event id (twice, `id` and
+`eventId` hold the same value) and the user ids that hold it after the watchers, the audience hook, preferences and the read
 filter are applied, or `null` when nobody was left to notify. A composer
 can report how many people it reached from `recipients.length`, and
 `onSent` and the `notification.created` block event get the same list.
@@ -153,6 +153,11 @@ await notifications.resolve({
 the list can show how the notification was handled ("Approved by Ada").
 Items return it in `item.resolution`, `null` when there is none. A value
 that isn't an object fails with `NOTIFICATION_RESOLUTION_INVALID`.
+
+Each user gets a recipient row for the event. A `list()` item's `id` (also
+`recipientId`) is that row's id, and `eventId` is the id `send` returned.
+`get`, `markRead`, `markUnread`, `dismiss` and `resolve` take the recipient
+row id, so pass `item.id`, not the id from `send`.
 
 `get(id, { locale?, include? })` reads one of the caller's notifications by
 its recipient row id, dismissed ones included, rendered like a list item, or
@@ -437,7 +442,17 @@ with `preferences({ tenant? })`. With `tenant`, `preferences` returns the
 choices for that organization and the ones that hold everywhere (`tenant`
 null), so a settings page can show both. In SQL they are
 `list_notification_subscriptions(tenant, subject_type, subject_id)` and
-`list_notification_preferences(tenant)`, granted to `authenticated`.
+`list_notification_preferences(tenant)`, granted to `authenticated`. With
+`database.sql.api` set, the module also writes `security_invoker` views of
+`notification_recipients` and `notification_preferences` in that schema, so
+the Data API and PowerSync uploads reach them while row level security on
+the tables still decides every row.
+
+On PowerSync, `powersyncNotificationsTransport` answers `preferences` and
+`setPreference` from the synced `notification_preferences` table, so a
+settings page works offline, and `notificationPreferencesRoute(server,
+powersync)` replays the changes. Removing a choice (`enabled: null`) still
+goes to the server.
 
 `setPreference({ type, channel, enabled, tenant? })` turns a type (or `*`)
 on or off on a channel. The most specific row wins: the organization and

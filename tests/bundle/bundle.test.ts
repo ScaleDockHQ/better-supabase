@@ -1,6 +1,12 @@
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
+import {
+  copyFile,
+  mkdir,
+  readdir,
+  readFile,
+  writeFile,
+} from "node:fs/promises";
 import { builtinModules } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -16,6 +22,7 @@ const MAPPER_BIN = resolve(PACKAGE, "dist/mapper/bin.js");
 
 /** The region comments Rolldown leaves around each source module in a chunk. */
 const COMMAND_REGION = /^\/\/#region (src\/cli\/commands\/\S+)/gm;
+const IMPORT_SPECIFIER = /(?:\bfrom\s*|\bimport\(\s*)"([^"]+)"/g;
 
 /**
  * The CLI's startup cost: what `better-supabase --version` loads before any
@@ -431,6 +438,27 @@ describe("bundle", () => {
         (name) => !BUILTINS.has(name) && name !== "citty",
       ),
     ).toEqual([]);
+  });
+
+  it("loads no CLI chunk through better-supabase/testing or chat", async () => {
+    const dir = join(PACKAGE, "dist/cli");
+    const offenders: string[] = [];
+
+    for (const file of await readdir(dir)) {
+      if (!file.endsWith(".js")) {
+        continue;
+      }
+
+      const source = await readFile(join(dir, file), "utf-8");
+
+      for (const [, specifier] of source.matchAll(IMPORT_SPECIFIER)) {
+        if (specifier === "chat" || specifier === "better-supabase/testing") {
+          offenders.push(`cli/${file} imports ${specifier}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
   });
 
   it("starts the content mapper without the CLI framework", () => {

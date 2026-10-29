@@ -16,6 +16,20 @@ export const authorizationVersionsSchema: v.GenericSchema<{
   ),
 });
 
+/** `tenantScope` in `database.sql` or on a block: roles the scope lets through. */
+export const tenantScopeSchema: v.GenericSchema<{
+  exemptRoles?: string[] | undefined;
+}> = v.strictObject({
+  exemptRoles: v.optional(
+    v.array(
+      v.pipe(
+        v.string(),
+        v.regex(/^[a-z_][a-z0-9_]*$/, "a role name is a lowercase identifier"),
+      ),
+    ),
+  ),
+});
+
 type ValueMapsInput = Record<
   string,
   Record<string, Record<string, string | string[] | null>>

@@ -27,6 +27,10 @@ const entries = new Set(
   ),
 );
 
+// The seed guards key on Symbol.for, so the CLI's copy agrees with the entry's,
+// and the testing entry would load optional peers (chat) the CLI never needs.
+const BUNDLED = new Set([join(SRC, "testing/seed.ts")]);
+
 describe("the CLI's library imports", () => {
   // The CLI build loads these from the package's own entries, so a deeper
   // import would put a second copy of that module in the CLI bundle.
@@ -36,7 +40,11 @@ describe("the CLI's library imports", () => {
         ([, specifier]) => {
           const target = resolve(dirname(file), specifier!);
 
-          if (target.startsWith(`${CLI}/`) || entries.has(target)) {
+          if (
+            target.startsWith(`${CLI}/`) ||
+            entries.has(target) ||
+            BUNDLED.has(target)
+          ) {
             return [];
           }
 

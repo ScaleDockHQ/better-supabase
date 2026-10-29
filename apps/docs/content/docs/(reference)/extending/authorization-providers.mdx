@@ -281,6 +281,9 @@ requires: [
 `requires` lists every function the templates call, with `{scope}` filled,
 and the role that must be able to execute it. Doctor (BS411) checks the
 database has each one, and the conformance block checks the list is complete.
+A function name with `{resource}`, such as `authz.rows_{resource}`, matches
+any resource name (`[a-z_][a-z0-9_]*`), so `requires` lists each function as
+the database names it (`authz.rows_file_node`) or once with the placeholder.
 `idType` is the Postgres type of a scope's ids: `uuid`, `text`, `bigint` or
 `integer`.
 

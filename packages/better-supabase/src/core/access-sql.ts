@@ -280,11 +280,40 @@ export function templateFunctions(template: string, scope?: string): string[] {
     ...new Set(
       [
         ...filled.matchAll(
-          /(?<![\w$."])"?([a-z_][\w$]*)"?\s*\.\s*"?([a-z_][\w${}]*)"?\s*\(/gi,
+          /(?<![\w$."])"?([a-z_][\w$]*)"?\s*\.\s*"?([a-z_{][\w${}]*)"?\s*\(/gi,
         ),
       ].map((match) => `${match[1]!}.${match[2]!}`),
     ),
   ];
+}
+
+/** A resource name as `{resource}` in a function name stands for it. */
+const RESOURCE_NAME = "[a-z_][a-z0-9_]*";
+
+const resourcePattern = (name: string): RegExp =>
+  new RegExp(
+    `^${name
+      .split("{resource}")
+      .map((part) => part.replaceAll(/[$.]/g, String.raw`\$&`))
+      .join(RESOURCE_NAME)}$`,
+    "i",
+  );
+
+/**
+ * Whether two function names, such as one a template calls and one
+ * `authorization.requires` lists, name the same function. `{resource}` in
+ * either matches any resource name: `authz.{resource}_ids` matches
+ * `authz.customers_ids`.
+ */
+export function sameTemplateFunction(left: string, right: string): boolean {
+  if (left.toLowerCase() === right.toLowerCase()) {
+    return true;
+  }
+
+  return (
+    (left.includes("{resource}") && resourcePattern(left).test(right)) ||
+    (right.includes("{resource}") && resourcePattern(right).test(left))
+  );
 }
 
 /** What a bucket or topic access policy decides with. */

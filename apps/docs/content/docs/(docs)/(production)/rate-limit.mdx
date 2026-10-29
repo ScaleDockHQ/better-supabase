@@ -1,0 +1,140 @@
+---
+title: Rate limits
+description: Limit route handlers, procedures and Data API writes with counters in Postgres.
+---
+
+`better-supabase/rate-limit` counts hits in Postgres through the
+[`rate-limit` SQL module](/docs/blocks/sql#rate-limiting-writes), so every
+instance of a serverless function shares the same counters. Install the module
+with `better-supabase add rate-limit`, then create a limiter with a direct
+connection or a service-role transport:
+
+```ts title="src/lib/rate-limit.ts"
+import { createRateLimit } from "better-supabase/rate-limit";
+import { postgres } from "./supabase/server";
+
+export const limits = createRateLimit({ sql: postgres.admin });
+```
+
+Over the Data API, pass `createRateLimit({ transport: rpcTransport(adminClient) })`
+instead, with `{ schema: "api" }` when `blocks.rate-limit.api` is set.
+
+## One limit
+
+`check(scope, key, rule?)` counts one hit of `key`, such as an API key, a
+public token or an organization, against `scope`. The limit is the scope's
+rule from `set_rate_limit`, or the `rule` you pass. `rateLimited()` answers a
+refused hit with a `problem+json` 429 and `Retry-After`:
+
+```ts
+import { rateLimited } from "better-supabase/rate-limit";
+import { limits } from "@/lib/rate-limit";
+
+export async function POST(
+  request: Request,
+  { params }: { params: { token: string } },
+) {
+  const hit = await limits
+    .check("public-webhook", params.token, { max: 30, period: "1 minute" })
+    .orThrow();
+
+  if (!hit.allowed) {
+    return rateLimited(hit, { instance: new URL(request.url).pathname });
+  }
+  // handle the request
+}
+```
+
+A scope without a rule and without a per-call `rule` fails with
+`RATE_LIMIT_UNKNOWN`. `purge_rate_limits()` removes counters without a rule
+after a day, so keep a per-call `period` under a day or define the rule.
+
+## Several limits at once
+
+`checkAll(hits)` counts one hit against several limits in one round trip, such
+as a per-user, a per-IP and a per-organization limit. The hit counts only when
+every limit allows it, so a refused attempt leaves every counter as it was.
+Each limit takes its own scope and key; two windows on the same key take two
+scopes, such as `login:minute` and `login:day`:
+
+```ts
+const hit = await limits
+  .checkAll([
+    { scope: "login:user", key: email, rule: { max: 5, period: "15 minutes" } },
+    { scope: "login:ip", key: ip, rule: { max: 50, period: "1 hour" } },
+  ])
+  .orThrow();
+
+if (!hit.allowed) return rateLimited(hit);
+```
+
+`blocked` names the first limit over its maximum, `retryAfter` is the longest
+wait of the refusing limits, `remaining` the lowest of all, and `results` holds
+one decision per limit, in the order of the hits.
+
+## As middleware
+
+The [Hono](/docs/frameworks/hono#rate-limits) and
+[oRPC](/docs/frameworks/orpc#rate-limits) adapters take the limiter in a
+`rateLimit()` middleware. With `scope` and `key` it calls `check`; with `hits`
+it calls `checkAll`, and an empty list skips the limit. Responses carry the
+`RateLimit` field of draft-ietf-httpapi-ratelimit-headers, one entry per
+limit, and `RateLimit-Policy` for the limits that give a `rule`. A refused
+request gets a 429 with `Retry-After`:
+
+```ts
+const limited = os.$context<OrpcRequestContext>().use(
+  bsb.rateLimit({
+    limiter: limits,
+    hits: ({ request }) => {
+      const user = request.headers.get("x-user-id");
+      return user === null
+        ? []
+        : [
+            { scope: "rpc:user", key: user, rule: { max: 60, period: 60 } },
+            { scope: "rpc:all", key: "all", rule: { max: 1000, period: 60 } },
+          ];
+    },
+  }),
+);
+```
+
+Elsewhere, `rateLimitHeader()` and `rateLimitPolicyHeader()` from
+`better-supabase/server` build the two fields.
+
+## Data API writes
+
+The module also installs `check_request()`, a `pgrst.db_pre_request` hook
+that answers `POST`, `PATCH`, `PUT` and `DELETE` requests over a rule from
+`set_rate_limit(scope, max, period)` with a 429. The migration
+`better-supabase add --adopt` writes sets the hook on the `authenticator` role
+when no other pre-request function is set, and doctor reports a live database
+without it as [BS313](/docs/cli/doctor#bs313).
+
+If you already have a pre-request function, set `preRequest: false` and call
+the check from yours, in a schema the Data API doesn't expose:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { "rate-limit": { options: { preRequest: false } } },
+});
+```
+
+```sql
+create schema if not exists private;
+create or replace function private.pre_request() returns void language plpgsql as $$
+begin
+  perform better_supabase.check_request();
+  -- your checks
+end $$;
+```
+
+The hook runs only for the Data API: queries through `better-supabase/postgres`
+and `ctx.sql` aren't limited. The rules, scopes and counters are on the
+[SQL modules page](/docs/blocks/sql#rate-limiting-writes).
+
+## Moving from `blocks/queue`
+
+`createRateLimit`, `rateLimited` and their types still import from
+`better-supabase/blocks/queue`, marked deprecated. Change the import path to
+`better-supabase/rate-limit`; the API is the same.

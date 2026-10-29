@@ -623,6 +623,7 @@ export function createNotifications<
     isRecord(value) && value["id"] !== null && value["id"] !== undefined
       ? {
           id: String(value["id"]),
+          eventId: String(value["id"]),
           recipients: (Array.isArray(value["recipients"])
             ? value["recipients"]
             : []

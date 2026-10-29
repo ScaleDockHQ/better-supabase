@@ -1803,6 +1803,27 @@ version nothing bumps, so a role change never looks newer. Drop the table
 with a migration (`better-supabase db diff` writes it), and use the
 provider's hook or read its versions function.
 
+### BS421
+
+**Error: access token hook behind the tenant scope.** Auth runs the custom
+access token hook as `supabase_auth_admin`, where `auth.uid()` is null. The
+restrictive `bsb_tenant_scope_*` policies are `to public`, so they apply to
+that role too and let it see no rows. Doctor reports a `security invoker` hook
+whose body reads a table with a restrictive `bsb_tenant_scope_select` policy
+that doesn't let `supabase_auth_admin` through. Every token then misses the
+claims the hook reads from that table. Add the role to the tenant scope:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: { sql: { tenantScope: { exemptRoles: ["supabase_auth_admin"] } } },
+});
+```
+
+The exemption only lifts the restrictive scope. The hook still needs the grant
+and the permissive policy for `supabase_auth_admin` that the Supabase hook guide
+describes. Or make the hook `security definer`, owned by a role that bypasses
+row level security.
+
 ## Env files
 
 ### BS501

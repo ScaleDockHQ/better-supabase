@@ -71,6 +71,11 @@ export interface McpAuthOptions
   /** Published as `resource_documentation`. */
   readonly resourceDocumentation?: string;
   /**
+   * `AuthInfo.clientId` for a token without a `client_id` or `azp` claim, such
+   * as the user's own session. Defaults to `""`.
+   */
+  readonly clientId?: string;
+  /**
    * Keeps the invocation alive for event sink sends a tool started, e.g.
    * `EdgeRuntime.waitUntil` or Next's `after`.
    */
@@ -111,8 +116,14 @@ export interface BetterMcpAuth<
    * `handler.fetch(request, { authInfo })`.
    */
   serve(handler: McpFetchHandler): (request: Request) => Promise<Response>;
-  /** The caller's context for a tool call, from `ctx.http.authInfo`. */
-  contextOf(ctx: McpContext): Promise<ServerContext<M, F, E, C, P, B>>;
+  /**
+   * The caller's context: for a tool call from `ctx.http.authInfo`, and for a
+   * `Request` or `Headers` from the `Authorization` bearer token, verified and
+   * guarded as `serve` does. Without a valid token the context is anonymous.
+   */
+  contextOf(
+    source: McpContext | Request | Headers,
+  ): Promise<ServerContext<M, F, E, C, P, B>>;
 }
 
 /** What `withBetterSupabaseMcp` adds to the SDK's tool context. */
@@ -215,6 +226,12 @@ function claimString(
   return typeof value === "string" ? value : undefined;
 }
 
+const BEARER = /^bearer\s+(\S+)\s*$/i;
+
+function bearerOf(header: string | null): string | undefined {
+  return header === null ? undefined : BEARER.exec(header)?.[1];
+}
+
 function isUserState<C, P>(
   value: unknown,
   verified: WeakSet<object>,
@@ -304,6 +321,7 @@ export function createMcpAuth<
         clientId:
           claimString(auth.claims, "client_id") ??
           claimString(auth.claims, "azp") ??
+          options.clientId ??
           "",
         scopes: [...(delegationOf(auth.claims)?.scopes ?? [])],
         ...(auth.expiresAt === null
@@ -318,27 +336,39 @@ export function createMcpAuth<
 
   const anon: AuthState<C, P> = { kind: "none", reason: "none" };
 
-  const contextOf = async (
-    ctx: McpContext,
+  const tokenContext = async (
+    token: string | undefined,
   ): Promise<ServerContext<M, F, E, C, P, B>> => {
-    const info = ctx.http?.authInfo;
+    if (!token) {
+      return server.contextFor(anon);
+    }
+
+    const auth = await resolveToken(server, token);
+
+    const allowed =
+      auth.kind === "user" &&
+      guard(auth, allow, options.aal, scopes) === undefined;
+
+    return server.contextFor(allowed ? auth : anon);
+  };
+
+  const contextOf = async (
+    source: McpContext | Request | Headers,
+  ): Promise<ServerContext<M, F, E, C, P, B>> => {
+    if (source instanceof Request || source instanceof Headers) {
+      const headers = source instanceof Request ? source.headers : source;
+
+      return tokenContext(bearerOf(headers.get("authorization")));
+    }
+
+    const info = source.http?.authInfo;
     const state = info?.extra?.[MCP_AUTH_STATE_KEY];
 
     if (isUserState<C, P>(state, verified)) {
       return server.contextFor(state);
     }
 
-    if (info?.token) {
-      const auth = await resolveToken(server, info.token);
-
-      const allowed =
-        auth.kind === "user" &&
-        guard(auth, allow, options.aal, scopes) === undefined;
-
-      return server.contextFor(allowed ? auth : anon);
-    }
-
-    return server.contextFor(anon);
+    return tokenContext(info?.token);
   };
 
   const serve =

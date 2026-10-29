@@ -26,14 +26,13 @@ const config: OxfmtConfig = defineConfig({
     ...ignorePatterns,
     "packages/better-supabase/tests/fixtures/generated*",
     "apps/examples/**/lib/supabase/generated.*",
-    "apps/examples/**/lib/supabase/records/**",
-    "apps/examples/**/lib/supabase/hooks.ts",
     "apps/examples/monorepo/runtime/src/generated.*",
     "tests/validation-*/src/**/generated.*",
     // `introspect --check` compares the file byte for byte with its own output.
     "supabase/snapshot.json",
     // `catalog:check` compares it with `formatNameRegistry` byte for byte.
     "packages/better-supabase/src/blocks/name-registry.generated.ts",
+    "packages/better-supabase/src/blocks/hint-codes.generated.ts",
     // `recipes:check` compares it with the example sources, whose Tailwind
     // classes sort against the app's stylesheet, which this path can't see.
     "packages/better-supabase/skills/better-supabase/references/ui-recipes.md",

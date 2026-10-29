@@ -20,6 +20,10 @@ import { webPorts } from "./web-ports.ts";
 
 export { bindClient } from "./bind.ts";
 
+export { AUTHZ_EVENT, authzUserTopic } from "../core/authz-topic.ts";
+
+export type { AuthzVersionSource } from "../core/authz-topic.ts";
+
 export { functions } from "./functions.ts";
 
 export type {

@@ -125,6 +125,7 @@ const message = (
   locale: null,
   notification: {
     id: "r1",
+    recipientId: "r1",
     eventId: "e1",
     type: "task.assigned",
     data: { title: "Ship it" },

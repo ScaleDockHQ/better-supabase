@@ -3,6 +3,7 @@ import { getCurrentScope, onScopeDispose } from "vue";
 import type {
   BlockArgsOf,
   BlockDataOf,
+  BlockEngineOptions,
   BlockEventSource,
   BlockMethodName,
   BlockMutationActions,
@@ -50,11 +51,12 @@ export function useBlockMutation<
 >(
   client: C,
   method: K,
+  options: BlockEngineOptions = {},
 ): VueController<
   BlockMutationState<BlockDataOf<C, K>>,
   BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>>
 > {
-  return bindVueController(createBlockMutation(client, method));
+  return bindVueController(createBlockMutation(client, method, options));
 }
 
 /**

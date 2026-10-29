@@ -478,6 +478,7 @@ function policiesSql(table: AppTable): string {
             target,
             column: sqlIdent(table.scope.name),
             members: table.ctx.scope.members(),
+            exempt: table.ctx.config.tenantScopeExempt,
           }),
         ]
       : []),

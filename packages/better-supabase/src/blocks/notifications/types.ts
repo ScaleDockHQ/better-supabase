@@ -25,7 +25,9 @@ export interface NotificationAction {
 export interface NotificationItem<K extends string = string, D = unknown> {
   /** The recipient row id: pass it to `markRead` and `dismiss`. */
   readonly id: string;
-  /** The shared event id, the same for every recipient. */
+  /** The recipient row id, the same as `id`. */
+  readonly recipientId: string;
+  /** The shared event id, the same for every recipient and as `send().id`. */
   readonly eventId: string;
   readonly type: K;
   readonly data: D;

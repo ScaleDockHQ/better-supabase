@@ -36,6 +36,12 @@ migration note.
 - Done: the tenant scope is one restrictive policy per command (`bsb_tenant_scope_select`,
   `_insert`, `_update`, `_delete`), `to public`; a block's anon or public policy keeps its
   condition inside the matching command's scope policy.
+- Amended (0.45): `to public` also covers `supabase_auth_admin`, which runs a `security invoker`
+  custom access token hook without `auth.uid()`, so the hook saw no rows. `tenantScope.exemptRoles`
+  (under `database.sql` or per block) adds a `current_user = any (...)` branch to each scope policy
+  and grants the exempt roles `execute` on the functions the scope calls, because Postgres checks
+  that privilege before `or` skips a branch. The exemption lifts only the restrictive scope: the
+  role still needs its own grant and permissive policy. Doctor reports the hook as BS421.
 - Done: `rls-guard` catches `alter table` (0.23.x) and `init` writes it into a new config; the `none`
   scope refuses anonymous sign-ins.
 - Not done, by decision: the service-role check keeps reading the JWT claim. Block functions raise a

@@ -6,11 +6,11 @@ import type { BlockTransport } from "../../../src/core/block-transport.ts";
 import {
   createIdempotency,
   createQueue,
-  createRateLimit,
   purgeWebhookInbox,
   transportQueueProvider,
   withLease,
 } from "../../../src/blocks/queue/index.ts";
+import { createRateLimit } from "../../../src/rate-limit/index.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { fakeSql } from "../../fixtures/fake-sql.ts";
 

@@ -1,0 +1,90 @@
+---
+title: From 0.45 to 0.46
+description: What to check when upgrading from better-supabase 0.45 to 0.46, where PowerSync streams move to edition 3, attachments fill object_path from a trigger, doctor adds BS421 and the rate limiter moves to its own entry.
+---
+
+0.46.0 collects fixes reported by an app in production. Most of them add
+options. Four can need a step: the regenerated module SQL, the PowerSync
+streams, a new doctor error and an import path.
+
+| Section                                                 | Needs code                                   |
+| ------------------------------------------------------- | -------------------------------------------- |
+| [The SQL modules](#the-sql-modules)                     | Run `upgrade` and generate a migration       |
+| [PowerSync streams](#powersync-streams)                 | Upload the regenerated streams               |
+| [Access token hooks (BS421)](#access-token-hooks-bs421) | When doctor reports BS421                    |
+| [The rate limiter import](#the-rate-limiter-import)     | Optional; the old import still works         |
+| [Generated code](#generated-code)                       | Run `gen`; drop casts on `createdAt` inserts |
+
+## The SQL modules
+
+The attachments module moves to version 7. `object_path` was a generated
+column, which Postgres logical replication skips, so PowerSync never received
+it. It is now a plain column that a trigger fills on insert and update. An
+existing install keeps its values: the module drops the generation expression
+and leaves the stored paths in place. Attachments also broadcast `changed` to
+`attachments:<tenant>` when a tenant's file changes (rename the topic with
+`blocks.attachments.options.topic`).
+
+The memberships module keeps custom roles in `membership_roles` under the
+provider and custom access models, and a direct write of `memberships.role`
+swaps the previous primary role instead of adding one. Regenerate the module
+SQL and the migration:
+
+```sh
+npx better-supabase@latest upgrade
+npx better-supabase@latest db diff -f upgrade_0_45
+```
+
+## PowerSync streams
+
+`better-supabase powersync streams` now writes Sync Streams edition 3. The
+memberships, teams and attachments streams read the user's organizations
+through a `with:` CTE, skip disabled memberships and sync every team in those
+organizations. With `roles.many` a `membership_roles` stream follows.
+Regenerate the file and upload it with the PowerSync dashboard or CLI:
+
+```sh
+npx better-supabase@latest powersync streams
+```
+
+The publication migration now starts with `create publication powersync for
+table ...`, and a later run adds only the tables earlier migrations did not
+publish. If you created the publication yourself (`for all tables`), delete
+the first generated migration. [`powersync`](/docs/cli/powersync) covers the
+details.
+
+## Access token hooks (BS421)
+
+Auth runs a custom access token hook as `supabase_auth_admin`, where
+`auth.uid()` is null, so the restrictive `bsb_tenant_scope` policies hide every
+row from it. Doctor now reports a `security invoker` hook that reads a
+tenant-scoped table as [BS421](/docs/cli/doctor#bs421). List the role in the
+tenant scope:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  database: { sql: { tenantScope: { exemptRoles: ["supabase_auth_admin"] } } },
+});
+```
+
+## The rate limiter import
+
+`createRateLimit` and `rateLimited` have their own entry. The exports from
+`better-supabase/blocks/queue` stay as deprecated aliases.
+
+| 0.45                                                  | 0.46                                                |
+| ----------------------------------------------------- | --------------------------------------------------- |
+| `createRateLimit` from `better-supabase/blocks/queue` | `createRateLimit` from `better-supabase/rate-limit` |
+| `rateLimited` from `better-supabase/blocks/queue`     | `rateLimited` from `better-supabase/rate-limit`     |
+
+The oRPC and Hono `rateLimit` middleware take several limits through `hits`;
+[Rate limits](/docs/rate-limit) shows both.
+
+## Generated code
+
+Run `npx better-supabase@latest gen`. `records/` and `hooks.ts` now come out
+the way oxfmt prints them, so a formatter run leaves them unchanged and you can
+stop ignoring them. On tables the updated-at extension stamps, `createdAt` and
+`updatedAt` are optional on `Insert`; remove any placeholder values or casts
+you added to satisfy the old types. `gen.hooks.select` wraps every generated
+select in a function of your own, for example to scope reads by tenant.

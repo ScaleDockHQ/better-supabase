@@ -315,7 +315,9 @@
       "ColumnPrivilege",
       "ConfigReferences",
       "DatabaseConfig",
+      "DataHooksConfig",
       "DataHooksFramework",
+      "DataHooksSelect",
       "DisabledRow",
       "DoctorConfig",
       "EntitiesConfig",
@@ -375,6 +377,7 @@
       "SkillsAgent",
       "SkillsConfig",
       "SourceConfig",
+      "SqlBlockDefaults",
       "SqlConfig",
       "SqlInput",
       "SqlWorkflow",
@@ -759,6 +762,8 @@
   },
   "./client": {
     "values": [
+      "AUTHZ_EVENT",
+      "authzUserTopic",
       "bindClient",
       "createClient",
       "defineController",
@@ -779,6 +784,7 @@
       "AuthPort",
       "AuthSnapshot",
       "AuthUser",
+      "AuthzVersionSource",
       "BetterClient",
       "BindClientOptions",
       "ClientAuth",
@@ -819,6 +825,8 @@
   },
   "./client/native": {
     "values": [
+      "AUTHZ_EVENT",
+      "authzUserTopic",
       "autoRefreshOnForeground",
       "contentTypeOf",
       "createNativeClient",
@@ -850,6 +858,7 @@
       "AuthSnapshot",
       "AuthStorage",
       "AuthUser",
+      "AuthzVersionSource",
       "AutoRefreshClient",
       "BetterClient",
       "BindClientOptions",
@@ -946,6 +955,7 @@
       "AuthSession",
       "BetterHooks",
       "BetterSupabaseProviderProps",
+      "BlockEngineOptions",
       "BlockEventSource",
       "BlockMutationActions",
       "BlockMutationState",
@@ -1013,6 +1023,8 @@
   "./react/native": {
     "values": [
       "AuthGate",
+      "AUTHZ_EVENT",
+      "authzUserTopic",
       "SessionProvider",
       "useAuthDeepLinks",
       "useOAuth",
@@ -1023,6 +1035,7 @@
       "AuthFailure",
       "AuthGateProps",
       "AuthLinkResult",
+      "AuthzVersionSource",
       "LinkingLike",
       "NativeSessionProviderProps",
       "OAuth",
@@ -1035,6 +1048,7 @@
   "./query": {
     "values": [
       "BLOCK_READ_PREFIXES",
+      "blockControllerEngine",
       "blockQueries",
       "clearOnUserChange",
       "createQueries",
@@ -1551,6 +1565,7 @@
       "fromSqliteError",
       "likeToGlob",
       "membershipsRoute",
+      "notificationPreferencesRoute",
       "notificationRecipientsRoute",
       "postgrestTimestamp",
       "powersyncEngine",
@@ -1585,6 +1600,7 @@
       "LocalProfileFunction",
       "LocalTeamFunction",
       "MembershipWrites",
+      "NotificationPreferenceWrites",
       "NotificationRecipientWrites",
       "PowerSyncDatabaseLike",
       "PowerSyncEngineOptions",
@@ -1848,6 +1864,9 @@
       "HonoEnv",
       "HonoOptions",
       "MiddlewareOptions",
+      "MultiRateLimiter",
+      "MultiRateLimitOptions",
+      "RateLimitAllVerdict",
       "RateLimiter",
       "RateLimitRouteOptions",
       "RateLimitVerdict",
@@ -1855,7 +1874,9 @@
       "ResourceContext",
       "ResourceHooks",
       "ResourceRouteOptions",
-      "RouteRateLimitRule"
+      "RouteRateLimitHit",
+      "RouteRateLimitRule",
+      "SingleRateLimitOptions"
     ]
   },
   "./tanstack-start": {
@@ -2087,6 +2108,7 @@
       "BetterComposables",
       "BetterSupabasePlugin",
       "BetterSupabaseVueOptions",
+      "BlockEngineOptions",
       "BlockEventSource",
       "BlockMutationActions",
       "BlockMutationState",
@@ -2146,6 +2168,7 @@
       "AuthSnapshot",
       "BetterPrimitives",
       "BetterSupabaseProviderProps",
+      "BlockEngineOptions",
       "BlockEventSource",
       "BlockMutationActions",
       "BlockMutationState",
@@ -2206,6 +2229,7 @@
       "AuthSnapshot",
       "BetterSvelte",
       "BetterSvelteOptions",
+      "BlockEngineOptions",
       "BlockEventSource",
       "BlockMutationActions",
       "BlockMutationState",
@@ -2250,6 +2274,8 @@
       "BetterOrpc",
       "GuardOptions",
       "MiddlewareOptions",
+      "MultiRateLimiter",
+      "MultiRateLimitOptions",
       "OrpcAuthed",
       "OrpcContext",
       "OrpcExecutionContext",
@@ -2261,11 +2287,15 @@
       "OrpcOptions",
       "OrpcRateLimitInput",
       "OrpcRateLimitMiddleware",
+      "OrpcRateLimitOptions",
       "OrpcRequestContext",
+      "RateLimitAllVerdict",
       "RateLimiter",
       "RateLimitRouteOptions",
       "RateLimitVerdict",
+      "RouteRateLimitHit",
       "RouteRateLimitRule",
+      "SingleRateLimitOptions",
       "ToOrpcOptions"
     ]
   },
@@ -2357,6 +2387,7 @@
   "./mcp/sdk": {
     "values": [
       "createMcpAuth",
+      "MCP_AUTH_STATE_KEY",
       "supabaseMcpHandler",
       "withBetterSupabaseMcp"
     ],
@@ -2512,6 +2543,7 @@
       "BLOCK_CATEGORIES",
       "BLOCK_EVENT_SOURCE",
       "blockFields",
+      "blockHint",
       "blockNames",
       "blockOptions",
       "createBlockClient",
@@ -2530,6 +2562,7 @@
       "fillTopic",
       "FINAL_RUN_STATES",
       "generatedOptions",
+      "isBlockHint",
       "mergeEvents",
       "NO_OPTIONS",
       "onBlockEvent",
@@ -2556,6 +2589,8 @@
       "BlockEnv",
       "BlockEnvKey",
       "BlockFields",
+      "BlockHint",
+      "BlockHints",
       "BlockHookInfo",
       "BlockHooks",
       "BlockInvalidates",
@@ -3136,6 +3171,22 @@
       "TriggerPayloadMode",
       "TriggerTopic",
       "TriggerValue"
+    ]
+  },
+  "./rate-limit": {
+    "values": [
+      "createRateLimit",
+      "rateLimited"
+    ],
+    "types": [
+      "RateLimit",
+      "RateLimitAllDecision",
+      "RateLimitDecision",
+      "RateLimitHit",
+      "RateLimitOptions",
+      "RateLimitRule",
+      "RateLimitSettings",
+      "RateLimitSource"
     ]
   },
   "./events": {
@@ -3765,7 +3816,9 @@
       "attachmentsBlock",
       "attachmentsEvents",
       "attachmentsOptimistic",
+      "attachmentsTopic",
       "attachmentVersionOf",
+      "createAttachmentListController",
       "createAttachments",
       "createAttachmentScanner",
       "createAttachmentSweeper",
@@ -3783,6 +3836,10 @@
       "AttachmentFileInput",
       "AttachmentImages",
       "AttachmentImageUrlOptions",
+      "AttachmentListActions",
+      "AttachmentListController",
+      "AttachmentListControllerOptions",
+      "AttachmentListSnapshot",
       "AttachmentReplacement",
       "Attachments",
       "AttachmentScanJob",
@@ -8079,6 +8136,7 @@
   },
   "./sql": {
     "values": [
+      "addedColumnTypes",
       "adoptedColumnProblems",
       "adoptedTables",
       "adoptedViews",
@@ -8087,6 +8145,7 @@
       "appTableEventTypes",
       "appTablePolicyNotes",
       "appTablesFiles",
+      "attachmentReadRoles",
       "AUDIT_CATEGORIES",
       "auditRegistrations",
       "BLOCK_OPTION_SCHEMAS",
@@ -8162,6 +8221,7 @@
       "rlsTables",
       "rulePolicy",
       "sameBlockFile",
+      "sameTemplateFunction",
       "sameTenantColumn",
       "sameTenantLayout",
       "sameTenantTrigger",

@@ -204,6 +204,7 @@ const entries = [
   "list/index",
   "storage/index",
   "realtime/index",
+  "rate-limit/index",
   "events/index",
   "spec/index",
   "otel/index",

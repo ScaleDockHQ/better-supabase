@@ -115,7 +115,10 @@ export { subjectColumns } from "./subject-registry.ts";
 
 export type { AuditedTable } from "./audit-registrations.ts";
 
+export { attachmentReadRoles } from "./read-roles.ts";
+
 export {
+  addedColumnTypes,
   declaredColumnTypes,
   declaredIndexes,
   type OwnIndex,
@@ -134,6 +137,7 @@ export {
   resolveProviderSql,
   SCOPE_ID_TYPES,
   scopeProblems,
+  sameTemplateFunction,
   templateFunctions,
 } from "../core/access-sql.ts";
 

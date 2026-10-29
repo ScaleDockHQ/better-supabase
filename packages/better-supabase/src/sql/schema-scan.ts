@@ -433,6 +433,61 @@ export function declaredColumnTypes(
   return found;
 }
 
+const ALTER_TABLE = /* @__PURE__ */ new RegExp(
+  String.raw`\balter\s+table\s+(?:if\s+exists\s+)?(?:only\s+)?(${TABLE_NAME})\s+(add\s[^;]*);`,
+  "gi",
+);
+
+const ADD_COLUMN = /* @__PURE__ */ new RegExp(
+  String.raw`^add\s+(?:column\s+)?(?:if\s+not\s+exists\s+)?(${NAME})\s+([\s\S]+)$`,
+  "i",
+);
+
+/**
+ * The columns `alter table ... add column` statements in `files` add, in the
+ * shape `declaredColumnTypes` returns. Only tables in `schemas` are kept.
+ */
+export function addedColumnTypes(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): ReadonlyMap<string, ReadonlyMap<string, string>> {
+  const found = new Map<string, Map<string, string>>();
+
+  for (const file of files) {
+    for (const match of withoutComments(file.text).matchAll(ALTER_TABLE)) {
+      const table = qualified(match[1]!);
+
+      if (!schemas.includes(table.slice(0, table.indexOf(".")))) {
+        continue;
+      }
+
+      const columns = found.get(table) ?? new Map<string, string>();
+
+      for (const part of splitTopLevel(match[2]!)) {
+        const added = ADD_COLUMN.exec(part.trim());
+
+        if (added === null || TABLE_CONSTRAINT.test(added[1]!)) {
+          continue;
+        }
+
+        const rest = added[2]!;
+        const option = COLUMN_OPTION.exec(` ${rest}`);
+
+        columns.set(
+          unquote(added[1]!),
+          typeName(option === null ? rest : rest.slice(0, option.index)),
+        );
+      }
+
+      if (columns.size > 0) {
+        found.set(table, columns);
+      }
+    }
+  }
+
+  return found;
+}
+
 function typeName(text: string): string {
   return text
     .trim()

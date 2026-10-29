@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { fillTemplate, templateProblems } from "../../src/core/access-sql.ts";
+import {
+  fillTemplate,
+  sameTemplateFunction,
+  templateProblems,
+} from "../../src/core/access-sql.ts";
 import { tokenizeTemplate } from "../../src/core/sql-template-tokens.ts";
 
 describe("templateProblems", () => {
@@ -61,6 +65,33 @@ describe("templateProblems", () => {
 
   it("does not treat keywords followed by a paren as calls", () => {
     expect(templateProblems("select 1 where a in (1) and not (b)")).toEqual([]);
+  });
+});
+
+describe("sameTemplateFunction", () => {
+  it("matches {resource} against any resource name, either way round", () => {
+    expect(
+      sameTemplateFunction("authz.{resource}_ids", "authz.file_node_ids"),
+    ).toBe(true);
+    expect(
+      sameTemplateFunction("authz.file_node_ids", "authz.{resource}_ids"),
+    ).toBe(true);
+    expect(sameTemplateFunction("authz.ids", "AUTHZ.IDS")).toBe(true);
+  });
+
+  it("keeps the rest of the name literal", () => {
+    expect(
+      sameTemplateFunction("authz.{resource}_ids", "authz.file_node_id"),
+    ).toBe(false);
+    expect(sameTemplateFunction("authz.{resource}_ids", "authzx_ids")).toBe(
+      false,
+    );
+    expect(sameTemplateFunction("authz.{resource}_ids", "authz._ids")).toBe(
+      false,
+    );
+    expect(
+      sameTemplateFunction("authz.{resource}_ids", 'authz."a-b"_ids'),
+    ).toBe(false);
   });
 });
 

@@ -17,7 +17,9 @@ export type LocalNotificationFunction =
   | "notification_counts"
   | "mark_notifications_read"
   | "mark_notifications_unread"
-  | "dismiss_notifications";
+  | "dismiss_notifications"
+  | "list_notification_preferences"
+  | "set_notification_preference";
 
 const FUNCTIONS: readonly LocalNotificationFunction[] = [
   "get_notification",
@@ -27,6 +29,8 @@ const FUNCTIONS: readonly LocalNotificationFunction[] = [
   "mark_notifications_read",
   "mark_notifications_unread",
   "dismiss_notifications",
+  "list_notification_preferences",
+  "set_notification_preference",
 ];
 
 export interface PowerSyncNotificationsOptions {
@@ -37,9 +41,14 @@ export interface PowerSyncNotificationsOptions {
   readonly server: BlockTransport;
   /**
    * The synced table names, as `powersync streams` wrote them into the client
-   * schema. Default `notification_recipients` and `notification_events`.
+   * schema. Default `notification_recipients`, `notification_events` and
+   * `notification_preferences`.
    */
-  readonly tables?: { readonly recipients?: string; readonly events?: string };
+  readonly tables?: {
+    readonly recipients?: string;
+    readonly events?: string;
+    readonly preferences?: string;
+  };
   /**
    * The tenant column, when `config.tenancy` renames it. Default
    * `organization_id`.
@@ -71,9 +80,11 @@ type Row = Readonly<Record<string, unknown>>;
 /**
  * A block transport for the notifications module on PowerSync: the feed, its
  * counts and marking read, unread or dismissed run on the synced tables, so the
- * inbox works offline. Writes go into PowerSync's upload queue, which
- * `notificationRecipientsRoute` replays on the server. Every other function
- * (sending, preferences, resolving) goes to `server`.
+ * inbox works offline. Listing preferences and turning a type on or off on a
+ * channel work offline too. Writes go into PowerSync's upload queue, which
+ * `notificationRecipientsRoute` and `notificationPreferencesRoute` replay on
+ * the server. Every other function (sending, resolving, removing a preference
+ * with `enabled: null`) goes to `server`.
  *
  * ```ts
  * const notifications = createNotifications({
@@ -96,6 +107,10 @@ export function powersyncNotificationsTransport(
 
   const events = quoteSqliteIdent(
     options.tables?.events ?? "notification_events",
+  );
+
+  const preferences = quoteSqliteIdent(
+    options.tables?.preferences ?? "notification_preferences",
   );
 
   const tenant = options.tenantColumn ?? "organization_id";
@@ -380,6 +395,54 @@ export function powersyncNotificationsTransport(
         );
       }
 
+      case "list_notification_preferences": {
+        const scoped = typeof args["tenant"] === "string";
+
+        const rows = await database.getAll<Row>(
+          `SELECT * FROM ${preferences}${scoped ? ` WHERE ${tenantColumn} IS NULL OR ${tenantColumn} = ?` : ""} ORDER BY ${tenantColumn} IS NOT NULL, ${tenantColumn}, type, channel`,
+          scoped ? [args["tenant"]] : [],
+        );
+
+        return rows.map((row) => ({
+          type: row["type"],
+          channel: row["channel"],
+          enabled: row["enabled"] === 1 || row["enabled"] === true,
+          tenant: row[tenant] ?? null,
+        }));
+      }
+
+      case "set_notification_preference": {
+        const scope =
+          typeof args["tenant"] === "string" ? args["tenant"] : null;
+
+        const enabled = args["enabled"] === true ? 1 : 0;
+
+        await database.writeTransaction(async (tx) => {
+          const [found] = await tx.getAll<{ id: unknown }>(
+            `SELECT id FROM ${preferences} WHERE type = ? AND channel = ? AND ${tenantColumn} IS ?`,
+            [args["type"], args["channel"], scope],
+          );
+
+          await (found === undefined
+            ? tx.execute(
+                `INSERT INTO ${preferences} (id, ${tenantColumn}, type, channel, enabled, created_at) VALUES (uuid(), ?, ?, ?, ?, ?)`,
+                [
+                  scope,
+                  args["type"],
+                  args["channel"],
+                  enabled,
+                  new Date().toISOString(),
+                ],
+              )
+            : tx.execute(`UPDATE ${preferences} SET enabled = ? WHERE id = ?`, [
+                enabled,
+                found.id,
+              ]));
+        });
+
+        return null;
+      }
+
       default: {
         const unhandled: never = fn;
 
@@ -394,7 +457,9 @@ export function powersyncNotificationsTransport(
     call(schema, fn, args) {
       const handled = byName.get(fn);
 
-      return handled === undefined
+      return handled === undefined ||
+        (handled === "set_notification_preference" &&
+          typeof args["enabled"] !== "boolean")
         ? options.server.call(schema, fn, args)
         : local(handled, args);
     },
@@ -490,6 +555,84 @@ export function notificationRecipientsRoute(
     return data["read_at"] === null
       ? notifications.markUnread({ ids })
       : notifications.markRead({ ids });
+  };
+}
+
+/** The upload route's notifications client for preferences: the server one. */
+export interface NotificationPreferenceWrites {
+  setPreference(input: {
+    readonly type: string;
+    readonly channel: string;
+    readonly enabled: boolean | null;
+    readonly tenant?: string;
+  }): PromiseLike<Result<unknown>>;
+}
+
+/**
+ * The upload route for `notification_preferences`: replays a local preference
+ * change through `set_notification_preference`, which sets the caller as the
+ * owner and checks the organization. An update carries only `enabled`, so the
+ * route reads the type, channel and organization from the local row.
+ *
+ * ```ts
+ * createUploadConnector({
+ *   tables: {
+ *     notification_preferences: notificationPreferencesRoute(
+ *       serverNotifications,
+ *       powersync,
+ *     ),
+ *   },
+ * });
+ * ```
+ */
+export function notificationPreferencesRoute(
+  notifications: NotificationPreferenceWrites,
+  database: PowerSyncDatabaseLike,
+  options: {
+    /** The synced table name. Default `notification_preferences`. */
+    readonly table?: string;
+    /** The tenant column. Default `organization_id`. */
+    readonly tenantColumn?: string;
+  } = {},
+): UploadFunction {
+  const table = quoteSqliteIdent(options.table ?? "notification_preferences");
+  const tenant = options.tenantColumn ?? "organization_id";
+
+  return async (entry) => {
+    if (entry.op === "DELETE") {
+      return err(
+        dbError(
+          "unsupported",
+          "notification_preferences takes inserts and updates; remove a preference online with enabled: null",
+        ),
+      );
+    }
+
+    const [local] =
+      entry.op === "PATCH"
+        ? await database.getAll<Row>(`SELECT * FROM ${table} WHERE id = ?`, [
+            entry.id,
+          ])
+        : [];
+
+    const row = { ...local, ...entry.opData };
+    const scope = row[tenant];
+
+    if (typeof row["type"] !== "string" || typeof row["channel"] !== "string") {
+      return err(
+        dbError(
+          "unsupported",
+          "notification_preferences: the change names no type and channel",
+        ),
+      );
+    }
+
+    return notifications.setPreference({
+      type: row["type"],
+      channel: row["channel"],
+      enabled: row["enabled"] === 1 || row["enabled"] === true,
+      ...(typeof scope === "string" ? { tenant: scope } : {}),
+    });
   };
 }
 

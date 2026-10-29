@@ -8,7 +8,11 @@ import type { ProviderRequirement } from "../authorization.ts";
 import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { DEFAULT_ACTIVE_TENANT } from "../../config/index.ts";
-import { modulePermissionKeys, SQL_MODULES } from "../../sql/index.ts";
+import {
+  modulePermissionKeys,
+  sameTemplateFunction,
+  SQL_MODULES,
+} from "../../sql/index.ts";
 import {
   accessRequirements,
   entitlementRequirements,
@@ -345,8 +349,8 @@ function requirementProblem(
 ): { readonly message: string; readonly severity?: "info" } | undefined {
   const label = providerLabel(provider);
 
-  const listed = (provider.requires ?? []).filter(
-    (entry) => entry.function === requirement.function,
+  const listed = (provider.requires ?? []).filter((entry) =>
+    sameTemplateFunction(entry.function, requirement.function),
   );
 
   if (provider.requires !== undefined && listed.length === 0) {
@@ -373,8 +377,8 @@ function requirementProblem(
     return undefined;
   }
 
-  const present = catalogOf(context).functions.some(
-    (fn) => `${fn.schema}.${fn.name}` === requirement.function,
+  const present = catalogOf(context).functions.some((fn) =>
+    sameTemplateFunction(`${fn.schema}.${fn.name}`, requirement.function),
   );
 
   return present
@@ -957,8 +961,9 @@ export const AUTHORIZATION_RULES: readonly Rule[] = [
 
       const handled = context.snapshot.generator.functions.some(
         (fn) =>
-          called.has(`${fn.schema}.${fn.name}`.toLowerCase()) &&
-          fn.definition.includes(SUPPORT_SESSION_APPROVAL),
+          [...called].some((name) =>
+            sameTemplateFunction(name, `${fn.schema}.${fn.name}`),
+          ) && fn.definition.includes(SUPPORT_SESSION_APPROVAL),
       );
 
       if (handled) {
@@ -1014,7 +1019,7 @@ const TEAM_SCOPE = /^teams?$/;
 const TEAM_BLOCKS = ["teams", "saved-views", "collections"] as const;
 
 const TEMPLATE_CALL =
-  /\b("?[a-z_][a-z0-9_$]*"?)\s*\.\s*("?[a-z_][a-z0-9_$]*"?)\s*\(/gi;
+  /\b("?[a-z_][a-z0-9_$]*"?)\s*\.\s*("?[a-z_{][a-z0-9_${}]*"?)\s*\(/gi;
 
 /** The `schema.function` names a template calls, lowercased and unquoted. */
 function templateCalls(template: string): string[] {

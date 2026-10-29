@@ -139,8 +139,11 @@ export async function expectTenantIsolation<
   D,
   F extends AnyFunctions,
   E,
+  C,
+  P,
+  B,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   options: TenantIsolationOptions<M>,
 ): Promise<ConformanceReport> {
   const stack = options.stack ?? {};

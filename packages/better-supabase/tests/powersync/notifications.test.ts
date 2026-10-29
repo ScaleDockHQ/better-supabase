@@ -4,6 +4,7 @@ import type { BlockTransport } from "../../src/core/block-transport.ts";
 
 import { ok } from "../../src/core/result.ts";
 import {
+  notificationPreferencesRoute,
   notificationRecipientsRoute,
   powersyncNotificationsTransport,
   powersyncTopicPort,
@@ -21,6 +22,8 @@ const DDL = [
   `create table notification_recipients (id text primary key, event_id text not null, user_id text,
     organization_id text, created_at text, read_at text, resolved_at text, resolution text,
     dismissed_at text)`,
+  `create table notification_preferences (id text primary key, user_id text, organization_id text,
+    type text not null, channel text not null, enabled integer, created_at text)`,
 ];
 
 function setup() {
@@ -318,5 +321,87 @@ describe("powersyncTopicPort", () => {
       ids: ["r1"],
     });
     expect(onMessage).toHaveBeenCalledOnce();
+  });
+});
+
+describe("notification preferences on PowerSync", () => {
+  it("lists and sets preferences locally, and leaves a removal to the server", async () => {
+    const { transport, serverCall } = setup();
+
+    await transport.call("better_supabase", "set_notification_preference", {
+      type: "*",
+      channel: "email",
+      enabled: false,
+      tenant: null,
+    });
+    await transport.call("better_supabase", "set_notification_preference", {
+      type: "invoice.due",
+      channel: "email",
+      enabled: true,
+      tenant: ORG,
+    });
+    await transport.call("better_supabase", "set_notification_preference", {
+      type: "invoice.due",
+      channel: "email",
+      enabled: false,
+      tenant: ORG,
+    });
+
+    await expect(
+      transport.call("better_supabase", "list_notification_preferences", {
+        tenant: ORG,
+      }),
+    ).resolves.toEqual([
+      { type: "*", channel: "email", enabled: false, tenant: null },
+      { type: "invoice.due", channel: "email", enabled: false, tenant: ORG },
+    ]);
+
+    await transport.call("better_supabase", "set_notification_preference", {
+      type: "*",
+      channel: "email",
+      enabled: null,
+    });
+
+    expect(serverCall).toHaveBeenCalledOnce();
+  });
+
+  it("replays an insert and an update through setPreference", async () => {
+    const { db, transport } = setup();
+    const setPreference = vi.fn(() => Promise.resolve(ok(null)));
+    const route = notificationPreferencesRoute({ setPreference }, db);
+
+    await transport.call("better_supabase", "set_notification_preference", {
+      type: "invoice.due",
+      channel: "push",
+      enabled: true,
+      tenant: ORG,
+    });
+
+    const [row] = await db.getAll<{ id: string }>(
+      "select id from notification_preferences",
+    );
+
+    await route({
+      op: "PUT",
+      table: "notification_preferences",
+      id: row!.id,
+      opData: {
+        type: "invoice.due",
+        channel: "push",
+        enabled: 1,
+        organization_id: ORG,
+      },
+    });
+    await route({
+      op: "PATCH",
+      table: "notification_preferences",
+      id: row!.id,
+      opData: { enabled: 0 },
+    });
+
+    expect(setPreference.mock.calls).toEqual([
+      [{ type: "invoice.due", channel: "push", enabled: true, tenant: ORG }],
+      [{ type: "invoice.due", channel: "push", enabled: false, tenant: ORG }],
+    ]);
   });
 });

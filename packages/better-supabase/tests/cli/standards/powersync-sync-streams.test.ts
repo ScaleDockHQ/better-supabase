@@ -23,7 +23,14 @@ const { streams } = powersyncOutput({
 interface StreamsDocument {
   readonly config: { readonly edition: number };
   readonly streams: Readonly<
-    Record<string, { readonly auto_subscribe: boolean; readonly query: string }>
+    Record<
+      string,
+      {
+        readonly auto_subscribe: boolean;
+        readonly query: string;
+        readonly with?: Readonly<Record<string, string>>;
+      }
+    >
   >;
 }
 
@@ -37,22 +44,33 @@ describe("PowerSync sync streams", () => {
     );
   });
 
-  it("gives each stream one query and auto_subscribe, and no other key", () => {
+  it("gives each stream one query, auto_subscribe and its CTEs, and no other key", () => {
     for (const stream of Object.values(document.streams)) {
-      expect(Object.keys(stream).toSorted()).toEqual([
-        "auto_subscribe",
-        "query",
-      ]);
+      expect(
+        Object.keys(stream)
+          .filter((key) => key !== "with")
+          .toSorted(),
+      ).toEqual(["auto_subscribe", "query"]);
 
       expect(stream.auto_subscribe).toBe(true);
     }
   });
 
   it("selects whole rows from one table, scoped to the user with auth.user_id()", () => {
-    for (const { query } of Object.values(document.streams)) {
+    for (const { query, with: ctes = {} } of Object.values(document.streams)) {
       expect(query).toMatch(/^SELECT \* FROM [a-z_]+\.[a-z_]+ WHERE /);
-      expect(query).toContain("auth.user_id()");
+      expect([query, ...Object.values(ctes)].join(" ")).toContain(
+        "auth.user_id()",
+      );
       expect(query).not.toMatch(/\bJOIN\b|;/i);
+    }
+  });
+
+  it("gives each CTE one column, so a stream can match it with IN", () => {
+    for (const { with: ctes = {} } of Object.values(document.streams)) {
+      for (const query of Object.values(ctes)) {
+        expect(query).toMatch(/^SELECT [a-z_]+ FROM /);
+      }
     }
   });
 });

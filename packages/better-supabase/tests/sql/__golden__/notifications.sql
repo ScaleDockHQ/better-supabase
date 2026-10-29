@@ -4760,7 +4760,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@9 managed
--- @bsb-hash sha256:37e70fb3cca0103ded97dd47a3290712500f410e072c36d500e2a62e86cb88f1
+-- @bsb-hash sha256:0b0b69d388de8e6de038b1c809fba6f818e02b118cf5b5167073ae6265e0a1cf
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6104,6 +6104,19 @@ create policy bsb_notifications_receive on realtime.messages
   end if;
 end;
 $$;
+
+
+create or replace view "api"."notification_recipients" with (security_invoker = true) as
+  select * from "better_supabase"."notification_recipients";
+revoke all on "api"."notification_recipients" from public, anon;
+grant select on "api"."notification_recipients" to authenticated;
+grant all on "api"."notification_recipients" to service_role;
+
+create or replace view "api"."notification_preferences" with (security_invoker = true) as
+  select * from "better_supabase"."notification_preferences";
+revoke all on "api"."notification_preferences" from public, anon;
+grant select, insert, update, delete on "api"."notification_preferences" to authenticated;
+grant all on "api"."notification_preferences" to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

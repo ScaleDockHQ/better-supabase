@@ -4,6 +4,7 @@ import type { Check, ConformanceReport } from "./conformance.ts";
 
 import {
   isScopeName,
+  sameTemplateFunction,
   scopeProblems,
   TEMPLATE_PLACEHOLDERS,
   templateFunctions,
@@ -230,8 +231,8 @@ export function testAuthorizationProvider(
           "the templates call functions, but requires is unset",
         );
 
-        const required = new Set(
-          (provider.requires ?? []).map((entry) => entry.function),
+        const required = (provider.requires ?? []).map(
+          (entry) => entry.function,
         );
 
         for (const entry of provider.requires ?? []) {
@@ -247,7 +248,7 @@ export function testAuthorizationProvider(
             : [undefined]) {
             for (const fn of templateFunctions(template, scope)) {
               expect(
-                required.has(fn),
+                required.some((entry) => sameTemplateFunction(fn, entry)),
                 `functions.${name} calls ${fn}, which requires doesn't list`,
               );
             }

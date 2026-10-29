@@ -47,21 +47,21 @@ pnpm better-supabase powersync streams --check   # exit 1 when a file is out of 
 
 ## What it writes
 
-| File                                                    | What it holds                                                                     |
-| ------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `powersync/sync-streams.yaml`                           | One auto-subscribed stream per table, filtered to the signed-in user              |
-| `powersync/schema.ts`                                   | A PowerSync `Table` per synced table, and `blockTables` to spread into `Schema`   |
-| `supabase/migrations/<stamp>_powersync_publication.sql` | Creates the `powersync` publication when it is missing and adds each synced table |
+| File                                                    | What it holds                                                                    |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `powersync/sync-streams.yaml`                           | One auto-subscribed stream per table, filtered to the signed-in user             |
+| `powersync/schema.ts`                                   | A PowerSync `Table` per synced table, and `blockTables` to spread into `Schema`  |
+| `supabase/migrations/<stamp>_powersync_publication.sql` | Creates the `powersync` publication with the synced tables, or adds the new ones |
 
 Each block syncs only the rows the user can read:
 
-| Block           | Tables                                           | Rows                                                                     |
-| --------------- | ------------------------------------------------ | ------------------------------------------------------------------------ |
-| `notifications` | `notification_recipients`, `notification_events` | The user's recipients and the events they point at                       |
-| `attachments`   | `attachments`                                    | The files of the organizations the user is a member of                   |
-| `memberships`   | `memberships`, `organizations`                   | The user's memberships, and the id, name and slug of those organizations |
-| `teams`         | `teams`, `team_members`                          | The teams the user belongs to and their members                          |
-| `profiles`      | `profiles`                                       | The user's own profile                                                   |
+| Block           | Tables                                             | Rows                                                             |
+| --------------- | -------------------------------------------------- | ---------------------------------------------------------------- |
+| `notifications` | `notification_recipients`, `notification_events`   | The user's recipients and the events they point at               |
+| `attachments`   | `attachments`                                      | The files of the organizations where the user may read them      |
+| `memberships`   | `memberships`, `membership_roles`, `organizations` | The user's active memberships and roles, and those organizations |
+| `teams`         | `teams`, `team_members`                            | Every team in the user's organizations and its members           |
+| `profiles`      | `profiles`                                         | The user's own profile                                           |
 
 `attachments` reads the user's organizations from the `memberships` block, so
 the config needs it. `memberships` adds the `organizations` table when the
@@ -78,15 +78,22 @@ can't read the app table's columns and refuses the instance.
 
 PowerSync replicates past the column grants and RLS policies, so each stream
 selects only what the block lets the user read: the organizations stream lists
-its columns instead of `*`, teams sync only for their members, and profiles
-sync only the user's own row. Rows without an `id` column (`memberships`,
-`team_members`) get one that joins both keys, `<organization>:<user>` and
-`<team>:<user>`; the upload routes read it back.
+its columns instead of `*`, a disabled membership (`disabled_at` set) stops
+syncing, and profiles sync only the user's own row. With the `roles` access
+model, files sync only from the organizations where one of the user's roles
+holds the attachments `read` key. Columns that a later `alter table ... add
+column` adds sync too. Rows without an `id` column (`memberships`,
+`membership_roles`, `team_members`) get one that joins their keys, such as
+`<organization>:<user>`, `<organization>:<user>:<role>` and `<team>:<user>`;
+the upload routes read it back.
 
-The migration is written once. A later run compares the newest
-`*_powersync_publication.sql` with what it would write and adds a new
-migration only when the synced tables change, so a pushed migration is never
-rewritten.
+The streams use Sync Streams edition 3, with a `with:` CTE for the user's
+organizations. The first migration runs `create publication powersync for
+table ...`. A later run reads the tables every earlier
+`*_powersync_publication.sql` added and writes a new migration with one `alter
+publication powersync add table ...` per new table, so a pushed migration is
+never rewritten. If you created the publication yourself (`for all tables`),
+delete the first generated migration.
 
 Upload the streams with the PowerSync dashboard or CLI, then spread the tables
 into the client schema:

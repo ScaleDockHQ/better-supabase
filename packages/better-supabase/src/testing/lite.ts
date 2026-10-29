@@ -65,10 +65,10 @@ export interface LiteStack extends AsyncDisposable {
    * A user with an HS256 token, as `asUser` signs it, whose clients route
    * through `fetch`.
    */
-  asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
-    betterSupabase: BetterSupabase<M, D, F, E>,
+  asUser<M extends AnyModels, D, F extends AnyFunctions, E, C, P, B>(
+    betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
     claims: TestJwtClaims,
-  ): Promise<TestUser<M, F, E>>;
+  ): Promise<TestUser<M, F, E, B>>;
   /** Closes the database. */
   close(): Promise<void>;
 }

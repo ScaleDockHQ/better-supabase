@@ -46,10 +46,15 @@ export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export { toOrpc } from "../bridges/orpc.ts";
 
 export type {
+  MultiRateLimiter,
+  MultiRateLimitOptions,
+  RateLimitAllVerdict,
   RateLimiter,
   RateLimitRouteOptions,
   RateLimitVerdict,
+  RouteRateLimitHit,
   RouteRateLimitRule,
+  SingleRateLimitOptions,
 } from "../server/rate-limit.ts";
 
 export type { OrpcHandlerLike, ToOrpcOptions } from "../bridges/orpc.ts";
@@ -135,6 +140,16 @@ export interface OrpcRateLimitInput<TContext extends OrpcRequestContext> {
   readonly context: TContext;
   readonly path: readonly string[];
   readonly request: Request;
+}
+
+/** What `rateLimit()` takes beyond the limiter options. */
+export interface OrpcRateLimitOptions {
+  /**
+   * The error code a refused call throws. When the procedure declares it in its
+   * `errors`, the error comes from that declaration, so typed clients see it as
+   * defined. Default: `TOO_MANY_REQUESTS`.
+   */
+  readonly code?: string;
 }
 
 /** The middleware `rateLimit()` returns; it adds nothing to `context`. */
@@ -247,14 +262,17 @@ export interface BetterOrpc<
     executionContext?: OrpcExecutionContext,
   ) => Promise<Response>;
   /**
-   * Counts a hit per call with a rate limiter, such as `createRateLimit()`.
-   * `fetchHandler` adds the `RateLimit` (and with `rule`, `RateLimit-Policy`)
-   * fields to the response; a refused call throws `TOO_MANY_REQUESTS` and the
-   * response carries `Retry-After`. Use it after `middleware()` to key on
-   * `context.auth`.
+   * Counts a hit per call with a rate limiter, such as `createRateLimit()`
+   * (`key` and `scope`) or its `checkAll` (`hits`, several limits in one round
+   * trip). The `RateLimit` (and with a rule, `RateLimit-Policy`) fields go to
+   * `context.resHeaders` under oRPC's `ResponseHeadersPlugin`, and otherwise
+   * `fetchHandler` adds them. A refused call throws `TOO_MANY_REQUESTS` (or
+   * `code`) and the response carries `Retry-After`. Use it after `middleware()`
+   * to key on `context.auth`.
    */
   rateLimit<TContext extends OrpcRequestContext = OrpcRequestContext>(
-    options: RateLimitRouteOptions<OrpcRateLimitInput<TContext>>,
+    options: RateLimitRouteOptions<OrpcRateLimitInput<TContext>> &
+      OrpcRateLimitOptions,
   ): OrpcRateLimitMiddleware<TContext>;
   /** A `Result` (or `AsyncResult`) as data, throwing an `ORPCError` on failure. */
   unwrap<T>(value: Result<T> | PromiseLike<Result<T>>): Promise<T>;
@@ -343,6 +361,22 @@ function requestFromHeaders(
   return request;
 }
 
+type OrpcErrorFactory = (options: {
+  readonly message: string;
+  readonly data: ProblemDetails;
+}) => ORPCError<string, ProblemDetails>;
+
+/** `resHeaders` from oRPC's `ResponseHeadersPlugin`, when the handler uses it. */
+function responseHeadersOf(context: object): Headers | undefined {
+  if (!("resHeaders" in context)) {
+    return undefined;
+  }
+
+  const { resHeaders } = context;
+
+  return resHeaders instanceof Headers ? resHeaders : undefined;
+}
+
 /** The context's request, built from its headers when it has none. */
 function requestOf(context: OrpcRequestContext): Request {
   return "request" in context
@@ -373,6 +407,13 @@ export function createOrpc<
   >();
 
   const limits = new WeakMap<Request, Headers>();
+
+  const keptHeaders = (request: Request): Headers => {
+    const kept = limits.get(request) ?? new Headers();
+    limits.set(request, kept);
+
+    return kept;
+  };
 
   const toOrpcError = (error: DbError): ORPCError<string, ProblemDetails> => {
     const problem = toProblem(error, { expose });
@@ -466,13 +507,36 @@ export function createOrpc<
     middleware,
 
     rateLimit<TContext extends OrpcRequestContext>(
-      rateLimitOptions: RateLimitRouteOptions<OrpcRateLimitInput<TContext>>,
+      rateLimitOptions: RateLimitRouteOptions<OrpcRateLimitInput<TContext>> &
+        OrpcRateLimitOptions,
     ): OrpcRateLimitMiddleware<TContext> {
       const gate = rateLimitGate(rateLimitOptions);
+      const code = rateLimitOptions.code ?? "TOO_MANY_REQUESTS";
+
+      const refusal = (
+        error: DbError,
+        errors: object,
+      ): ORPCError<string, ProblemDetails> => {
+        const fallback = toOrpcError(error);
+
+        if (error.code !== "rate_limited" || !(code in errors)) {
+          return fallback;
+        }
+
+        // SAFETY: oRPC's error constructor map answers every code with a
+        // factory; `in` checked that the procedure declares this one.
+        const declared = (
+          errors as Record<string, OrpcErrorFactory | undefined>
+        )[code];
+
+        return declared === undefined
+          ? fallback
+          : declared({ message: fallback.message, data: fallback.data });
+      };
 
       return os
         .$context<TContext>()
-        .middleware(async ({ context, path, next }) => {
+        .middleware(async ({ context, path, next, errors }) => {
           const request = requestOf(context);
           const outcome = await gate({ context, path, request });
 
@@ -480,16 +544,14 @@ export function createOrpc<
             return next();
           }
 
-          const kept = limits.get(request) ?? new Headers();
+          const target = responseHeadersOf(context) ?? keptHeaders(request);
 
           for (const [name, value] of outcome.headers) {
-            kept.set(name, value);
+            target.set(name, value);
           }
 
-          limits.set(request, kept);
-
           if (outcome.kind === "deny") {
-            throw toOrpcError(outcome.error);
+            throw refusal(outcome.error, errors);
           }
 
           return next();

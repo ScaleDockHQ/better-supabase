@@ -113,6 +113,7 @@ describe("inbox module", () => {
 
   it("publishes the organization topic and leaves conversations to messaging", () => {
     expect(moduleTopics(["inbox"])).toEqual([
+      { module: "attachments", topic: "attachments:{tenant}" },
       { module: "inbox", topic: "inbox:org:{organizationId}" },
       { module: "messaging", topic: "messages:{conversationId}" },
     ]);

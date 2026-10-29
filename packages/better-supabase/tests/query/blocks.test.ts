@@ -1,11 +1,16 @@
 import { QueryClient, skipToken } from "@tanstack/query-core";
 import { describe, expect, it } from "vitest";
 
+import {
+  createBlockMutation,
+  createBlockQuery,
+} from "../../src/blocks/block-controller.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
 import {
+  blockControllerEngine,
   blockQueries,
   invalidateOnBlockEvents,
 } from "../../src/query/blocks.ts";
@@ -171,5 +176,80 @@ describe("one key space", () => {
       queryClient.getQueryState(queries.tasks.listTasks().queryKey)
         ?.isInvalidated,
     ).toBe(true);
+  });
+});
+
+describe("blockControllerEngine", () => {
+  const settle = () =>
+    new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
+
+  it("keeps a controller read under the key blockQueries gives it", async () => {
+    const tasks = tasksClient();
+    const queryClient = new QueryClient();
+    const engine = blockControllerEngine(queryClient);
+
+    const controller = createBlockQuery(
+      tasks,
+      "listTasks",
+      [{ title: "Write docs" }],
+      { engine, instance: "tasks" },
+    );
+
+    const stop = controller.subscribe(() => undefined);
+    await settle();
+
+    expect(controller.getSnapshot()).toMatchObject({
+      status: "success",
+      data: [{ id: "t1", title: "Write docs" }],
+    });
+
+    const { queryKey } = blockQueries({ tasks }).tasks.listTasks({
+      title: "Write docs",
+    });
+
+    expect(queryClient.getQueryData(queryKey)).toEqual([
+      { id: "t1", title: "Write docs" },
+    ]);
+    stop();
+  });
+
+  it("reads again after a controller write on the same instance", async () => {
+    const tasks = tasksClient();
+    const engine = blockControllerEngine(new QueryClient());
+    const options = { engine, instance: "tasks" } as const;
+
+    const list = createBlockQuery(tasks, "listTasks", [], options);
+    const stop = list.subscribe(() => undefined);
+    await settle();
+    expect(tasks.calls).toBe(1);
+
+    await createBlockMutation(tasks, "createTask", options).actions.mutate({
+      title: "Ship",
+    });
+    await settle();
+
+    expect(tasks.calls).toBe(2);
+    expect(list.getSnapshot().data).toHaveLength(2);
+    stop();
+  });
+
+  it("reports an error result as the read's error", async () => {
+    const engine = blockControllerEngine(new QueryClient());
+
+    const controller = createBlockQuery(tasksClient(), "getTask", ["none"], {
+      engine,
+      instance: "tasks",
+    });
+
+    const stop = controller.subscribe(() => undefined);
+    await settle();
+
+    expect(controller.getSnapshot()).toMatchObject({
+      status: "error",
+      error: { kind: "not_found" },
+    });
+    stop();
   });
 });

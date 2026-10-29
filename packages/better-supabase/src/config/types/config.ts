@@ -45,6 +45,22 @@ import type {
 export type DataHooksFramework = "react" | "vue" | "svelte" | "solid";
 
 /**
+ * A function `hooks.ts` wraps each table's select in, as `scoped((db: AppDb) =>
+ * db.customers)`: `export` from `module`, which `hooks.ts` imports as written.
+ */
+export interface DataHooksSelect {
+  readonly module: string;
+  readonly export: string;
+}
+
+/** `gen.hooks` with options. */
+export interface DataHooksConfig {
+  /** Defaults as `gen.hooks` does without options. */
+  readonly framework?: DataHooksFramework;
+  readonly select?: DataHooksSelect;
+}
+
+/**
  * The config with every key at the top level, as `flattenConfig` returns it and
  * `resolveConfig` reads it. Apps write the grouped `BetterSupabaseConfig`.
  */
@@ -76,9 +92,10 @@ export interface FlatConfig {
    * Write `hooks.ts` next to `output`: `defineDataHooks` from this framework's
    * entry, once per block instance and table (`useTickets`, `useTicket`).
    * Defaults to `react` when the adapters include `next`, `react` or `expo`,
-   * and to `false` otherwise.
+   * and to `false` otherwise. The object form also wraps each table's select in
+   * a function of the app's (`select`).
    */
-  readonly hooks?: DataHooksFramework | false;
+  readonly hooks?: DataHooksFramework | DataHooksConfig | false;
   /** Types for jsonb columns, keyed by `table.column`. */
   readonly json?: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs?: CodecsConfig;
@@ -214,6 +231,8 @@ export interface ResolvedConfig {
   readonly postgrestVersion: string;
   readonly recordTypes: boolean;
   readonly hooks: DataHooksFramework | false;
+  /** `gen.hooks.select`. */
+  readonly hooksSelect?: DataHooksSelect;
   readonly json: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs: Required<CodecsConfig>;
   readonly relations: Required<RelationsConfig>;

@@ -1,5 +1,10 @@
 import type { QueryClient, SkipToken } from "@tanstack/query-core";
 
+import type {
+  DataEngine,
+  DataEngineOptions,
+  DataKey,
+} from "../bindings/data-engine.ts";
 import type { EventHub } from "../core/events.ts";
 import type { Result } from "../core/result.ts";
 import type {
@@ -9,6 +14,7 @@ import type {
 } from "./queries.ts";
 
 import { DbException } from "../core/errors.ts";
+import { queryEngine } from "./engine.ts";
 import { invalidateTables } from "./invalidate.ts";
 import { keyPart } from "./queries.ts";
 
@@ -237,6 +243,40 @@ export function blockQueries<const C extends BlockClients>(
       clientQueries(block, client, options),
     ]),
   ) as BlockQueries<C>;
+}
+
+/**
+ * A data engine for block controllers (`useBlockQuery`, `createBlockQuery`) on
+ * TanStack Query, with the keys `blockQueries` gives the same methods: a
+ * controller and a `useQuery(blockQueries(...))` on one read share its cache
+ * entry, and a write through either makes both stale. Pass the same `scope` as
+ * to `blockQueries`.
+ *
+ * ```ts
+ * const engine = blockControllerEngine(queryClient);
+ * useBlockQuery(blocks.tasks, "list", [{}], { engine, instance: "tasks" });
+ * ```
+ */
+export function blockControllerEngine(
+  queryClient: QueryClient,
+  options: Pick<QueriesOptions, "scope"> & DataEngineOptions = {},
+): DataEngine {
+  const engine = queryEngine(queryClient, options);
+
+  const read = (key: DataKey): DataKey => scopedKey(options, key.map(keyPart));
+
+  return {
+    apiVersion: 1,
+    watch: (key, load, listener) => engine.watch(read(key), load, listener),
+    entry: (key) => engine.entry(read(key)),
+    refetch: (key) => {
+      engine.refetch(read(key));
+    },
+    rewrite: (prefix, update) => engine.rewrite(prefix.map(keyPart), update),
+    invalidate: (prefix) => {
+      engine.invalidate(prefix.map(keyPart));
+    },
+  };
 }
 
 /** What `invalidateOnBlockEvents` reads from each block. */

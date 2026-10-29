@@ -54,10 +54,15 @@ export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
 export type { BlockRequireOptions } from "../server/kit.ts";
 
 export type {
+  MultiRateLimiter,
+  MultiRateLimitOptions,
+  RateLimitAllVerdict,
   RateLimiter,
   RateLimitRouteOptions,
   RateLimitVerdict,
+  RouteRateLimitHit,
   RouteRateLimitRule,
+  SingleRateLimitOptions,
 } from "../server/rate-limit.ts";
 
 export { toHono } from "../bridges/hono.ts";

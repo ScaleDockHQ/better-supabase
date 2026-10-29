@@ -127,6 +127,40 @@ describe("memberships roles.many off", () => {
   });
 });
 
+describe("memberships roles.many with app-defined roles", () => {
+  const files = render({
+    ...MANY,
+    permissions: {
+      model: "custom",
+      functions: {
+        can: "app.can({permission})",
+        tenantIdsWith: "app.tenant_ids_with({permission})",
+        isPlatform: "app.is_platform({permission})",
+        canAssign: "app.can_assign({tenant}, {role})",
+      },
+    },
+  });
+
+  it("stores roles outside blocks.permissions.roles", () => {
+    const memberships = fileOf(files, "memberships");
+
+    expect(memberships).toContain(
+      "drop constraint if exists membership_roles_role_check",
+    );
+    expect(memberships).not.toContain(
+      "add constraint membership_roles_role_check",
+    );
+  });
+
+  it("checks on_accept.roles against can_assign only", () => {
+    const invitations = fileOf(files, "invitations");
+
+    expect(invitations).toContain("r.role is null or r.role = ''");
+    expect(invitations).toContain("better_supabase.can_assign(tenant, r.role)");
+    expect(invitations).not.toContain("not (r.role = any (array[");
+  });
+});
+
 describe("the {roles} placeholder", () => {
   it("passes the assigned role as a one-element array", () => {
     const sql = moduleBody("permissions", {

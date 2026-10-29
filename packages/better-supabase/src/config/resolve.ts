@@ -9,7 +9,11 @@ import type {
   ResolvedConfig,
   ResolvedExtensions,
 } from "./types/config.ts";
-import type { SqlConfig, VectorSearchConfig } from "./types/database.ts";
+import type {
+  SqlBlockDefaults,
+  SqlConfig,
+  VectorSearchConfig,
+} from "./types/database.ts";
 import type { EntitlementsConfig } from "./types/entitlements.ts";
 import type { AppTablesInput } from "./types/groups.ts";
 
@@ -106,7 +110,8 @@ function blocksOf(
     Array.isArray(blocks) &&
     sql.schema === undefined &&
     sql.api === undefined &&
-    sql.ownTablePolicies === undefined
+    sql.ownTablePolicies === undefined &&
+    sql.tenantScope === undefined
       ? {}
       : blocksByName(instances);
 
@@ -133,7 +138,7 @@ function blocksOf(
  * block's `api: false` keeps it out of the API schema.
  */
 function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
-  const { schema, api, ownTablePolicies } = sql;
+  const { schema, api, ownTablePolicies, tenantScope } = sql;
 
   return {
     ...block,
@@ -142,7 +147,25 @@ function withSqlDefaults(block: BlockConfig, sql: SqlConfig): BlockConfig {
     ...(ownTablePolicies === undefined || block.ownTablePolicies !== undefined
       ? {}
       : { ownTablePolicies }),
+    ...(tenantScope === undefined || block.tenantScope !== undefined
+      ? {}
+      : { tenantScope }),
   };
+}
+
+function blockDefaultsOf(sql: SqlConfig = {}): {
+  readonly blockDefaults?: SqlBlockDefaults;
+} {
+  const { schema, api, ownTablePolicies, tenantScope } = sql;
+
+  const defaults: SqlBlockDefaults = {
+    ...(schema === undefined ? {} : { schema }),
+    ...(api === undefined ? {} : { api }),
+    ...(ownTablePolicies === undefined ? {} : { ownTablePolicies }),
+    ...(tenantScope === undefined ? {} : { tenantScope }),
+  };
+
+  return Object.keys(defaults).length === 0 ? {} : { blockDefaults: defaults };
 }
 
 export const CONFIG_SCHEMA_URL =
@@ -290,12 +313,17 @@ export function resolveConfig(
       config.postgrestVersion ?? CONFIG_DEFAULTS.postgrestVersion,
     recordTypes: config.recordTypes ?? true,
     hooks:
-      config.hooks ??
+      (typeof config.hooks === "object"
+        ? config.hooks.framework
+        : config.hooks) ??
       ((config.integrations ?? []).some((name) =>
         ["next", "react", "expo"].includes(name),
       )
         ? "react"
         : false),
+    ...(typeof config.hooks === "object" && config.hooks.select !== undefined
+      ? { hooksSelect: config.hooks.select }
+      : {}),
     json: config.json ?? {},
     codecs: {
       timestamptz:
@@ -368,6 +396,7 @@ export function resolveConfig(
       ...(config.sql?.tenantColumn === undefined
         ? {}
         : { tenantColumn: config.sql.tenantColumn }),
+      ...blockDefaultsOf(config.sql),
     },
     ...(config.preset === undefined ? {} : { preset: config.preset }),
     ...blocks,

@@ -7430,6 +7430,21 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "AttachmentImageUrlOptions"
         },
         {
+          "name": "AttachmentListActions"
+        },
+        {
+          "name": "AttachmentListController",
+          "fields": true
+        },
+        {
+          "name": "AttachmentListControllerOptions",
+          "fields": true
+        },
+        {
+          "name": "AttachmentListSnapshot",
+          "fields": true
+        },
+        {
           "name": "AttachmentReplacement"
         },
         {

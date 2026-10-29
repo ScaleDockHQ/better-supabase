@@ -379,6 +379,14 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
       "Whose policies govern the app's tables a block runs over, unless the block sets its own ownTablePolicies: block (the default) lets a block add its bsb_ policies where none of the app's covers them, and app keeps every bsb_ policy, permissive or restrictive, off them.",
     default: "block",
   },
+  "database.sql.tenantScope": {
+    description:
+      "The restrictive bsb_tenant_scope_* policies, unless a block sets its own tenantScope.",
+  },
+  "database.sql.tenantScope.exemptRoles": {
+    description:
+      "Database roles the tenant scope lets through, such as supabase_auth_admin for a security invoker access token hook, which runs without auth.uid(). Each role becomes an or current_user branch. Defaults to none.",
+  },
   "database.seed.entry": { default: "supabase/seed.ts" },
   "database.seed.output": { default: "supabase/seeds/000_better_supabase.sql" },
   "database.seed.perTenant": { default: "supabase/seed.tenant.ts" },
@@ -491,6 +499,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block.",
   },
+  "$defs.moduleConfig.tenantScope": {
+    description:
+      "This block's tenant scope policies. Defaults to database.sql.tenantScope.",
+  },
   "$defs.moduleConfig.functions": {
     description:
       "Function name to the name the block writes it under, such as create_organization to start_company.",
@@ -504,6 +516,10 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "$defs.permissionsBlock.ownTablePolicies": {
     description:
       "Whose policies govern the app's tables this block runs over: block lets it add its bsb_ policies where none of the app's covers them, app keeps every bsb_ policy, permissive or restrictive, off them. Applies to every app table of the block. Defaults to database.sql.ownTablePolicies, then block.",
+  },
+  "$defs.permissionsBlock.tenantScope": {
+    description:
+      "This block's tenant scope policies. Defaults to database.sql.tenantScope.",
   },
   "$defs.permissionsBlock.model": { default: "roles" },
   "$defs.permissionsBlock.platformClaim": { default: "platform_permissions" },

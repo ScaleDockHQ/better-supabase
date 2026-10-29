@@ -8,7 +8,7 @@ import type { SqlClient } from "../../src/postgres/executor.ts";
 import { createAnnouncements } from "../../src/blocks/announcements/index.ts";
 import { createAudit } from "../../src/blocks/audit/index.ts";
 import { createOutbox } from "../../src/blocks/outbox/index.ts";
-import { createQueue, createRateLimit } from "../../src/blocks/queue/index.ts";
+import { createQueue } from "../../src/blocks/queue/index.ts";
 import {
   createSettings,
   defineSettings,
@@ -17,6 +17,7 @@ import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { applyTemporal } from "../../src/core/block-helpers.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { provideTemporal, providedTemporal } from "../../src/core/temporal.ts";
+import { createRateLimit } from "../../src/rate-limit/index.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 
 const transport: BlockTransport = { call: async () => null };
