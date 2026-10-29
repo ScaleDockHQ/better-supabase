@@ -19,7 +19,7 @@ const sqlOf = (
     .map((file) => file.contents)
     .join("\n");
 
-describe("controls module", () => {
+describe("compliance module", () => {
   it("links evidence to an attachment only when attachments owns its table", () => {
     const sql = sqlOf();
     expect(sql).toMatch(
