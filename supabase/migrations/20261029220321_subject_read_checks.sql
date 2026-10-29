@@ -1661,7 +1661,7 @@ begin
 
   select k.canonical, k.inverted, k.acyclic, k.single, k.both_ways
     into v_kind, v_inverted, v_acyclic, v_single, v_symmetric
-    from (values ('blocks', 'blocks', false, true, false, false, 'blocked_by'), ('blocked_by', 'blocks', true, true, false, false, 'blocks'), ('parent', 'parent', false, true, true, false, 'children'), ('children', 'parent', true, true, true, false, 'parent'), ('relates', 'relates', false, false, false, true, 'relates'), ('created_from', 'created_from', false, true, true, false, 'converted_to'), ('converted_to', 'created_from', true, true, true, false, 'created_from')) as k(name, canonical, inverted, acyclic, single, both_ways, opposite) where k.name = link.kind;
+    from (values ('blocks', 'blocks', false, true, false, false, 'blocked_by'), ('blocked_by', 'blocks', true, true, false, false, 'blocks'), ('parent', 'parent', false, true, true, false, 'children'), ('children', 'parent', true, true, true, false, 'parent'), ('relates', 'relates', false, false, false, true, 'relates'), ('created_from', 'created_from', false, true, true, false, 'converted_to'), ('converted_to', 'created_from', true, true, true, false, 'created_from'), ('represents', 'represents', false, false, false, false, 'represented_by'), ('represented_by', 'represents', true, false, false, false, 'represents')) as k(name, canonical, inverted, acyclic, single, both_ways, opposite) where k.name = link.kind;
   if v_kind is null then
     raise exception 'unknown relation kind' using errcode = '22023', hint = 'RELATION_KIND_UNKNOWN';
   end if;
@@ -1675,6 +1675,9 @@ begin
   if v_symmetric and (v_source_type, v_source_id) > (v_target_type, v_target_id) then
     select v_target_type, v_target_id, v_source_type, v_source_id
       into v_source_type, v_source_id, v_target_type, v_target_id;
+  end if;
+  if v_kind = 'represents' and not (v_source_type in ('person')) then
+    raise exception 'this kind of link doesn''t accept these record types' using errcode = '22023', hint = 'RELATION_TYPE_NOT_ALLOWED';
   end if;
   if not (case link.source_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (link.source_id)::uuid and s."tenant_id" = link.tenant) and coalesce(better_supabase.can('tenant', link.tenant, 'messages.read'), false)
@@ -1780,6 +1783,15 @@ begin
       and "source_type" = v_source_type and "source_id" = v_source_id
       and "target_type" = v_target_type and "target_id" = v_target_id;
   if v_id is null then
+    if v_kind = 'represents' and not coalesce((jsonb_typeof(coalesce(link.data, '{}'::jsonb)) = 'object'
+      and (coalesce(link.data, '{}'::jsonb) ->> 'role') in ('legal_representative', 'guardian', 'mentor', 'curator', 'parent', 'contact_person', 'emergency_contact', 'other')
+      and (coalesce(link.data, '{}'::jsonb) ->> 'authority') in ('inform', 'act')
+      and (coalesce(link.data, '{}'::jsonb) -> 'valid_from' is null or (jsonb_typeof(coalesce(link.data, '{}'::jsonb) -> 'valid_from') = 'string' and pg_input_is_valid(coalesce(link.data, '{}'::jsonb) ->> 'valid_from', 'date')))
+      and (coalesce(link.data, '{}'::jsonb) -> 'valid_until' is null or (jsonb_typeof(coalesce(link.data, '{}'::jsonb) -> 'valid_until') = 'string' and pg_input_is_valid(coalesce(link.data, '{}'::jsonb) ->> 'valid_until', 'date')))
+      and case when pg_input_is_valid(coalesce(link.data, '{}'::jsonb) ->> 'valid_from', 'date') and pg_input_is_valid(coalesce(link.data, '{}'::jsonb) ->> 'valid_until', 'date')
+        then (coalesce(link.data, '{}'::jsonb) ->> 'valid_from')::date <= (coalesce(link.data, '{}'::jsonb) ->> 'valid_until')::date else true end), false) then
+      raise exception 'this kind of link doesn''t accept this data' using errcode = '22023', hint = 'RELATION_DATA_INVALID';
+    end if;
     if v_acyclic and exists (
       with recursive reach(t, i, depth) as (
         select v_target_type, v_target_id, 0
@@ -1809,6 +1821,15 @@ begin
     v_created := true;
     perform "better_supabase".emit_event('subject.linked', jsonb_build_object('organizationId', link.tenant, 'id', v_id, 'kind', v_kind, 'subjectType', v_source_type, 'subjectId', v_source_id, 'targetType', v_target_type, 'targetId', v_target_id), 'subjects/' || v_source_type || '/' || v_source_id, (link.tenant)::text, null, 'better-supabase/relations');
   elsif link.data is not null then
+    if v_kind = 'represents' and not coalesce((jsonb_typeof(link.data) = 'object'
+      and (link.data ->> 'role') in ('legal_representative', 'guardian', 'mentor', 'curator', 'parent', 'contact_person', 'emergency_contact', 'other')
+      and (link.data ->> 'authority') in ('inform', 'act')
+      and (link.data -> 'valid_from' is null or (jsonb_typeof(link.data -> 'valid_from') = 'string' and pg_input_is_valid(link.data ->> 'valid_from', 'date')))
+      and (link.data -> 'valid_until' is null or (jsonb_typeof(link.data -> 'valid_until') = 'string' and pg_input_is_valid(link.data ->> 'valid_until', 'date')))
+      and case when pg_input_is_valid(link.data ->> 'valid_from', 'date') and pg_input_is_valid(link.data ->> 'valid_until', 'date')
+        then (link.data ->> 'valid_from')::date <= (link.data ->> 'valid_until')::date else true end), false) then
+      raise exception 'this kind of link doesn''t accept this data' using errcode = '22023', hint = 'RELATION_DATA_INVALID';
+    end if;
     update "better_supabase"."relations" set "data" = link.data where "id" = v_id;
   end if;
   declare
@@ -4200,7 +4221,7 @@ begin
 
   select k.canonical, k.inverted, k.acyclic, k.single, k.both_ways
     into v_kind, v_inverted, v_acyclic, v_single, v_symmetric
-    from (values ('blocks', 'blocks', false, true, false, false, 'blocked_by'), ('blocked_by', 'blocks', true, true, false, false, 'blocks'), ('parent', 'parent', false, true, true, false, 'children'), ('children', 'parent', true, true, true, false, 'parent'), ('relates', 'relates', false, false, false, true, 'relates'), ('created_from', 'created_from', false, true, true, false, 'converted_to'), ('converted_to', 'created_from', true, true, true, false, 'created_from')) as k(name, canonical, inverted, acyclic, single, both_ways, opposite) where k.name = unlink.kind;
+    from (values ('blocks', 'blocks', false, true, false, false, 'blocked_by'), ('blocked_by', 'blocks', true, true, false, false, 'blocks'), ('parent', 'parent', false, true, true, false, 'children'), ('children', 'parent', true, true, true, false, 'parent'), ('relates', 'relates', false, false, false, true, 'relates'), ('created_from', 'created_from', false, true, true, false, 'converted_to'), ('converted_to', 'created_from', true, true, true, false, 'created_from'), ('represents', 'represents', false, false, false, false, 'represented_by'), ('represented_by', 'represents', true, false, false, false, 'represents')) as k(name, canonical, inverted, acyclic, single, both_ways, opposite) where k.name = unlink.kind;
   if v_kind is null then
     raise exception 'unknown relation kind' using errcode = '22023', hint = 'RELATION_KIND_UNKNOWN';
   end if;
