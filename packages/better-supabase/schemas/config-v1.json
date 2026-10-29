@@ -5039,7 +5039,8 @@
               "contractOverlap": {
                 "type": "string",
                 "default": "end"
-              }
+              },
+              "offboarding": {}
             }
           }
         }
@@ -5260,6 +5261,12 @@
                 "default": "person"
               },
               "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "applicationExtraColumns": {
                 "type": "object",
                 "additionalProperties": {
                   "type": "string"
