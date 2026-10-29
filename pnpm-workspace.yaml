@@ -408,6 +408,9 @@ overrides:
   # launch-editor <=2.14.1 lets a crafted path bypass its existence check on
   # Windows (high); it arrives through @changesets/cli and @nuxt/devtools.
   launch-editor: ">=2.14.2"
+  # systeminformation <5.33.16 has a Windows command injection (high); it
+  # arrives through shadcn > @dotenvx/dotenvx.
+  systeminformation: ">=5.33.16"
   # @modelcontextprotocol/sdk <1.31.0 can send OAuth credentials to an
   # authorization server the MCP server picks (high); it arrives through shadcn.
   "shadcn>@modelcontextprotocol/sdk": ">=1.31.0"
