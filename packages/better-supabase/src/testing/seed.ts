@@ -269,9 +269,12 @@ export function defineSeed<
   D,
   F extends AnyFunctions,
   E,
+  C,
+  P,
+  B,
   const S extends SeedFixtures<M>,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   fixtures: S & ExactSeed<M, S>,
 ): Seed<S> {
   const statements = (): string[] =>
@@ -333,9 +336,12 @@ export function defineTenantSeed<
   D,
   F extends AnyFunctions,
   E,
+  C,
+  P,
+  B,
   const S extends SeedFixtures<M>,
 >(
-  betterSupabase: BetterSupabase<M, D, F, E>,
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   fixtures: (tenant: TenantSeedTarget) => S & ExactSeed<M, S>,
 ): TenantSeed {
   const statements = (tenant: TenantSeedTarget): string[] =>

@@ -58,7 +58,16 @@ export interface LocalStack {
   readonly tracePropagation?: boolean;
 }
 
-export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
+/**
+ * `B` is the definition's block map, which types `db.$blocks`, `db.$buckets`
+ * and each block instance on `db`.
+ */
+export interface TestUser<
+  M extends AnyModels,
+  F extends AnyFunctions,
+  E,
+  B = unknown,
+> {
   readonly token: string;
   readonly claims: TestJwtClaims;
   /**
@@ -69,9 +78,9 @@ export interface TestUser<M extends AnyModels, F extends AnyFunctions, E> {
   /** Supabase-js signed in as the user (storage, realtime, functions). */
   readonly supabase: SupabaseClient;
   /** Repositories over PostgREST as the user; RLS applies. */
-  readonly db: Db<M, F, E, SupabaseClient>;
+  readonly db: Db<M, F, E, SupabaseClient, B>;
   /** Repositories over direct Postgres as the user, when `postgres` is given. */
-  readonly sql: Db<M, F, E, unknown> | undefined;
+  readonly sql: Db<M, F, E, unknown, B> | undefined;
 }
 
 /**
@@ -168,11 +177,19 @@ async function signFor(
  * expect(await alice.db.customers.count().orThrow()).toBe(3);
  * ```
  */
-export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
-  betterSupabase: BetterSupabase<M, D, F, E>,
+export async function asUser<
+  M extends AnyModels,
+  D,
+  F extends AnyFunctions,
+  E,
+  C,
+  P,
+  B,
+>(
+  betterSupabase: BetterSupabase<M, D, F, E, C, P, B>,
   claims: TestJwtClaims,
   stack: LocalStack = {},
-): Promise<TestUser<M, F, E>> {
+): Promise<TestUser<M, F, E, B>> {
   const url =
     stack.url ?? env(...ENV_VARIABLES.url) ?? "http://127.0.0.1:54321";
 
@@ -205,7 +222,7 @@ export async function asUser<M extends AnyModels, D, F extends AnyFunctions, E>(
     ...(stack.fetch ? { global: { fetch: stack.fetch } } : {}),
   });
 
-  const user: TestUser<M, F, E> = {
+  const user: TestUser<M, F, E, B> = {
     token,
     claims: full,
     context,
