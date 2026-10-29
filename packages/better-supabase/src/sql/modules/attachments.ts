@@ -983,7 +983,7 @@ export const ATTACHMENTS: BlockSqlDefinition = {
     {
       from: 6,
       description:
-        "Attachments broadcast changed to <topic>:<tenant> (options.topic, default attachments) when a tenant's files change.",
+        "object_path is a plain column a trigger fills, so logical replication sends it, and attachments broadcast changed to <topic>:<tenant> (options.topic, default attachments) when a tenant's files change.",
       sql: () => "",
     },
   ],
