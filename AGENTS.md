@@ -244,6 +244,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0127: Stock is `numeric` with a unit scale and posts base units; lots, serials, bins, average cost, document allocations, orders from lines or a quote, and shipment lines.
 - 0128: Templates gain brand starters and schedules on reminders' rules; a machine reads its edges from a workflow version; timelines add transitions and messages.
 - 0129: Native apps refresh on the authorization version and reconnect PowerSync; bootstrap reports the live version next to the token's.
+- 0130: One naming convention for blocks: entity keys, tables, `<area>.<verb>` permission keys, `<entity>.<past tense>` events, hint codes, functions and docs titles (partly supersedes 0093).
+- 0131: Inbox contacts, sequence enrollments, AI file versions and postmortem actions move onto `contacts`, `enrollments`, `versions` and `tasks`.
+- 0132: Quality management is five cross-cutting blocks (`acknowledgements`, `cases`, `inspections`, `risks`, `qualifications`) linked through `relations` kinds.
+- 0133: Drive gets commenter and upload-only roles, link passwords and download control with previews on their own path, versioned text and preview ports, and controlled documents.
 
 ## Pre-release pins
 
