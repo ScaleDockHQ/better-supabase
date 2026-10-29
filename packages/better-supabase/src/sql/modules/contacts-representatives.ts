@@ -23,7 +23,7 @@ const dateOrMissing = (data: string, key: string): string =>
  * The check `link` runs on a `represents` link's data: a role, an authority,
  * and `valid_from` and `valid_until` dates in order when set.
  */
-export function representationData(data: string): string {
+function representationData(data: string): string {
   const from = `${data} ->> 'valid_from'`;
   const until = `${data} ->> 'valid_until'`;
 
