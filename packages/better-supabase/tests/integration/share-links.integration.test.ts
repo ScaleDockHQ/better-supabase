@@ -41,7 +41,7 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
        );
        alter table public.bsb_test_docs enable row level security;`,
     );
-    await session.install(["organizations", "share-links"], {
+    await session.install(["organizations", "rate-limit", "share-links"], {
       modules: { "share-links": { on: { doc: { table: "bsb_test_docs" } } } },
     });
     owner = await session.user("owner");
@@ -132,6 +132,73 @@ describe.skipIf(!live)("share-links block in Postgres", () => {
     });
     expect(await links.resolve(link.token).orThrow()).not.toBeNull();
     expect(await links.resolve(link.token).orThrow()).toBeNull();
+  });
+
+  it("asks for a link's password and refuses one that is too short", async () => {
+    const d1 = await doc("d1");
+    await session.as(owner);
+
+    const short = await links.create(
+      { type: "doc", id: d1 },
+      { password: "short" },
+    );
+
+    expect(short.ok ? undefined : short.error.hint).toBe(
+      "SHARE_LINK_PASSWORD_INVALID",
+    );
+
+    const link = await links
+      .create(
+        { type: "doc", id: d1 },
+        { password: "correct horse", downloadAllowed: false },
+      )
+      .orThrow();
+
+    await session.as("anon");
+
+    for (const password of [undefined, "wrong horse"]) {
+      const locked = await links.resolve(
+        link.token,
+        password === undefined ? {} : { password },
+      );
+
+      expect(locked.ok ? undefined : locked.error).toMatchObject({
+        hint: "SHARE_LINK_PASSWORD_REQUIRED",
+        code: "28P01",
+      });
+    }
+
+    expect(
+      await links.resolve(link.token, { password: "correct horse" }).orThrow(),
+    ).toMatchObject({
+      id: link.id,
+      downloadAllowed: false,
+      passwordRequired: true,
+    });
+  });
+
+  it("locks a link after 10 wrong passwords", async () => {
+    const d1 = await doc("d1");
+    await session.as(owner);
+
+    const link = await links
+      .create({ type: "doc", id: d1 }, { password: "correct horse" })
+      .orThrow();
+
+    await session.as("anon");
+
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await links.resolve(link.token, { password: "wrong horse" });
+    }
+
+    const locked = await links.resolve(link.token, {
+      password: "correct horse",
+    });
+
+    expect(locked.ok ? undefined : locked.error).toMatchObject({
+      kind: "rate_limited",
+      hint: "SHARE_LINK_RATE_LIMITED",
+    });
   });
 
   it("lets only the creator or a manager revoke a link", async () => {

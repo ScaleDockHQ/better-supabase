@@ -38,7 +38,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:22e871fcc2fc72aa3ff4465844b99978671758ffcd8557137baa648b6d45b6eb
+-- @bsb-hash sha256:e0e1c542b8bb34c399d28a5ef112611367a2d1c4910c892b61e2822983e8235b
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -548,7 +548,8 @@ begin
     and l."subject_type" = 'drive_node'
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
-    and (l."max_uses" is null or l."use_count" < l."max_uses");
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+    and l."password_hash" is null;
   if v_link_id is null or v_root !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'this link does not exist or has expired' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
   end if;

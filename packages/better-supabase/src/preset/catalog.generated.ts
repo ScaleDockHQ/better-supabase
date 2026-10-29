@@ -1571,7 +1571,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "versions",
-        "subjects"
+        "subjects",
+        "rate-limit"
       ],
       "manifest": "share-links",
       "scopes": [
@@ -1605,7 +1606,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "leaf": "leaf_id",
               "versionId": "version_id",
               "createdAt": "created_at",
-              "lastUsedAt": "last_used_at"
+              "lastUsedAt": "last_used_at",
+              "passwordHash": "password_hash",
+              "downloadAllowed": "download_allowed"
             }
           }
         },

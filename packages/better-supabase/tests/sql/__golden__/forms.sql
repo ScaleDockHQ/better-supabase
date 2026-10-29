@@ -1159,7 +1159,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:39cc3ad2db97171bb974eac4ec95cb28c84c774dccd05145b6382367ef63178c
+-- @bsb-hash sha256:545ce59bb10dfe8d0090b2f03e5b6b9b8ab52d32e3084cfa29ab6ee9a9215e57
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2069,6 +2069,7 @@ begin
     and k."revoked_at" is null
     and (k."expires_at" is null or k."expires_at" > now())
     and (k."max_uses" is null or k."use_count" < k."max_uses")
+    and k."password_hash" is null
     and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';
@@ -2110,6 +2111,7 @@ begin
     and k."revoked_at" is null
     and (k."expires_at" is null or k."expires_at" > now())
     and (k."max_uses" is null or k."use_count" < k."max_uses")
+    and k."password_hash" is null
     and k."role" = 'respond';
   if v_form_id is null then
     raise exception 'this form link isn''t valid' using errcode = 'P0002', hint = 'FORM_LINK_INVALID';

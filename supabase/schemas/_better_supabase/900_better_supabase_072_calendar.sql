@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:9570a7fa9325c3e804f20ec38e417342372412780b573a9b3cd5a047d8dc8375
+-- @bsb-hash sha256:6d3aaf3e16d9ff13ecc3e77563feba1cbab228560540bc932f0367beb5bc6368
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1349,6 +1349,7 @@ begin
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
     and (l."max_uses" is null or l."use_count" < l."max_uses")
+    and l."password_hash" is null
   for update;
   if v_subject is null or v_subject !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     return null;

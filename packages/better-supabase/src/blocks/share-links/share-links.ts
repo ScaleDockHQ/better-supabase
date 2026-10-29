@@ -5,7 +5,6 @@ import type {
 } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
@@ -14,6 +13,8 @@ import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
+import { dbError } from "../../core/errors.ts";
+import { AsyncResult } from "../../core/result.ts";
 import {
   applyTemporal,
   blockCall,
@@ -57,6 +58,10 @@ export interface ShareLink<F extends object = Record<never, never>> {
   readonly role: string;
   readonly expiresAt: Temporal.Instant | null;
   readonly revokedAt: Temporal.Instant | null;
+  /** `false` when the link was made with `downloadAllowed: false`. */
+  readonly downloadAllowed: boolean;
+  /** Whether resolving the link needs a password. */
+  readonly passwordRequired: boolean;
   /** With `options.fullRows`: the organization the link was created in. */
   readonly organizationId?: string;
   /** With `options.fullRows`: the record the link opens. */
@@ -91,6 +96,16 @@ export interface CreateShareLinkOptions<
    * it is revoked or expires.
    */
   readonly maxUses?: number;
+  /**
+   * A password `resolve` must be given, at least 8 characters
+   * (`SHARE_LINK_PASSWORD_INVALID`). The database keeps only its bcrypt hash.
+   */
+  readonly password?: string;
+  /**
+   * `false` marks the link view only: the blocks that serve files read it and
+   * refuse downloads. Default: `true`.
+   */
+  readonly downloadAllowed?: boolean;
 }
 
 /** What a live token points at. */
@@ -106,6 +121,16 @@ export interface ResolvedShareLink {
   readonly expiresAt?: Temporal.Instant;
   /** How many times the link may be opened, when it has a limit. */
   readonly maxUses?: number;
+  /** `false` when the link is view only. */
+  readonly downloadAllowed: boolean;
+  /** Whether the link has a password, which this call passed. */
+  readonly passwordRequired: boolean;
+}
+
+/** What `resolve` accepts besides the token. */
+export interface ResolveShareLinkOptions {
+  /** The link's password, when it has one. */
+  readonly password?: string;
 }
 
 /** What `find` returns: the live link, with its creator. */
@@ -130,7 +155,28 @@ function resolvedOf(value: unknown, label: string): ResolvedShareLink {
     ...(versionId === undefined ? {} : { versionId }),
     ...(expiresAt === undefined ? {} : { expiresAt }),
     ...(maxUses === undefined ? {} : { maxUses }),
+    ...settingsOf(row),
   };
+}
+
+function settingsOf(row: Readonly<Record<string, unknown>>) {
+  return {
+    downloadAllowed: row["downloadAllowed"] !== false,
+    passwordRequired: row["passwordRequired"] === true,
+  };
+}
+
+/**
+ * `resolve_share_link` answers a missing or wrong password with `{
+ * "passwordRequired": true }` instead of raising, so the wrong attempt it
+ * counts is not rolled back.
+ */
+const LOCKED = Symbol("locked");
+
+function lockedOf(value: unknown): boolean {
+  return (
+    isRecord(value) && value["passwordRequired"] === true && !("id" in value)
+  );
 }
 
 /**
@@ -147,9 +193,14 @@ export interface ShareLinks<F extends object = Record<never, never>> {
   revoke(id: string): AsyncResult<boolean>;
   /**
    * `null` for an unknown, revoked, expired or used-up token. Each call counts
-   * one use.
+   * one use. A link with a password fails with `SHARE_LINK_PASSWORD_REQUIRED`
+   * until `options.password` matches, and with `SHARE_LINK_RATE_LIMITED` after
+   * too many wrong ones.
    */
-  resolve(token: string): AsyncResult<ResolvedShareLink | null>;
+  resolve(
+    token: string,
+    options?: ResolveShareLinkOptions,
+  ): AsyncResult<ResolvedShareLink | null>;
   /** A member of the tenant records a view of `subject`. */
   recordView(
     subject: RecordRef,
@@ -209,6 +260,8 @@ export function createShareLinks<
         versionId,
         expiresAt,
         maxUses,
+        password,
+        downloadAllowed,
         fields: extra,
       }: CreateShareLinkOptions<F> = typeof link === "string"
         ? { role: link }
@@ -226,6 +279,8 @@ export function createShareLinks<
               version_id: versionId ?? null,
               expires_at: instantArg(expiresAt) ?? null,
               max_uses: maxUses ?? null,
+              password: password ?? null,
+              download_allowed: downloadAllowed ?? true,
               fields: checked,
             },
             (value) => {
@@ -243,11 +298,29 @@ export function createShareLinks<
     },
     revoke: (id) =>
       call("revoke_share_link", { id }, (value) => value === true),
-    resolve: (token) =>
-      call("resolve_share_link", { token }, (value) =>
-        value === null || value === undefined
-          ? null
-          : resolvedOf(value, "resolve_share_link"),
+    resolve: (token, { password } = {}) =>
+      call(
+        "resolve_share_link",
+        { token, ...(password === undefined ? {} : { password }) },
+        (value) => {
+          if (lockedOf(value)) {
+            return LOCKED;
+          }
+
+          return value === null || value === undefined
+            ? null
+            : resolvedOf(value, "resolve_share_link");
+        },
+      ).andThen((link) =>
+        link === LOCKED
+          ? AsyncResult.err(
+              dbError("unauthorized", "the share link needs its password", {
+                code: "28P01",
+                hint: "SHARE_LINK_PASSWORD_REQUIRED",
+                details: JSON.stringify({ required: true }),
+              }),
+            )
+          : AsyncResult.ok(link),
       ),
     find: (tokenHash) =>
       call("find_share_link", { token_hash: tokenHash }, (value) => {
@@ -278,6 +351,8 @@ export function createShareLinks<
               expires_at: instantArg(link.expiresAt) ?? null,
               max_uses: link.maxUses ?? null,
               token_hash: tokenHash,
+              password: link.password ?? null,
+              download_allowed: link.downloadAllowed ?? true,
               fields: checked,
             },
             (value) => {
@@ -323,6 +398,7 @@ export function createShareLinks<
               role: textOf(row["role"]),
               expiresAt: nullableInstant(row["expiresAt"]),
               revokedAt: nullableInstant(row["revokedAt"]),
+              ...settingsOf(row),
               ...(organizationId === undefined ? {} : { organizationId }),
               ...(row["subjectType"] === undefined
                 ? {}

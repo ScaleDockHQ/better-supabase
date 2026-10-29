@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:9ad90a2f6804cfbea162b049f58c76e5af82e866cf474c4b57daf38573369c2f
+-- @bsb-hash sha256:218da99fe5db129aa500e65df12a781bb7f500d8bdb01b7fa7d6136fafbe0f99
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -665,7 +665,8 @@ begin
     and l."subject_type" = 'drive_node'
     and l."revoked_at" is null
     and (l."expires_at" is null or l."expires_at" > now())
-    and (l."max_uses" is null or l."use_count" < l."max_uses");
+    and (l."max_uses" is null or l."use_count" < l."max_uses")
+    and l."password_hash" is null;
   if v_link_id is null or v_root !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
     raise exception 'this link does not exist or has expired' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
   end if;
