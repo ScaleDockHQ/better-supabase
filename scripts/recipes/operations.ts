@@ -170,4 +170,25 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "trial-balance",
+    title: "Trial balance",
+    blocks: ["accounting"],
+    kind: "component",
+    description:
+      "Total assets, liabilities and equity and this year's net income, then each account's debit, credit and balance with the totals.",
+    web: {
+      file: `${WEB_APP}/src/features/accounting/components/trial-balance.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "empty",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
 ];

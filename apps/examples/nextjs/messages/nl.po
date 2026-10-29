@@ -275,6 +275,16 @@ msgctxt "field.7grP0Y"
 msgid "Track packages from label to delivery."
 msgstr "Volg pakketten van label tot bezorging."
 
+#: src/app/[locale]/(app)/finance/page.tsx
+msgctxt "accounting.Fm3M-y"
+msgid "Finance"
+msgstr "Financiën"
+
+#: src/app/[locale]/(app)/finance/page.tsx
+msgctxt "accounting.d-8-KQ"
+msgid "The balance sheet totals, this year's net income and the trial balance of the posted entries."
+msgstr "De totalen van de balans, het nettoresultaat van dit jaar en de proef- en saldibalans van de geboekte posten."
+
 #: src/app/[locale]/(app)/forbidden.tsx
 msgctxt "app.yO2v_w"
 msgid "You don't have access"
@@ -980,6 +990,101 @@ msgstr "Jij"
 msgctxt "accessRequests.AnykoJ"
 msgid "Until {date}"
 msgstr "Tot {date}"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.2rqS5n"
+msgid "The books didn't load"
+msgstr "De boekhouding kon niet worden geladen"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.uzuzZB"
+msgid "No entries in the books yet"
+msgstr "Nog geen boekingen in de boekhouding"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.k26w6p"
+msgid "Set up the books with a chart of accounts, open a fiscal year, then post the first entry."
+msgstr "Richt de boekhouding in met een rekeningschema, open een boekjaar en boek daarna de eerste post."
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.5QskD1"
+msgid "Read the accounting guide"
+msgstr "Lees de handleiding voor de boekhouding"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.d1uESJ"
+msgid "Assets"
+msgstr "Activa"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.MZe-he"
+msgid "Liabilities and equity"
+msgstr "Passiva en eigen vermogen"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.r0q_a1"
+msgid "Balanced"
+msgstr "In balans"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.xGY0Zr"
+msgid "Out of balance"
+msgstr "Niet in balans"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.aeMDVR"
+msgid "Net income this year"
+msgstr "Nettoresultaat dit jaar"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.EXhKBi"
+msgid "Trial balance"
+msgstr "Proef- en saldibalans"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.uMg1My"
+msgid "Posted entries through {date}."
+msgstr "Geboekte posten tot en met {date}."
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.TwyMau"
+msgid "Account"
+msgstr "Rekening"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.MxD6vP"
+msgid "Debit"
+msgstr "Debet"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.mLvz-r"
+msgid "Credit"
+msgstr "Credit"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.H5-NAX"
+msgid "Balance"
+msgstr "Saldo"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.MJ2jZQ"
+msgid "Total"
+msgstr "Totaal"
 
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.or3Lzc"
@@ -8138,6 +8243,11 @@ msgstr "Risico's"
 msgctxt "navigation.poLbhw"
 msgid "Shifts"
 msgstr "Diensten"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Fm3M-y"
+msgid "Finance"
+msgstr "Financiën"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
