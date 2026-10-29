@@ -5779,6 +5779,26 @@ msgid "Approval requested for {name}"
 msgstr "Goedkeuring aangevraagd voor {name}"
 
 #: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.qeL1rV"
+msgid "Checked out {name}"
+msgstr "{name} uitgecheckt"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.Obk8x0"
+msgid "Checked in {name}"
+msgstr "{name} ingecheckt"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.GptQpD"
+msgid "Downloads of {name} are blocked"
+msgstr "Downloads van {name} zijn geblokkeerd"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.atIrTv"
+msgid "Downloads of {name} are allowed"
+msgstr "Downloads van {name} zijn toegestaan"
+
+#: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.icI5MO"
 msgid "Actions for {name}"
 msgstr "Acties voor {name}"
@@ -5787,6 +5807,26 @@ msgstr "Acties voor {name}"
 msgctxt "drive.5q3qC0"
 msgid "Download"
 msgstr "Downloaden"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.XEotoJ"
+msgid "Check in"
+msgstr "Inchecken"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.JPoWuz"
+msgid "Check out"
+msgstr "Uitchecken"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.te_Cix"
+msgid "Allow downloads"
+msgstr "Downloads toestaan"
+
+#: src/features/drive/components/drive-item-actions.tsx
+msgctxt "drive.naXcFa"
+msgid "Block downloads"
+msgstr "Downloads blokkeren"
 
 #: src/features/drive/components/drive-item-actions.tsx
 msgctxt "drive.0JzFLp"

@@ -4,14 +4,8 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { driveCoreSql } from "./drive-core.ts";
 import { driveFilesSql } from "./drive-files.ts";
-import {
-  FILE_EVENTS,
-  NAMES,
-  driveKit,
-  driveSubjectType,
-  labelTags,
-} from "./drive-kit.ts";
-import { shareLinkRow } from "./share-links.ts";
+import { driveKit, driveSubjectType, labelTags } from "./drive-kit.ts";
+import { FILE_EVENTS, NAMES } from "./drive-names.ts";
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   const drive = ctx.of("drive");
@@ -187,7 +181,9 @@ const CONTRIBUTES: BlockContributes = {
   "share-links": (own) => [
     {
       subject: driveSubjectType(own),
-      exists: (subject) => shareLinkRow(own, "nodes", subject),
+      exists: (subject) =>
+        `${own.fn("drive_share_link_allowed")}(${subject.id}::text, ${subject.tenant}::text, ${subject.role})`,
+      roles: ["view", "download", "upload"],
     },
   ],
 };

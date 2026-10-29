@@ -29,6 +29,11 @@ export function driveTablesSql(kit: DriveKit): string {
     externalColumn,
     metadataColumn,
     holdColumn,
+    lockColumns,
+    downloadColumn,
+    driveDownloadColumn,
+    previewColumn,
+    has,
     binColumn,
     rolesArray,
     typed,
@@ -72,6 +77,7 @@ ${renderPolicy(makePolicy({ table: C, name: ctx.naming.rename("drive_connections
   ${d("kind")} text not null default ${sqlString(driveKinds[0] ?? "shared")} check (${d("kind")} = any (${driveKindsArray})),
   ${d("owner")} uuid,
   ${d("connection")} uuid${ctx.has("connections", "id") && C !== undefined ? ` references ${C} (${c("id")}) on delete cascade` : ""},
+  ${driveDownloadColumn ? `${d("downloadBlocked")} boolean not null default false,` : ""}
   ${d("createdBy")} uuid default auth.uid(),
   ${d("createdAt")} timestamptz not null default now(),
   ${d("updatedAt")} timestamptz not null default now(),
@@ -81,7 +87,7 @@ create unique index if not exists ${sqlIdent(`${ctx.tableName("drives").name}_na
 create index if not exists ${sqlIdent(`${ctx.tableName("drives").name}_kind_idx`)} on ${D} (${d("tenant")}, ${d("kind")});
 create index if not exists ${sqlIdent(`${ctx.tableName("drives").name}_owner_idx`)} on ${D} (${d("owner")}) where ${d("owner")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("drives").name}_connection_idx`)} on ${D} (${d("connection")}) where ${d("connection")} is not null;
-${lockTable(D, { read: true })}
+${driveDownloadColumn ? `alter table ${D} add column if not exists ${d("downloadBlocked")} boolean not null default false;\n` : ""}${lockTable(D, { read: true })}
 `
       : "";
 
@@ -138,6 +144,21 @@ ${lockTable(DG, { read: true })}
 `
       : "";
 
+  const nodeColumns = [
+    lockColumns
+      ? `alter table ${T} add column if not exists ${n("lockedBy")} uuid;\nalter table ${T} add column if not exists ${n("lockedUntil")} timestamptz;\n`
+      : "",
+    has("lockNote")
+      ? `alter table ${T} add column if not exists ${n("lockNote")} text check (length(${n("lockNote")}) <= 500);\n`
+      : "",
+    downloadColumn
+      ? `alter table ${T} add column if not exists ${n("downloadBlocked")} boolean not null default false;\n`
+      : "",
+    previewColumn
+      ? `alter table ${T} add column if not exists ${n("previewPages")} integer check (${n("previewPages")} >= 0);\n`
+      : "",
+  ].join("");
+
   const nodeTable = ctx.owns("nodes")
     ? `create table if not exists ${T} (
   ${n("id")} uuid primary key default gen_random_uuid(),
@@ -154,6 +175,10 @@ ${lockTable(DG, { read: true })}
   ${externalColumn ? `${n("externalId")} text,` : ""}
   ${metadataColumn ? `${n("externalMetadata")} jsonb not null default '{}'::jsonb,` : ""}
   ${holdColumn ? `${n("legalHoldUntil")} timestamptz,` : ""}
+  ${lockColumns ? `${n("lockedBy")} uuid,\n  ${n("lockedUntil")} timestamptz,` : ""}
+  ${has("lockNote") ? `${n("lockNote")} text check (length(${n("lockNote")}) <= 500),` : ""}
+  ${downloadColumn ? `${n("downloadBlocked")} boolean not null default false,` : ""}
+  ${previewColumn ? `${n("previewPages")} integer check (${n("previewPages")} >= 0),` : ""}
   ${n("createdBy")} uuid default auth.uid(),
   ${n("createdAt")} timestamptz not null default now(),
   ${n("updatedAt")} timestamptz not null default now()${
@@ -183,7 +208,7 @@ create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_drive_idx`
 create unique index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_external_idx`)} on ${T} (${driveColumn ? `${n("drive")}, ` : `${n("tenant")}, `}${n("source")}, ${n("externalId")}) where ${n("externalId")} is not null${binColumn ? ` and ${n("deletedAt")} is null` : ""};`
           : ""
       }
-${lockTable(T, { read: true })}
+${nodeColumns}${lockTable(T, { read: true })}
 `
     : "";
 

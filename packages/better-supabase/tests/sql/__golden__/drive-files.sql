@@ -38,7 +38,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:e0e1c542b8bb34c399d28a5ef112611367a2d1c4910c892b61e2822983e8235b
+-- @bsb-hash sha256:76732d43f16ac6655306dcfcddcefbc523570f9e4af3d583aa51d3e9d3aadd09
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -90,7 +90,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'source', ($1)."source", 'externalId', ($1)."external_id", 'externalMetadata', ($1)."external_metadata", 'legalHoldUntil', ($1)."legal_hold_until", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at", 'attachmentId', ($1)."attachment_id", 'file', (select jsonb_build_object('mimeType', fa."mime_type", 'size', fa."size", 'status', fa."status", 'uploadedAt', fa."uploaded_at") from "better_supabase"."attachments" fa where fa."id" = ($1)."attachment_id"), 'labels', (select coalesce(jsonb_agg(jsonb_build_object('id', lt."id", 'name', lt."name", 'color', lt."color") order by lt."rank" collate "C", lt."name", lt."id"), '[]'::jsonb)
+  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'source', ($1)."source", 'externalId', ($1)."external_id", 'externalMetadata', ($1)."external_metadata", 'legalHoldUntil', ($1)."legal_hold_until", 'lockedBy', case when ($1)."locked_until" > now() then ($1)."locked_by" end, 'lockedUntil', case when ($1)."locked_until" > now() then ($1)."locked_until" end, 'lockNote', case when ($1)."locked_until" > now() then ($1)."lock_note" end, 'downloadBlocked', ($1)."download_blocked", 'previewPages', ($1)."preview_pages", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at", 'attachmentId', ($1)."attachment_id", 'file', (select jsonb_build_object('mimeType', fa."mime_type", 'size', fa."size", 'status', fa."status", 'uploadedAt', fa."uploaded_at") from "better_supabase"."attachments" fa where fa."id" = ($1)."attachment_id"), 'labels', (select coalesce(jsonb_agg(jsonb_build_object('id', lt."id", 'name', lt."name", 'color', lt."color") order by lt."rank" collate "C", lt."name", lt."id"), '[]'::jsonb)
       from "better_supabase"."taggings" lg join "better_supabase"."tags" lt on lt."id" = lg."tag_id"
       where lg."subject_type" = 'drive_node' and lg."subject_id" = ($1)."id"::text), 'approval', (select jsonb_build_object('id', lr."id", 'status', lr."status", 'createdAt', lr."created_at", 'decidedAt', lr."decided_at")
       from "better_supabase"."approval_requests" lr
@@ -210,6 +210,9 @@ begin
   if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  end if;
   if v_node."kind" <> 'file' then
     raise exception 'a folder has no content' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
   end if;
@@ -245,6 +248,9 @@ begin
   if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  end if;
   if not exists (
     select 1 from "better_supabase"."attachments" f where f."id" = drive_commit.attachment
       and f."subject_type" = 'drive_node' and f."subject_id" = v_node."id"::text
@@ -254,22 +260,24 @@ begin
   perform "better_supabase"."confirm_attachment"(drive_commit.attachment);
   select * into v_file from "better_supabase"."attachments" f where f."id" = drive_commit.attachment;
   if v_node."attachment_id" is distinct from v_file."id" then
-    update "better_supabase"."drive_nodes" x set "attachment_id" = v_file."id", "updated_at" = now()
+    update "better_supabase"."drive_nodes" x set "attachment_id" = v_file."id", "preview_pages" = null, "updated_at" = now()
     where x."id" = v_node."id"
     returning * into v_node;
     perform "better_supabase"."version_insert"(v_node."tenant_id", 'drive_node', v_node."id"::text,
       jsonb_build_object('attachmentId', v_file."id", 'name', v_file."name", 'mimeType', v_file."mime_type", 'size', v_file."size"),
       v_file."bucket" || '/' || v_file."object_path", null, 'manual', false, auth.uid());
   end if;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_commit"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."drive_commit"(uuid, uuid) to authenticated, service_role;
 
 -- Whether the caller may run action (select, insert, update or delete) on
--- the object at path: files of a node need the node's grants. Objects of
--- other subjects pass, so the attachments policies decide.
+-- the object at path: files of a node need the node's grants, and reading an
+-- original needs drive_can_download. Previews under _previews/ need read
+-- access, and only the service role writes them. Objects of other subjects pass, so
+-- the attachments policies decide.
 create or replace function "better_supabase"."drive_object_allowed"(bucket text, path text, action text)
 returns boolean
 language sql
@@ -277,16 +285,20 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce((
+  select case when drive_object_allowed.path like '_previews/%' then
+    drive_object_allowed.action = 'select'
+      and split_part(drive_object_allowed.path, '/', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      and "better_supabase"."drive_can"(split_part(drive_object_allowed.path, '/', 3)::uuid, 'viewer')
+  else coalesce((
     select case
       when f."subject_type" is distinct from 'drive_node' then true
       when f."subject_id" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then false
-      when drive_object_allowed.action = 'select' then "better_supabase"."drive_can"(f."subject_id"::uuid, 'viewer')
+      when drive_object_allowed.action = 'select' then "better_supabase"."drive_can_download"(f."subject_id"::uuid)
       else "better_supabase"."drive_node_writable"(f."subject_id"::uuid)
     end
     from "better_supabase"."attachments" f
     where f."bucket" = drive_object_allowed.bucket and f."object_path" = drive_object_allowed.path
-  ), true)
+  ), true) end
 $$;
 revoke execute on function "better_supabase"."drive_object_allowed"(text, text, text) from public, anon;
 grant execute on function "better_supabase"."drive_object_allowed"(text, text, text) to authenticated, service_role;
@@ -326,6 +338,10 @@ drop policy if exists bsb_drive_objects_read on storage.objects;
 create policy bsb_drive_objects_read on storage.objects as restrictive
   for select to authenticated
   using ("better_supabase"."drive_object_allowed"(bucket_id, name, 'select'));
+drop policy if exists bsb_drive_previews_read on storage.objects;
+create policy bsb_drive_previews_read on storage.objects
+  for select to authenticated
+  using (name like '_previews/%' and "better_supabase"."drive_object_allowed"(bucket_id, name, 'select'));
 drop policy if exists bsb_drive_objects_insert on storage.objects;
 create policy bsb_drive_objects_insert on storage.objects as restrictive
   for insert to authenticated
@@ -368,6 +384,86 @@ as $$
 $$;
 revoke execute on function "better_supabase"."drive_prune"(integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."drive_prune"(integer) to service_role;
+
+-- The rendered pages of a file's current content: { attachmentId, bucket,
+-- pages, prefix, paths }, with no pages until the preview renderer has run.
+create or replace function "better_supabase"."drive_preview_json"(node "better_supabase"."drive_nodes")
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when ($1)."attachment_id" is null then null else jsonb_build_object(
+    'attachmentId', ($1)."attachment_id",
+    'bucket', (select f."bucket" from "better_supabase"."attachments" f where f."id" = ($1)."attachment_id"),
+    'pages', coalesce(($1)."preview_pages", 0),
+    'prefix', '_previews/' || ($1)."tenant_id"::text || '/' || ($1)."id"::text || '/' || ($1)."attachment_id"::text,
+    'paths', coalesce((
+      select jsonb_agg('_previews/' || ($1)."tenant_id"::text || '/' || ($1)."id"::text || '/' || ($1)."attachment_id"::text || '/' || p::text order by p)
+      from generate_series(1, coalesce(($1)."preview_pages", 0)) p
+    ), '[]'::jsonb)
+  ) end
+$$;
+revoke execute on function "better_supabase"."drive_preview_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
+
+-- A file's previews for a reader. Previews need read access only, so a
+-- download block leaves them visible.
+create or replace function "better_supabase"."drive_previews"(node uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_previews.node and x."deleted_at" is null;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'a folder has no previews' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  return "better_supabase"."drive_preview_json"(v_node);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_previews"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_previews"(uuid) to authenticated, service_role;
+
+-- Service role: records how many pages the renderer stored for attachment
+-- under _previews/<tenant>/<node>/<attachment>/<page>. A file whose content
+-- changed since keeps no previews, so stale pages never show.
+create or replace function "better_supabase"."drive_set_previews"(node uuid, attachment uuid, pages integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if drive_set_previews.pages is null or drive_set_previews.pages < 0 then
+    raise exception 'pages must be zero or more' using errcode = '22023', hint = 'DRIVE_PREVIEWS_INVALID';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_set_previews.node for update;
+  if not found then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_node."attachment_id" is distinct from drive_set_previews.attachment then
+    return "better_supabase"."drive_preview_json"(v_node);
+  end if;
+  update "better_supabase"."drive_nodes" x set "preview_pages" = drive_set_previews.pages
+  where x."id" = v_node."id"
+  returning * into v_node;
+  return "better_supabase"."drive_preview_json"(v_node);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_set_previews"(uuid, uuid, integer) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_set_previews"(uuid, uuid, integer) to service_role;
 
 create or replace function "better_supabase"."drive_revisions"(node uuid)
 returns jsonb
@@ -426,6 +522,9 @@ begin
   if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  end if;
   select r."content" into v_content from "better_supabase"."versions" r
   where r."id" = drive_restore_revision.version
     and r."subject_type" = 'drive_node' and r."subject_id" = v_node."id"::text;
@@ -436,12 +535,12 @@ begin
   if not found then
     raise exception 'the revision''s file was pruned' using errcode = 'P0002', hint = 'DRIVE_REVISION_NOT_FOUND';
   end if;
-  update "better_supabase"."drive_nodes" x set "attachment_id" = v_file."id", "updated_at" = now()
+  update "better_supabase"."drive_nodes" x set "attachment_id" = v_file."id", "preview_pages" = null, "updated_at" = now()
   where x."id" = v_node."id"
   returning * into v_node;
   perform "better_supabase"."version_insert"(v_node."tenant_id", 'drive_node', v_node."id"::text,
     v_content, v_file."bucket" || '/' || v_file."object_path", null, 'restore', false, auth.uid());
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_restore_revision"(uuid, uuid) from public, anon;
@@ -492,7 +591,7 @@ begin
   values ('drive_node', v_node."id"::text, auth.uid(), now())
   on conflict ("subject_type", "subject_id", "user_id")
   do update set "last_opened_at" = now();
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_open"(uuid) from public, anon;
@@ -507,7 +606,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(t.node order by t.marked_at desc), '[]'::jsonb) from (
-    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((x)."id"))) || jsonb_build_object('starredAt', s."starred_at", 'openedAt', s."last_opened_at") as node,
+    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) || jsonb_build_object('starredAt', s."starred_at", 'openedAt', s."last_opened_at") as node,
       case when drive_marked.recent then s."last_opened_at" else s."starred_at" end as marked_at
     from "better_supabase"."subject_user_state" s
     join "better_supabase"."drive_nodes" x on x."id"::text = s."subject_id"
@@ -523,8 +622,10 @@ revoke execute on function "better_supabase"."drive_marked"(uuid, boolean, integ
 grant execute on function "better_supabase"."drive_marked"(uuid, boolean, integer) to authenticated, service_role;
 
 -- What a share link on a node opens: the node and, for a folder, its
--- children. node picks an item under the linked folder. For a file, file
--- carries the object for the server to sign a download URL with.
+-- children. node picks an item under the linked folder. For a file, object
+-- carries the original for the server to sign a download URL with, unless the
+-- link's download_allowed is false or a download block covers the file; previews
+-- carries the rendered pages either way. An upload link opens nothing.
 create or replace function "better_supabase"."drive_link"(token text, node uuid default null)
 returns jsonb
 language plpgsql
@@ -539,10 +640,11 @@ declare
   v_root text;
   v_expires timestamptz;
   v_tenant text;
+  v_download boolean;
   v_node "better_supabase"."drive_nodes"%rowtype;
 begin
-  select l."id", l."role", l."subject_id", l."expires_at", l."tenant_id"::text
-    into v_link_id, v_role, v_root, v_expires, v_tenant
+  select l."id", l."role", l."subject_id", l."expires_at", l."tenant_id"::text, l."download_allowed"
+    into v_link_id, v_role, v_root, v_expires, v_tenant, v_download
   from "better_supabase"."share_links" l
   where l."token_hash" = encode(extensions.digest(convert_to(drive_link.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'drive_node'
@@ -558,15 +660,20 @@ begin
   if not found or not (v_root::uuid = any ("better_supabase"."drive_ancestors"(v_node."id"))) then
     raise exception 'this link does not open that item' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
   end if;
+  if v_role = 'upload' then
+    raise exception 'an upload link takes files and opens nothing' using errcode = '22023', hint = 'DRIVE_LINK_ROLE_INVALID';
+  end if;
+  v_download := coalesce(v_download, true) and not "better_supabase"."drive_download_blocked"(v_node."id");
   return jsonb_build_object(
-    'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires),
+    'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires, 'downloadAllowed', v_download),
     'node', "better_supabase"."drive_node_json"(v_node),
     'children', case when v_node."kind" = 'folder' then (
       select coalesce(jsonb_agg("better_supabase"."drive_node_json"(c.r) order by ((c.r)."kind" = 'folder') desc, (c.r)."rank", lower((c.r)."name"), (c.r)."id"), '[]'::jsonb)
       from (select y as r from "better_supabase"."drive_nodes" y where y."parent_id" = v_node."id" and y."deleted_at" is null order by (y."kind" = 'folder') desc, y."rank", lower(y."name"), y."id" limit 500) c
     ) end,
-    'object', (select jsonb_build_object('bucket', f."bucket", 'path', f."object_path", 'mimeType', f."mime_type", 'status', f."status")
-      from "better_supabase"."attachments" f where f."id" = v_node."attachment_id")
+    'object', case when v_download then (select jsonb_build_object('bucket', f."bucket", 'path', f."object_path", 'mimeType', f."mime_type", 'status', f."status")
+      from "better_supabase"."attachments" f where f."id" = v_node."attachment_id") end,
+    'previews', "better_supabase"."drive_preview_json"(v_node)
   );
 end;
 $$;
@@ -598,7 +705,7 @@ begin
   else
     perform "better_supabase"."untag"(v_node."tenant_id", 'drive_node', v_node."id"::text, drive_label.tag);
   end if;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_label"(uuid, uuid, boolean) from public, anon;
@@ -613,7 +720,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(t.node order by t.ord), '[]'::jsonb) from (
-    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((x)."id"))) as node, row_number() over (order by (x."kind" = 'folder') desc, x."rank", lower(x."name"), x."id") as ord
+    select ("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) as node, row_number() over (order by (x."kind" = 'folder') desc, x."rank", lower(x."name"), x."id") as ord
     from "better_supabase"."drive_nodes" x
     where x."tenant_id" = drive_labeled.tenant and x."deleted_at" is null
       and exists (select 1 from "better_supabase"."taggings" lg where lg."subject_type" = 'drive_node' and lg."subject_id" = x."id"::text and lg."tag_id" = drive_labeled.tag)

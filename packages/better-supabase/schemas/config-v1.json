@@ -4731,6 +4731,7 @@
               },
               "writeRole": {},
               "shareRole": {},
+              "commentRole": {},
               "memberRole": {},
               "subjectType": {
                 "type": "string",
@@ -4762,6 +4763,10 @@
               "readPolicy": {
                 "type": "boolean",
                 "default": true
+              },
+              "previewPrefix": {
+                "type": "string",
+                "default": "_previews"
               },
               "extraColumns": {
                 "type": "object",

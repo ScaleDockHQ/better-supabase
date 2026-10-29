@@ -83,7 +83,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   donations:
     "archive_donation_fund create_pledge due_pledge_installments get_gift issue_gift_receipt issue_yearly_receipt list_donation_funds list_donation_receipts list_gifts list_pledges open_gift record_gift record_gift_payment save_donation_fund update_pledge void_donation_receipt yearly_giving_summary",
   drive:
-    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_move drive_path drive_release_hold drive_rename drive_share drive_shared drive_unshare",
+    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_path drive_release_hold drive_rename drive_set_download_blocked drive_share drive_shared drive_unlock drive_unshare",
   employees:
     "add_employee_contract create_employee employee_contracts employee_private_details offboard_employee org_chart reports_of save_employee_private_details update_employees",
   enrichment:

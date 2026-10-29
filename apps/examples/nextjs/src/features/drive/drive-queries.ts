@@ -21,6 +21,11 @@ export interface DriveItem {
   readonly labels: readonly { readonly id: string; readonly name: string }[];
   /** The approval of the file's current version, if one was requested. */
   readonly approval: ApprovalStatus | null;
+  /** Someone has the file checked out. */
+  readonly locked: boolean;
+  readonly downloadBlocked: boolean;
+  /** Whether the caller may download the original. */
+  readonly downloadable: boolean;
 }
 
 export interface DriveCrumbItem {
@@ -83,6 +88,9 @@ async function loadFolder(folderId: string | null) {
       createdAt: node.createdAt.toString(),
       labels: (node.labels ?? []).map(({ id, name }) => ({ id, name })),
       approval: node.approval?.status ?? null,
+      locked: node.lockedBy !== undefined,
+      downloadBlocked: node.downloadBlocked,
+      downloadable: node.downloadable !== false,
     })),
   };
 }
