@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:8ed3b9a267a82efd90c5711a2e2ac7c27f0fd5c4d80dc57f149071a830463ac6
+-- @bsb-hash sha256:0a080de2a97bf6e64cc5856a1630f2624ccb79c82556618ff717ce9509629a08
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -404,7 +404,7 @@ as $$
     ('user', 'centrakit.teams', '"centrakit"."teams"', 'created_by', true, '{}'::text[], true),
     ('user', 'centrakit.team_members', '"centrakit"."team_members"', 'user_id', true, '{}'::text[], true),
     ('user', 'centrakit.status_history', '"centrakit"."status_history"', 'actor_user_id', true, '{}'::text[], true),
-    ('user', 'centrakit.share_links', '"centrakit"."share_links"', 'created_by', true, array['token_hash']::text[], true),
+    ('user', 'centrakit.share_links', '"centrakit"."share_links"', 'created_by', true, array['token_hash', 'password_hash']::text[], true),
     ('user', 'centrakit.reminders', '"centrakit"."reminders"', 'user_id', true, '{}'::text[], true),
     ('user', 'centrakit.import_runs', '"centrakit"."import_runs"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.conversations', '"better_supabase"."conversations"', 'created_by', true, '{}'::text[], true),
@@ -449,7 +449,7 @@ as $$
     ('organization', 'better_supabase.subject_lifecycles', '"better_supabase"."subject_lifecycles"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.field_definitions', '"centrakit"."field_definitions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.field_values', '"centrakit"."field_values"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'centrakit.share_links', '"centrakit"."share_links"', 'tenant_id', true, array['token_hash']::text[], true),
+    ('organization', 'centrakit.share_links', '"centrakit"."share_links"', 'tenant_id', true, array['token_hash', 'password_hash']::text[], true),
     ('organization', 'centrakit.recurrence_rules', '"centrakit"."recurrence_rules"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.reminders', '"centrakit"."reminders"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'centrakit.import_runs', '"centrakit"."import_runs"', 'tenant_id', true, '{}'::text[], true),
