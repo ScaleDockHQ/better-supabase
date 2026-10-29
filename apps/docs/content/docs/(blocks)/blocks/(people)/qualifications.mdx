@@ -1,0 +1,250 @@
+---
+title: Qualifications
+description: Certifications, licences and skills that members, companies and assets hold, with a validity, evidence, requirements, a gap report, the holders qualified on a date and expiry notifications.
+---
+
+`qualifications` records who may do what. A qualification type, such as a
+forklift licence, a first aid course or an ISO certificate, says which
+holders it applies to (members, companies or assets), how many months a
+holding stays valid and whether it needs evidence. Requirements name who must
+hold it: a role, a team, a job title, an asset kind, a segment or one holder.
+The gap report lists the holders who lack a required qualification, or whose
+holding has expired or is about to.
+
+```bash
+better-supabase add qualifications
+```
+
+```ts
+import { createQualifications } from "better-supabase/blocks/qualifications";
+```
+
+The module requires `memberships`, `permissions` and `subjects`. Company
+holders need [contacts](/docs/blocks/contacts) and asset holders
+[assets](/docs/blocks/assets). Team requirements need
+[teams](/docs/blocks/teams), job title requirements
+[employees](/docs/blocks/employees) and segment requirements
+[segments](/docs/blocks/segments). With [courses](/docs/blocks/courses) a type
+names a course and members earn it with the course's certificate, with
+[attachments](/docs/blocks/attachments) the evidence is a file, with
+[notifications](/docs/blocks/notifications) members hear about their expiring
+holdings, with `outbox` it records the events, and with `audit` every change is
+audited.
+
+## Tables
+
+| Table                        | Holds                                                                                               |
+| ---------------------------- | --------------------------------------------------------------------------------------------------- |
+| `qualification_types`        | A type per organization by `key`, with its holder types, `valid_for_months` and `evidence_required` |
+| `qualification_requirements` | Who must hold a type: a `target_type` and a `target_value`                                          |
+| `qualifications`             | The holdings: a holder, the day it was granted, when it expires, its evidence and its source        |
+
+Members read the types and requirements of their organizations and their own
+holdings. Everything else needs a permission:
+
+| Permission              | Allows                                            |
+| ----------------------- | ------------------------------------------------- |
+| `qualifications.read`   | reading every holding and the gap report          |
+| `qualifications.grant`  | granting and revoking holdings                    |
+| `qualifications.manage` | saving and archiving types, changing requirements |
+
+Admins have all three; members get none by default.
+
+## Types and requirements
+
+```ts
+const forklift = await db.qualifications
+  .saveType(organizationId, {
+    key: "forklift",
+    name: "Forklift licence",
+    holderTypes: ["member"],
+    validForMonths: 36,
+    evidenceRequired: true,
+  })
+  .orThrow();
+
+await db.qualifications
+  .addRequirement(forklift.id, "role", "warehouse")
+  .orThrow();
+```
+
+`saveType` creates the type or updates the one with the same `key`.
+`validForMonths` is between 1 and 240; leave it out for a qualification that
+never expires. `archiveType` stops a type from taking new holdings and from
+showing up in the gap report; its holdings stay. `types` lists them by name,
+with `{ includeArchived: true }` for the archived ones too.
+
+| `targetType` | `targetValue`           | Applies to |
+| ------------ | ----------------------- | ---------- |
+| `role`       | a membership role       | members    |
+| `team`       | a team id               | members    |
+| `job_title`  | an employee's job title | members    |
+| `asset_kind` | an asset kind           | assets     |
+| `segment`    | a segment id            | companies  |
+| `holder`     | one holder's id         | any        |
+
+Adding the same target twice keeps one requirement. `removeRequirement`
+deletes one, and `requirements(typeId)` lists them.
+
+## Holdings
+
+```ts
+const held = await db.qualifications
+  .grant(organizationId, {
+    typeKey: "forklift",
+    holderType: "member",
+    holderId: userId,
+    grantedOn: Temporal.PlainDate.from("2026-09-01"),
+    evidenceAttachmentId: fileId,
+  })
+  .orThrow();
+// held.expiresOn is 2029-09-01, held.status is "valid"
+```
+
+`grantedOn` defaults to today, and `expiresOn` is `grantedOn` plus the type's
+`validForMonths`. A type with `evidenceRequired` needs an
+`evidenceAttachmentId` or an `evidenceNote`. A holding's `status` is `valid`,
+`expiring` (inside the renewal window, 30 days by default), `expired` or
+`revoked`. `revoke(qualificationId, reason)` withdraws one, and revoking twice
+keeps the first revocation. `of(holderType, holderId)` returns every holding of
+one holder, the newest grant first.
+
+A new grant of the same type doesn't replace the old one: the holder keeps
+both, and the latest expiry counts.
+
+## Gaps
+
+```ts
+const gaps = await db.qualifications
+  .gaps(organizationId, { holderType: "member", status: "expiring" })
+  .orThrow();
+// [{ holderType, holderId, holderTitle, typeKey, typeName, status, expiresOn }]
+```
+
+`gaps` lists each holder a requirement applies to whose holding is `missing`,
+`expired` or `expiring`. Filter it by `holderType` (default `member`),
+`holderId`, `teamId` (with teams), `typeKey` or `status`. It needs
+`qualifications.read`, except that a member may read their own gaps by passing
+their user id as `holderId`.
+
+## Qualified holders
+
+```ts
+const drivers = await db.qualifications
+  .qualifiedHolders(organizationId, "forklift", {
+    on: Temporal.PlainDate.from("2026-12-14"),
+  })
+  .orThrow();
+// ["9f0c…", "b31e…"]
+```
+
+`qualifiedHolders` returns the ids of the holders with a valid holding of a
+type on a day (today by default), so a schedule can check who may work a
+shift. Every member of the organization may call it.
+
+## Expiry
+
+Run `notifyExpiring` daily with the service role, for example from a
+[job](/docs/blocks/queue). It records `qualification.expiry_warned` once when a
+holding enters the renewal window and `qualification.expired` once when it
+expires, skipping holdings that a newer one of the same type replaces. With
+notifications installed, a member holder gets a notification for each. Set the
+window with `options.renewalWindowDays`:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  qualifications: { options: { renewalWindowDays: 60 } },
+},
+```
+
+## From a course
+
+With [courses](/docs/blocks/courses) installed and owning its certificates
+table, a type that names a `courseId` is granted to a member when they earn the
+course's certificate, with `source: "course"`. It expires with the type's
+validity, or with the certificate when the type has none. Revoking the
+certificate revokes the holding.
+
+## Options
+
+| Option              | Default                          | Does                                           |
+| ------------------- | -------------------------------- | ---------------------------------------------- |
+| `holderTypes`       | `["member", "company", "asset"]` | The holder types a qualification type may name |
+| `renewalWindowDays` | `30`                             | Days before expiry a holding is `expiring`     |
+| `extraColumns`      | none                             | Extra columns on the holdings table            |
+
+Pass a Standard Schema as `fields` to type the extra columns, parse them on
+reads and validate them on `grant`:
+
+```ts
+const qualifications = createQualifications({
+  transport,
+  fields: z.object({ licence_number: z.string().optional() }),
+});
+```
+
+## Adopting tables
+
+An app with its own tables keeps them: the module runs over them and maps
+their columns. The type's `description` and `course` columns, the holding's
+`revokeReason`, `evidenceNote` and `grantedBy` columns, and the timestamps are
+optional; map them to `null` and the module leaves out what needs them.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  qualifications: {
+    tables: {
+      types: "public.certifications",
+      requirements: "public.certification_rules",
+      qualifications: "public.certificates_held",
+    },
+    columns: {
+      types: { name: "title", course: null },
+      qualifications: { expiresOn: "valid_until", evidenceNote: null },
+    },
+  },
+},
+```
+
+## Events
+
+| Event                                                      | Data                                                                                                                                |
+| ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `qualification_type.created`, `qualification_type.updated` | `organizationId`, `qualificationTypeId`, `key`, `name`                                                                              |
+| `qualification_type.archived`                              | `organizationId`, `qualificationTypeId`, `key`                                                                                      |
+| `qualification.granted`                                    | `organizationId`, `qualificationId`, `qualificationTypeId`, `typeKey`, `holderType`, `holderId`, `grantedOn`, `expiresOn`, `source` |
+| `qualification.revoked`                                    | the same holding fields, with `reason`                                                                                              |
+| `qualification.expiry_warned`, `qualification.expired`     | the same holding fields, with `expiresOn`                                                                                           |
+
+## Hooks
+
+`before_qualification_type_save`, `after_qualification_type_save`,
+`before_qualification_grant`, `after_qualification_grant`,
+`before_qualification_revoke` and `after_qualification_revoke` run in the same
+transaction as the change. See [extending blocks](/docs/extending/blocks).
+
+## Errors
+
+| Hint                                  | Cause                                                                              |
+| ------------------------------------- | ---------------------------------------------------------------------------------- |
+| `QUALIFICATION_FORBIDDEN`             | the caller lacks the permission the call needs                                     |
+| `QUALIFICATION_TYPE_INVALID`          | a bad key, name, holder type, validity or course                                   |
+| `QUALIFICATION_TYPE_NOT_FOUND`        | no type with that id or key in the organization                                    |
+| `QUALIFICATION_REQUIREMENT_INVALID`   | an unknown target type, or a target the holder types or blocks don't allow         |
+| `QUALIFICATION_REQUIREMENT_NOT_FOUND` | no requirement the caller can remove                                               |
+| `QUALIFICATION_HOLDER_INVALID`        | the type doesn't apply to the holder type, or the holder isn't in the organization |
+| `QUALIFICATION_EVIDENCE_REQUIRED`     | the type needs evidence and the grant has none                                     |
+| `QUALIFICATION_NOT_FOUND`             | no holding the caller can revoke                                                   |
+| `QUALIFICATION_INVALID`               | a bad filter, a missing `grantedOn`, or evidence without attachments               |
+
+## Without the client
+
+`db.qualifications` is this client. Code that does not go through `bsb.db()`
+builds it with a transport:
+
+```ts
+import { createQualifications } from "better-supabase/blocks/qualifications";
+
+const qualifications = createQualifications({ transport });
+const gaps = await qualifications.gaps(organizationId).orThrow();
+```
