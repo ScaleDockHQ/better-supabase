@@ -25,6 +25,16 @@ export type ApprovalsSqlOptions = {
   /** Subject types whose requests may have no organization. */
   readonly tenantless?: readonly string[];
   readonly extraColumns?: ExtraColumns;
+  /**
+   * `false` sends none of the block's approval notifications, so the app can
+   * send its own from the `approval.*` events. Default `true`.
+   */
+  readonly notifications?: boolean;
+  /**
+   * Columns the app adds to `approval_policies`, such as a description. Needs
+   * `tenantPolicies`; `savePolicy` writes them from `fields`.
+   */
+  readonly policyExtraColumns?: ExtraColumns;
 };
 
 export const approvalsSqlOptions: BlockOptionsSchema<ApprovalsSqlOptions> =
@@ -35,4 +45,6 @@ export const approvalsSqlOptions: BlockOptionsSchema<ApprovalsSqlOptions> =
     conditions: option.string<"rules" | "payload">({ default: "rules" }),
     tenantless: option.strings(),
     extraColumns: option.extraColumns(),
+    notifications: option.boolean({ default: true }),
+    policyExtraColumns: option.extraColumns(),
   });

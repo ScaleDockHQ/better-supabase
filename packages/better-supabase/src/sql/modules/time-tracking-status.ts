@@ -1,6 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
-import { sqlIdent } from "../../core/template.ts";
+import { sqlIdent, sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 
 const WHERE = "blocks.time-tracking.options.userTimeZone";
@@ -103,6 +103,17 @@ export interface StatusTimesheetNames {
   readonly ended: (alias: string) => string;
   readonly running: (alias: string) => string;
   readonly owner: StatusTimesheetOwner;
+  /** Per-employee weeks that the approvals block decides. */
+  readonly approvals?: LinkedTimesheetApprovals;
+}
+
+/** The approvals block, for weeks it decides while the status column stays. */
+export interface LinkedTimesheetApprovals {
+  readonly open: string;
+  readonly requests: string;
+  readonly a: (column: string) => string;
+  readonly subject: string;
+  readonly policy: string;
 }
 
 export interface StatusTimesheetOwner {
@@ -132,7 +143,15 @@ export function statusTimesheetFunctions(
     names;
 
   const { ended, running, owner } = names;
+  const linked = names.approvals;
   const by = owner.employee;
+
+  // Whether week row `row` has an approval request still waiting.
+  const pendingApproval = (row: string): string =>
+    linked === undefined
+      ? "false"
+      : `exists (select 1 from ${linked.requests} x where x.${linked.a("subjectType")} = ${sqlString(linked.subject)} and x.${linked.a("subjectId")} = ${row}.${t("id")}::text and x.${linked.a("status")} = 'pending')`;
+
   const ownerVar = by ? "v_owner" : "v_user";
 
   const sheetMine = (row: string): string =>
@@ -208,7 +227,14 @@ begin
   end if;
   if not ${is("v_sheet", ["submitted"])} then
     ${fail("TIMESHEET_NOT_SUBMITTED", "only a submitted week can be decided", "55000")}
-  end if;
+  end if;${
+    linked === undefined
+      ? ""
+      : `
+  if ${pendingApproval("v_sheet")} then
+    ${fail("TIMESHEET_IN_APPROVAL", "this week is decided through its approval request", "55000")}
+  end if;`
+  }
   update ${timesheets} s set ${t("status")} = ${value(status)}${status === "approved" ? `, ${t("approvedAt")} = now()` : ""}${decide(name === "reject_timesheet" ? "reject_timesheet.note" : "null")}
     where s.${t("id")} = v_sheet.${t("id")}
     returning * into v_sheet;
@@ -321,7 +347,7 @@ ${
   if ${is("v_sheet", ["approved"])} then
     ${fail("TIMESHEET_APPROVED", "this week is already approved", "55000")}
   end if;
-  if ${is("v_sheet", ["submitted"])} then
+  if ${is("v_sheet", ["submitted"])}${linked === undefined ? "" : ` and ${pendingApproval("v_sheet")}`} then
     ${fail("TIMESHEET_SUBMITTED", "this week is already waiting for a decision", "55000")}
   end if;
   ${ctx.hook("before_timesheet_submit", [
@@ -332,7 +358,17 @@ ${
   update ${timesheets} s
   set ${t("status")} = ${value("submitted")}, ${t("note")} = submit_timesheet.note, ${t("submittedAt")} = now()${clearDecision}
   where s.${t("id")} = v_sheet.${t("id")}
-  returning * into v_sheet;
+  returning * into v_sheet;${
+    linked === undefined
+      ? ""
+      : `
+  perform ${linked.open}(
+    submit_timesheet.tenant, ${sqlString(linked.subject)}, v_sheet.${t("id")}::text, 'approve',
+    ${sqlString(linked.policy)}::jsonb || jsonb_build_object('managerOf', v_owner::text), submit_timesheet.note,
+    jsonb_build_object('userId', ${owner.userOf("v_owner")}, 'employeeId', v_owner, 'week', v_week),
+    ${owner.userOf("v_owner")}
+  );`
+  }
   ${timesheetRecord("timesheet.submitted", "v_sheet", "submitted a timesheet")}
   ${ctx.hook("after_timesheet_submit", [["uuid", `v_sheet.${t("id")}`]])}
   return ${json("v_sheet")};
@@ -341,7 +377,50 @@ $$;
 ${userGrant(`${fn("submit_timesheet")}(${ctx.idType}, date, text${ownerType})`)}
 
 drop function if exists ${fn("approve_timesheet")}(uuid);
-${decision("approve_timesheet", "approved", "timesheet.approved", "approved a timesheet")}${decision("reject_timesheet", "rejected", "timesheet.rejected", "rejected a timesheet")}
+${decision("approve_timesheet", "approved", "timesheet.approved", "approved a timesheet")}${
+    linked === undefined
+      ? ""
+      : `
+-- Applies the final decision of a week's approval request: approvals calls it,
+-- with the user who decided. It isn't granted to anyone.
+create or replace function ${fn("timesheet_approval_decided")}(timesheet_id uuid, approved boolean, note text, decided_by uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_sheet ${timesheets}%rowtype;
+begin
+  update ${timesheets} s set ${t("status")} = case when timesheet_approval_decided.approved then ${value("approved")} else ${value("rejected")} end,
+    ${t("approvedAt")} = case when timesheet_approval_decided.approved then now() end${[
+      ...(ctx.has("timesheets", "decidedBy")
+        ? [`${t("decidedBy")} = timesheet_approval_decided.decided_by`]
+        : []),
+      ...(ctx.has("timesheets", "decidedAt")
+        ? [`${t("decidedAt")} = now()`]
+        : []),
+      ...(ctx.has("timesheets", "decisionNote")
+        ? [`${t("decisionNote")} = timesheet_approval_decided.note`]
+        : []),
+    ]
+      .map((set) => `, ${set}`)
+      .join("")}
+    where s.${t("id")} = timesheet_approval_decided.timesheet_id and ${is("s", ["submitted"])}
+    returning * into v_sheet;
+  if not found then
+    return;
+  end if;
+  if timesheet_approval_decided.approved then
+    ${timesheetRecord("timesheet.approved", "v_sheet", "approved a timesheet")}
+  else
+    ${timesheetRecord("timesheet.rejected", "v_sheet", "rejected a timesheet")}
+  end if;
+end;
+$$;
+revoke execute on function ${fn("timesheet_approval_decided")}(uuid, boolean, text, uuid) from public, anon, authenticated;
+`
+  }${decision("reject_timesheet", "rejected", "timesheet.rejected", "rejected a timesheet")}
 -- Unlocks an approved or rejected week so its entries can change and it can
 -- be sent again.
 create or replace function ${fn("reopen_timesheet")}(timesheet_id uuid)

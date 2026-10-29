@@ -19,6 +19,7 @@ import {
   fail,
   insertExtraColumns,
   transitionActorSql,
+  transitionReasonSql,
   updateExtraColumns,
   userGrant,
 } from "../shared.ts";
@@ -552,11 +553,13 @@ ${userGrant(`${fn("invoice_from_quote")}(uuid, integer)`)}
   const addCharge = charges
     ? `
 ${chargeFields.drop(fn("add_invoice_charge"), "uuid, bigint, text, text")}
+drop function if exists ${fn("add_invoice_charge")}(uuid, bigint, text, text${chargeFields.type});
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns).
-create or replace function ${fn("add_invoice_charge")}(invoice uuid, amount bigint, currency text, description text${chargeFields.param})
+-- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- for the state machine's history.
+create or replace function ${fn("add_invoice_charge")}(invoice uuid, amount bigint, currency text, description text${chargeFields.param}, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -579,6 +582,7 @@ begin
   if upper(add_invoice_charge.currency) is distinct from v_row.${i("currency")} then
     ${fail("INVOICE_CURRENCY_MISMATCH", "a charge must be in the invoice's currency", "22023")}
   end if;
+  ${transitionActorSql("add_invoice_charge.actor", "INVOICE_ACTOR_INVALID")}
   insert into ${t("charges")} (${chargeColumns.join(", ")}${chargeExtras.columns})
   values (${chargeValues.join(", ")}${chargeExtras.values})
   returning ${ch("id")} into v_charge;${settle("v_row")}
@@ -586,9 +590,10 @@ begin
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("add_invoice_charge")}(uuid, bigint, text, text${chargeFields.type})`)}
+${userGrant(`${fn("add_invoice_charge")}(uuid, bigint, text, text${chargeFields.type}, jsonb)`)}
 
-create or replace function ${fn("remove_invoice_charge")}(charge uuid)
+drop function if exists ${fn("remove_invoice_charge")}(uuid);
+create or replace function ${fn("remove_invoice_charge")}(charge uuid, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -607,13 +612,14 @@ begin
   if ${st(`v_row.${i("status")}`, ["issued", "partially_paid", "paid"], true)} then
     ${fail("INVOICE_NOT_CHARGEABLE", "only an issued invoice changes its charges", "55000")}
   end if;
+  ${transitionActorSql("remove_invoice_charge.actor", "INVOICE_ACTOR_INVALID")}
   delete from ${t("charges")} c where c.${ch("id")} = remove_invoice_charge.charge
   returning c.${ch("amount")} into v_amount;${settle("v_row")}
   ${record("invoice.charge_removed", "v_row", `, 'chargeId', remove_invoice_charge.charge, 'amount', v_amount::text, 'balance', ${balance("v_row")}::text`, true)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("remove_invoice_charge")}(uuid)`)}
+${userGrant(`${fn("remove_invoice_charge")}(uuid, jsonb)`)}
 `
     : "";
 
@@ -958,8 +964,10 @@ $$;
 ${userGrant(`${fn("credit_invoice")}(uuid, jsonb, text)`)}
 
 -- Voids an invoice without payments: a draft, or an issued one sent in
--- error. Its number stays taken. Needs invoices.manage.
-create or replace function ${fn("void_invoice")}(invoice uuid, reason text)
+-- error. Its number stays taken. Needs invoices.manage. The reason and actor
+-- go to the state machine's history.
+drop function if exists ${fn("void_invoice")}(uuid, text);
+create or replace function ${fn("void_invoice")}(invoice uuid, reason text, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -975,18 +983,23 @@ begin
   if ${st(`v_row.${i("status")}`, ["draft", "issued"], true)} or v_row.${i("paidTotal")} <> 0 or v_row.${i("creditedTotal")} <> 0 then
     ${fail("INVOICE_NOT_VOIDABLE", "an invoice with payments or credits is credited, not voided", "55000")}
   end if;
+  ${transitionActorSql("void_invoice.actor", "INVOICE_ACTOR_INVALID")}
+  ${transitionReasonSql("void_invoice.reason")}
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "void")}, ${i("voidedAt")} = now(),
     ${has("voidReason") ? `${i("voidReason")} = nullif(trim(void_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")} returning * into v_row;
+  ${transitionReasonSql()}
   ${record("invoice.voided", "v_row", `, 'reason', ${has("voidReason") ? `v_row.${i("voidReason")}` : "nullif(trim(void_invoice.reason), '')"}`, true)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("void_invoice")}(uuid, text)`)}
+${userGrant(`${fn("void_invoice")}(uuid, text, jsonb)`)}
 
--- Writes an open invoice off as uncollectible. Needs invoices.manage.
+-- Writes an open invoice off as uncollectible. Needs invoices.manage. The
+-- reason and actor go to the state machine's history.
 drop function if exists ${fn("write_off_invoice")}(uuid);
-create or replace function ${fn("write_off_invoice")}(invoice uuid, reason text default null)
+drop function if exists ${fn("write_off_invoice")}(uuid, text);
+create or replace function ${fn("write_off_invoice")}(invoice uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -995,19 +1008,25 @@ as $$
 declare
   v_row ${t("invoices")};
 begin
+  ${transitionActorSql("write_off_invoice.actor", "INVOICE_ACTOR_INVALID")}
+  ${transitionReasonSql("write_off_invoice.reason")}
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "uncollectible")}, ${writeOffReason ? `${i("writeOffReason")} = nullif(trim(write_off_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
   where x.${i("id")} = write_off_invoice.invoice and ${can("x", n.writeOff)} and ${st(`x.${i("status")}`, ["issued", "partially_paid"])}
   returning * into v_row;
   if v_row.${i("id")} is null then
     ${fail("INVOICE_NOT_OPEN", "only an open invoice you can manage is written off", "55000")}
   end if;
+  ${transitionReasonSql()}
   ${record("invoice.uncollected", "v_row", `, 'balance', ${balance("v_row")}::text, 'reason', nullif(trim(write_off_invoice.reason), '')`, true)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("write_off_invoice")}(uuid, text)`)}
+${userGrant(`${fn("write_off_invoice")}(uuid, text, jsonb)`)}
 
-create or replace function ${fn("reverse_invoice_payment")}(payment uuid, reason text default null)
+-- Reverses a recorded payment. The reason and actor go to the state machine's
+-- history.
+drop function if exists ${fn("reverse_invoice_payment")}(uuid, text);
+create or replace function ${fn("reverse_invoice_payment")}(payment uuid, reason text default null, actor jsonb default null)
 returns jsonb
 language plpgsql
 security definer
@@ -1032,14 +1051,17 @@ begin
     or exists (select 1 from ${ledger.transactions} y where y.${ledger.tx("reverses")} = reverse_invoice_payment.payment) then
     ${fail("INVOICE_PAYMENT_REVERSED", "this payment is a reversal or is already reversed", "55000")}
   end if;
+  ${transitionActorSql("reverse_invoice_payment.actor", "INVOICE_ACTOR_INVALID")}
+  ${transitionReasonSql("reverse_invoice_payment.reason")}
   v_amount := ${ledger.paidTotal("v_row")};
   v_reversal := ${ledger.reverse("v_row", "reverse_invoice_payment.payment", "nullif(trim(reverse_invoice_payment.reason), '')")};
   v_amount := v_amount - ${ledger.paidTotal("v_row")};${settle("v_row")}
+  ${transitionReasonSql()}
   ${record("invoice.payment_reversed", "v_row", `, 'paymentId', reverse_invoice_payment.payment, 'reversalId', v_reversal, 'amount', v_amount::text, 'balance', ${balance("v_row")}::text, 'reason', nullif(trim(reverse_invoice_payment.reason), '')`, true)}
   return ${row("v_row")};
 end;
 $$;
-${userGrant(`${fn("reverse_invoice_payment")}(uuid, text)`)}
+${userGrant(`${fn("reverse_invoice_payment")}(uuid, text, jsonb)`)}
 ${addCharge}
 -- What a tenant is owed in one currency on as_of, by days past due:
 -- not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90. Amounts are text.

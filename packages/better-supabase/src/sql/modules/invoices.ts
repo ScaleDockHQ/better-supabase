@@ -440,11 +440,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "jsonb", "text"],
       returns: "jsonb",
     },
-    { name: "void_invoice", args: ["uuid", "text"], returns: "jsonb" },
-    { name: "write_off_invoice", args: ["uuid", "text"], returns: "jsonb" },
+    { name: "void_invoice", args: ["uuid", "text", "jsonb"], returns: "jsonb" },
+    {
+      name: "write_off_invoice",
+      args: ["uuid", "text", "jsonb"],
+      returns: "jsonb",
+    },
     {
       name: "reverse_invoice_payment",
-      args: ["uuid", "text"],
+      args: ["uuid", "text", "jsonb"],
       returns: "jsonb",
     },
     ...(ctx.hasTable("charges")
@@ -457,10 +461,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
               "text",
               "text",
               ...extraFieldsArg(chargeExtraColumns(ctx)).contract,
+              "jsonb",
             ],
             returns: "jsonb",
           },
-          { name: "remove_invoice_charge", args: ["uuid"], returns: "jsonb" },
+          {
+            name: "remove_invoice_charge",
+            args: ["uuid", "jsonb"],
+            returns: "jsonb",
+          },
         ]
       : []),
     { name: "invoice_aging", args: ["{id}", "text", "date"], returns: "jsonb" },

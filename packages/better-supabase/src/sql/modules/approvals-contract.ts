@@ -67,6 +67,7 @@ export const APPROVALS_NAMES: BlockSqlNames = {
     "after_approval_request",
     "before_approval_decide",
     "after_approval_decide",
+    "approval_notification",
   ],
   options: [
     "policies",
@@ -75,6 +76,8 @@ export const APPROVALS_NAMES: BlockSqlNames = {
     "conditions",
     "tenantless",
     "extraColumns",
+    "notifications",
+    "policyExtraColumns",
   ],
   tables: {
     requests: {
@@ -145,7 +148,18 @@ export function approvalsContract(
   return [
     {
       name: "request_approval",
-      args: ["{id}", "text", "text", "text", "text", "jsonb", ...extra, "text"],
+      args: [
+        "{id}",
+        "text",
+        "text",
+        "text",
+        "text",
+        "jsonb",
+        ...extra,
+        "text",
+        "jsonb",
+        "uuid",
+      ],
       returns: "jsonb",
     },
     {

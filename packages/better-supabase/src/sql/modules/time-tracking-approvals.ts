@@ -1,7 +1,12 @@
 import type { BlockSqlContext } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { byEmployee } from "./time-tracking-owner.ts";
+
+/** Timesheets this block submits to approvals. */
+export const TIMESHEET_SUBJECT = "timesheet";
 
 /** What the approvals-mode timesheet functions read from the module. */
 export interface ApprovalTimesheetNames {
@@ -257,3 +262,34 @@ $$;
 ${userGrant(`${fn("list_timesheets")}(${ctx.idType}, uuid, text, integer, date)`)}
 `;
 }
+
+/** Approvals decides weeks; per employee, the status column follows. */
+export const TIME_TRACKING_CONTRIBUTES: BlockContributes = {
+  approvals: (own) => {
+    if (!own.flag("approvals", true)) {
+      return [];
+    }
+
+    if (byEmployee(own)) {
+      return [
+        {
+          subject: TIMESHEET_SUBJECT,
+          access: "declared",
+          approve: ({ subjectId, comment, approver }) =>
+            `perform ${own.fn("timesheet_approval_decided")}(${subjectId}::uuid, true, ${comment}, ${approver});`,
+          reject: ({ subjectId, comment, approver }) =>
+            `perform ${own.fn("timesheet_approval_decided")}(${subjectId}::uuid, false, ${comment}, ${approver});`,
+        },
+      ];
+    }
+
+    return [
+      {
+        subject: TIMESHEET_SUBJECT,
+        access: "declared",
+        approve: ({ subjectId }) =>
+          `perform ${own.fn("approve_timesheet")}(${subjectId}::uuid);`,
+      },
+    ];
+  },
+};

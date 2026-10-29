@@ -3788,6 +3788,16 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "notifications": {
+                "type": "boolean",
+                "default": true
+              },
+              "policyExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }
@@ -4810,7 +4820,12 @@
               "withdrawApproved": {
                 "type": "boolean",
                 "default": false
-              }
+              },
+              "standaloneApprovals": {
+                "type": "boolean",
+                "default": false
+              },
+              "policy": {}
             }
           }
         }
@@ -5343,6 +5358,10 @@
               "reapprove": {
                 "type": "boolean",
                 "default": false
+              },
+              "approvalOwner": {
+                "type": "string",
+                "default": "filer"
               }
             }
           }

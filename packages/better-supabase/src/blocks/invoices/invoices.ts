@@ -161,6 +161,16 @@ export interface InvoiceAging {
 }
 
 /** `F` types the invoices' extra columns, from the `fields` schema. */
+/** Who made a status change, for the state machine's history. */
+export interface InvoiceActorOptions {
+  readonly actor?: TransitionActor;
+}
+
+const actorArg = (
+  actor: TransitionActor | undefined,
+): { readonly actor?: TransitionActor } =>
+  actor === undefined ? {} : { actor };
+
 export interface Invoices<F extends object = Record<never, never>> {
   create(
     organizationId: string,
@@ -201,10 +211,28 @@ export interface Invoices<F extends object = Record<never, never>> {
     invoiceId: string,
     options?: { readonly lines?: readonly LineInput[]; readonly note?: string },
   ): AsyncResult<Invoice<F>>;
-  void(invoiceId: string, reason?: string): AsyncResult<Invoice<F>>;
-  writeOff(invoiceId: string, reason?: string): AsyncResult<Invoice<F>>;
-  reversePayment(paymentId: string, reason?: string): AsyncResult<Invoice<F>>;
-  removeCharge(chargeId: string): AsyncResult<Invoice<F>>;
+  /** The reason and `actor` go to the state machine's history. */
+  void(
+    invoiceId: string,
+    reason?: string,
+    options?: InvoiceActorOptions,
+  ): AsyncResult<Invoice<F>>;
+  /** The reason and `actor` go to the state machine's history. */
+  writeOff(
+    invoiceId: string,
+    reason?: string,
+    options?: InvoiceActorOptions,
+  ): AsyncResult<Invoice<F>>;
+  /** The reason and `actor` go to the state machine's history. */
+  reversePayment(
+    paymentId: string,
+    reason?: string,
+    options?: InvoiceActorOptions,
+  ): AsyncResult<Invoice<F>>;
+  removeCharge(
+    chargeId: string,
+    options?: InvoiceActorOptions,
+  ): AsyncResult<Invoice<F>>;
   /**
    * Adds a charge on top of an issued invoice's total, in its currency. The
    * balance rises, so a paid invoice is open again until the charge is paid.
@@ -216,6 +244,8 @@ export interface Invoices<F extends object = Record<never, never>> {
       readonly description?: string;
       /** The charge's extra columns (`options.chargeExtraColumns`) by name. */
       readonly fields?: Readonly<Record<string, unknown>>;
+      /** Who added it, for the state machine's history. */
+      readonly actor?: TransitionActor;
     },
   ): AsyncResult<Invoice<F>>;
   aging(
@@ -496,20 +526,29 @@ export function createInvoices<
           })
         : AsyncResult.err(invalid);
     },
-    void: (invoiceId, reason) =>
-      invoice("void_invoice", { invoice: invoiceId, reason: reason ?? null }),
-    writeOff: (invoiceId, reason) =>
+    void: (invoiceId, reason, actorOptions) =>
+      invoice("void_invoice", {
+        invoice: invoiceId,
+        reason: reason ?? null,
+        ...actorArg(actorOptions?.actor),
+      }),
+    writeOff: (invoiceId, reason, actorOptions) =>
       invoice("write_off_invoice", {
         invoice: invoiceId,
         reason: reason ?? null,
+        ...actorArg(actorOptions?.actor),
       }),
-    reversePayment: (paymentId, reason) =>
+    reversePayment: (paymentId, reason, actorOptions) =>
       invoice("reverse_invoice_payment", {
         payment: paymentId,
         reason: reason ?? null,
+        ...actorArg(actorOptions?.actor),
       }),
-    removeCharge: (chargeId) =>
-      invoice("remove_invoice_charge", { charge: chargeId }),
+    removeCharge: (chargeId, actorOptions) =>
+      invoice("remove_invoice_charge", {
+        charge: chargeId,
+        ...actorArg(actorOptions?.actor),
+      }),
     charge: (invoiceId, charge) =>
       invoice("add_invoice_charge", {
         invoice: invoiceId,
@@ -517,6 +556,7 @@ export function createInvoices<
         currency: charge.amount.currency,
         description: charge.description ?? null,
         fields: charge.fields,
+        ...actorArg(charge.actor),
       }),
     aging: (organizationId, currency, asOf) =>
       amountsError(currency, []) === undefined

@@ -162,15 +162,22 @@ async function run(check: string): Promise<void> {
 }
 
 describe("time tracking per employee with a column per record type", () => {
-  it("refuses the employee owner without the status mode", () => {
-    expect(() =>
-      render({
-        "time-tracking": {
-          ...BLOCKS["time-tracking"],
-          options: { owner: "employee" },
-        },
-      }),
-    ).toThrow(/approvals: false/u);
+  it("files the employee owner's weeks with the approvals block unless approvals is false", () => {
+    const sql = render({
+      "time-tracking": {
+        ...BLOCKS["time-tracking"],
+        options: { owner: "employee" },
+      },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain("timesheet_approval_decided");
+    expect(
+      render()
+        .map((file) => file.contents)
+        .join("\n"),
+    ).not.toContain("timesheet_approval_decided");
   });
 
   it("refuses null subject columns unless every record type has a column", () => {

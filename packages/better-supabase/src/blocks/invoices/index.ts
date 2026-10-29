@@ -1,6 +1,7 @@
 export {
   createInvoices,
   type Invoice,
+  type InvoiceActorOptions,
   type InvoiceAging,
   type InvoiceCharge,
   type InvoiceInput,

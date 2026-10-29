@@ -5,7 +5,6 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
-import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -26,7 +25,11 @@ import {
 import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
 import { OPERATIONS, moduleOperations } from "./permissions-model.ts";
-import { approvalTimesheetFunctions } from "./time-tracking-approvals.ts";
+import {
+  approvalTimesheetFunctions,
+  TIME_TRACKING_CONTRIBUTES,
+  TIMESHEET_SUBJECT,
+} from "./time-tracking-approvals.ts";
 import {
   byEmployee,
   durationEntries,
@@ -46,9 +49,6 @@ import {
   userWeekFunction,
 } from "./time-tracking-status.ts";
 import { timerFunctions, timerOptions } from "./time-tracking-timers.ts";
-
-/** Timesheets this block submits to approvals. */
-const TIMESHEET_SUBJECT = "timesheet";
 
 const WHERE = "blocks.time-tracking.options";
 
@@ -237,10 +237,14 @@ function build(ctx: BlockSqlContext): string {
     return "";
   }
 
-  const statusMode = !ctx.flag("approvals", true);
+  // Per-employee timesheets keep their status column and, unless approvals
+  // is false, file each submitted week with the approvals block as well.
+  const employeeLinked = byEmployee(ctx) && ctx.flag("approvals", true);
+  const statusMode = !ctx.flag("approvals", true) || employeeLinked;
   const approvals = statusMode ? undefined : ctx.of("approvals");
+  const linked = employeeLinked ? ctx.of("approvals") : undefined;
 
-  if (approvals?.mode === "custom") {
+  if ((approvals ?? linked)?.mode === "custom") {
     throw new TypeError(
       "blocks.time-tracking needs the approvals tables; approvals can't be in custom mode",
     );
@@ -248,7 +252,7 @@ function build(ctx: BlockSqlContext): string {
 
   if (statusMode && !ctx.has("timesheets", "status")) {
     throw new TypeError(
-      `${WHERE}.approvals: false keeps the timesheet status in a column, so blocks.time-tracking.columns.timesheets.status can't be null`,
+      `${employeeLinked ? `${WHERE}.owner "employee"` : `${WHERE}.approvals: false`} keeps the timesheet status in a column, so blocks.time-tracking.columns.timesheets.status can't be null`,
     );
   }
 
@@ -279,7 +283,7 @@ function build(ctx: BlockSqlContext): string {
 
   const zone = sqlString(weekTimeZone(ctx));
   const userZone = userTimeZoneOf(ctx);
-  const policy = statusMode ? "" : timesheetPolicy(ctx);
+  const policy = statusMode && !employeeLinked ? "" : timesheetPolicy(ctx);
 
   const durationMode = durationEntries(ctx);
   const { allowOverlap, manyTimers } = timerOptions(ctx);
@@ -943,6 +947,17 @@ ${
         ended,
         running,
         owner: owner.status,
+        ...(linked === undefined
+          ? {}
+          : {
+              approvals: {
+                open: linked.fn("open_approval"),
+                requests: linked.table("requests"),
+                a: (column: string) => linked.col("requests", column),
+                subject: TIMESHEET_SUBJECT,
+                policy,
+              },
+            }),
       })
     : approvalTimesheetFunctions(ctx, {
         entries,
@@ -1025,24 +1040,10 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   ];
 }
 
-const CONTRIBUTES: BlockContributes = {
-  approvals: (own) =>
-    own.flag("approvals", true)
-      ? [
-          {
-            subject: TIMESHEET_SUBJECT,
-            access: "declared",
-            approve: ({ subjectId }) =>
-              `perform ${own.fn("approve_timesheet")}(${subjectId}::uuid);`,
-          },
-        ]
-      : [],
-};
-
 const REQUIRES = ["memberships", "permissions", "approvals"] as const;
 
 export const TIME_TRACKING: BlockSqlDefinition = {
-  contributes: CONTRIBUTES,
+  contributes: TIME_TRACKING_CONTRIBUTES,
   name: "time-tracking",
   scopes: ["tenant"],
   title: "Time tracking",

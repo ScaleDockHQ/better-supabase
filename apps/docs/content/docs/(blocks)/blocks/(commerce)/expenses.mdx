@@ -199,7 +199,7 @@ the report and submit it again. The reports table takes optional
 
 ## Expenses without reports
 
-Map `tables.reports` and `tables.lines` to `null` and each expense is one row of `tables.expenses` instead: the block's own table, or yours. It needs neither the approvals block nor the ledger, and the app decides each expense. Without the ledger, the ledger's subjects (`ledger_account`) aren't registered either, so comments, messaging and search don't reach for its tables.
+Map `tables.reports` and `tables.lines` to `null` and each expense is one row of `tables.expenses` instead: the block's own table, or yours. It needs neither the approvals block nor the ledger, and the app decides each expense, unless [approvals decide it](#approvals-for-expenses-without-reports). Without the ledger, the ledger's subjects (`ledger_account`) aren't registered either, so comments, messaging and search don't reach for its tables.
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -248,6 +248,21 @@ blocks: {
 ```
 
 With `options.companyExpenses: true`, `createExpense({ company: true, ... })` records an expense of the organization itself, without a member or employee. It needs `expenses.manage` (or the service role), and the owner column must allow null; the block's own table does. `listExpenses({ everyone: true })` returns them with the rest.
+
+### Approvals for expenses without reports
+
+With `options.standaloneApprovals: true`, each submitted expense files a request with the [approvals block](/docs/blocks/approvals) (subject type `expense`, action `approve`) under `options.policy`, by default one step for holders of `expenses.approve`. The expense's owner is the requester, so they can't approve their own expense, and with `owner: "employee"` a manager step (`approvers: { manager: true }`) asks the employee's manager. The request's final approval or rejection approves or rejects the expense, with the decider in `decidedBy` and the decision's comment in `decisionNote`. While the request is pending, `decideExpense` fails with `EXPENSE_IN_APPROVAL`; `withdrawExpense` and `deleteExpense` cancel it. It needs the approvals block.
+
+```ts title="better-supabase.config.ts"
+expenses: {
+  tables: { reports: null, lines: null },
+  options: {
+    owner: "employee",
+    standaloneApprovals: true,
+    policy: { steps: [{ approvers: { manager: true } }] },
+  },
+},
+```
 
 ### A key per action
 
@@ -300,6 +315,7 @@ The owner and their manager keep their own access, whatever these keys say.
 | `EXPENSE_REPORT_NOT_FOUND`     | no report with this id that the caller can read                                 |
 | `EXPENSE_INVALID`              | an expense's day, amount, currency or decision isn't valid                      |
 | `EXPENSE_LOCKED`               | the expense isn't in a status that allows the change                            |
+| `EXPENSE_IN_APPROVAL`          | the expense waits for its approval request (`standaloneApprovals`)              |
 | `EXPENSE_NOT_FOUND`            | no expense with this id that the caller can read                                |
 | `EXPENSE_EMPLOYEE_INVALID`     | no employee has this id, or the caller has no employee record                   |
 

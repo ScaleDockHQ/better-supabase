@@ -1,5 +1,4 @@
 import type { BlockSqlContext } from "../context.ts";
-import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -19,19 +18,19 @@ import {
 } from "../shared.ts";
 import { leaveBalanceFunctions, unpostTaken } from "./leave-balances.ts";
 import {
+  LEAVE_CONTRIBUTES,
   LEAVE_REQUEST_SUBJECT,
   RESERVED,
   leaveContract,
   leavePolicy,
+  leaveApprovalOwner,
   leaveStatusMode,
   workingDaysOf,
 } from "./leave-contract.ts";
 import {
   leaveEndPart,
   leaveFeed,
-  leaveFeedSubject,
   leavePartial,
-  leaveTeamFeedSubject,
   leaveStartPart,
   leaveTypeKey,
 } from "./leave-feed.ts";
@@ -482,6 +481,10 @@ ${
     ${fail("LEAVE_OVERLAP", "this overlaps another leave request", "23P01")}
   end if;`;
 
+  // options.approvalOwner "employee": the request's employee is the approval's
+  // requester, and a manager step asks their manager.
+  const byEmployee = leaveApprovalOwner(ctx, owner.employee) === "employee";
+
   // Opens the approval of v_row for v_type, unless the type needs none.
   const openApproval = (tenant: string): string => {
     if (approvals === undefined) {
@@ -491,8 +494,8 @@ ${
     const open = `
   v_request := ${approvals.fn("open_approval")}(
     ${tenant}, ${sqlString(LEAVE_REQUEST_SUBJECT)}, v_row.${q("id")}::text, 'approve',
-    ${sqlString(policy)}::jsonb, ${or("requests", "v_row", "note")},
-    jsonb_build_object('userId', ${owner.employee ? "v_user, 'employeeId', v_owner" : "v_me"}, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})
+    ${sqlString(policy)}::jsonb${byEmployee ? " || jsonb_build_object('managerOf', v_owner::text)" : ""}, ${or("requests", "v_row", "note")},
+    jsonb_build_object('userId', ${owner.employee ? "v_user, 'employeeId', v_owner" : "v_me"}, 'typeId', v_type.${ty("id")}, 'type', v_type.${ty("name")}, 'startsOn', v_row.${q("startsOn")}, 'endsOn', v_row.${q("endsOn")}, 'amount', v_amount::text, 'unit', v_type.${ty("unit")})${byEmployee ? ",\n    v_user" : ""}
   );
   update ${requests} x set ${q("approval")} = (v_request ->> 'id')::uuid
     where x.${q("id")} = v_row.${q("id")}
@@ -1018,25 +1021,10 @@ ${userGrant(`${fn("list_leave_requests")}(${listBase}${owner.employee ? ", uuid"
 `;
 }
 
-const CONTRIBUTES: BlockContributes = {
-  "share-links": (own) => [leaveFeedSubject(own), ...leaveTeamFeedSubject(own)],
-  approvals: (own) =>
-    leaveStatusMode(own)
-      ? []
-      : [
-          {
-            subject: LEAVE_REQUEST_SUBJECT,
-            access: "declared",
-            approve: ({ subjectId }) =>
-              `perform ${own.fn("approve_leave_request")}(${subjectId}::uuid);`,
-          },
-        ],
-};
-
 const REQUIRES = ["memberships", "permissions", "approvals", "ledger"] as const;
 
 export const LEAVE: BlockSqlDefinition = {
-  contributes: CONTRIBUTES,
+  contributes: LEAVE_CONTRIBUTES,
   internal: ["leave_available", "leave_post", "leave_posted"],
   name: "leave",
   scopes: ["tenant"],

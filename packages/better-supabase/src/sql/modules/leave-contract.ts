@@ -1,7 +1,9 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 
 import { extraFieldsArg } from "../shared.ts";
 import { policyOf, policySnapshot } from "./approvals-policies.ts";
+import { leaveFeedSubject, leaveTeamFeedSubject } from "./leave-feed.ts";
 import { leaveByEmployee, leavePartsMapped } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
@@ -70,6 +72,30 @@ export function leavePolicy(ctx: BlockSqlContext): string {
   }
 
   return policySnapshot(policy);
+}
+
+/**
+ * `options.approvalOwner`: `"employee"` makes the request's employee the
+ * approval's requester and points a manager step at their manager; the default
+ * `"filer"` keeps the user who filed it. Needs `owner: "employee"`.
+ */
+export function leaveApprovalOwner(
+  ctx: BlockSqlContext,
+  employee: boolean,
+): "filer" | "employee" {
+  const value = ctx.text("approvalOwner", "filer");
+
+  if (value !== "filer" && value !== "employee") {
+    throw new TypeError(`${WHERE}.approvalOwner must be "filer" or "employee"`);
+  }
+
+  if (value === "employee" && !employee) {
+    throw new TypeError(
+      `${WHERE}.approvalOwner "employee" needs ${WHERE}.owner "employee"`,
+    );
+  }
+
+  return value;
 }
 
 /**
@@ -156,3 +182,19 @@ export function leaveContract(
       : []),
   ];
 }
+
+/** The final approval of a leave request books it. */
+export const LEAVE_CONTRIBUTES: BlockContributes = {
+  "share-links": (own) => [leaveFeedSubject(own), ...leaveTeamFeedSubject(own)],
+  approvals: (own) =>
+    leaveStatusMode(own)
+      ? []
+      : [
+          {
+            subject: LEAVE_REQUEST_SUBJECT,
+            access: "declared",
+            approve: ({ subjectId }) =>
+              `perform ${own.fn("approve_leave_request")}(${subjectId}::uuid);`,
+          },
+        ],
+};

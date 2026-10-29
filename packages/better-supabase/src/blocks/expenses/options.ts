@@ -24,6 +24,18 @@ export type ExpensesSqlOptions = {
    * so may a holder of `permissions.withdraw` (default the `update` key).
    */
   readonly withdrawApproved?: boolean;
+  /**
+   * Without reports: each submitted expense files a request with the approvals
+   * block, whose final decision approves or rejects it. `decideExpense` is
+   * refused while that request waits. The expense's owner is the requester;
+   * with `owner: "employee"`, a manager step asks the employee's manager.
+   */
+  readonly standaloneApprovals?: boolean;
+  /**
+   * The approval policy of `standaloneApprovals`. Default: one step for holders
+   * of the approve permission.
+   */
+  readonly policy?: unknown;
 };
 
 export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
@@ -34,4 +46,6 @@ export const expensesSqlOptions: BlockOptionsSchema<ExpensesSqlOptions> =
     owner: option.string<"user" | "employee">({ default: "user" }),
     companyExpenses: option.boolean({ default: false }),
     withdrawApproved: option.boolean({ default: false }),
+    standaloneApprovals: option.boolean({ default: false }),
+    policy: option.unknown(),
   });
