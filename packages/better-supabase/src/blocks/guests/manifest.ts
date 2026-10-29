@@ -4,6 +4,7 @@ import type { GuestsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { guestsEvents } from "./events.ts";
 import { createGuests } from "./guests.ts";
+import { guestsSqlOptions } from "./options.ts";
 import { guestsBinding } from "./record-binding.ts";
 import { guestGrantSchema, guestInviteSchema } from "./schemas.ts";
 
@@ -18,7 +19,7 @@ export const guestsBlock: BlockOf<
 > = defineBlock({
   name: "guests",
   sql: ["guests"],
-  options: {},
+  options: { guests: guestsSqlOptions },
   events: guestsEvents,
   schemas: {
     guest: { input: guestInviteSchema },

@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
@@ -13,6 +14,10 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import { partyFunctions } from "./contacts-functions.ts";
 import { partiesInboxSql } from "./contacts-inbox.ts";
+import {
+  representativeFunctions,
+  representsKind,
+} from "./contacts-representatives.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -289,8 +294,12 @@ function build(ctx: BlockSqlContext): string {
 
   return `${schemaPreamble(ctx)}
 -- Companies and people an organization works with, and who works where.
-${tables(ctx, names)}${partyFunctions(ctx, names)}${partiesInboxSql(ctx, names)}`;
+${tables(ctx, names)}${partyFunctions(ctx, names)}${partiesInboxSql(ctx, names)}${representativeFunctions(ctx, names)}`;
 }
+
+const CONTRIBUTES: BlockContributes = {
+  relations: (own) => [representsKind(own)],
+};
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
@@ -336,17 +345,28 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           },
         ]
       : []),
+    ...(ctx.installed("relations")
+      ? [
+          {
+            name: "list_representatives",
+            args: ["text", "text"],
+            returns: "jsonb",
+          },
+          { name: "represented_by_me", args: ["{id}"], returns: "jsonb" },
+        ]
+      : []),
   ];
 }
 
 export const PARTIES: BlockSqlDefinition = {
+  contributes: CONTRIBUTES,
   name: "contacts",
   scopes: ["tenant"],
   title: "Parties",
   description:
     "Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "notifications", "inbox"],
+  integrates: ["outbox", "audit", "notifications", "inbox", "relations"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

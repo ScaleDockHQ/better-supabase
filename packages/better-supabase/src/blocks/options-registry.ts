@@ -43,6 +43,7 @@ import type { FlagsSqlOptions } from "./flags/options.ts";
 import type { FormsSqlOptions } from "./forms/options.ts";
 import type { GoalsSqlOptions } from "./goals/options.ts";
 import type { GrantsSqlOptions } from "./grants/options.ts";
+import type { GuestsSqlOptions } from "./guests/options.ts";
 import type { HiringSqlOptions } from "./hiring/options.ts";
 import type { IdentitiesSqlOptions } from "./identities/options.ts";
 import type { ImpersonationSqlOptions } from "./impersonation/options.ts";
@@ -170,6 +171,7 @@ import { flagsSqlOptions } from "./flags/options.ts";
 import { formsSqlOptions } from "./forms/options.ts";
 import { goalsSqlOptions } from "./goals/options.ts";
 import { grantsSqlOptions } from "./grants/options.ts";
+import { guestsSqlOptions } from "./guests/options.ts";
 import { hiringSqlOptions } from "./hiring/options.ts";
 import { identitiesSqlOptions } from "./identities/options.ts";
 import { impersonationSqlOptions } from "./impersonation/options.ts";
@@ -314,7 +316,7 @@ export interface BlockOptionsRegistry {
   readonly forms: FormsSqlOptions;
   readonly goals: GoalsSqlOptions;
   readonly grants: GrantsSqlOptions;
-  readonly guests: None;
+  readonly guests: GuestsSqlOptions;
   readonly hiring: HiringSqlOptions;
   readonly idempotency: None;
   readonly identities: IdentitiesSqlOptions;
@@ -466,7 +468,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   forecasts: NO_OPTIONS,
   forms: formsSqlOptions,
   goals: goalsSqlOptions,
-  guests: NO_OPTIONS,
+  guests: guestsSqlOptions,
   hiring: hiringSqlOptions,
   idempotency: NO_OPTIONS,
   impersonation: impersonationSqlOptions,

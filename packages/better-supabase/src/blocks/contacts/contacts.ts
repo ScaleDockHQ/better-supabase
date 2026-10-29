@@ -9,7 +9,11 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { CursorPageOptions } from "../shared.ts";
+import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
+import type {
+  RepresentativeAuthority,
+  RepresentativeRole,
+} from "./representatives.ts";
 
 import {
   blockFields,
@@ -18,15 +22,23 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { temporal } from "../../core/temporal-required.ts";
 import {
+  applyTemporal,
   blockCall,
+  enumOrThrow,
   isRecord,
+  optionalInstant,
   optionalText,
   pageOf,
   recordOf,
   recordsOf,
   textOf,
 } from "../shared.ts";
+import {
+  REPRESENTATIVE_AUTHORITIES,
+  REPRESENTATIVE_ROLES,
+} from "./representatives.ts";
 
 /** Where a page of a list stops: the last row's name and id. */
 export interface PartyCursor {
@@ -78,6 +90,35 @@ export interface CompanyPerson extends Person {
   readonly role?: string;
   /** Whether this is the company's primary contact. */
   readonly primary: boolean;
+}
+
+/** One `represents` link: a person represents a record. */
+export interface Representation {
+  /** The relations link's id. */
+  readonly id: string;
+  readonly organizationId: string;
+  readonly personId: string;
+  readonly role: RepresentativeRole;
+  readonly authority: RepresentativeAuthority;
+  readonly validFrom?: Temporal.PlainDate;
+  /** The last day the link holds. */
+  readonly validUntil?: Temporal.PlainDate;
+}
+
+/** A representative of a record, with the person's contact details. */
+export interface Representative extends Representation {
+  readonly name: string;
+  readonly email?: string;
+  readonly phone?: string;
+  /** Whether the link holds today. */
+  readonly active: boolean;
+  readonly createdAt?: Temporal.Instant;
+}
+
+/** A record the caller represents as a guest. */
+export interface RepresentedRecord extends Representation {
+  readonly subjectType: string;
+  readonly subjectId: string;
 }
 
 /**
@@ -165,11 +206,24 @@ export interface Contacts<F extends object = Record<never, never>> {
     contactId: string,
     options?: { readonly create?: boolean },
   ): AsyncResult<Person | undefined>;
+  /**
+   * The people who represent a record through `represents` links, holding links
+   * first. Needs the relations block.
+   */
+  representativesOf(
+    subjectType: string,
+    subjectId: string,
+  ): AsyncResult<Representative[]>;
+  /**
+   * The records the caller represents in an organization as a guest whose party
+   * is the representative, while the link holds.
+   */
+  representedByMe(organizationId: string): AsyncResult<RepresentedRecord[]>;
 }
 
 export interface ContactsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
-> {
+> extends BlockTemporalOptions {
   readonly transport: BlockTransport;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
@@ -288,6 +342,56 @@ function companyPersonOf(value: unknown): CompanyPerson {
   };
 }
 
+const dateOf = (value: unknown): Temporal.PlainDate | undefined =>
+  typeof value === "string" && value !== ""
+    ? temporal().PlainDate.from(value.slice(0, 10))
+    : undefined;
+
+function representationOf(row: Record<string, unknown>): Representation {
+  const validFrom = dateOf(row["validFrom"]);
+  const validUntil = dateOf(row["validUntil"]);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["organizationId"]),
+    personId: textOf(row["personId"]),
+    role: enumOrThrow(row["role"], REPRESENTATIVE_ROLES, "representative role"),
+    authority: enumOrThrow(
+      row["authority"],
+      REPRESENTATIVE_AUTHORITIES,
+      "representative authority",
+    ),
+    ...(validFrom === undefined ? {} : { validFrom }),
+    ...(validUntil === undefined ? {} : { validUntil }),
+  };
+}
+
+function representativeOf(value: unknown): Representative {
+  const row = recordOf(value, "representative");
+  const email = optionalText(row["email"]);
+  const phone = optionalText(row["phone"]);
+  const createdAt = optionalInstant(row["createdAt"]);
+
+  return {
+    ...representationOf(row),
+    name: textOf(row["name"]),
+    active: row["active"] === true,
+    ...(email === undefined ? {} : { email }),
+    ...(phone === undefined ? {} : { phone }),
+    ...(createdAt === undefined ? {} : { createdAt }),
+  };
+}
+
+function representedOf(value: unknown): RepresentedRecord {
+  const row = recordOf(value, "represented record");
+
+  return {
+    ...representationOf(row),
+    subjectType: textOf(row["subjectType"]),
+    subjectId: textOf(row["subjectId"]),
+  };
+}
+
 /**
  * The attrs of a write: the keys the input sets, `null` included, and its
  * fields.
@@ -318,6 +422,8 @@ export function createContacts<
   S extends StandardSchemaV1 | undefined = undefined,
 >(options: ContactsOptions<S>): Contacts<FieldsOf<S>> {
   type F = FieldsOf<S>;
+
+  applyTemporal(options);
 
   const call = blockCall(options.transport, options.schema, options.mappers);
   const fields: BlockFields<F> = blockFields(options.fields, "company fields");
@@ -431,6 +537,17 @@ export function createContacts<
     peopleOf: (companyId) =>
       call("company_people_of", { company: companyId }, (value) =>
         recordsOf(value, "company_people_of").map(companyPersonOf),
+      ),
+    representativesOf: (subjectType, subjectId) =>
+      call(
+        "list_representatives",
+        { subject_type: subjectType, subject_id: subjectId },
+        (value) =>
+          recordsOf(value, "list_representatives").map(representativeOf),
+      ),
+    representedByMe: (organizationId) =>
+      call("represented_by_me", { tenant: organizationId }, (value) =>
+        recordsOf(value, "represented_by_me").map(representedOf),
       ),
   };
 

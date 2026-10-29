@@ -79,7 +79,10 @@ same way blocks contribute number sequences to `numbering`. Installing both
 adds the kind next to yours (or next to the four defaults when you don't set
 `kinds`), with the subject types the block names after its entity names.
 Declare a kind with the same name in `kinds` to replace the contributed one;
-your entry wins as a whole, including its `types`. Two blocks that contribute
+your entry wins as a whole, including its `types` and any check the block
+makes on the link's data (`link` refuses data the check rejects with
+`RELATION_DATA_INVALID`). [Parties](/docs/blocks/contacts#representatives)
+contributes `represents` this way. Two blocks that contribute
 the same kind to one `relations` instance fail at render time; point one
 instance's `uses.relations` at another `relations` instance.
 
@@ -135,6 +138,7 @@ that reverses the change, including putting a replaced parent back. See
 | `RELATION_SUBJECT_FORBIDDEN` | An end is missing, in another organization or unreadable |
 | `RELATION_KIND_UNKNOWN`      | The kind is not declared                                 |
 | `RELATION_TYPE_NOT_ALLOWED`  | An end's subject type is not in the kind's `types`       |
+| `RELATION_DATA_INVALID`      | A contributed kind's check rejects the link's data       |
 | `RELATION_SELF`              | Both ends are the same record                            |
 | `RELATION_CYCLE`             | The link would close a cycle of an acyclic kind          |
 | `RELATION_INVALID`           | `data` is not an object                                  |

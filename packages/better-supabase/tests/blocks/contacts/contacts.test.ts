@@ -255,3 +255,71 @@ describe("parties block with the inbox", () => {
     ]);
   });
 });
+
+describe("parties block with relations", () => {
+  const LINK = {
+    id: "r1",
+    organizationId: "o",
+    personId: "p1",
+    role: "guardian",
+    authority: "act",
+    validFrom: "2026-01-01",
+    validUntil: null,
+  };
+
+  it("reads a record's representatives and the records a guest represents", async () => {
+    const t = transport({
+      list_representatives: () => [
+        {
+          ...LINK,
+          name: "Ada",
+          email: "ada@acme.com",
+          phone: null,
+          active: true,
+          createdAt: "2026-10-14T00:00:00Z",
+        },
+      ],
+      represented_by_me: () => [
+        { ...LINK, subjectType: "client", subjectId: "k1" },
+      ],
+    });
+
+    const parties = createContacts({ transport: t });
+
+    const [representative] = await parties
+      .representativesOf("client", "k1")
+      .orThrow();
+
+    expect(representative).toMatchObject({
+      personId: "p1",
+      name: "Ada",
+      email: "ada@acme.com",
+      role: "guardian",
+      authority: "act",
+      active: true,
+    });
+    expect(representative?.validFrom?.toString()).toBe("2026-01-01");
+    expect(representative).not.toHaveProperty("validUntil");
+    expect(representative).not.toHaveProperty("phone");
+
+    const [record] = await parties.representedByMe("o").orThrow();
+
+    expect(record).toMatchObject({ subjectType: "client", subjectId: "k1" });
+    expect(t.calls.map(([fn, args]) => [fn, args])).toEqual([
+      ["list_representatives", { subject_type: "client", subject_id: "k1" }],
+      ["represented_by_me", { tenant: "o" }],
+    ]);
+  });
+
+  it("refuses a role it doesn't know", async () => {
+    const t = transport({
+      represented_by_me: () => [
+        { ...LINK, role: "uncle", subjectType: "client", subjectId: "k1" },
+      ],
+    });
+
+    const result = await createContacts({ transport: t }).representedByMe("o");
+
+    expect(result.ok).toBe(false);
+  });
+});

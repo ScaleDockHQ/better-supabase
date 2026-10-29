@@ -126,6 +126,33 @@ Both checks read the sets `better_supabase.portal_subjects(action)` and
 instead of calling per row. Without the `guests` block they render `false`,
 so a layout without guests keeps its policies as they were.
 
+## Representatives as guests
+
+A guest who acts for a person can reach the records that person represents
+(a parent seeing their child's file, a guardian commenting on a client's
+plan). Name the subject types that open this way:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  blocks: { guests: { options: { representation: { subjects: ["client"] } } } },
+});
+```
+
+It needs the [relations](/docs/blocks/relations) and
+[parties](/docs/blocks/contacts#representatives) blocks. Invite the
+representative with `party: { type: "person", id }`; once they accept, every
+active `represents` link from that person to a record of a listed type counts
+as a grant. `authority: "inform"` gives `read`, and `authority: "act"` adds
+`comment` and `upload`.
+
+The access is read from the links on every query, not copied into
+`guest_grants`. A link that ends (its `valid_until` passes, or someone unlinks
+it) closes the record at once, a link that starts later opens it on its
+`valid_from`, and a grant you made by hand stays as it was. Because no grant
+row exists, `grants(subject)` doesn't list these guests; `representativesOf`
+on the parties client does, and the guest sees their records through
+`representedByMe`.
+
 ## With an authorization provider
 
 A provider can answer for guests without the block: the optional

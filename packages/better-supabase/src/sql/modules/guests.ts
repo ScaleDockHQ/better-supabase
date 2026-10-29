@@ -5,6 +5,7 @@ import type {
   BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
+import type { GuestSource } from "../guest-sql.ts";
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
@@ -22,6 +23,10 @@ import {
 import { subjectTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import {
+  REPRESENTS,
+  representationActive,
+} from "./contacts-representatives.ts";
 import { asText, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -54,6 +59,7 @@ const NAMES: BlockSqlNames = {
     guest_grant: { table: "grants", singular: "guest_grant" },
   },
   events: EVENTS,
+  options: ["representation"],
   tables: {
     guests: {
       name: "guests",
@@ -143,6 +149,86 @@ function grantSubjectTenant(
   return owned.length === 0
     ? registered
     : `(case ${type}\n      ${owned.join("\n      ")}\n      else ${registered}\n    end)`;
+}
+
+const SUBJECT_TYPE = /^[a-z][a-z0-9_-]{0,62}$/;
+
+/** `options.representation.subjects`, checked; undefined without the option. */
+function representedTypes(ctx: BlockSqlContext): readonly string[] | undefined {
+  const where = "blocks.guests.options.representation";
+  const raw = ctx.option("representation");
+
+  if (raw === undefined) {
+    return undefined;
+  }
+
+  const subjects: unknown =
+    typeof raw === "object" && raw !== null && !Array.isArray(raw)
+      ? new Map<string, unknown>(Object.entries(raw)).get("subjects")
+      : undefined;
+
+  const list: unknown[] = Array.isArray(subjects) ? subjects : [];
+
+  const types = list.filter(
+    (type): type is string =>
+      typeof type === "string" && SUBJECT_TYPE.test(type),
+  );
+
+  if (types.length === 0 || types.length !== list.length) {
+    throw new TypeError(
+      `${where} must be { subjects: [...] }, a non-empty list of subject types`,
+    );
+  }
+
+  if (!ctx.installed("relations") || !ctx.installed("contacts")) {
+    throw new TypeError(`${where} needs the relations and contacts blocks`);
+  }
+
+  if (!(ctx.has("guests", "partyType") && ctx.has("guests", "partyId"))) {
+    throw new TypeError(
+      `${where} needs the guests table's party_type and party_id columns`,
+    );
+  }
+
+  return types;
+}
+
+/**
+ * The records a guest reaches as a representative: their party is a contacts
+ * person with a `represents` link to a record of a listed type that holds
+ * today. `read` always, `comment` and `upload` with `authority: "act"`. Read
+ * live from the links, so ending or dating a link takes effect at once.
+ */
+function representation(
+  ctx: BlockSqlContext,
+  live: (alias: string) => string,
+): GuestSource {
+  const types = representedTypes(ctx);
+
+  if (types === undefined) {
+    return {};
+  }
+
+  const relations = ctx.of("relations");
+
+  const r = (column: string): string =>
+    `r.${relations.col("relations", column)}`;
+
+  const g = (column: string): string => `x.${ctx.col("guests", column)}`;
+  const person = sqlString(ctx.of("contacts").naming.rename("person"));
+
+  return {
+    subjects: `select ${g("tenant")}::text, ${r("targetType")}, ${r("targetId")}
+  from ${relations.table("relations")} r
+  join ${ctx.table("guests")} x on ${g("tenant")} = ${r("tenant")}
+    and ${g("partyType")} = ${person} and ${g("partyId")} = ${r("sourceId")}
+  where ${live("x")}
+    and ${r("kind")} = ${sqlString(REPRESENTS)} and ${r("sourceType")} = ${person}
+    and ${r("targetType")} in (${types.map((type) => sqlString(type)).join(", ")})
+    and ${representationActive(r("data"))}
+    and (portal_subjects.action = 'read'
+      or (${r("data")} ->> 'authority' = 'act' and portal_subjects.action in ('comment', 'upload')))`,
+  };
 }
 
 function tables(ctx: BlockSqlContext): string {
@@ -430,7 +516,7 @@ function functions(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const hash = (value: string): string =>
     sha256Hex(`convert_to(${value}, 'utf8')`);
 
-  return `${guestFunctions([own, providerGuestSource(layout)])}
+  return `${guestFunctions([own, representation(ctx, live), providerGuestSource(layout)])}
 -- Whether the caller reaches subject_type/subject_id as a guest for action.
 create or replace function ${fn("guest_can")}(subject_type text, subject_id text, action text default 'read')
 returns boolean
@@ -797,7 +883,14 @@ export const GUESTS: BlockSqlDefinition = {
   description:
     "People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "invoices", "bookings", "contacts"],
+  integrates: [
+    "outbox",
+    "audit",
+    "invoices",
+    "bookings",
+    "contacts",
+    "relations",
+  ],
   before: "comments",
   target: "schema",
   modes: ["managed", "custom"],
