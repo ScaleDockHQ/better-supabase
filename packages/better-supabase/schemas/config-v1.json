@@ -3958,6 +3958,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "topic": {
+                "type": "string",
+                "default": "attachments"
               }
             }
           }
