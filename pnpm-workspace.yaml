@@ -498,6 +498,8 @@ auditConfig:
     # ESM-only and query-string 7 requires it as a function. Remove both once
     # expo-router moves to query-string 8 or later (ADR 0002).
     - GHSA-vcc3-ghjq-m6fr
+    # The same path carries GHSA-qr28-fpjm-wq7f (high, <=0.5.0); 0.5.1 is
+    # ESM-only too. Remove it with GHSA-vcc3-ghjq-m6fr (ADR 0002).
     - GHSA-qr28-fpjm-wq7f
     # nodemailer <=10.0.5 reaches the tree only through @supabase/lite 0.11,
     # which requires nodemailer 9; the liteStack() tests send no mail. Remove
