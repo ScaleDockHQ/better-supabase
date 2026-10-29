@@ -184,6 +184,30 @@ export interface ApprovalTenantPolicy {
   readonly updatedAt?: Temporal.Instant;
 }
 
+/**
+ * The app's own policy for one request, which the service role passes to
+ * `request`. It only tightens the configured and stored policies for the
+ * subject type and action: their steps come first, the stricter mode wins,
+ * self-approval needs both to allow it and the shorter expiry applies. Without
+ * a configured or stored policy it is the request's whole policy.
+ */
+export interface ApprovalRequestPolicy {
+  /**
+   * In order. `required` is a count (`1` for any approver, `n` for a quorum) or
+   * `"all"`: every named user, or every holder of `approvers.permission`.
+   */
+  readonly steps: readonly ApprovalStepInput[];
+  readonly mode?: ApprovalMode;
+  readonly selfApproval?: boolean;
+  /** An ISO 8601 duration or Postgres interval, such as `P2D`. */
+  readonly expiresIn?: string;
+  /**
+   * The employee whose manager an `approvers.manager` step asks, instead of the
+   * requester's. Needs the employees block.
+   */
+  readonly managerOf?: string;
+}
+
 /** A new policy needs `subjectType`, `action` and `name`; `id` changes one. */
 export interface ApprovalPolicyInput {
   readonly id?: string;
@@ -202,6 +226,11 @@ export interface ApprovalPolicyInput {
   /** A Postgres interval such as `3 days`; `null` removes it. */
   readonly expiresIn?: string | null;
   readonly enabled?: boolean;
+  /**
+   * Values for `options.policyExtraColumns`, keyed by column name; a key left
+   * out keeps its value.
+   */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export interface ApprovalDecision {
@@ -240,6 +269,16 @@ export interface ApprovalRequestInput {
    * `options.tenantless`; the block's `tenant` is not needed.
    */
   readonly tenantless?: boolean;
+  /**
+   * Files the request under the app's own policy as well, such as a workflow
+   * node's approvers. Only the service role may pass it.
+   */
+  readonly policy?: ApprovalRequestPolicy;
+  /**
+   * The user the service role files the request for. They are its requester, so
+   * they can't approve it unless the policy allows self-approval.
+   */
+  readonly requestedBy?: string;
 }
 
 /** Who decides when the service role calls `approve` or `reject`. */
@@ -524,11 +563,20 @@ function conditionsOf(value: unknown): FilterQuery {
   return value;
 }
 
+/** `required: "all"` over named users is their count, as the SQL expects. */
+const stepInput = (step: ApprovalStepInput): ApprovalStepInput =>
+  step.required === "all" &&
+  step.approvers.users !== undefined &&
+  Object.keys(step.approvers).length === 1
+    ? { ...step, required: step.approvers.users.length }
+    : step;
+
 function tenantPolicyOf(value: unknown, fn: string): ApprovalTenantPolicy {
   const row = recordOf(value, fn);
   const expiresIn = optionalText(row["expiresIn"]);
   const effect = optionalText(row["effect"]);
   const conditions = row["conditions"];
+  const fields = row["fields"];
 
   return {
     id: textOf(row["id"]),
@@ -547,6 +595,7 @@ function tenantPolicyOf(value: unknown, fn: string): ApprovalTenantPolicy {
       : { conditions: conditionsOf(conditions) }),
     ...(expiresIn === undefined ? {} : { expiresIn }),
     ...instant(row["updatedAt"], "updatedAt"),
+    ...(isRecord(fields) ? { fields } : {}),
   };
 }
 
@@ -684,7 +733,16 @@ export function createApprovals<
   const client: Approvals<F> = {
     request: (
       subject,
-      { action, reason, payload, fingerprint, tenantless, ...extra },
+      {
+        action,
+        reason,
+        payload,
+        fingerprint,
+        tenantless,
+        policy,
+        requestedBy,
+        ...extra
+      },
     ) =>
       tenantOr(tenantless).andThen((organizationId) =>
         AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
@@ -697,6 +755,10 @@ export function createApprovals<
             payload: payload ?? {},
             ...more,
             ...(fingerprint === undefined ? {} : { fingerprint }),
+            ...(policy === undefined
+              ? {}
+              : { policy: { ...policy, steps: policy.steps.map(stepInput) } }),
+            ...(requestedBy === undefined ? {} : { requested_by: requestedBy }),
           }),
         ),
       ),

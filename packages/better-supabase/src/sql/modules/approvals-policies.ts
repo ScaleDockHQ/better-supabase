@@ -57,7 +57,13 @@ export interface ApprovalPolicy {
 /** The action of a floor that covers every action of its subject type. */
 const ANY_ACTION = "*";
 
+/** The subject type of a floor that covers every subject type. */
+const ANY_SUBJECT = "*";
+
 const KEY = /^[a-z][a-z0-9_-]*$/;
+
+/** An action name, with dotted segments such as `quote.send`. */
+const ACTION = /^[a-z][a-z0-9_-]*(?:\.[a-z][a-z0-9_-]*)*$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export const DURATION: RegExp =
@@ -242,7 +248,7 @@ export function policyOf(
   where = `${WHERE}.${subjectType}.${action}`,
   floor = false,
 ): ApprovalPolicy {
-  if (!KEY.test(action) && action !== ANY_ACTION) {
+  if (!ACTION.test(action) && action !== ANY_ACTION) {
     throw new TypeError(`${where} has an invalid name`);
   }
 
@@ -311,7 +317,7 @@ export function approvalPolicies(
   }
 
   return Object.entries(raw).flatMap(([subjectType, actions]) => {
-    if (!KEY.test(subjectType)) {
+    if (!KEY.test(subjectType) && subjectType !== ANY_SUBJECT) {
       throw new TypeError(`${WHERE}.${subjectType} has an invalid name`);
     }
 
@@ -349,8 +355,9 @@ export function policySnapshot(policy: ApprovalPolicy): string {
 }
 
 /**
- * The policy snapshot for the requested subject type and action, as SQL. A
- * floor for action `*` covers the subject type's other actions.
+ * The policy snapshot for the requested subject type and action, as SQL. The
+ * most specific floor wins: the exact pair, then action `*` of the subject
+ * type, then the action under subject type `*`, then `*` for both.
  */
 export function policyCase(policies: readonly ApprovalPolicy[]): string {
   if (policies.length === 0) {
@@ -368,16 +375,32 @@ ${items
     else null::jsonb
   end`;
 
+  const anyAction = policies.filter((policy) => policy.action === ANY_ACTION);
+
+  const anySubject = policies.filter(
+    (policy) => policy.subjectType === ANY_SUBJECT,
+  );
+
+  const anyBoth = anySubject.filter((policy) => policy.action === ANY_ACTION);
+
   const exact = cases(
     "approval_policy.subject_type || ':' || approval_policy.action",
     policies,
   );
 
-  const any = policies.filter((policy) => policy.action === ANY_ACTION);
+  const fallbacks = [
+    ...(anyAction.length === 0
+      ? []
+      : [cases("approval_policy.subject_type || ':*'", anyAction)]),
+    ...(anySubject.length === 0
+      ? []
+      : [cases("'*:' || approval_policy.action", anySubject)]),
+    ...(anyBoth.length === 0 ? [] : [cases("'*:*'", anyBoth)]),
+  ];
 
-  return any.length === 0
+  return fallbacks.length === 0
     ? exact
-    : `coalesce(${exact}, ${cases("approval_policy.subject_type || ':*'", any)})`;
+    : `coalesce(${[exact, ...fallbacks].join(", ")})`;
 }
 
 /**

@@ -83,7 +83,17 @@ blocks: {
 
 A subject can have one pending request per action (`APPROVAL_PENDING`). A rejection on any step closes the request. An approver decides a step once, and `delegate(id, userId)` hands their place on the step to another member of the organization, who is then asked.
 
-A floor under the action `"*"` covers every action of its subject type that has no floor of its own, such as every tool an AI agent can call. With `required: "all"` and only `approvers.permission`, the request asks every holder of the permission in the organization (the requester only with `selfApproval`), resolved to `users` when it is filed; nobody holding it fails with `APPROVAL_APPROVERS_EMPTY`. It needs an access model that lists holders (the roles or catalog model, or a provider or custom model with `holdersOf`).
+An action name may have dotted segments, such as `quote.send` or `access.member.role.update`, so an action catalog keeps its own keys. A floor under the action `"*"` covers every action of its subject type that has no floor of its own, such as every tool an AI agent can call. A floor under the subject type `"*"` holds an action for every subject type, so one floor covers `quote.send` whether it is filed on a chat thread, an MCP client or a workflow run. The most specific floor wins: the subject type and action, then the subject type's `"*"`, then the action under `"*"`, then `"*"` under `"*"`.
+
+```ts
+policies: {
+  "*": {
+    "quote.send": { steps: [], effects: ["money-movement"] },
+  },
+},
+```
+
+With `required: "all"` and only `approvers.permission`, the request asks every holder of the permission in the organization (the requester only with `selfApproval`), resolved to `users` when it is filed; nobody holding it fails with `APPROVAL_APPROVERS_EMPTY`. It needs an access model that lists holders (the roles or catalog model, or a provider or custom model with `holdersOf`).
 
 Policies are fixed per subject type and action. To pick one by the record's values, such as the finance chain for an expense over 500, give each chain its own action and let a tenant-edited [rule](/docs/blocks/automations#actions) choose it: `approvalsAction` from `better-supabase/blocks/automations` files the request for the action in the matching rule's `config.action`.
 
@@ -91,7 +101,7 @@ Policies are fixed per subject type and action. To pick one by the record's valu
 
 A policy's `mode` says what an approval proves. `authorize`, the default, means someone other than the requester decided every step (unless `selfApproval` is on). `confirm` means the requester looked again: they may approve their own request, and their approval finishes it at once, whatever steps remain. Other approvers still decide the steps as usual. Use `confirm` for a deliberate second click before a risky action, and `authorize` when another person has to agree.
 
-`steps[].approvers.manager: true` lets the requester's manager decide the step. The manager comes from the [employees](/docs/blocks/employees) block: the requester's employee record names a manager, whose user decides while they are an active member of the organization and not offboarded. A policy that names a manager needs the employees block in managed mode.
+`steps[].approvers.manager: true` lets the requester's manager decide the step, or the manager of the employee a request's policy names in `managerOf` (the [leave](/docs/blocks/leave), [time tracking](/docs/blocks/time-tracking) and [expenses](/docs/blocks/expenses) integrations set it to the request's employee). The manager comes from the [employees](/docs/blocks/employees) block: the requester's employee record names a manager, whose user decides while they are an active member of the organization and not offboarded. A policy that names a manager needs the employees block in managed mode.
 
 ## Tenant policies
 
@@ -178,6 +188,40 @@ steps: [
 ## Deciding for a user
 
 Code that runs as the service role, such as a chat bot or a workflow, decides for the user who clicked: `approve(id, comment, { decidedBy: userId })` and `reject` record that user as the approver. The service role skips the approver check, but the requester still can't decide their own request unless the policy allows it, and a user decides a step once. A signed-in caller who names someone else fails with `APPROVAL_FORBIDDEN`.
+
+## Requests under the app's own policy
+
+Some approvers are not a policy row: a workflow's approval node names its own users, a workflow action asks for a confirmation, or nobody but the requester could approve. Code that runs as the service role passes its own `policy` to `request`, and `requestedBy` for the user it files for:
+
+```ts
+await approvals
+  .request(
+    { type: "workflow_run", id: runId },
+    {
+      action: "approval",
+      requestedBy: startedBy,
+      policy: {
+        mode: "authorize",
+        expiresIn: "P2D",
+        steps: [
+          {
+            approvers: { users: [a, b] },
+            required: "all",
+            escalateAfter: "PT4H",
+            escalateTo: { permission: "workflow.manage" },
+          },
+        ],
+      },
+    },
+  )
+  .orThrow();
+```
+
+The app's policy only tightens the configured floor and the tenant and platform policies that match the request, as a tenant policy does: their steps come first and the app's steps after them, `authorize` outranks `confirm`, self-approval needs both to allow it, and the shorter expiry applies. A run or effects come from the floor. When no floor, tenant or platform policy matches, the app's policy is the request's whole policy. So a policy passed this way can never lower what an organization or the platform asks for an action; to file a confirmation where a floor asks for an approver, file it under its own action without a floor.
+
+Steps map other approval models: any of several approvers is `required: 1`, a quorum is `required: n`, all of them is `required: "all"` (every listed user, or every holder of a lone `permission`), and a sequence is one step per approver. `managerOf` names an employee whose manager an `approvers.manager` step asks.
+
+`requestedBy` makes that user the requester: they can't decide the request unless the policy allows self-approval or it is a `confirm` request, a `required: "all"` step leaves them out, and they get the decision's notification. A signed-in caller that passes `policy`, or a `requestedBy` other than themselves, fails with `APPROVAL_FORBIDDEN`; a malformed policy fails with `APPROVAL_POLICY_INVALID`. In SQL, `request_approval` takes them as `policy` and `requested_by`.
 
 ## Use an approval once
 
@@ -312,7 +356,19 @@ select cron.schedule('remind-approvals', '0 9 * * *', 'select better_supabase.re
 
 With the [notifications](/docs/blocks/notifications) module, the current step's approvers get `approval.requested` (and `approval.reminder`), a delegate gets `approval.delegated`, and the requester gets `approval.approved`, `approval.rejected` or `approval.expired`. Approvers named by permission are reached through the notification's permission audience.
 
-The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired`, `approval.delegated`, `approval.consumed` and `approval.escalated`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Tenant policies record `approval_policy.saved` and `approval_policy.removed` with `organizationId`, `id`, `subjectType` and `action`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide` and `after_approval_decide`.
+`options.notifications: false` sends none of these, so an app that sends its own approval notifications from the events below doesn't send two. To keep them and add to them, create a hook function `approval_notification(request_id uuid, kind text, notification jsonb) returns jsonb` in the hooks schema. Its result is merged into the notification before it is sent, so it can set `action_path`, `priority`, `actions` or `subject_label`, and its `data` is merged into the block's `{ requestId, action, step }`. Returning `null` skips that notification.
+
+```sql
+create function public.approval_notification(request_id uuid, kind text, notification jsonb)
+returns jsonb language sql stable as $$
+  select jsonb_build_object(
+    'action_path', '/approvals/' || request_id,
+    'data', jsonb_build_object('subjectPath', '/' || (notification ->> 'subject_type') || 's/' || (notification ->> 'subject_id'))
+  )
+$$;
+```
+
+The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired`, `approval.delegated`, `approval.consumed` and `approval.escalated`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Tenant policies record `approval_policy.saved` and `approval_policy.removed` with `organizationId`, `id`, `subjectType` and `action`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide`, `after_approval_decide` and `approval_notification`.
 
 ## With ReUI
 
@@ -349,6 +405,20 @@ const client = createApprovals({
   transport,
   fields: z.object({ priority: z.number().int().positive().nullable() }),
 });
+```
+
+`blocks.approvals.options.policyExtraColumns` adds columns to `approval_policies` the same way, such as a description. It needs `tenantPolicies`. `savePolicy` writes them from `fields`, where a key left out keeps its value, and `listPolicies` and `savePolicy` return them under `fields`.
+
+```ts
+await approvals
+  .savePolicy({
+    subjectType: "invoice",
+    action: "send",
+    name: "Large invoices",
+    steps: [{ approvers: { permission: "finance.approve" } }],
+    fields: { description: "Invoices over 10,000 need finance" },
+  })
+  .orThrow();
 ```
 
 ## Without the client

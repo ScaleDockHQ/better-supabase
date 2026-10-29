@@ -8,10 +8,14 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   activeMembership,
+  addExtraColumns,
   extraFieldsArg,
+  extraFieldsJson,
   fail,
+  insertExtraColumns,
   pageSize,
   SERVICE_CALLER,
+  updateExtraColumns,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
@@ -49,6 +53,15 @@ export const TENANT_POLICY_TABLES = {
     },
   },
 } as const;
+
+/** The keys the policy reads return next to the extra columns. */
+const POLICY_KEYS: readonly string[] = ["fields"];
+
+/** `blocks.approvals.options.policyExtraColumns`, on the tenant policies table. */
+const policyExtras = (ctx: BlockSqlContext): readonly ExtraColumn[] =>
+  tenantPoliciesOn(ctx)
+    ? ctx.extraColumns("policies", POLICY_KEYS, "policyExtraColumns")
+    : [];
 
 /** Whether `blocks.approvals.options.tenantPolicies` is on. */
 export const tenantPoliciesOn = (ctx: BlockSqlContext): boolean =>
@@ -98,13 +111,15 @@ const employeesOf = (
 
 /**
  * The user id of the requester's manager in the request's tenant, as a SQL
- * expression, or `undefined` without the employees module. An offboarded
- * manager decides nothing.
+ * expression, or `undefined` without the employees module. `employee`, a text
+ * SQL expression, names the employee whose manager it is instead when it is not
+ * null. An offboarded manager decides nothing.
  */
 export function managerOf(
   ctx: BlockSqlContext,
   requester: string,
   tenant: string,
+  employee?: string,
 ): string | undefined {
   const employees = employeesOf(ctx);
 
@@ -115,9 +130,14 @@ export function managerOf(
   const e = (column: string): string => employees.col("employees", column);
   const table = employees.table("employees");
 
+  const who =
+    employee === undefined
+      ? `me.${e("user")} = ${requester}`
+      : `(case when ${employee} is not null then me.${e("id")}::text = ${employee} else me.${e("user")} = ${requester} end)`;
+
   return `(select mgr.${e("user")} from ${table} me
       join ${table} mgr on mgr.${e("id")} = me.${e("manager")}
-      where me.${e("tenant")} = ${tenant} and me.${e("user")} = ${requester}
+      where me.${e("tenant")} = ${tenant} and ${who}
         and mgr.${e("user")} is not null and mgr.${e("status")}::text <> 'offboarded'
       limit 1)`;
 }
@@ -129,9 +149,11 @@ export function managerMatch(
     readonly requester: string;
     readonly tenant: string;
     readonly user: string;
+    /** The employee whose manager decides, as text, when not null. */
+    readonly employee?: string;
   },
 ): string {
-  const manager = managerOf(ctx, args.requester, args.tenant);
+  const manager = managerOf(ctx, args.requester, args.tenant, args.employee);
 
   if (manager === undefined) {
     return "false";
@@ -311,6 +333,38 @@ $$;
 revoke execute on function ${signature} from public, anon, authenticated;${payload ? approvalConditionSql(ctx) : ""}`;
 }
 
+/**
+ * PL/pgSQL that raises `invalid` unless every step of `steps` (a jsonb array
+ * expression) names approvers and a valid required count and escalation. It
+ * reads and writes `v_step` and `v_who`.
+ */
+const stepsCheck = (
+  steps: string,
+  invalid: string,
+  manager: boolean,
+): string => `  for v_step in select * from jsonb_array_elements(${steps}) loop
+    if jsonb_typeof(v_step) <> 'object' then
+      ${invalid}
+    end if;
+    for v_who in select a.w from (values (v_step -> 'approvers', true), (v_step -> 'escalateTo', v_step ? 'escalateTo')) a(w, checked) where a.checked loop
+      if jsonb_typeof(v_who) is distinct from 'object'
+        or not (v_who ?| array['permission', 'role', 'team', 'users', 'manager'])
+        or (v_who ? 'manager' and ${manager ? "v_who -> 'manager' <> 'true'::jsonb" : "true"})
+        or (v_who ? 'users' and (jsonb_typeof(v_who -> 'users') <> 'array'
+          or exists (select 1 from jsonb_array_elements(v_who -> 'users') u
+            where jsonb_typeof(u) <> 'string' or u #>> '{}' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))) then
+        ${invalid}
+      end if;
+    end loop;
+    if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
+        or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
+      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
+      or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
+      or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
+      ${invalid}
+    end if;
+  end loop;`;
+
 function tenantPoliciesSql(
   ctx: BlockSqlContext,
   helpers: ApprovalRequestHelpers,
@@ -333,6 +387,13 @@ function tenantPoliciesSql(
       : undefined;
 
   const manager = employeesOf(ctx) !== undefined;
+  const extras = policyExtras(ctx);
+
+  const inserted = insertExtraColumns(
+    t,
+    extras,
+    "coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb)",
+  );
 
   // Who may change the policies of tenant `tenant`; platform staff for the
   // platform policies (no tenant).
@@ -342,7 +403,7 @@ function tenantPoliciesSql(
       : `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, manage)})`;
 
   const json = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'subjectType', ${row}.${p("subjectType")}, 'action', ${row}.${p("action")}, 'effect', ${or(row, "effect")}, 'name', ${row}.${p("name")}, 'conditions', ${or(row, "conditions")}, 'mode', ${row}.${p("mode")}, 'steps', ${row}.${p("steps")}, 'selfApproval', ${row}.${p("selfApproval")}, 'expiresIn', ${or(row, "expiresIn")}::text, 'enabled', ${row}.${p("enabled")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${or(row, "updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${p("id")}, 'organizationId', ${row}.${p("tenant")}, 'subjectType', ${row}.${p("subjectType")}, 'action', ${row}.${p("action")}, 'effect', ${or(row, "effect")}, 'name', ${row}.${p("name")}, 'conditions', ${or(row, "conditions")}, 'mode', ${row}.${p("mode")}, 'steps', ${row}.${p("steps")}, 'selfApproval', ${row}.${p("selfApproval")}, 'expiresIn', ${or(row, "expiresIn")}::text, 'enabled', ${row}.${p("enabled")}, 'createdAt', ${row}.${p("createdAt")}, 'updatedAt', ${or(row, "updatedAt")}${extraFieldsJson(row, extras)})`;
 
   const column = (
     logical: string,
@@ -363,7 +424,7 @@ create table if not exists ${t} (
   ${p("enabled")} boolean not null default true,${column("createdBy", (name) => `${name} uuid`)}
   ${p("createdAt")} timestamptz not null default now()${has("updatedAt") ? `,\n  ${p("updatedAt")} timestamptz not null default now()` : ""}
 );
-${has("effect") ? `alter table ${t} add column if not exists ${p("effect")} text;\n` : ""}${platform ? `alter table ${t} alter column ${p("tenant")} drop not null;\n` : ""}create index if not exists ${sqlIdent(`${ctx.tableName("policies").name}_lookup_idx`)} on ${t} (${p("tenant")}, ${p("subjectType")}, ${p("action")});
+${has("effect") ? `alter table ${t} add column if not exists ${p("effect")} text;\n` : ""}${platform ? `alter table ${t} alter column ${p("tenant")} drop not null;\n` : ""}create index if not exists ${sqlIdent(`${ctx.tableName("policies").name}_lookup_idx`)} on ${t} (${p("tenant")}, ${p("subjectType")}, ${p("action")});${addExtraColumns(t, extras)}
 ${lockModuleTable(ctx, "policies", { read: true })}
 ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(p("tenant"), read) }), { drop: true, target: t })}`
     : "";
@@ -392,14 +453,19 @@ ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("approval_policies
     ${fail("APPROVAL_CONDITIONS_UNSUPPORTED", "this approval policies table has no conditions column", "22023")}
   end if;`;
 
-  const floors = floorsJson(approvalPolicies(ctx));
+  const floorPolicies = approvalPolicies(ctx);
+  const floors = floorsJson(floorPolicies);
+
+  const floorType = floorPolicies.some((each) => each.subjectType === "*")
+    ? "f.value ->> 'subjectType' in (v_type, '*')"
+    : "f.value ->> 'subjectType' = v_type";
 
   // A tenant policy tightens a config floor (or, with platform policies, an
   // enabled platform policy) for its subject type, action and effect; `*`
   // matches any.
   const floorExists = `(exists (
       select 1 from jsonb_array_elements(${floors}) f
-      where (v_type = '*' or f.value ->> 'subjectType' = v_type)
+      where (v_type = '*' or ${floorType})
         and (v_action = '*' or f.value ->> 'action' in (v_action, '*'))
         and (v_effect is null or f.value -> 'effects' ? v_effect)
     )${
@@ -476,37 +542,16 @@ begin
   if jsonb_typeof(v_steps) <> 'array' or jsonb_array_length(v_steps) > 20 then
     ${stepsInvalid}
   end if;
-  for v_step in select * from jsonb_array_elements(v_steps) loop
-    if jsonb_typeof(v_step) <> 'object' then
-      ${stepsInvalid}
-    end if;
-    for v_who in select a.w from (values (v_step -> 'approvers', true), (v_step -> 'escalateTo', v_step ? 'escalateTo')) a(w, checked) where a.checked loop
-      if jsonb_typeof(v_who) is distinct from 'object'
-        or not (v_who ?| array['permission', 'role', 'team', 'users', 'manager'])
-        or (v_who ? 'manager' and ${manager ? "v_who -> 'manager' <> 'true'::jsonb" : "true"})
-        or (v_who ? 'users' and (jsonb_typeof(v_who -> 'users') <> 'array'
-          or exists (select 1 from jsonb_array_elements(v_who -> 'users') u
-            where jsonb_typeof(u) <> 'string' or u #>> '{}' !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'))) then
-        ${stepsInvalid}
-      end if;
-    end loop;
-    if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
-        or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
-      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
-      or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
-      or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
-      ${stepsInvalid}
-    end if;
-  end loop;
+${stepsCheck("v_steps", stepsInvalid, manager)}
   if coalesce(save_approval_policy.policy ->> 'mode', v_old.${p("mode")}::text, 'authorize') not in ('confirm', 'authorize') then
     ${fail("APPROVAL_POLICY_INVALID", "mode must be confirm or authorize", "22023")}
   end if;
   if v_old.${p("id")} is null then
-    insert into ${t} (${p("tenant")}, ${p("subjectType")}, ${p("action")}, ${p("name")}${has("conditions") ? `, ${p("conditions")}` : ""}${has("effect") ? `, ${p("effect")}` : ""}, ${p("mode")}, ${p("steps")}, ${p("selfApproval")}${has("expiresIn") ? `, ${p("expiresIn")}` : ""}, ${p("enabled")}${has("createdBy") ? `, ${p("createdBy")}` : ""})
+    insert into ${t} (${p("tenant")}, ${p("subjectType")}, ${p("action")}, ${p("name")}${has("conditions") ? `, ${p("conditions")}` : ""}${has("effect") ? `, ${p("effect")}` : ""}, ${p("mode")}, ${p("steps")}, ${p("selfApproval")}${has("expiresIn") ? `, ${p("expiresIn")}` : ""}, ${p("enabled")}${has("createdBy") ? `, ${p("createdBy")}` : ""}${inserted.columns})
     values (save_approval_policy.tenant, v_type, v_action, btrim(save_approval_policy.policy ->> 'name')${has("conditions") ? ", v_conditions" : ""}${has("effect") ? ", v_effect" : ""},
       ${ctx.cast("policies", "mode", "coalesce(save_approval_policy.policy ->> 'mode', 'authorize')")}, v_steps,
       coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, false)${has("expiresIn") ? ", (save_approval_policy.policy ->> 'expiresIn')::interval" : ""},
-      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true)${has("createdBy") ? ", auth.uid()" : ""})
+      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true)${has("createdBy") ? ", auth.uid()" : ""}${inserted.values})
     returning * into v_row;
   else
     update ${t} x set
@@ -516,7 +561,7 @@ begin
       ${p("mode")} = coalesce(${ctx.cast("policies", "mode", "save_approval_policy.policy ->> 'mode'")}, x.${p("mode")}),
       ${p("steps")} = v_steps,
       ${p("selfApproval")} = coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, x.${p("selfApproval")}),${has("expiresIn") ? `\n      ${p("expiresIn")} = case when save_approval_policy.policy ? 'expiresIn' then (save_approval_policy.policy ->> 'expiresIn')::interval else x.${p("expiresIn")} end,` : ""}
-      ${p("enabled")} = coalesce((save_approval_policy.policy ->> 'enabled')::boolean, x.${p("enabled")})${has("updatedAt") ? `,\n      ${p("updatedAt")} = now()` : ""}
+      ${p("enabled")} = coalesce((save_approval_policy.policy ->> 'enabled')::boolean, x.${p("enabled")})${has("updatedAt") ? `,\n      ${p("updatedAt")} = now()` : ""}${updateExtraColumns(t, extras, "(save_approval_policy.policy -> 'fields')")}
     where x.${p("id")} = v_old.${p("id")}
     returning * into v_row;
   end if;
@@ -620,6 +665,14 @@ function requestSql(
   const otherNew =
     extras.length === 0 ? `${args}, jsonb, text` : `${args}, text`;
 
+  const manager = employeesOf(ctx) !== undefined;
+
+  const ownInvalid = fail(
+    "APPROVAL_POLICY_INVALID",
+    `policy must be { steps: [{ approvers: { permission, role, team, users${manager ? ", manager" : ""} }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn${manager ? ", managerOf" : ""} }`,
+    "22023",
+  );
+
   // A signed-in user files a request without an organization for a subject
   // type in options.tenantless; every other request needs one.
   const tenantless = (name: string): string =>
@@ -661,12 +714,69 @@ end;
 $$;
 ${userGrant(`${fn("approval_requirement")}(${ctx.idType}, text, text, jsonb)`)}
 
+-- An app's own policy for one request, tightened by the policy the request
+-- would get anyway (base, null when there is none): steps add up, the stricter
+-- mode wins, self-approval needs both to allow it and the shorter expiry
+-- applies. It never loosens base.
+create or replace function ${fn("approval_policy_tighten")}(base jsonb, own jsonb)
+returns jsonb
+language plpgsql
+immutable
+set search_path = ''
+as $$
+declare
+  v_step jsonb;
+  v_who jsonb;
+  v_mode text := coalesce(approval_policy_tighten.own ->> 'mode', 'authorize');
+  v_steps jsonb := coalesce(approval_policy_tighten.own -> 'steps', '[]'::jsonb);
+  v_level integer;
+  v_expires interval;
+begin
+  if jsonb_typeof(approval_policy_tighten.own) is distinct from 'object'
+    or jsonb_typeof(v_steps) <> 'array' or jsonb_array_length(v_steps) > 20
+    or v_mode not in ('confirm', 'authorize')
+    or (approval_policy_tighten.own ? 'selfApproval' and jsonb_typeof(approval_policy_tighten.own -> 'selfApproval') <> 'boolean')
+    or (approval_policy_tighten.own ? 'managerOf' and ${manager ? "jsonb_typeof(approval_policy_tighten.own -> 'managerOf') <> 'string'" : "true"})
+    or (approval_policy_tighten.own ->> 'expiresIn' is not null and (approval_policy_tighten.own ->> 'expiresIn')::interval <= interval '0') then
+    ${ownInvalid}
+  end if;
+${stepsCheck("v_steps", ownInvalid, manager)}
+  v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
+  if approval_policy_tighten.base is null then
+    return jsonb_build_object(
+      'steps', v_steps,
+      'selfApproval', coalesce((approval_policy_tighten.own ->> 'selfApproval')::boolean, false),
+      'expiresIn', v_expires::text, 'run', null
+    ) || case when v_mode = 'confirm' then '{"mode": "confirm"}'::jsonb else '{}'::jsonb end
+      || case when approval_policy_tighten.own ? 'managerOf' then jsonb_build_object('managerOf', approval_policy_tighten.own -> 'managerOf') else '{}'::jsonb end;
+  end if;
+  v_level := greatest(
+    ${level("coalesce(approval_policy_tighten.base ->> 'mode', 'authorize')", "coalesce(approval_policy_tighten.base -> 'steps', '[]'::jsonb)")},
+    ${level("v_mode", "v_steps")}
+  );
+  return approval_policy_tighten.base || jsonb_build_object(
+    'steps', coalesce(approval_policy_tighten.base -> 'steps', '[]'::jsonb) || v_steps,
+    'selfApproval', coalesce((approval_policy_tighten.base ->> 'selfApproval')::boolean, false) and coalesce((approval_policy_tighten.own ->> 'selfApproval')::boolean, false),
+    'expiresIn', least((approval_policy_tighten.base ->> 'expiresIn')::interval, v_expires)::text,
+    'mode', case when v_level = 1 then 'confirm' else 'authorize' end
+  ) || case when approval_policy_tighten.own ? 'managerOf' then jsonb_build_object('managerOf', approval_policy_tighten.own -> 'managerOf') else '{}'::jsonb end;
+exception
+  when invalid_text_representation or invalid_datetime_format or datetime_field_overflow then
+    ${ownInvalid}
+end;
+$$;
+revoke execute on function ${fn("approval_policy_tighten")}(jsonb, jsonb) from public, anon, authenticated;
+
 drop function if exists ${fn("request_approval")}(${args});
 drop function if exists ${fn("request_approval")}(${args}, jsonb);
 drop function if exists ${fn("request_approval")}(${otherNew});
+drop function if exists ${fn("request_approval")}(${args}${fields.type}, text);
+drop function if exists ${fn("request_approval")}(${otherNew}, jsonb, uuid);
 -- fingerprint: the hex SHA-256 of the request's canonical form, which
--- consume_approval checks before the approved action runs.
-create or replace function ${fn("request_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb${fields.param}, fingerprint text default null)
+-- consume_approval checks before the approved action runs. The service role
+-- may pass its own policy, which only tightens the configured and stored ones,
+-- and requested_by, the user it files for, who can't approve it.
+create or replace function ${fn("request_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, reason text default null, payload jsonb default '{}'::jsonb${fields.param}, fingerprint text default null, policy jsonb default null, requested_by uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -674,13 +784,23 @@ set search_path = ''
 as $$
 declare
   v_policy jsonb := ${fn("approval_effective_policy")}(request_approval.tenant, request_approval.subject_type, request_approval.action, coalesce(request_approval.payload, '{}'::jsonb));
+  v_service boolean := ${SERVICE_CALLER};
   v_result jsonb;
   v_req ${requests}%rowtype;
 begin
+  if request_approval.policy is not null and not v_service then
+    ${fail("APPROVAL_FORBIDDEN", "only the service role files a request under its own policy")}
+  end if;
+  if request_approval.requested_by is not null and not v_service and request_approval.requested_by is distinct from auth.uid() then
+    ${fail("APPROVAL_FORBIDDEN", "only the service role files a request for another user")}
+  end if;
+  if request_approval.policy is not null then
+    v_policy := ${fn("approval_policy_tighten")}(v_policy, request_approval.policy);
+  end if;
   if v_policy is null then
     ${fail("APPROVAL_POLICY_UNKNOWN", "no approval policy for this subject type and action", "22023")}
   end if;${tenantRequired("request_approval")}
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectWrite})${tenantless("request_approval")}) then
+  if not (v_service or (${ctx.can("tenant", "request_approval.tenant", request)} and ${subjectWrite})${tenantless("request_approval")}) then
     ${fail("APPROVAL_FORBIDDEN", "not allowed to request approval for this record")}
   end if;
   if not ${required("v_policy")} then
@@ -696,7 +816,7 @@ begin
     ${fail("APPROVAL_FINGERPRINT_UNSUPPORTED", "this approval requests table has no fingerprint column", "22023")}
   end if;`
   }
-  v_result := ${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload);${
+  v_result := ${fn("open_approval")}(request_approval.tenant, request_approval.subject_type, request_approval.subject_id, request_approval.action, v_policy, request_approval.reason, request_approval.payload, coalesce(request_approval.requested_by, auth.uid()));${
     fingerprinted
       ? `
   if request_approval.fingerprint is not null then
@@ -717,7 +837,7 @@ ${writeExtraColumns(requests, extras, "request_approval.fields", `x.${c("id")} =
   return v_result;
 end;
 $$;
-${userGrant(`${fn("request_approval")}(${args}${fields.type}, text)`)}`;
+${userGrant(`${fn("request_approval")}(${args}${fields.type}, text, jsonb, uuid)`)}`;
 }
 
 function consumeSql(

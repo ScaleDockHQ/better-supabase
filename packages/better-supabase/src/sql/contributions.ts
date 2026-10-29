@@ -28,6 +28,8 @@ export interface ApprovalRequestSql {
   readonly subjectId: string;
   /** The decision's comment. */
   readonly comment: string;
+  /** The user whose decision this is, as uuid. */
+  readonly approver: string;
 }
 
 /** Requests of one subject type the contributing block files with approvals. */

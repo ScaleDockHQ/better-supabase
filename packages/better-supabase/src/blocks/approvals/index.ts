@@ -8,6 +8,7 @@ export {
   type ApprovalRequest,
   type ApprovalRequestDetail,
   type ApprovalRequestInput,
+  type ApprovalRequestPolicy,
   type ApprovalRequirement,
   type Approvals,
   type ApprovalsOptions,

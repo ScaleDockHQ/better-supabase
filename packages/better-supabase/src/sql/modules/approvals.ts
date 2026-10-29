@@ -37,6 +37,7 @@ import {
   allHoldersSql,
   decideSql,
   escalateSql,
+  settleSql,
   validateSteps,
 } from "./approvals-steps.ts";
 import {
@@ -167,6 +168,15 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const policies = approvalPolicies(ctx);
   validateRuns(ctx, policies);
   validateApprovers(ctx, policies, tenantPoliciesOn(ctx));
+
+  if (
+    ctx.option("policyExtraColumns") !== undefined &&
+    !tenantPoliciesOn(ctx)
+  ) {
+    throw new TypeError(
+      "blocks.approvals.options.policyExtraColumns needs blocks.approvals.options.tenantPolicies",
+    );
+  }
 
   if (tenantPoliciesOn(ctx) && !has("policy")) {
     throw new TypeError(
@@ -312,10 +322,16 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       select tm.${teams.col("members", "user")} from ${teams.table("members")} tm
       where tm.${teams.col("members", "team")}::text = v_approvers ->> 'team'`;
 
+  // A policy's managerOf names the employee whose manager a manager step asks.
+  const managerEmployee = has("policy")
+    ? `(${policyOf("v_req")} ->> 'managerOf')`
+    : undefined;
+
   const manager = managerOf(
     ctx,
     `v_req.${c("requestedBy")}`,
     `v_req.${c("tenant")}`,
+    managerEmployee,
   );
 
   const managerMember =
@@ -340,7 +356,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
       manager === undefined
         ? ""
         : `
-    or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${managerMatch(ctx, { requester: `v_req.${c("requestedBy")}`, tenant: `v_req.${c("tenant")}`, user: "v_me" })})`
+    or (coalesce((v_approvers ->> 'manager')::boolean, false) and ${managerMatch(ctx, { requester: `v_req.${c("requestedBy")}`, tenant: `v_req.${c("tenant")}`, user: "v_me", ...(managerEmployee === undefined ? {} : { employee: managerEmployee }) })})`
     })`;
 
   const notFound = fail(
@@ -395,17 +411,23 @@ ${indent}end if;`;
 
   const subjectId = (cast: string): string => `v_req.${c("subjectId")}${cast}`;
 
+  const lastApprover = `(select x.${d("approver")} from ${decisions} x where x.${d("request")} = v_req.${c("id")} and x.${d("decision")} = 'approved' order by x.${d("createdAt")} desc, x.${d("id")} desc limit 1)`;
+
   const contributedRun = contributed
     .map((each) =>
       when(
         each.subject,
-        each.approve({ subjectId: subjectId(""), comment: lastComment }),
+        each.approve({
+          subjectId: subjectId(""),
+          comment: lastComment,
+          approver: lastApprover,
+        }),
         "  ",
       ),
     )
     .join("");
 
-  const linkedReject = linked
+  const linkedReject = contributed
     .flatMap((each) =>
       each.reject === undefined
         ? []
@@ -415,6 +437,7 @@ ${indent}end if;`;
               each.reject({
                 subjectId: subjectId(""),
                 comment: "decide_approval.comment",
+                approver: "v_actor",
               }),
               "    ",
             ),
@@ -429,7 +452,7 @@ ${indent}end if;`;
         : [
             when(
               each.subject,
-              `return ${each.approvable({ subjectId: subjectId(""), comment: lastComment })};`,
+              `return ${each.approvable({ subjectId: subjectId(""), comment: lastComment, approver: "v_me" })};`,
               "  ",
             ),
           ],
@@ -458,8 +481,24 @@ ${indent}end if;`;
 
   const allHolders = allHoldersSql(kit, holders);
 
-  const notifyBody = ctx.installed("notifications")
-    ? `
+  const notificationHook = ctx.hookTarget("approval_notification");
+
+  // An app's approval_notification(request_id, kind, notification) returns
+  // keys to merge into the notification (data merges too), or null to skip it.
+  const enrich = `
+  v_hook := to_regprocedure(${sqlString(`${notificationHook}(uuid, text, jsonb)`)});
+  if v_hook is not null then
+    execute format('select %s($1, $2, $3)', v_hook::oid::regproc) into v_extra
+      using v_req.${c("id")}, approval_notify.kind, v_note;
+    if v_extra is null then
+      return;
+    end if;
+    v_note := v_note || (v_extra - 'data') || jsonb_build_object('data', coalesce(v_note -> 'data', '{}'::jsonb) || coalesce(v_extra -> 'data', '{}'::jsonb));
+  end if;`;
+
+  const notifyBody =
+    ctx.installed("notifications") && ctx.flag("notifications", true)
+      ? `
   select * into v_req from ${requests} r where r.${c("id")} = approval_notify.request_id;
   if not found${tenantless ? ` or v_req.${c("tenant")} is null` : ""} then
     return;
@@ -504,8 +543,7 @@ ${indent}end if;`;
   if cardinality(v_recipients) = 0 and v_permission is null then
     return;
   end if;
-  ${ctx.notify(
-    `jsonb_build_object(
+  v_note := jsonb_build_object(
       'type', 'approval.' || approval_notify.kind,
       'tenant', v_req.${c("tenant")},
       'actor', coalesce(auth.uid(), v_req.${c("requestedBy")}),
@@ -518,9 +556,9 @@ ${indent}end if;`;
       'include_actor', approval_notify.kind in ('approved', 'rejected', 'expired'),
       'key', 'approval.' || approval_notify.kind || ':' || v_req.${c("id")}::text || ':' || ${stepOf("v_req")}::text || ':' || extract(epoch from now())::bigint::text,
       'data', jsonb_build_object('requestId', v_req.${c("id")}, 'action', v_req.${c("action")}, 'step', ${stepOf("v_req")})
-    )`,
-  )}`
-    : `
+    );${enrich}
+  ${ctx.notify("v_note")}`
+      : `
   null;`;
 
   // A column definition, left out when the app maps the column to null.
@@ -668,7 +706,7 @@ declare
   v_approvers jsonb;
   v_permission text;
   v_recipients uuid[] := '{}';
-  v_claims text;
+  v_claims text;${notifyBody.includes("v_note") ? "\n  v_note jsonb;\n  v_hook regprocedure;\n  v_extra jsonb;" : ""}
 begin${notifyBody}
 end;
 $$;
@@ -695,8 +733,10 @@ $$;
 revoke execute on function ${fn("approval_finalize")}(uuid) from public, anon, authenticated;
 
 -- Files a request under an explicit policy snapshot. request_approval and
--- the access-requests module call it after their own checks.
-create or replace function ${fn("open_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb)
+-- the access-requests module call it after their own checks. requested_by
+-- defaults to the caller.
+drop function if exists ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb);
+create or replace function ${fn("open_approval")}(tenant ${ctx.idType}, subject_type text, subject_id text, action text, policy jsonb, reason text, payload jsonb, requested_by uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -706,6 +746,7 @@ as $$
 declare
   v_req ${requests}%rowtype;
   v_policy jsonb := open_approval.policy;
+  v_requester uuid := coalesce(open_approval.requested_by, auth.uid());
 begin
   ${ctx.hook("before_approval_request", [
     [ctx.idType, "open_approval.tenant"],
@@ -714,7 +755,7 @@ begin
     ["text", "open_approval.action"],
   ])}${openRefusals}${allHolders}
   insert into ${requests} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("action")}${also("requests", "policy")}, ${c("requestedBy")}${also("requests", "reason")}${also("requests", "payload")}${also("requests", "expiresAt")})
-  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action${alsoValue("requests", "policy", "v_policy")}, auth.uid()${alsoValue("requests", "reason", "open_approval.reason")}${alsoValue("requests", "payload", "coalesce(open_approval.payload, '{}'::jsonb)")}${has("expiresAt") ? `,\n    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end` : ""})
+  values (open_approval.tenant, open_approval.subject_type, open_approval.subject_id, open_approval.action${alsoValue("requests", "policy", "v_policy")}, v_requester${alsoValue("requests", "reason", "open_approval.reason")}${alsoValue("requests", "payload", "coalesce(open_approval.payload, '{}'::jsonb)")}${has("expiresAt") ? `,\n    case when open_approval.policy ->> 'expiresIn' is not null then now() + (open_approval.policy ->> 'expiresIn')::interval end` : ""})
   on conflict (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending' do nothing
   returning * into v_req;
   if not found then
@@ -726,55 +767,8 @@ begin
   return ${json("v_req")};
 end;
 $$;
-revoke execute on function ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb) from public, anon, authenticated;
-${
-  linked.length === 0
-    ? ""
-    : `
--- Closes the pending request for a subject that its own module decided
--- (decide_ai_tool_approval, approve_support_request) without running the
--- module again. A request that is no longer pending is left as it is.
-create or replace function ${fn("approval_settle")}(subject_type text, subject_id text, action text, decision text, approver uuid, comment text default null)
-returns void
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_req ${requests}%rowtype;
-begin
-  select * into v_req from ${requests} r
-  where r.${c("subjectType")} = approval_settle.subject_type and r.${c("subjectId")} = approval_settle.subject_id
-    and r.${c("action")} = approval_settle.action and r.${c("status")} = 'pending'
-  for update;
-  if not found then
-    return;
-  end if;
-  ${ctx.hook("before_approval_decide", [
-    ["uuid", `v_req.${c("id")}`],
-    ["text", "approval_settle.decision"],
-  ])}
-  insert into ${decisions} (${d("request")}, ${d("tenant")}, ${d("step")}, ${d("approver")}, ${d("decision")}${also("decisions", "comment")})
-  values (v_req.${c("id")}, v_req.${c("tenant")}, ${stepOf("v_req")}, approval_settle.approver, ${ctx.cast("decisions", "decision", "approval_settle.decision")}${alsoValue("decisions", "comment", "approval_settle.comment")})
-  on conflict do nothing;
-  update ${requests} r set ${c("status")} = ${ctx.cast("requests", "status", "approval_settle.decision")}${decided}
-    where r.${c("id")} = v_req.${c("id")} returning * into v_req;
-  if approval_settle.decision = 'approved' then
-    ${record("approval.approved", "v_req", true)}
-  else
-    ${record("approval.rejected", "v_req", true)}
-  end if;
-  perform ${fn("approval_notify")}(v_req.${c("id")}, approval_settle.decision);
-  ${ctx.hook("after_approval_decide", [
-    ["uuid", `v_req.${c("id")}`],
-    ["text", `v_req.${c("status")}`],
-  ])}
-end;
-$$;
-revoke execute on function ${fn("approval_settle")}(text, text, text, text, uuid, text) from public, anon, authenticated;
-`
-}
+revoke execute on function ${fn("open_approval")}(${ctx.idType}, text, text, text, jsonb, text, jsonb, uuid) from public, anon, authenticated;
+${linked.length === 0 ? "" : settleSql(ctx, kit)}
 ${approvalsTenantSql(ctx, {
   json,
   record,

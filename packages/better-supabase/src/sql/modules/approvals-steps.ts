@@ -47,7 +47,7 @@ export function allHoldersSql(
       left join lateral (
         select coalesce(jsonb_agg(distinct to_jsonb(u.id::text)), '[]'::jsonb) as users
         from (${holders}) as u(id)
-        where u.id is not null and (u.id is distinct from auth.uid() or coalesce((v_policy ->> 'selfApproval')::boolean, false))
+        where u.id is not null and (u.id is distinct from v_requester or coalesce((v_policy ->> 'selfApproval')::boolean, false))
       ) h on e.value -> 'required' = '"all"'::jsonb
     ));
     if exists (select 1 from jsonb_array_elements(v_policy -> 'steps') e where e.value -> 'required' = '0'::jsonb) then
@@ -258,4 +258,58 @@ export function validateSteps(
       }
     }
   }
+}
+
+/**
+ * Approval_settle, which closes the pending request of a subject its own module
+ * decided.
+ */
+export function settleSql(ctx: BlockSqlContext, k: ApprovalSqlKit): string {
+  const { requests, decisions, c, d, fn, stepOf, record, also, alsoValue } = k;
+  const { decided } = k;
+
+  return `
+-- Closes the pending request for a subject that its own module decided
+-- (decide_ai_tool_approval, approve_support_request) without running the
+-- module again. A request that is no longer pending is left as it is.
+create or replace function ${fn("approval_settle")}(subject_type text, subject_id text, action text, decision text, approver uuid, comment text default null)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_req ${requests}%rowtype;
+begin
+  select * into v_req from ${requests} r
+  where r.${c("subjectType")} = approval_settle.subject_type and r.${c("subjectId")} = approval_settle.subject_id
+    and r.${c("action")} = approval_settle.action and r.${c("status")} = 'pending'
+  for update;
+  if not found then
+    return;
+  end if;
+  ${ctx.hook("before_approval_decide", [
+    ["uuid", `v_req.${c("id")}`],
+    ["text", "approval_settle.decision"],
+  ])}
+  insert into ${decisions} (${d("request")}, ${d("tenant")}, ${d("step")}, ${d("approver")}, ${d("decision")}${also("decisions", "comment")})
+  values (v_req.${c("id")}, v_req.${c("tenant")}, ${stepOf("v_req")}, approval_settle.approver, ${ctx.cast("decisions", "decision", "approval_settle.decision")}${alsoValue("decisions", "comment", "approval_settle.comment")})
+  on conflict do nothing;
+  update ${requests} r set ${c("status")} = ${ctx.cast("requests", "status", "approval_settle.decision")}${decided}
+    where r.${c("id")} = v_req.${c("id")} returning * into v_req;
+  if approval_settle.decision = 'approved' then
+    ${record("approval.approved", "v_req", true)}
+  else
+    ${record("approval.rejected", "v_req", true)}
+  end if;
+  perform ${fn("approval_notify")}(v_req.${c("id")}, approval_settle.decision);
+  ${ctx.hook("after_approval_decide", [
+    ["uuid", `v_req.${c("id")}`],
+    ["text", `v_req.${c("status")}`],
+  ])}
+end;
+$$;
+revoke execute on function ${fn("approval_settle")}(text, text, text, text, uuid, text) from public, anon, authenticated;
+`;
 }
