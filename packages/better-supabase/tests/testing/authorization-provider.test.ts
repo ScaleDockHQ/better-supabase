@@ -284,6 +284,82 @@ describe("testAuthorizationProvider", () => {
     ).toEqual([expect.stringMatching(/tokenHook\.ownedClaims is empty/)]);
   });
 
+  it("checks the versions function and the claim its hook writes", async () => {
+    const owned = withProvider({
+      versions: { function: "stub.authz_version" },
+      tokenHook: {
+        ...stubProvider.tokenHook,
+        ownedClaims: [...stubProvider.tokenHook.ownedClaims, "authz_ver"],
+      },
+    });
+
+    const report = await testAuthorizationProvider(owned);
+    expect(report.checks.map((check) => check.name)).toEqual(
+      expect.arrayContaining([
+        "names its versions function as schema.function",
+        'writes "authz_ver" from its versions',
+      ]),
+    );
+
+    expect(
+      await failures(
+        withProvider({ versions: { function: "Stub.Authz-Version" } }),
+      ),
+    ).toEqual([
+      expect.stringMatching(/versions\.function "Stub\.Authz-Version"/),
+      expect.stringMatching(/neither owns nor registers "authz_ver"/),
+    ]);
+  });
+
+  it("checks the versions function in the database it is given", async () => {
+    const calls: string[] = [];
+
+    const postgres = {
+      admin: {
+        queryRaw: <R>(text: string): Promise<R[]> => {
+          calls.push(text);
+
+          const row = text.includes("pg_proc")
+            ? { returns: "integer" }
+            : { name: "receive" };
+
+          // SAFETY: the kit reads only the column this stub fills.
+          return Promise.resolve([row as R]);
+        },
+      },
+      asUser: () => ({
+        // SAFETY: the kit reads only `version`.
+        queryRaw: <R>(): Promise<R[]> => Promise.resolve([{ version: 3 } as R]),
+      }),
+    };
+
+    const error = await testAuthorizationProvider(
+      withProvider({
+        versions: { function: "stub.authz_version" },
+        tokenHook: {
+          ...stubProvider.tokenHook,
+          ownedClaims: [...stubProvider.tokenHook.ownedClaims, "authz_ver"],
+        },
+      }),
+      { postgres },
+    ).then(
+      () => undefined,
+      (cause: unknown) => cause,
+    );
+
+    // SAFETY: the next line asserts the class.
+    const failed = (error as ConformanceError).report.checks
+      .filter((check) => !check.ok)
+      .map((check) => check.message);
+
+    expect(error).toBeInstanceOf(ConformanceError);
+    expect(failed).toEqual([
+      expect.stringMatching(/returns integer, not bigint/),
+      expect.stringMatching(/read another user's version/),
+    ]);
+    expect(calls).toHaveLength(2);
+  });
+
   it("checks suspension rows, role sources and deciding columns", async () => {
     expect(
       await failures(

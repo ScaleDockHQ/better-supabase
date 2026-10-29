@@ -1790,6 +1790,19 @@ keys without `sqlComplete`. A check for such a key is denied unless the
 authorizer's `load` option reads `my_permissions`. Mark the keys
 `sqlComplete` when the SQL functions answer for them, or pass `load`.
 
+### BS420
+
+**Error: a second authorization version source.** When the authorization
+provider keeps the versions (`authorization.versions`), the sessions
+module's `authzVersions` option renders no table, trigger or broadcast and
+reads the provider's function instead. Doctor reports a
+`better_supabase.user_authz_versions` table still in the database, and a
+custom access token hook other than the provider's that reads
+`better_supabase.authz_version(`. Either one gives tokens and the bootstrap a
+version nothing bumps, so a role change never looks newer. Drop the table
+with a migration (`better-supabase db diff` writes it), and use the
+provider's hook or read its versions function.
+
 ## Env files
 
 ### BS501

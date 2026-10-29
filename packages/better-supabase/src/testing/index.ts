@@ -133,6 +133,11 @@ export { testAdapter } from "./adapter.ts";
 
 export { testBlockTransportMiddleware } from "./transport-middleware.ts";
 
+export type {
+  AuthorizationProviderKitOptions,
+  ProviderPostgres,
+} from "./authorization-provider.ts";
+
 export { testAuthorizationProvider } from "./authorization-provider.ts";
 
 export { authorizationRequest, sessionSnapshot } from "./authorization.ts";
