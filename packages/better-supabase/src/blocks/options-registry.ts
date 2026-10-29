@@ -79,6 +79,7 @@ import type { PostsSqlOptions } from "./posts/options.ts";
 import type { ProfilesSqlOptions } from "./profiles/options.ts";
 import type { PromotionsSqlOptions } from "./promotions/options.ts";
 import type { PushSqlOptions } from "./push/options.ts";
+import type { QualificationsSqlOptions } from "./qualifications/options.ts";
 import type {
   QueueSqlOptions,
   RateLimitSqlOptions,
@@ -207,6 +208,7 @@ import { postsSqlOptions } from "./posts/options.ts";
 import { profilesSqlOptions } from "./profiles/options.ts";
 import { promotionsSqlOptions } from "./promotions/options.ts";
 import { pushSqlOptions } from "./push/options.ts";
+import { qualificationsSqlOptions } from "./qualifications/options.ts";
 import {
   queueSqlOptions,
   rateLimitSqlOptions,
@@ -353,6 +355,7 @@ export interface BlockOptionsRegistry {
   readonly pipelines: PipelinesSqlOptions;
   readonly posts: PostsSqlOptions;
   readonly content: ContentSqlOptions;
+  readonly qualifications: QualificationsSqlOptions;
   readonly profiles: ProfilesSqlOptions;
   readonly promotions: PromotionsSqlOptions;
   readonly push: PushSqlOptions;
@@ -504,6 +507,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   pipelines: pipelinesSqlOptions,
   posts: postsSqlOptions,
   content: contentSqlOptions,
+  qualifications: qualificationsSqlOptions,
   profiles: profilesSqlOptions,
   promotions: promotionsSqlOptions,
   push: pushSqlOptions,

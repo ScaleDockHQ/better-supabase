@@ -1673,6 +1673,7 @@
               "profiles",
               "promotions",
               "push",
+              "qualifications",
               "queue",
               "quotes",
               "rank",
@@ -1828,6 +1829,7 @@
                   "profiles",
                   "promotions",
                   "push",
+                  "qualifications",
                   "queue",
                   "quotes",
                   "rank",
@@ -2163,6 +2165,9 @@
             },
             "push": {
               "$ref": "#/$defs/blocks/push"
+            },
+            "qualifications": {
+              "$ref": "#/$defs/blocks/qualifications"
             },
             "queue": {
               "$ref": "#/$defs/blocks/queue"
@@ -6051,6 +6056,35 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "qualifications": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "holderTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["member", "company", "asset"]
+              },
+              "renewalWindowDays": {
+                "type": "number",
+                "default": 30
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {

@@ -102,6 +102,7 @@ import { POSTS } from "./modules/posts.ts";
 import { PROFILES } from "./modules/profiles.ts";
 import { PROMOTIONS } from "./modules/promotions.ts";
 import { PUSH } from "./modules/push.ts";
+import { QUALIFICATIONS } from "./modules/qualifications.ts";
 import { JOBS } from "./modules/queue.ts";
 import { QUOTES } from "./modules/quotes.ts";
 import { RANK } from "./modules/rank.ts";
@@ -380,6 +381,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(POSTS),
       built(FIELD_ENCRYPTION),
       built(CONTENT),
+      built(QUALIFICATIONS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

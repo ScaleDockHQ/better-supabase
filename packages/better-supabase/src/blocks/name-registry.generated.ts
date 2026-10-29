@@ -1321,6 +1321,22 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "qualifications": {
+    readonly tables: {
+      readonly "types": "id" | "tenant" | "key" | "name" | "description" | "holderTypes" | "validForMonths" | "evidenceRequired" | "course" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "requirements": "id" | "tenant" | "type" | "targetType" | "targetValue" | "createdAt";
+      readonly "qualifications": "id" | "tenant" | "type" | "holderType" | "holderId" | "grantedOn" | "expiresOn" | "revokedAt" | "revokeReason" | "evidenceAttachment" | "evidenceNote" | "source" | "sourceId" | "grantedBy" | "notifiedStatus" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "add_qualification_requirement" | "archive_qualification_type" | "grant_qualification" | "list_qualification_requirements" | "list_qualification_types" | "notify_expiring_qualifications" | "qualification_gaps" | "qualifications_of" | "qualified_holders" | "remove_qualification_requirement" | "revoke_qualification" | "save_qualification_type";
+    readonly actions: "read" | "grant" | "manage";
+    readonly hooks: "before_qualification_type_save" | "after_qualification_type_save" | "before_qualification_grant" | "after_qualification_grant" | "before_qualification_revoke" | "after_qualification_revoke";
+    readonly entities: {
+      readonly "qualification": "id" | "tenant_id" | "type_id" | "holder_type" | "holder_id" | "granted_on" | "expires_on" | "revoked_at" | "revoke_reason" | "evidence_attachment_id" | "evidence_note" | "source" | "source_id" | "granted_by" | "notified_status" | "created_at" | "updated_at";
+      readonly "qualification_type": "id" | "tenant_id" | "key" | "name" | "description" | "holder_types" | "valid_for_months" | "evidence_required" | "course_id" | "archived_at" | "created_at" | "updated_at";
+      readonly "qualification_requirement": "id" | "tenant_id" | "type_id" | "target_type" | "target_value" | "created_at";
+    };
+    readonly primary: "qualification";
+  };
   readonly "queue": {
     readonly tables: {
       readonly "messages": "id" | "queue" | "message" | "attempts" | "enqueuedAt" | "visibleAt" | "archivedAt" | "dead" | "dedupeKey" | "maxAttempts";

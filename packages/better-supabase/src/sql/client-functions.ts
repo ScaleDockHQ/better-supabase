@@ -162,6 +162,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   promotions:
     "apply_promotion_code create_promotion_codes delete_promotion delete_promotion_code remove_promotion_code save_promotion set_promotion_active",
   push: "prune_push_tokens push_tokens_for register_push_device unregister_push_device",
+  qualifications:
+    "add_qualification_requirement archive_qualification_type grant_qualification list_qualification_requirements list_qualification_types notify_expiring_qualifications qualification_gaps qualifications_of qualified_holders remove_qualification_requirement revoke_qualification save_qualification_type",
   queue:
     "advance_schedule claim_due_schedules claim_jobs complete_job enqueue_job enqueue_job_once extend_job_lease fail_job job_queue_stats list_dead_jobs list_schedules purge_job_archive replay_dead_job retry_dead_jobs schedule_job unschedule_job unschedule_tenant",
   quotes:

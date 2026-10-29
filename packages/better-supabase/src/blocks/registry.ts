@@ -90,6 +90,7 @@ import { postsBlock } from "./posts/manifest.ts";
 import { profilesBlock } from "./profiles/manifest.ts";
 import { promotionsBlock } from "./promotions/manifest.ts";
 import { pushBlock } from "./push/manifest.ts";
+import { qualificationsBlock } from "./qualifications/manifest.ts";
 import {
   idempotencyBlock,
   queueBlock,
@@ -199,6 +200,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   leadScoringBlock,
   postsBlock,
   contentBlock,
+  qualificationsBlock,
   driveBlock,
   employeesBlock,
   activitiesBlock,
