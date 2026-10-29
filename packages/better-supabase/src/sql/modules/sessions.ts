@@ -145,6 +145,7 @@ begin
   if not (select better_supabase.session_active()) then
     return jsonb_build_object(
       'session_active', false,
+      'end_reason', better_supabase.session_end_reason(),
       'authz_version', auth.jwt() -> 'authz_ver',
       'token_authz_version', auth.jwt() -> 'authz_ver',
       'tenant', args ->> 'tenant',
@@ -360,7 +361,7 @@ $$;`;
 }
 
 export const SESSIONS: BlockSqlDefinition = {
-  internal: ["session_active"],
+  internal: ["session_active", "session_end_reason"],
   name: "sessions",
   names: {
     tables: {},
@@ -410,6 +411,29 @@ $$;
 
 revoke execute on function better_supabase.session_active() from public, anon;
 grant execute on function better_supabase.session_active() to authenticated;
+
+-- Why session_active() is false: user_banned while the caller's user is banned,
+-- else session_not_found. The bootstrap wrappers return it as end_reason.
+create or replace function better_supabase.session_end_reason()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.banned_until is not null and u.banned_until > now()
+  ) then
+    return 'user_banned';
+  end if;
+  return 'session_not_found';
+end;
+$$;
+
+revoke execute on function better_supabase.session_end_reason() from public, anon;
+grant execute on function better_supabase.session_end_reason() to authenticated;
 
 -- The last sign-in of many users in one query, for admin lists. auth.users
 -- isn't readable through the Data API, so only the service role calls this.

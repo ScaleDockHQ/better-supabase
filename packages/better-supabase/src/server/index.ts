@@ -178,6 +178,7 @@ export type {
   BetterServer,
   ContextOptions,
   ForContextOptions,
+  ResolveRequestOptions,
   ServerContext,
   ServerDbOptions,
   ServerOptions,

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:5d83dbe380fe556f4a050e71ae612225f204036709cbd82349a7dc1f5e09417d
+-- @bsb-hash sha256:e80fa86661cbdd68d46697b0ba204505ea3ced7ea62a64ed431a193cfc120fdb
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -80,6 +80,29 @@ $$;
 
 revoke execute on function better_supabase.session_active() from public, anon;
 grant execute on function better_supabase.session_active() to authenticated;
+
+-- Why session_active() is false: user_banned while the caller's user is banned,
+-- else session_not_found. The bootstrap wrappers return it as end_reason.
+create or replace function better_supabase.session_end_reason()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.banned_until is not null and u.banned_until > now()
+  ) then
+    return 'user_banned';
+  end if;
+  return 'session_not_found';
+end;
+$$;
+
+revoke execute on function better_supabase.session_end_reason() from public, anon;
+grant execute on function better_supabase.session_end_reason() to authenticated;
 
 -- The last sign-in of many users in one query, for admin lists. auth.users
 -- isn't readable through the Data API, so only the service role calls this.
@@ -184,7 +207,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:5d83dbe380fe556f4a050e71ae612225f204036709cbd82349a7dc1f5e09417d
+-- @bsb-hash sha256:e80fa86661cbdd68d46697b0ba204505ea3ced7ea62a64ed431a193cfc120fdb
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -263,6 +286,29 @@ $$;
 
 revoke execute on function better_supabase.session_active() from public, anon;
 grant execute on function better_supabase.session_active() to authenticated;
+
+-- Why session_active() is false: user_banned while the caller's user is banned,
+-- else session_not_found. The bootstrap wrappers return it as end_reason.
+create or replace function better_supabase.session_end_reason()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.banned_until is not null and u.banned_until > now()
+  ) then
+    return 'user_banned';
+  end if;
+  return 'session_not_found';
+end;
+$$;
+
+revoke execute on function better_supabase.session_end_reason() from public, anon;
+grant execute on function better_supabase.session_end_reason() to authenticated;
 
 -- The last sign-in of many users in one query, for admin lists. auth.users
 -- isn't readable through the Data API, so only the service role calls this.
@@ -367,7 +413,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:5d83dbe380fe556f4a050e71ae612225f204036709cbd82349a7dc1f5e09417d
+-- @bsb-hash sha256:e80fa86661cbdd68d46697b0ba204505ea3ced7ea62a64ed431a193cfc120fdb
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -446,6 +492,29 @@ $$;
 
 revoke execute on function better_supabase.session_active() from public, anon;
 grant execute on function better_supabase.session_active() to authenticated;
+
+-- Why session_active() is false: user_banned while the caller's user is banned,
+-- else session_not_found. The bootstrap wrappers return it as end_reason.
+create or replace function better_supabase.session_end_reason()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.banned_until is not null and u.banned_until > now()
+  ) then
+    return 'user_banned';
+  end if;
+  return 'session_not_found';
+end;
+$$;
+
+revoke execute on function better_supabase.session_end_reason() from public, anon;
+grant execute on function better_supabase.session_end_reason() to authenticated;
 
 -- The last sign-in of many users in one query, for admin lists. auth.users
 -- isn't readable through the Data API, so only the service role calls this.
@@ -550,7 +619,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_026_sessions.sql
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:292ef5e3677b8544ab25bbfc5ebff937aa0cbedf767df316b7a0de2a410870b7
+-- @bsb-hash sha256:865e7704e364ee3e2478e9585d25a198a643794a46c3b0e91e1353c541bde07e
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -629,6 +698,29 @@ $$;
 
 revoke execute on function better_supabase.session_active() from public, anon;
 grant execute on function better_supabase.session_active() to authenticated;
+
+-- Why session_active() is false: user_banned while the caller's user is banned,
+-- else session_not_found. The bootstrap wrappers return it as end_reason.
+create or replace function better_supabase.session_end_reason()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.banned_until is not null and u.banned_until > now()
+  ) then
+    return 'user_banned';
+  end if;
+  return 'session_not_found';
+end;
+$$;
+
+revoke execute on function better_supabase.session_end_reason() from public, anon;
+grant execute on function better_supabase.session_end_reason() to authenticated;
 
 -- The last sign-in of many users in one query, for admin lists. auth.users
 -- isn't readable through the Data API, so only the service role calls this.
@@ -709,6 +801,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."session_active"();
+drop function if exists "api"."session_end_reason"();
 
 create or replace function "api"."actor_may_write"()
 returns boolean

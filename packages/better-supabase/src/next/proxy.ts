@@ -2,6 +2,9 @@ import { NextResponse } from "next/server.js";
 
 const OVERRIDE = "x-middleware-override-headers";
 const REQUEST_PREFIX = "x-middleware-request-";
+const SET_COOKIE = "x-middleware-set-cookie";
+const MAX_AGE_ZERO = /;\s*max-age=0\s*(?:;|$)/i;
+const HAS_EXPIRES = /;\s*expires=/i;
 
 /** A response whose headers can be changed (`Response.redirect()`'s cannot). */
 export function mutableResponse(response: Response): Response {
@@ -77,4 +80,33 @@ export function serverTimingValue(
   return Object.entries(metrics)
     .map(([name, ms]) => `${name};dur=${ms.toFixed(1)}`)
     .join(", ");
+}
+
+/**
+ * Copies the response's `set-cookie` headers into `x-middleware-set-cookie`,
+ * which Next.js merges into the render's `cookies()`, so the page that follows
+ * a refresh reads the new token. A `NextResponse` whose cookies a `before` hook
+ * set carries the header already, without the proxy's cookies. A cookie cleared
+ * with only `Max-Age=0` gets an `Expires` in the past, which the render reads
+ * as deleted.
+ */
+export function syncMiddlewareSetCookie(response: Response): Response {
+  const cookies = response.headers.getSetCookie();
+
+  if (cookies.length === 0) {
+    return response;
+  }
+
+  response.headers.set(
+    SET_COOKIE,
+    cookies
+      .map((cookie) =>
+        MAX_AGE_ZERO.test(cookie) && !HAS_EXPIRES.test(cookie)
+          ? `${cookie}; Expires=Thu, 01 Jan 1970 00:00:00 GMT`
+          : cookie,
+      )
+      .join(","),
+  );
+
+  return response;
 }

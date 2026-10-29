@@ -125,3 +125,77 @@ export async function clearSessionCookies<R extends Response>(
 
   return response;
 }
+
+const ENDED = Symbol.for("better-supabase.ended-tokens");
+const ENDED_LIMIT = 1000;
+
+/** Access tokens a database check found ended, until each token's `exp`. */
+type EndedTokens = Map<string, { status: "ended" | "banned"; exp: number }>;
+
+/**
+ * Shared on `globalThis`, so the proxy sees what a render in another module
+ * graph recorded.
+ */
+function endedTokens(): EndedTokens {
+  // SAFETY: ENDED is a module symbol, so nothing else writes to that global slot.
+  const scope = globalThis as { [ENDED]?: EndedTokens };
+
+  scope[ENDED] ??= new Map();
+
+  return scope[ENDED];
+}
+
+/**
+ * Records that the session behind `token` ended, as `bsb.bootstrap()` learns
+ * from `session_active()`, so the proxy clears its cookies on the next request
+ * this process serves. A token past its `exp` is not kept.
+ */
+export function markSessionEnded(
+  token: string,
+  status: "ended" | "banned",
+  now: () => number = Date.now,
+): void {
+  const exp = decodeJwtPayload(token)?.["exp"];
+
+  if (typeof exp !== "number" || exp * 1000 <= now()) {
+    return;
+  }
+
+  const tokens = endedTokens();
+
+  for (const [key, entry] of tokens) {
+    if (entry.exp * 1000 <= now()) {
+      tokens.delete(key);
+    }
+  }
+
+  if (tokens.size >= ENDED_LIMIT) {
+    const oldest = tokens.keys().next();
+
+    if (!oldest.done) {
+      tokens.delete(oldest.value);
+    }
+  }
+
+  tokens.set(token, { status, exp });
+}
+
+/** How the session behind `token` ended, if `markSessionEnded` recorded it. */
+export function endedSessionOf(
+  token: string,
+  now: () => number = Date.now,
+): "ended" | "banned" | undefined {
+  const entry = endedTokens().get(token);
+
+  if (entry === undefined) {
+    return undefined;
+  }
+
+  if (entry.exp * 1000 <= now()) {
+    endedTokens().delete(token);
+
+    return undefined;
+  }
+
+  return entry.status;
+}

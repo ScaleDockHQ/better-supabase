@@ -12,6 +12,7 @@ begin
   if not (select better_supabase.session_active()) then
     return jsonb_build_object(
       'session_active', false,
+      'end_reason', better_supabase.session_end_reason(),
       'authz_version', auth.jwt() -> 'authz_ver',
       'token_authz_version', auth.jwt() -> 'authz_ver',
       'tenant', args ->> 'tenant',
@@ -41,6 +42,7 @@ begin
   if not (select better_supabase.session_active()) then
     return jsonb_build_object(
       'session_active', false,
+      'end_reason', better_supabase.session_end_reason(),
       'authz_version', auth.jwt() -> 'authz_ver',
       'token_authz_version', auth.jwt() -> 'authz_ver',
       'tenant', args ->> 'tenant',

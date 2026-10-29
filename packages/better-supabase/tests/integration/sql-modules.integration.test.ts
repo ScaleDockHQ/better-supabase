@@ -1204,9 +1204,23 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         data: { who: sub, page: "inbox" },
       });
 
+      await pool.query(
+        "update auth.users set banned_until = now() + interval '1 day' where id = $1",
+        [sub],
+      );
+      expect(await call({ session_id: session, authz_ver: 7 })).toMatchObject({
+        session_active: false,
+        end_reason: "user_banned",
+      });
+      await pool.query(
+        "update auth.users set banned_until = null where id = $1",
+        [sub],
+      );
+
       await pool.query("delete from auth.sessions where id = $1", [session]);
       expect(await call({ session_id: session, authz_ver: 7 })).toEqual({
         session_active: false,
+        end_reason: "session_not_found",
         authz_version: 7,
         token_authz_version: 7,
         tenant: "acme",

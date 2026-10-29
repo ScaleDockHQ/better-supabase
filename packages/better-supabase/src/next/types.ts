@@ -892,10 +892,16 @@ export type BootstrapOptions<T extends string = string> = CachedOptions<T> &
   Omit<BootstrapCallOptions, "tenant"> & {
     /**
      * Where to send the caller when `session_active()` is false, with
-     * `?reason=session_not_found`. Without it the result has `sessionActive:
-     * false`, and the entry isn't kept.
+     * `?reason=session_not_found`, or `?reason=user_banned` for a banned user.
+     * Without it the result has `sessionActive: false`, and the entry isn't
+     * kept.
      */
     readonly redirect?: string;
+    /**
+     * The `reason` query value on the redirect, as in `VerifySessionOptions`.
+     * Defaults to `session_not_found` and `user_banned`.
+     */
+    readonly reasons?: { readonly ended?: string; readonly banned?: string };
   };
 
 export type { Access, Bootstrap } from "../server/bootstrap.ts";
