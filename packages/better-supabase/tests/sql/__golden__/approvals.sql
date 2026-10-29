@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:aa1a05a4ce768ea3d0508465354619f8b0ffe81904cc98ba4ddd6ae67a8cbe45
+-- @bsb-hash sha256:371679247945b0f7a96b318fc6a974227dece762702734b65da21fdecee1eff4
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -385,12 +385,18 @@ begin
     end loop;
     if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
         or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
-      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
+      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb
+        and ((v_step -> 'approvers') - 'users' <> '{}'::jsonb or jsonb_array_length(v_step -> 'approvers' -> 'users') = 0))
+      or (jsonb_typeof(v_step -> 'required') = 'number' and (v_step -> 'approvers') - 'users' = '{}'::jsonb
+        and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))
       or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
       or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
       raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
     end if;
   end loop;
+  v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    from jsonb_array_elements(v_steps) with ordinality e(s, o));
   v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
   if approval_policy_tighten.base is null then
     return jsonb_build_object(
@@ -968,7 +974,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:980ef23ddf0532283b017a5baf0851bd744f6b46fe1f5114dc817949a2db8068
+-- @bsb-hash sha256:f90077adb26f148ffa00dc28bcfc5bd84bdd57126aa3a58f32e3291aed348cd6
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1559,12 +1565,18 @@ begin
     end loop;
     if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
         or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
-      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
+      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb
+        and ((v_step -> 'approvers') - 'users' <> '{}'::jsonb or jsonb_array_length(v_step -> 'approvers' -> 'users') = 0))
+      or (jsonb_typeof(v_step -> 'required') = 'number' and (v_step -> 'approvers') - 'users' = '{}'::jsonb
+        and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))
       or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
       or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
       raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users, manager }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn, managerOf }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
     end if;
   end loop;
+  v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    from jsonb_array_elements(v_steps) with ordinality e(s, o));
   v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
   if approval_policy_tighten.base is null then
     return jsonb_build_object(
@@ -2196,7 +2208,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:09d5957a96b544b9d3b813193e1341f419f4b10ac68f686a77c3ab2ecbcdf313
+-- @bsb-hash sha256:abf1096ac4e5d09f56e2b2b6f38b54d16e4e3eb002dcd42ff9ca87ce945ede4e
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2585,12 +2597,18 @@ begin
     end loop;
     if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
         or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
-      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
+      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb
+        and ((v_step -> 'approvers') - 'users' <> '{}'::jsonb or jsonb_array_length(v_step -> 'approvers' -> 'users') = 0))
+      or (jsonb_typeof(v_step -> 'required') = 'number' and (v_step -> 'approvers') - 'users' = '{}'::jsonb
+        and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))
       or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
       or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
       raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
     end if;
   end loop;
+  v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    from jsonb_array_elements(v_steps) with ordinality e(s, o));
   v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
   if approval_policy_tighten.base is null then
     return jsonb_build_object(
@@ -3168,7 +3186,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:82ad42539be1ff840fa46476aecf1c4cf34ee749d6e1de0982fe1df8f2879f34
+-- @bsb-hash sha256:80de9807420c115ea25c4023bf4c2916528cfd846bc65cb28843f09b553d8f21
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3552,12 +3570,18 @@ begin
     end loop;
     if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
         or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
-      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
+      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb
+        and ((v_step -> 'approvers') - 'users' <> '{}'::jsonb or jsonb_array_length(v_step -> 'approvers' -> 'users') = 0))
+      or (jsonb_typeof(v_step -> 'required') = 'number' and (v_step -> 'approvers') - 'users' = '{}'::jsonb
+        and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))
       or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
       or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
       raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
     end if;
   end loop;
+  v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    from jsonb_array_elements(v_steps) with ordinality e(s, o));
   v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
   if approval_policy_tighten.base is null then
     return jsonb_build_object(
@@ -4290,7 +4314,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:4b0acf066d99a7dc7e13f0c91eea1ac6a8c359165209e2075a9af16bc32c347d
+-- @bsb-hash sha256:d1c77b027cdaff5ae82a127d1adae7ca1ffaa7324b9cb6ee59fbb42a7617175e
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4685,12 +4709,18 @@ begin
     end loop;
     if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
         or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
-      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
+      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb
+        and ((v_step -> 'approvers') - 'users' <> '{}'::jsonb or jsonb_array_length(v_step -> 'approvers' -> 'users') = 0))
+      or (jsonb_typeof(v_step -> 'required') = 'number' and (v_step -> 'approvers') - 'users' = '{}'::jsonb
+        and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))
       or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
       or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
       raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
     end if;
   end loop;
+  v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    from jsonb_array_elements(v_steps) with ordinality e(s, o));
   v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
   if approval_policy_tighten.base is null then
     return jsonb_build_object(
@@ -5268,7 +5298,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:0861f0eb8e6bc50bec3398a2c7e92c26bbd0f00f758a0ccb2bf3f1f0cef615a5
+-- @bsb-hash sha256:f8d47792dc9126782966af44d94392dad361f209baf9794d054dda1e19c1e129
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5652,12 +5682,18 @@ begin
     end loop;
     if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
         or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
-      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
+      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb
+        and ((v_step -> 'approvers') - 'users' <> '{}'::jsonb or jsonb_array_length(v_step -> 'approvers' -> 'users') = 0))
+      or (jsonb_typeof(v_step -> 'required') = 'number' and (v_step -> 'approvers') - 'users' = '{}'::jsonb
+        and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))
       or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
       or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
       raise exception 'policy must be { steps: [{ approvers: { permission, role, team, users }, required, escalateAfter, escalateTo }], mode, selfApproval, expiresIn }' using errcode = '22023', hint = 'APPROVAL_POLICY_INVALID';
     end if;
   end loop;
+  v_steps := (select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    from jsonb_array_elements(v_steps) with ordinality e(s, o));
   v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
   if approval_policy_tighten.base is null then
     return jsonb_build_object(

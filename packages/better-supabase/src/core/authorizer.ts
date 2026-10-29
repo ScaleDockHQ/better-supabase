@@ -162,8 +162,10 @@ export interface AuthzVersionCache {
   /** Forgets a user's version, so the next decision reads it again. */
   evict(userId: string): void | PromiseLike<void>;
   /**
-   * Stores a version the database just returned, such as `bsb.bootstrap()`'s,
-   * so the next decision skips reading it.
+   * Stores a version the database just returned, such as `bsb.bootstrap()`'s
+   * live one, so the next decision skips reading it. Keep the higher of the
+   * stored and the seeded version: a slow bootstrap must never lower a version
+   * a broadcast already raised.
    */
   seed?(userId: string, version: number): void | PromiseLike<void>;
 }

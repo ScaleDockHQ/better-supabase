@@ -111,3 +111,76 @@ describe("syncWithAuth", () => {
     expect(fresh.steps).toEqual([]);
   });
 });
+
+const withClaims = (
+  id: string,
+  claims: Readonly<Record<string, unknown>>,
+): AuthSnapshot => ({
+  status: "signed-in",
+  user: { id },
+  claims: { sub: id, ...claims },
+});
+
+describe("syncWithAuth reconnects", () => {
+  it("on a new authz_ver or tenant for the same user, and not otherwise", async () => {
+    const { auth, set } = fakeAuth(withClaims("a", { authz_ver: 1 }));
+    const { db, steps } = fakeDb();
+    syncWithAuth(db, auth, { connector: null });
+    set(withClaims("a", { authz_ver: 1, email: "a@x.test" }));
+    await flush();
+    expect(steps).toEqual(["connect"]);
+    set(withClaims("a", { authz_ver: 2 }));
+    await flush();
+    expect(steps).toEqual(["connect", "disconnect", "connect"]);
+    set(withClaims("a", { authz_ver: 2, app_metadata: { tenant_id: "t2" } }));
+    await flush();
+    expect(steps.slice(3)).toEqual(["disconnect", "connect"]);
+  });
+
+  it("reads a renamed tenant claim and takes a custom fingerprint", async () => {
+    const renamed = fakeAuth(withClaims("a", { org_id: "o1" }));
+    const first = fakeDb();
+    syncWithAuth(first.db, renamed.auth, {
+      connector: null,
+      tenantClaim: "org_id",
+    });
+    renamed.set(withClaims("a", { org_id: "o2" }));
+    await flush();
+    expect(first.steps).toEqual(["connect", "disconnect", "connect"]);
+
+    const custom = fakeAuth(withClaims("a", { plan: "free" }));
+    const second = fakeDb();
+    syncWithAuth(second.db, custom.auth, {
+      connector: null,
+      fingerprint: (claims) => String(claims["plan"]),
+    });
+    custom.set(withClaims("a", { plan: "free", authz_ver: 9 }));
+    custom.set(withClaims("a", { plan: "pro" }));
+    await flush();
+    expect(second.steps).toEqual(["connect", "disconnect", "connect"]);
+  });
+
+  it("coalesces reconnect() calls and skips one a sign-out overtook", async () => {
+    const { auth, set } = fakeAuth(signedIn("a"));
+    const { db, steps } = fakeDb();
+    const sync = syncWithAuth(db, auth, { connector: null });
+    const first = sync.reconnect();
+    const second = sync.reconnect();
+    expect(second).toBe(first);
+    await first;
+    expect(steps).toEqual(["connect", "disconnect", "connect"]);
+
+    const overtaken = sync.reconnect();
+    set(SIGNED_OUT);
+    await overtaken;
+    await flush();
+    expect(steps.slice(3)).toEqual(["clear"]);
+
+    await sync.reconnect();
+    expect(steps.slice(3)).toEqual(["clear"]);
+    sync();
+    await sync.reconnect();
+    await flush();
+    expect(steps.slice(3)).toEqual(["clear", "disconnect"]);
+  });
+});

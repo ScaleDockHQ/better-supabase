@@ -334,6 +334,16 @@ revoke execute on function ${signature} from public, anon, authenticated;${paylo
 }
 
 /**
+ * `steps` with `required: "all"` on a step that only lists users replaced by
+ * their count, as the config parser does.
+ */
+const allUsersCounted = (
+  steps: string,
+): string => `(select coalesce(jsonb_agg(case when s -> 'required' = '"all"'::jsonb and (s -> 'approvers') ? 'users'
+    then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users'))) else s end order by o), '[]'::jsonb)
+    from jsonb_array_elements(${steps}) with ordinality e(s, o))`;
+
+/**
  * PL/pgSQL that raises `invalid` unless every step of `steps` (a jsonb array
  * expression) names approvers and a valid required count and escalation. It
  * reads and writes `v_step` and `v_who`.
@@ -358,7 +368,10 @@ const stepsCheck = (
     end loop;
     if (v_step ? 'required' and v_step -> 'required' <> '"all"'::jsonb and (jsonb_typeof(v_step -> 'required') <> 'number' or (v_step ->> 'required')::numeric < 1
         or (v_step ->> 'required')::numeric <> trunc((v_step ->> 'required')::numeric)))
-      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb)
+      or (v_step -> 'required' = '"all"'::jsonb and (v_step -> 'approvers') - 'permission' <> '{}'::jsonb
+        and ((v_step -> 'approvers') - 'users' <> '{}'::jsonb or jsonb_array_length(v_step -> 'approvers' -> 'users') = 0))
+      or (jsonb_typeof(v_step -> 'required') = 'number' and (v_step -> 'approvers') - 'users' = '{}'::jsonb
+        and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))
       or ((v_step ? 'escalateAfter') <> (v_step ? 'escalateTo'))
       or (v_step ? 'escalateAfter' and (jsonb_typeof(v_step -> 'escalateAfter') <> 'string' or (v_step ->> 'escalateAfter')::interval <= interval '0')) then
       ${invalid}
@@ -543,6 +556,7 @@ begin
     ${stepsInvalid}
   end if;
 ${stepsCheck("v_steps", stepsInvalid, manager)}
+  v_steps := ${allUsersCounted("v_steps")};
   if coalesce(save_approval_policy.policy ->> 'mode', v_old.${p("mode")}::text, 'authorize') not in ('confirm', 'authorize') then
     ${fail("APPROVAL_POLICY_INVALID", "mode must be confirm or authorize", "22023")}
   end if;
@@ -741,6 +755,7 @@ begin
     ${ownInvalid}
   end if;
 ${stepsCheck("v_steps", ownInvalid, manager)}
+  v_steps := ${allUsersCounted("v_steps")};
   v_expires := (approval_policy_tighten.own ->> 'expiresIn')::interval;
   if approval_policy_tighten.base is null then
     return jsonb_build_object(

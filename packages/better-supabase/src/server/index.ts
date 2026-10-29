@@ -391,6 +391,15 @@ export type { ServerTiming } from "./entries/timing.ts";
 
 export { cacheTagsOf, tagCache, tagFor } from "../core/tags.ts";
 
+export { sessionIdTag, sessionTag, tableTags } from "./cache-tags.ts";
+
+export type {
+  Access,
+  AccessForOptions,
+  Bootstrap,
+  BootstrapCallOptions,
+} from "./bootstrap.ts";
+
 export type { TagOptions } from "../core/tags.ts";
 
 export { hasRole, rolesAt } from "./kit.ts";

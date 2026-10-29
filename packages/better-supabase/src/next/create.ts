@@ -16,6 +16,7 @@ import type { BetterSupabase } from "../core/define.ts";
 import type { Result } from "../core/result.ts";
 import type { DbStats } from "../core/stats.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
+import type { BootstrapRow } from "../server/bootstrap.ts";
 import type {
   ActionResult,
   AuthorizeOptions,
@@ -27,9 +28,7 @@ import type {
   ContextOptions,
   ServerContext,
 } from "../server/server-types.ts";
-import type { BootstrapRow } from "./bootstrap.ts";
 import type {
-  Access,
   Bootstrap,
   BootstrapOptions,
   BetterNext,
@@ -40,11 +39,7 @@ import type {
   ScopeOptions,
 } from "./types.ts";
 
-import {
-  isSessionSnapshot,
-  sessionCacheKey,
-  snapshotOf,
-} from "../auth/snapshot.ts";
+import { isSessionSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
 import { methodOf } from "../blocks/block-method.ts";
@@ -57,6 +52,11 @@ import { validate } from "../core/standard.ts";
 import { EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
 import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
+import {
+  accessOf,
+  bootstrapSchema,
+  bootstrapWith,
+} from "../server/bootstrap.ts";
 import { serverCore } from "../server/entries/core.ts";
 import { outageResponse } from "../server/entries/session.ts";
 import { withExtra } from "../server/extra.ts";
@@ -68,7 +68,6 @@ import {
 import { resourceRouter } from "../server/resources.ts";
 import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
-import { bootstrapSchema, runBootstrap } from "./bootstrap.ts";
 import {
   cachedLife,
   invalidateAll,
@@ -572,17 +571,6 @@ export function createNext<
   /** The bootstrap calls of one request, by session key, schema, rpc and args. */
   const bootstrapCalls = cache(() => new Map<string, Promise<BootstrapRow>>());
 
-  const signedOutBootstrap = (
-    view: AuthSession<C, P>,
-    tenant: string | undefined,
-  ): Bootstrap<C, P, never> => ({
-    session: view,
-    tenant: tenant ?? null,
-    authzVersion: null,
-    sessionActive: false,
-    data: null,
-  });
-
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
   >(withAccounts, {
@@ -635,71 +623,48 @@ export function createNext<
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>>,
     ): Promise<Bootstrap<C, P, T>> {
       const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
-      const snapshot = snapshotOf(ctx.auth);
-
-      if (view.kind !== "user" || !snapshot) {
-        applyEntry(ctx, view, scope, tenant, bootstrapOptions);
-
-        return signedOutBootstrap(view, tenant);
-      }
-
-      const schema = bootstrapSchema(bootstrapOptions, options, betterSupabase);
-
-      const args = { ...bootstrapOptions.args, ...(tenant ? { tenant } : {}) };
       const calls = bootstrapCalls();
-      const callKey = `${sessionCacheKey(snapshot)}|${schema}|${bootstrapOptions.rpc}|${JSON.stringify(args)}`;
 
-      let call = calls.get(callKey);
+      const result = await bootstrapWith<C, P, T>(
+        {
+          schema: (call) => bootstrapSchema(call, options, betterSupabase),
+          evictSession,
+          versions: base.versions,
+        },
+        ctx,
+        bootstrapOptions,
+        tenant,
+        (key, run) => {
+          let call = calls.get(key);
 
-      if (!call) {
-        call = runBootstrap(
-          ctx.db.$executor,
-          schema,
-          bootstrapOptions.rpc,
-          args,
-        );
-        calls.set(callKey, call);
-      }
+          if (!call) {
+            call = run();
+            calls.set(key, call);
+          }
 
-      const row = await call;
+          return call;
+        },
+      );
 
-      if (!row.sessionActive) {
+      if (result.session.kind === "user" && !result.sessionActive) {
         cacheLife({ stale: 0, revalidate: 0, expire: 0 });
-        await evictSession(view.user.id);
 
         if (bootstrapOptions.redirect !== undefined) {
           redirect(`${bootstrapOptions.redirect}?reason=session_not_found`);
         }
 
-        return {
-          session: view,
-          sessionActive: false,
-          authzVersion: row.authzVersion,
-          tenant: row.tenant ?? tenant ?? null,
-          data: null,
-        };
-      }
-
-      if (row.authzVersion !== null) {
-        await options.versions?.seed?.(view.user.id, row.authzVersion);
+        return result;
       }
 
       applyEntry(
         ctx,
         view,
         scope,
-        tenant ?? row.tenant ?? undefined,
+        result.tenant ?? undefined,
         bootstrapOptions,
       );
 
-      return {
-        session: view,
-        sessionActive: true,
-        authzVersion: row.authzVersion,
-        tenant: row.tenant ?? tenant ?? null,
-        // SAFETY: the app's function decides the data's type; the wrapper passes its jsonb through.
-        data: row.data as T | null,
-      };
+      return result;
     },
 
     async getAccess(source, accessOptions = {}) {
@@ -717,40 +682,16 @@ export function createNext<
         tenant === undefined ? {} : { tenant },
       );
 
-      const view = toSession(ctx.auth);
-      const resolvedTenant = tenant ?? tenantFor(ctx, view) ?? null;
-
-      const access: Access<
-        ServerContext<M, F, E, C, P, B>,
-        C,
-        P,
-        PermissionRef<A>
-      > = {
-        context: ctx,
-        session: view,
-        tenant: resolvedTenant,
-        authzVersion: boot
-          ? boot.authzVersion
-          : (snapshot?.authzVersion ?? null),
-        async can(permission) {
-          if (view.kind !== "user") {
-            return false;
-          }
-
-          const outcome = await authorizeAuth(
-            ctx.auth,
-            { permission },
-            undefined,
-            resolvedTenant ?? undefined,
-            base.authorizer,
-            ctx,
-          );
-
-          return !("kind" in outcome && "message" in outcome);
+      return accessOf<ServerContext<M, F, E, C, P, B>, C, P, PermissionRef<A>>(
+        ctx,
+        {
+          tenant: tenant ?? tenantFor(ctx, toSession(ctx.auth)) ?? null,
+          authzVersion: boot
+            ? boot.authzVersion
+            : (snapshot?.authzVersion ?? null),
+          authorizer: base.authorizer,
         },
-      };
-
-      return access;
+      );
     },
 
     locale: () => rootParam(options.rootParams?.locale),

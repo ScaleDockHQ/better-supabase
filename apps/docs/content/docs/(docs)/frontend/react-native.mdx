@@ -111,6 +111,26 @@ better-supabase never imports `react-native`; any object with `currentState`
 and `addEventListener("change", listener)` works, including a fake in a unit
 test.
 
+## Refreshing when roles change
+
+The timer refreshes a token shortly before it expires, so a role taken away
+mid-session stays in the token until then. With the sessions module's
+`authzVersions` option, `SessionProvider` from `better-supabase/react/native`
+refreshes it as soon as the database bumps the user's version, while the app is
+in the foreground and on its return, and reconnects PowerSync afterwards:
+
+```tsx title="src/app/_layout.native.tsx"
+import { SessionProvider } from "better-supabase/react/native";
+import { AppState } from "react-native";
+
+<SessionProvider appState={AppState} powersync={sync}>
+  <Stack />
+</SessionProvider>;
+```
+
+[Authorization refresh on native](/docs/frontend/authorization-refresh-native)
+covers the props, PowerSync and tenant switches.
+
 ## Large sessions
 
 `largeSecureStorage` keeps a session of any size without chunking: it

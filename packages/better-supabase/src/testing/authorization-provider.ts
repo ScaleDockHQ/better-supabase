@@ -1,6 +1,6 @@
 import type { AuthorizationProvider } from "../config/authorization.ts";
 import type { DisabledRow } from "../config/blocks.ts";
-import type { ConformanceReport } from "./conformance.ts";
+import type { Check, ConformanceReport } from "./conformance.ts";
 
 import {
   isScopeName,
@@ -10,7 +10,8 @@ import {
   templatePlaceholders,
   templateProblems,
 } from "../core/access-sql.ts";
-import { PERMISSIONS_CLAIM } from "../core/claim-names.ts";
+import { authzUserTopic } from "../core/authz-topic.ts";
+import { AUTHZ_VERSION_CLAIM, PERMISSIONS_CLAIM } from "../core/claim-names.ts";
 import { conform, expect } from "./conformance.ts";
 import { hasName } from "./kits/executor.ts";
 
@@ -76,6 +77,37 @@ function expectRow(where: string, row: DisabledRow): void {
   );
 }
 
+/** One query runner, as `createPostgres()` returns it. */
+interface ProviderSqlClient {
+  queryRaw<R = Record<string, unknown>>(
+    text: string,
+    params?: unknown[],
+  ): Promise<R[]>;
+}
+
+/**
+ * The database the provider's SQL is installed in: `createPostgres()` from
+ * `better-supabase/postgres` fits.
+ */
+export interface ProviderPostgres {
+  readonly admin: ProviderSqlClient;
+  asUser(claims: {
+    readonly sub: string;
+    readonly role: string;
+  }): ProviderSqlClient;
+}
+
+export interface AuthorizationProviderKitOptions {
+  /**
+   * Runs the checks that need the provider's SQL: the `versions` function's
+   * signature, that a user can't read another user's version, and the Realtime
+   * policy for `authz:<uid>`.
+   */
+  readonly postgres?: ProviderPostgres;
+}
+
+const VERSION_FUNCTION = /^[a-z_][a-z0-9_$]*\.[a-z_][a-z0-9_$]*$/;
+
 /**
  * Proves an `AuthorizationProvider` targets API v1, is plain JSON, names valid
  * scopes with a tenant scope that has an id type, writes templates that are
@@ -83,10 +115,14 @@ function expectRow(where: string, row: DisabledRow): void {
  * templates call in `requires`, and keeps its token hook, suspension rows, role
  * sources and deciding columns well formed. A hook that writes `permissions`
  * (owned or registered) needs a key marked `sqlComplete`, and one truncated
- * marker when its budget can cut the claim.
+ * marker when its budget can cut the claim. A provider that keeps the
+ * authorization versions names a `schema.function` and, when it has a token
+ * hook, writes `authz_ver` from it; with `options.postgres` the kit also checks
+ * that function and the Realtime policy in the database.
  */
 export function testAuthorizationProvider(
   provider: AuthorizationProvider,
+  options: AuthorizationProviderKitOptions = {},
 ): Promise<ConformanceReport> {
   const scopes = new Set(provider.scopes.map((scope) => scope.name));
 
@@ -433,5 +469,120 @@ export function testAuthorizationProvider(
         );
       },
     ],
+    ...versionChecks(provider, options.postgres),
   ]);
+}
+
+const AUTHZ_TOPIC_PREFIX = authzUserTopic("");
+
+function versionChecks(
+  provider: AuthorizationProvider,
+  postgres: ProviderPostgres | undefined,
+): Check[] {
+  const versions = provider.versions;
+
+  if (!versions) {
+    return [];
+  }
+
+  const fn = versions.function;
+  const [schema = "", name = ""] = fn.split(".");
+
+  const checks: Check[] = [
+    [
+      "names its versions function as schema.function",
+      () => {
+        expect(
+          VERSION_FUNCTION.test(fn),
+          `versions.function "${fn}" is not a lower-case schema.function`,
+        );
+      },
+    ],
+    [
+      `writes "${AUTHZ_VERSION_CLAIM}" from its versions`,
+      () => {
+        const hook = provider.tokenHook;
+
+        if (!hook) {
+          return;
+        }
+
+        expect(
+          hook.ownedClaims.includes(AUTHZ_VERSION_CLAIM) ||
+            (hook.registeredClaims ?? []).some(
+              (claim) => claim.name === AUTHZ_VERSION_CLAIM,
+            ),
+          `versions names ${fn}, but tokenHook neither owns nor registers "${AUTHZ_VERSION_CLAIM}": tokens would carry no version to compare`,
+        );
+      },
+    ],
+  ];
+
+  if (!postgres) {
+    return checks;
+  }
+
+  return [
+    ...checks,
+    [
+      "its versions function takes a uuid and returns bigint",
+      async () => {
+        const rows = await postgres.admin.queryRaw<{ returns: string }>(
+          `select format_type(p.prorettype, null) as returns
+           from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where n.nspname = $1 and p.proname = $2
+             and pg_get_function_identity_arguments(p.oid) ~ '^([a-z_]+ )?uuid$'`,
+          [schema, name],
+        );
+
+        expect(rows.length === 1, `${fn}(uuid) does not exist`);
+        expect(
+          rows[0]?.returns === "bigint",
+          `${fn}(uuid) returns ${rows[0]?.returns ?? "nothing"}, not bigint`,
+        );
+      },
+    ],
+    [
+      "a user can't read another user's version",
+      async () => {
+        const caller = crypto.randomUUID();
+        let read: unknown;
+
+        try {
+          const rows = await postgres
+            .asUser({ sub: caller, role: "authenticated" })
+            .queryRaw<{ version: unknown }>(
+              `select ${schema}.${name}($1::uuid) as version`,
+              [crypto.randomUUID()],
+            );
+
+          read = rows[0]?.version ?? null;
+        } catch {
+          read = null;
+        }
+
+        expect(
+          read === null,
+          `an authenticated user read another user's version from ${fn}: close it to client roles, or return null for anyone but auth.uid()`,
+        );
+      },
+    ],
+    [
+      `a Realtime policy lets users receive ${AUTHZ_TOPIC_PREFIX}<uid>`,
+      async () => {
+        const rows = await postgres.admin.queryRaw<{ name: string }>(
+          `select policyname as name from pg_policies
+           where schemaname = 'realtime' and tablename = 'messages'
+             and cmd in ('SELECT', 'ALL')
+             and coalesce(qual, '') like $1`,
+          [`%${AUTHZ_TOPIC_PREFIX}%`],
+        );
+
+        expect(
+          rows.length > 0,
+          `no policy on realtime.messages mentions "${AUTHZ_TOPIC_PREFIX}": clients can't receive the version broadcast`,
+        );
+      },
+    ],
+  ];
 }

@@ -99,16 +99,16 @@ const apiVersion: ContractApiVersion = 1;
 
 ## What reads it
 
-| Feature                                                                                           | What it takes from the provider                                                   |
-| ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `blocks.permissions.model: "provider"`                                                            | `can()` and the modules' checks call `functions`, at `tenantScope`                |
-| `auth.entitlements.memberships: "provider"`                                                       | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor` |
-| Bucket and topic `access` policies with `sql`                                                     | the `idsWith` and `isPlatform` templates, for any scope in `scopes`               |
-| `on.<type>.scope` in attachments and comments                                                     | `idsWith` at that scope, for grants on a single record                            |
-| [API keys](/docs/blocks/api-keys) with `claim`                                                    | nothing at runtime; the claim names follow the provider's functions               |
-| `better-supabase add memberships`                                                                 | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)      |
-| `better-supabase gen`                                                                             | refuses a bucket or topic key that isn't `sqlComplete: true`                      |
-| [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411, BS419 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`          |
+| Feature                                                                                                  | What it takes from the provider                                                      |
+| -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `blocks.permissions.model: "provider"`                                                                   | `can()` and the modules' checks call `functions`, at `tenantScope`                   |
+| `auth.entitlements.memberships: "provider"`                                                              | `has_entitlement` and `entitlement_members()` call `memberIds` and `memberIdsFor`    |
+| Bucket and topic `access` policies with `sql`                                                            | the `idsWith` and `isPlatform` templates, for any scope in `scopes`                  |
+| `on.<type>.scope` in attachments and comments                                                            | `idsWith` at that scope, for grants on a single record                               |
+| [API keys](/docs/blocks/api-keys) with `claim`                                                           | nothing at runtime; the claim names follow the provider's functions                  |
+| `better-supabase add memberships`                                                                        | refuses when `tokenHook.ownedClaims` has `memberships` (`--force` writes it)         |
+| `better-supabase gen`                                                                                    | refuses a bucket or topic key that isn't `sqlComplete: true`                         |
+| [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411, BS419, BS420 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`, `versions` |
 
 `auth.entitlements.memberships` and `blocks.permissions.model` both default to
 `"provider"` when `authorization` is set. Set another access model to keep
@@ -141,6 +141,7 @@ interface AuthorizationProvider {
   roleSources?: AuthorizationRoleSource[];
   decidingColumns?: string[];
   tokenHook?: AuthorizationTokenHook;
+  versions?: { function: string };
   approvals?: { distinctApprover?: boolean };
   operations?: Record<string, AuthorizationOperation>;
   problems?: string[];
@@ -704,6 +705,29 @@ subscribeAuthzVersions({
 With your own trigger, pass `topic`, `event` and `userIdKey` to match what
 it sends (defaults `AUTHZ_TOPIC`, `"changed"` and `"user_id"`).
 
+### Versions the provider keeps
+
+A provider whose library already stores a version per user names its
+function in `versions`, so the app doesn't get a second table:
+
+```ts
+versions: { function: "authz.user_version" },
+```
+
+The function takes the user id and returns a `bigint`, 0 before the first
+change. It can be closed to client roles. The provider then broadcasts
+`{ user_id, version }` as `changed` on `authz:<uid>` (and `AUTHZ_TOPIC` for
+servers, if it wants server eviction), ships the `realtime.messages` policy
+that lets each user receive their own topic, and has its token hook write
+`authz_ver` from the same function.
+
+With `versions` set, `authzVersions: true` renders no table, trigger,
+broadcast or receive policy. It still adds
+`better_supabase.caller_authz_version()`, which the bootstrap wrappers and
+`api.caller_authz_version()` read, and which calls the provider's function
+for `auth.uid()`. Doctor BS420 reports a `user_authz_versions` table left
+from before and an app hook that still reads `better_supabase.authz_version`.
+
 A provider that caches its own entries in `bsb.cached()` scopes returns
 their tags from `sessionTags(userId)` in its authorization hooks. Cached
 entries then carry those tags, and `evictSession`, sign-out and
@@ -742,6 +766,15 @@ export const versions = createVersionCache({ maxStaleMs: 30_000 });
 your library for its name. It bounds how long another instance can decide
 with an old version.
 
+Devices follow the same versions. The browser and native `SessionProvider`
+listen on `authz:<uid>` by default and refresh the token when the version is
+ahead of the token's `authz_ver`, and the native one reconnects PowerSync
+afterwards. A library that broadcasts on its own topic passes `topic` and
+`event`, or an `AuthzVersionSource` as `source` when it delivers versions
+another way; the token hook must still write `authz_ver`, because the
+providers compare against it
+([Authorization refresh on native](/docs/frontend/authorization-refresh-native)).
+
 ## Test a provider
 
 `testAuthorizationProvider` from `better-supabase/testing` checks API v1,
@@ -761,14 +794,27 @@ positive integer. It also checks that the hook names one truncated marker
 (an identifier, apart from the claims it marks, the same in `truncatedClaim`
 and `budget.truncatedClaim`, and present when the budget counts a
 `permissions` claim the hook writes), and that a hook writing `permissions`
-has at least one `sqlComplete` key. See
+has at least one `sqlComplete` key. With `versions`, it checks that the
+function is a lower-case `schema.function` and that the token hook, if any,
+owns or registers `authz_ver`. Pass `{ postgres }` (from `createPostgres()`
+in `better-supabase/postgres`) against a database with the provider's SQL
+applied, and it also checks that the function takes a `uuid` and returns
+`bigint`, that a signed-in user can't read another user's version, and that a
+`realtime.messages` policy mentions `authz:`. See
 [conformance blocks](/docs/extending/conformance).
 
 ```ts title="tests/provider.test.ts"
+import { createPostgres } from "better-supabase/postgres";
 import { testAuthorizationProvider } from "better-supabase/testing";
-import { it } from "vitest";
+import { afterAll, it } from "vitest";
+
+const postgres = createPostgres({ connectionString: process.env.DATABASE_URL });
+afterAll(() => postgres.end());
 
 it("conforms", () => testAuthorizationProvider(authorizationProvider()));
+
+it("conforms in the database", () =>
+  testAuthorizationProvider(authorizationProvider(), { postgres }));
 ```
 
 A provider for a new contract version sets another `apiVersion`; this release

@@ -165,6 +165,8 @@ const needed = await db.approvals
   .orThrow();
 ```
 
+Each step of a tenant policy has its own quorum, checked the same way as the config: `required` is a whole number of at least 1 or `"all"`. On a step that only lists `users`, a number above the number of users fails with `APPROVAL_POLICY_INVALID`, and `"all"` is saved as that number, so `listPolicies` returns `required: 2` for two users.
+
 Saving and removing a policy needs `approvals.manage` and goes to the audit log; `listPolicies` needs `approvals.read`. `requirement(subjectType, action, payload)` returns the merged policy for a payload, or `null` when nothing is required, so the app can run the action without a request. `request` refuses a request nothing requires with `APPROVAL_NOT_REQUIRED`.
 
 ## Requests without an organization

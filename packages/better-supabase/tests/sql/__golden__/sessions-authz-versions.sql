@@ -110,3 +110,24 @@ create policy bsb_authz_versions_receive on realtime.messages
   end if;
 end;
 $$;
+
+-- The caller's own authorization version, null without a signed-in user.
+-- Clients compare it with the token's authz_ver to catch up on a broadcast
+-- they missed.
+create or replace function better_supabase.caller_authz_version()
+returns bigint
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    return null;
+  end if;
+  return better_supabase.authz_version(auth.uid());
+end;
+$$;
+
+revoke execute on function better_supabase.caller_authz_version() from public, anon;
+grant execute on function better_supabase.caller_authz_version() to authenticated;

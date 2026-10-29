@@ -29,6 +29,15 @@ export interface PowerSyncInput {
   readonly instances: readonly PowerSyncInstance[];
   /** The module the schema file imports `column` and `Table` from. */
   readonly importFrom: string;
+  /**
+   * By instance key, the app's own tables it runs over (`blocks.<key>.tables`)
+   * with their column types, by `schema.table`. The block's files don't create
+   * them, so their columns come from the snapshot.
+   */
+  readonly own?: ReadonlyMap<
+    string,
+    ReadonlyMap<string, ReadonlyMap<string, string>>
+  >;
 }
 
 /** A synced table: `schema.table`, its stream query and its columns. */
@@ -112,7 +121,10 @@ function tablesOf(
     ),
   );
 
-  return declaredColumnTypes(files, [...schemas]);
+  return new Map([
+    ...declaredColumnTypes(files, [...schemas]),
+    ...(input.own?.get(key) ?? []),
+  ]);
 }
 
 /** The table of `tables` that has every one of `columns`. */

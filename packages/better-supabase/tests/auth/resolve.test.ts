@@ -686,6 +686,57 @@ describe("issuer", () => {
   });
 });
 
+describe("loopback issuer aliases", () => {
+  const local = { ...env, url: "http://127.0.0.1:54321" };
+
+  const token = (iss: string) => signer.sign({ sub: USER, iss });
+
+  const kind = async (
+    iss: string,
+    options: Partial<ResolveAuthOptions> = {},
+  ): Promise<string> =>
+    (
+      await resolveAuth(bearer(await token(iss)), {
+        env: local,
+        jwks: keys(),
+        ...options,
+      })
+    ).auth.kind;
+
+  it("accepts the loopback and emulator hosts on the same port and path", async () => {
+    expect(await kind("http://localhost:54321/auth/v1")).toBe("user");
+    expect(await kind("http://10.0.2.2:54321/auth/v1")).toBe("user");
+    expect(await kind("http://10.0.3.2:54321/auth/v1")).toBe("user");
+    expect(await kind("http://[::1]:54321/auth/v1")).toBe("user");
+    expect(await kind("http://localhost:54322/auth/v1")).toBe("invalid");
+    expect(await kind("http://localhost:54321/other")).toBe("invalid");
+    expect(await kind("https://localhost:54321/auth/v1")).toBe("invalid");
+  });
+
+  it("accepts a listed LAN host and no other", async () => {
+    const lan = "http://192.168.1.20:54321/auth/v1";
+
+    expect(await kind(lan)).toBe("invalid");
+    expect(await kind(lan, { loopbackAliases: ["192.168.1.20"] })).toBe("user");
+    expect(
+      await kind("http://192.168.1.21:54321/auth/v1", {
+        loopbackAliases: ["192.168.1.20"],
+      }),
+    ).toBe("invalid");
+  });
+
+  it("never applies to a public project URL", async () => {
+    expect(
+      (
+        await resolveAuth(
+          bearer(await token("http://127.0.0.1:54321/auth/v1")),
+          { env, jwks: keys(), loopbackAliases: ["127.0.0.1"] },
+        )
+      ).auth.kind,
+    ).toBe("invalid");
+  });
+});
+
 describe("shared JWKS", () => {
   it("fetches the JWKS once for resolvers in separate module graphs", async () => {
     clearKeyCaches();

@@ -138,6 +138,12 @@ export interface UploadConnectorOptions {
 
 /** PowerSync's `PowerSyncBackendConnector`. */
 export interface UploadConnector {
+  /**
+   * Reads the current session on every call. PowerSync calls it on connect and
+   * near `expiresAt`; it has no way to drop credentials early, so
+   * `syncWithAuth` reconnects when the claims change to make it read the new
+   * token.
+   */
   fetchCredentials(): Promise<{
     readonly endpoint: string;
     readonly token: string;

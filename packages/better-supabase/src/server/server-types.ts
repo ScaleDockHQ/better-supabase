@@ -34,6 +34,12 @@ import type { BetterPostgres, SqlClaims } from "../postgres/pool.ts";
 import type { AnyFunctions, AnyModels } from "../schema/types.ts";
 import type { StorageApi } from "../storage/storage-api.ts";
 import type {
+  Access,
+  AccessForOptions,
+  Bootstrap,
+  BootstrapCallOptions,
+} from "./bootstrap.ts";
+import type {
   DeleteAccountOptions,
   DeleteAccountResult,
 } from "./delete-account.ts";
@@ -203,6 +209,12 @@ export interface ServerOptions<
    * token on every call.
    */
   readonly sessions?: SessionMemoOptions | false;
+  /**
+   * The schema bootstrap calls run in. Defaults to the one `gen` records from
+   * the sessions block (`blocks.sessions.api`, then `sql.api`, then its
+   * `schema`), else `better_supabase`.
+   */
+  readonly bootstrapSchema?: string;
 }
 
 /** How the server reads the approval id a client resumes with. */
@@ -510,10 +522,11 @@ export interface BetterServer<
   snapshot(request: Request): Promise<SessionSnapshot<C> | null>;
   /**
    * The context of a session snapshot: stateless clients and the claims, with
-   * no cookie access and no network call. A snapshot this process didn't build
-   * (one that crossed serialization) is verified again through the memo; one
-   * whose token doesn't verify, or names another user, gets an `invalid`
-   * context. `null` (no session) gets an anonymous one.
+   * no cookie access and no network call. The token is never verified again: a
+   * snapshot this process didn't build (one that crossed serialization or was
+   * built by hand) gets an `invalid` context, so resolve the request again with
+   * `context()` or `snapshot()`. An expired snapshot gets a signed-out context,
+   * and `null` (no session) an anonymous one.
    */
   contextFromSession(
     snapshot: SessionSnapshot<C> | null,
@@ -521,6 +534,25 @@ export interface BetterServer<
   ): Promise<ServerContext<M, F, E, C, P, B>>;
   /** The verified-session memo behind `snapshot()`. */
   readonly sessions: ServerSessions<C, P>;
+  /**
+   * One call for a request's user data: runs the sessions module's
+   * `bootstrap_<rpc>` wrapper as the caller, which checks `session_active()`
+   * and returns the live authorization version with the app function's data.
+   * Calls with the same key share one query per request. A false
+   * `sessionActive` evicts the user.
+   */
+  bootstrapFor<T = unknown>(
+    request: Request,
+    options: BootstrapCallOptions,
+  ): Promise<Bootstrap<C, P, T>>;
+  /**
+   * The context, tenant and permission checks for a request or a snapshot,
+   * bound to one authorization version (the bootstrap's when you pass it).
+   */
+  accessFor(
+    source: Request | SessionSnapshot<C> | null,
+    options?: AccessForOptions<C, P>,
+  ): Promise<Access<ServerContext<M, F, E, C, P, B>, C, P>>;
 
   /**
    * Evicts the user from the session memo and `versions`. Adapters with a cache

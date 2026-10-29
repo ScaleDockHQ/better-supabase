@@ -171,6 +171,7 @@ export type {
   AuthorizationRoleSource,
   AuthorizationScope,
   AuthorizationTokenHook,
+  AuthorizationVersions,
 } from "./authorization.ts";
 
 export { providerApiProblem } from "./authorization.ts";

@@ -7,20 +7,29 @@ import type {
 
 import { startAuthzRefresh } from "../../src/react/authz-refresh.ts";
 
-function fakeClient() {
+function fakeClient(live?: number, event = "changed") {
   const handlers: ((message: { payload?: unknown }) => void)[] = [];
   const topics: string[] = [];
   const refreshSession = vi.fn(async () => ({}));
   const unsubscribe = vi.fn(async () => "ok");
 
+  const rpc = vi.fn(async (_fn: "caller_authz_version") => ({
+    data: live === undefined ? null : String(live),
+    error: null,
+  }));
+
   const channel: AuthzRefreshChannel = {
     on(_type, filter, callback) {
-      expect(filter.event).toBe("changed");
+      expect(filter.event).toBe(event);
       handlers.push(callback);
 
       return channel;
     },
-    subscribe: () => channel,
+    subscribe(callback) {
+      callback?.("SUBSCRIBED");
+
+      return channel;
+    },
     unsubscribe,
   };
 
@@ -32,6 +41,7 @@ function fakeClient() {
       return channel;
     },
     auth: { refreshSession },
+    ...(live === undefined ? {} : { rpc }),
   };
 
   const send = (payload: unknown): void => {
@@ -40,7 +50,7 @@ function fakeClient() {
     }
   };
 
-  return { client, topics, refreshSession, unsubscribe, send };
+  return { client, topics, refreshSession, unsubscribe, rpc, send };
 }
 
 const settle = () =>
@@ -160,6 +170,96 @@ describe("startAuthzRefresh", () => {
     await settle();
 
     expect(onError).toHaveBeenCalledWith(new Error("offline"));
+
+    stop();
+  });
+
+  it("catches up on join when the live version is ahead of the token", async () => {
+    const fake = fakeClient(4);
+    const onChange = vi.fn();
+
+    const stop = startAuthzRefresh({
+      client: fake.client,
+      userId: "u1",
+      channel: false,
+      tokenVersion: () => 3,
+      onChange,
+    });
+
+    await settle();
+    expect(fake.rpc).toHaveBeenCalledWith("caller_authz_version");
+    expect(fake.refreshSession).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenCalledOnce();
+
+    stop();
+  });
+
+  it("does not refresh on join when the token is current or has no version", async () => {
+    for (const tokenVersion of [4, null]) {
+      const fake = fakeClient(4);
+
+      const stop = startAuthzRefresh({
+        client: fake.client,
+        userId: "u1",
+        channel: false,
+        tokenVersion: () => tokenVersion,
+        onChange: vi.fn(),
+      });
+
+      await settle();
+      expect(fake.refreshSession).not.toHaveBeenCalled();
+      stop();
+    }
+  });
+
+  it("listens on a custom topic and event", async () => {
+    const fake = fakeClient(undefined, "authz");
+
+    const stop = startAuthzRefresh({
+      client: fake.client,
+      userId: "u1",
+      channel: false,
+      topic: (userId) => `acl:${userId}`,
+      event: "authz",
+      onChange: vi.fn(),
+    });
+
+    fake.send({ version: 2 });
+    await settle();
+    expect(fake.topics).toEqual(["acl:u1"]);
+    expect(fake.refreshSession).toHaveBeenCalledOnce();
+
+    stop();
+  });
+
+  it("follows a custom version source", async () => {
+    const listeners: ((version: number) => void)[] = [];
+    const fake = fakeClient();
+
+    const stop = startAuthzRefresh({
+      client: fake.client,
+      userId: "u1",
+      channel: false,
+      tokenVersion: () => 1,
+      source: {
+        current: async () => 1,
+        subscribe(listener) {
+          listeners.push(listener);
+
+          return () => undefined;
+        },
+      },
+      onChange: vi.fn(),
+    });
+
+    for (const listener of listeners) {
+      listener(1);
+      listener(2);
+    }
+
+    await settle();
+    expect(fake.topics).toEqual([]);
+    expect(fake.refreshSession).toHaveBeenCalledOnce();
 
     stop();
   });

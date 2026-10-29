@@ -45,5 +45,8 @@ export default {
     "search_notes_scores": {"name":"search_notes_scores","schema":"public","args":[{"name":"k","type":"int4"},{"name":"query","type":"vector"}],"returns":"record","returnsSet":true,"volatility":"stable"},
     "set_my_avatar_path": {"name":"set_my_avatar_path","schema":"public","args":[{"name":"avatar_path","type":"text"}],"returns":"void","returnsSet":false,"volatility":"volatile"},
     "update_my_profile": {"name":"update_my_profile","schema":"public","args":[{"name":"full_name","type":"text"}],"returns":"void","returnsSet":false,"volatility":"volatile"}
+  },
+  "bootstrap": {
+    "schema": "api"
   }
 };

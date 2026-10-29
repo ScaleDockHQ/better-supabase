@@ -4,7 +4,12 @@ import { afterAll, describe, it } from "vitest";
 import { defineSupabase } from "../../src/core/define.ts";
 import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { createPostgres, postgresExecutor } from "../../src/postgres/index.ts";
+import { testAuthorizationProvider } from "../../src/testing/authorization-provider.ts";
 import { testExecutor } from "../../src/testing/kits/executor.ts";
+import {
+  stubProvider,
+  withProvider,
+} from "../fixtures/authorization-provider.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
 
@@ -62,4 +67,16 @@ describe.skipIf(!live)("built-in executors conform", () => {
       table: "tags",
       create: create("postgres"),
     }));
+
+  it("a provider whose versions are the fixture's authz_version", () =>
+    testAuthorizationProvider(
+      withProvider({
+        versions: { function: "better_supabase.authz_version" },
+        tokenHook: {
+          ...stubProvider.tokenHook,
+          ownedClaims: [...stubProvider.tokenHook.ownedClaims, "authz_ver"],
+        },
+      }),
+      { postgres },
+    ));
 });

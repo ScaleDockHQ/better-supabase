@@ -266,6 +266,16 @@ export interface AuthorizationTokenHook {
   readonly grantsCommand?: string;
 }
 
+/** Where a provider keeps the authorization versions. */
+export interface AuthorizationVersions {
+  /**
+   * `schema.name` of a `(uuid) returns bigint` function: the user's current
+   * version, 0 before the first change. It may be closed to client roles;
+   * better-supabase calls it from a security definer function.
+   */
+  readonly function: string;
+}
+
 /**
  * An authorization system the SQL modules, the policies and doctor delegate to.
  * It is plain data, usually built from the provider's own output files.
@@ -296,6 +306,15 @@ export interface AuthorizationProvider {
   /** `schema.table.column` of every column that decides access (BS213). */
   readonly decidingColumns?: readonly string[];
   readonly tokenHook?: AuthorizationTokenHook;
+  /**
+   * The provider keeps each user's authorization version (the `authz_ver`
+   * claim). `blocks.sessions.options.authzVersions` then creates no version
+   * table of its own: `better_supabase.caller_authz_version()` and the
+   * bootstrap wrappers read this function. The provider also broadcasts `{
+   * user_id, version }` as `changed` on `authz:<uid>` and ships the
+   * `realtime.messages` policy that lets the user receive it.
+   */
+  readonly versions?: AuthorizationVersions;
   /** What a delegated token (an OAuth client or agent) may use. */
   readonly delegation?: {
     /**

@@ -78,7 +78,9 @@ describe("timeline transition and message sources", () => {
     );
     expect(sql).toContain(`and m."sent_at" is not null`);
     expect(sql).toContain(`and m."deleted_at" is null`);
-    expect(sql).toContain(`'type', 'message.sent'`);
+    expect(sql).toContain(
+      `'type', case when c."kind" = 'subject' then 'comment.posted' else 'message.sent' end`,
+    );
     expect(sql).toContain(`'source', 'message'`);
   });
 
@@ -87,5 +89,33 @@ describe("timeline transition and message sources", () => {
 
     expect(sql).toContain("'source', 'transition'");
     expect(sql).toContain("'source', 'message'");
+  });
+
+  it("drops the stored entries the read-time sources return", () => {
+    const sql = render(["state-machine", "messaging", "timeline", "subjects"]);
+
+    const event = sql.slice(
+      sql.indexOf("'source', 'event'"),
+      sql.indexOf("'source', 'transition'"),
+    );
+
+    expect(event).toContain("and not ((y.\"type\" = 'status.changed' and");
+    expect(event).toContain(
+      "(y.\"type\" in ('message.sent', 'comment.posted') and",
+    );
+    expect(event).toContain("'transition' = any (list_activity.sources)");
+    expect(event).toContain("'message' = any (list_activity.sources)");
+  });
+
+  it("renders the feed with the sink and both sources", async () => {
+    await expect(
+      render(["state-machine", "messaging", "timeline", "subjects"]),
+    ).toMatchFileSnapshot("../__golden__/timeline-sources.sql");
+  });
+
+  it("keeps every stored entry without the read-time sources", () => {
+    const sql = render(["timeline", "subjects"]);
+
+    expect(sql).not.toContain("and not ((y.");
   });
 });

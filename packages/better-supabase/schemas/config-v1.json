@@ -1186,6 +1186,17 @@
               "required": ["function", "ownedClaims"],
               "additionalProperties": false
             },
+            "versions": {
+              "type": "object",
+              "properties": {
+                "function": {
+                  "type": "string",
+                  "pattern": "^[a-z_][a-z0-9_$]*\\.[a-z_][a-z0-9_$]*$"
+                }
+              },
+              "required": ["function"],
+              "additionalProperties": false
+            },
             "delegation": {
               "type": "object",
               "properties": {

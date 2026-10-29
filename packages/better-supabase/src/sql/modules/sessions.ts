@@ -97,17 +97,40 @@ function bootstrapFunctions(
 }
 
 /**
+ * Whether the database keeps a live authorization version: the module's own
+ * table (`authzVersions`) or the provider's (`authorization.versions`).
+ */
+function hasVersionSource(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): boolean {
+  return (
+    layout.authzVersionsProvider !== undefined ||
+    ctx.flag("authzVersions", false)
+  );
+}
+
+/**
  * One wrapper per `bootstrap` entry: the session check, the authorization
  * version and the app function's data in one jsonb, so a page's first query
  * carries all three. It runs as the caller, so the app function's policies
- * apply.
+ * apply. `authz_version` is the live version when the database keeps one, so a
+ * seeded version cache never hides a role change the token predates;
+ * `token_authz_version` is the token's.
  */
-function bootstrapWrappers(ctx: BlockSqlContext): string {
+function bootstrapWrappers(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
   const functions = bootstrapFunctions(ctx);
 
   if (functions.length === 0) {
     return "";
   }
+
+  const live = hasVersionSource(ctx, layout)
+    ? "to_jsonb(better_supabase.caller_authz_version())"
+    : "auth.jwt() -> 'authz_ver'";
 
   const wrappers = functions.map(([name, fn]) => {
     const wrapper = `better_supabase.bootstrap_${name}`;
@@ -123,13 +146,15 @@ begin
     return jsonb_build_object(
       'session_active', false,
       'authz_version', auth.jwt() -> 'authz_ver',
+      'token_authz_version', auth.jwt() -> 'authz_ver',
       'tenant', args ->> 'tenant',
       'data', null
     );
   end if;
   return jsonb_build_object(
     'session_active', true,
-    'authz_version', auth.jwt() -> 'authz_ver',
+    'authz_version', ${live},
+    'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
     'data', to_jsonb(${fn}(args))
   );
@@ -144,17 +169,66 @@ grant execute on function ${wrapper}(jsonb) to authenticated;`;
 
 -- blocks['sessions'].options.bootstrap: bsb.bootstrap({ rpc }) calls these.
 -- Each checks the session and returns the caller's authorization version
--- with the app function's data, so a cache miss is one query.
+-- (the live one when the database keeps it, and the token's) with the app
+-- function's data, so a cache miss is one query.
 ${wrappers.join("\n\n")}`;
+}
+
+/**
+ * `better_supabase.caller_authz_version()`: the caller's own live version, for
+ * the bootstrap wrappers and for clients that catch up after a missed
+ * broadcast. Reads the provider's function when it keeps the versions.
+ */
+function callerAuthzVersion(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): string {
+  if (!hasVersionSource(ctx, layout)) {
+    return "";
+  }
+
+  const provider = layout.authzVersionsProvider;
+
+  const source = provider
+    ? `${provider.function}(auth.uid())`
+    : "better_supabase.authz_version(auth.uid())";
+
+  return `
+
+-- The caller's own authorization version, null without a signed-in user.
+-- Clients compare it with the token's authz_ver to catch up on a broadcast
+-- they missed.${provider ? `\n-- ${provider.name} keeps the versions in ${provider.function}.` : ""}
+create or replace function better_supabase.caller_authz_version()
+returns bigint
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    return null;
+  end if;
+  return ${source};
+end;
+$$;
+
+revoke execute on function better_supabase.caller_authz_version() from public, anon;
+grant execute on function better_supabase.caller_authz_version() to authenticated;`;
 }
 
 /**
  * `blocks['sessions'].options.authzVersions`: a version per user that a trigger
  * bumps, the access token hook copies into `authz_ver`, and Realtime broadcasts
- * on the shared server topic and on the user's own `authz:<uid>`.
+ * on the shared server topic and on the user's own `authz:<uid>`. A provider
+ * that keeps the versions (`authorization.versions`) owns all of that, so the
+ * module writes none of it.
  */
-function authzVersions(ctx: BlockSqlContext): string {
-  if (!ctx.flag("authzVersions", false)) {
+function authzVersions(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
+  if (
+    !ctx.flag("authzVersions", false) ||
+    layout.authzVersionsProvider !== undefined
+  ) {
     return "";
   }
 
@@ -405,5 +479,5 @@ grant execute on function better_supabase.end_my_session(uuid) to authenticated;
 -- create policy session_required on public.invoices as restrictive
 --   for all to authenticated
 --   using ((select better_supabase.session_active()))
---   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${bootstrapWrappers(ctx)}${authzVersions(ctx)}`,
+--   with check ((select better_supabase.session_active()));${sessionPolicies(ctx, layout)}${authzVersions(ctx, layout)}${callerAuthzVersion(ctx, layout)}${bootstrapWrappers(ctx, layout)}`,
 };

@@ -4,7 +4,7 @@
 -- (…0002) (supabase/seed.sql). The fixture's floors: customer.refund asks
 -- for nothing, customer.export is confirm mode with the manager as approver.
 begin;
-select plan(26);
+select plan(28);
 
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, anon, service_role;
@@ -80,6 +80,28 @@ select throws_ok(
   null,
   'an unknown mode is refused'
 );
+select throws_ok(
+  $$select api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+    '{"subjectType":"customer","action":"refund","name":"Bad","steps":[{"approvers":{"users":[
+      "00000000-0000-4000-8000-0000000000a1","00000000-0000-4000-8000-0000000000a2"]},"required":3}]}')$$,
+  '22023',
+  null,
+  'a step can not require more approvals than the users it lists'
+);
+
+insert into ids
+select 'both', (api.save_approval_policy('00000000-0000-4000-8000-000000000001',
+  '{"subjectType":"customer","action":"refund","name":"Both owners","enabled":false,
+    "steps":[{"approvers":{"users":["00000000-0000-4000-8000-0000000000a1",
+      "00000000-0000-4000-8000-0000000000a2"]},"required":"all"}]}') ->> 'id')::uuid;
+select is(
+  (select p -> 'steps' -> 0 -> 'required'
+   from jsonb_array_elements(api.list_approval_policies('00000000-0000-4000-8000-000000000001')) p
+   where (p ->> 'id')::uuid = (select id from ids where name = 'both')),
+  '2'::jsonb,
+  'required "all" on a list of users saves as their count'
+);
+select api.remove_approval_policy((select id from ids where name = 'both'));
 
 insert into ids
 select 'large', (api.save_approval_policy('00000000-0000-4000-8000-000000000001',

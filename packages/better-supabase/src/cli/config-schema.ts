@@ -355,6 +355,7 @@ const authorization = v.strictObject({
       grantsCommand: v.optional(v.string()),
     }),
   ),
+  versions: v.optional(blockSchemas.authorizationVersionsSchema),
   delegation: v.optional(
     v.strictObject({ scopes: v.optional(v.record(v.string(), strings)) }),
   ),

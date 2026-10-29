@@ -5,11 +5,13 @@ import {
   Table,
 } from "@powersync/react-native";
 
+import { blockTables } from "../../../powersync/schema";
+
 /**
- * The synced columns of `public.customers`, the notification tables and the
- * user's memberships with their organizations (`better-supabase powersync
- * streams --instance notifications,memberships` writes them); PowerSync adds
- * the text `id`, `<organization>:<user>` for a membership.
+ * The synced columns of `public.customers`, and the block tables
+ * `better-supabase powersync streams` writes to `powersync/schema.ts` for the
+ * notifications, memberships, teams and profiles instances. PowerSync adds the
+ * text `id`, `<organization>:<user>` for a membership.
  */
 const schema = new Schema({
   customers: new Table({
@@ -20,42 +22,7 @@ const schema = new Schema({
     created_at: column.text,
     updated_at: column.text,
   }),
-  notification_events: new Table({
-    organization_id: column.text,
-    type: column.text,
-    data: column.text,
-    actor_id: column.text,
-    subject_type: column.text,
-    subject_id: column.text,
-    subject_label: column.text,
-    summary: column.text,
-    action_path: column.text,
-    actions: column.text,
-    priority: column.text,
-    created_at: column.text,
-  }),
-  notification_recipients: new Table({
-    event_id: column.text,
-    user_id: column.text,
-    organization_id: column.text,
-    created_at: column.text,
-    read_at: column.text,
-    resolved_at: column.text,
-    resolution: column.text,
-    dismissed_at: column.text,
-  }),
-  memberships: new Table({
-    organization_id: column.text,
-    user_id: column.text,
-    role: column.text,
-    created_at: column.text,
-  }),
-  organizations: new Table({
-    name: column.text,
-    slug: column.text,
-    disabled_at: column.text,
-    deleted_at: column.text,
-  }),
+  ...blockTables,
 });
 
 export const powersync = new PowerSyncDatabase({

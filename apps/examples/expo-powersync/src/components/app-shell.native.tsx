@@ -5,13 +5,11 @@ import { BetterSupabaseProvider } from "better-supabase/react";
 import * as Linking from "expo-linking";
 import { useEffect } from "react";
 
-import { useSync } from "../lib/powersync/sync";
 import { bsb, supabase } from "../lib/supabase/client.native";
 import { AuthGate } from "./auth-gate";
 
-/** IOS and Android: the client, the auth deep links, sync and the sign-in gate. */
+/** IOS and Android: the client, the auth deep links and the sign-in gate. */
 export function AppShell({ children }: { readonly children: ReactNode }) {
-  useSync();
   useAuthLinks();
 
   return (

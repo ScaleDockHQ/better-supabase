@@ -120,7 +120,7 @@ function markerFileFor(
 }
 
 /** Whether `fn` is the provider's hook: by its name or its marker file. */
-function isProviderHook(
+export function isProviderHook(
   context: DoctorContext,
   fn: Pick<ExtrasHookFunction, "schema" | "name">,
 ): boolean {

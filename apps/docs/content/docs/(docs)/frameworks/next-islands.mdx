@@ -164,8 +164,8 @@ async function getIslands() {
 ```
 
 `bsb.bootstrap()` calls `bootstrap_islands`, which checks `session_active()`,
-returns the token's authorization version, the tenant and the app function's
-data in one row, and runs once per request for the same arguments. A
+returns the live authorization version next to the token's (`stale` when the
+live one is ahead), the tenant and the app function's data in one row, and runs once per request for the same arguments. A
 `bsb.remote()` reader shares the entry across server instances, keyed by the
 user, Auth session, tenant and authorization version, never by the token.
 [One database call per page](/docs/frameworks/next-cache-components#one-database-call-per-page)

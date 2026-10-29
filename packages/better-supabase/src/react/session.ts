@@ -15,6 +15,7 @@ import {
 
 import type { SupportView } from "../auth/support-view.ts";
 import type { AuthSession } from "../auth/view.ts";
+import type { AuthzVersionSource } from "../core/authz-topic.ts";
 import type { AuthzRefreshClient } from "./authz-refresh.ts";
 
 import { supportOf } from "../auth/support-view.ts";
@@ -80,15 +81,27 @@ export interface SessionProviderProps {
    * none. Defaults to `better-supabase:session`.
    */
   readonly channel?: string | false;
+  /**
+   * Where versions come from, for an authorization library with its own
+   * channel. Defaults to `authz:<uid>` and `api.caller_authz_version()`.
+   */
+  readonly source?: AuthzVersionSource;
+  /** The topic for a user id. Defaults to `authz:<uid>`. */
+  readonly topic?: (userId: string) => string;
+  /** The broadcast event. Defaults to `changed`. */
+  readonly event?: string;
   readonly onError?: (error: Error) => void;
   readonly children?: ReactNode;
 }
 
 /**
  * The signed-in user's id, or `undefined` once the session resolves to
- * anonymous.
+ * anonymous. `version` holds the token's `authz_ver`.
  */
-function useUserId(store: SessionStore): string | undefined {
+function useUserId(
+  store: SessionStore,
+  version: { current: number | null },
+): string | undefined {
   const value = useSyncExternalStore(store.subscribe, store.get, store.get);
   const [userId, setUserId] = useState<string | undefined>(undefined);
 
@@ -98,7 +111,9 @@ function useUserId(store: SessionStore): string | undefined {
     Promise.resolve(value)
       .then((session) => {
         if (active) {
-          setUserId(session.kind === "user" ? session.user.id : undefined);
+          const user = session.kind === "user" ? session : undefined;
+          version.current = user?.authzVersion ?? null;
+          setUserId(user?.user.id);
         }
       })
       .catch(() => {
@@ -108,7 +123,7 @@ function useUserId(store: SessionStore): string | undefined {
     return () => {
       active = false;
     };
-  }, [value]);
+  }, [value, version]);
 
   return userId;
 }
@@ -121,8 +136,9 @@ function useUserId(store: SessionStore): string | undefined {
 export function SessionProvider(props: SessionProviderProps): ReactNode {
   const [store] = useState(() => createSessionStore(props.session));
   const handlers = useRef(props);
-  const userId = useUserId(store);
-  const { client } = props;
+  const version = useRef<number | null>(null);
+  const userId = useUserId(store, version);
+  const { client, source, topic, event } = props;
   const channel = props.channel ?? "better-supabase:session";
 
   useEffect(() => {
@@ -139,10 +155,14 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
       client,
       userId,
       channel,
+      ...(source ? { source } : {}),
+      ...(topic ? { topic } : {}),
+      ...(event ? { event } : {}),
+      tokenVersion: () => version.current,
       onChange: () => handlers.current.onAuthzChange?.(),
       onError: (error) => handlers.current.onError?.(error),
     });
-  }, [client, userId, channel]);
+  }, [client, userId, channel, source, topic, event]);
 
   return createElement(
     SessionContext.Provider,

@@ -2,7 +2,6 @@ import { revalidateTag, updateTag } from "next/cache.js";
 
 import type { AuthSession } from "../auth/view.ts";
 import type { CacheAdapter } from "../core/cache.ts";
-import type { TagOptions } from "../core/tags.ts";
 import type {
   CacheScope,
   CachedLife,
@@ -10,7 +9,7 @@ import type {
   RevalidateProfile,
 } from "./types.ts";
 
-import { cacheTagsOf, tagFor } from "../core/tags.ts";
+import { cacheTagsOf } from "../core/tags.ts";
 
 /** The tag `bsb.cached()` adds to entries rendered in a support session. */
 export function supportTag(sessionId: string): string {
@@ -112,36 +111,7 @@ export function cachedLife(
   };
 }
 
-/** The tag `bsb.cached()` puts on a user's entries. */
-export function sessionTag(userId: string): string {
-  return `bsb:session:${userId}`;
-}
-
-/**
- * The tag `bsb.cached()` puts on the entries of one Auth session
- * (`SessionSnapshot.sessionId`): invalidate it to drop one device's entries.
- */
-export function sessionIdTag(sessionId: string): string {
-  return `bsb:session-id:${sessionId}`;
-}
-
-/**
- * The table tags of a read: the tenant's and every tenant's, or the table's. A
- * read across tenants (`"*"`) also carries the table's, which every mutation
- * invalidates, including one scoped to a single tenant.
- */
-export function tableTags(table: string, options: TagOptions): string[] {
-  if (options.tenant === "*") {
-    return [tagFor(table), tagFor(table, undefined, options)];
-  }
-
-  return options.tenant === undefined
-    ? [tagFor(table)]
-    : [
-        tagFor(table, undefined, options),
-        tagFor(table, undefined, { tenant: "*" }),
-      ];
-}
+export { sessionIdTag, sessionTag, tableTags } from "../server/cache-tags.ts";
 
 /** The next read waits for fresh data instead of serving the stale entry. */
 const EXPIRE_NOW = { expire: 0 } as const;

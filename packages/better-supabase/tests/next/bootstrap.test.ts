@@ -224,6 +224,8 @@ describe("bsb.bootstrap()", () => {
       session: expect.objectContaining({ kind: "user" }),
       sessionActive: true,
       authzVersion: 7,
+      tokenAuthzVersion: 7,
+      stale: false,
       tenant: null,
       data: { unread: 3 },
     });
@@ -236,6 +238,20 @@ describe("bsb.bootstrap()", () => {
     ]);
     expect(seed).toHaveBeenCalledWith(USER, 7);
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 300 });
+  });
+
+  it("seeds the live version and flags a token that predates it", async () => {
+    await signIn({ authz_ver: 5 });
+    row = { ...row, authz_version: "8", token_authz_version: 5 };
+
+    const boot = await bsb.bootstrap({ rpc: "home" });
+
+    expect(boot).toMatchObject({
+      authzVersion: 8,
+      tokenAuthzVersion: 5,
+      stale: true,
+    });
+    expect(seed).toHaveBeenCalledWith(USER, 8);
   });
 
   it("calls once per request for the same arguments", async () => {
@@ -289,6 +305,8 @@ describe("bsb.bootstrap()", () => {
       session: { kind: "none", reason: "none" },
       sessionActive: false,
       authzVersion: null,
+      tokenAuthzVersion: null,
+      stale: false,
       tenant: null,
       data: null,
     });
@@ -374,6 +392,8 @@ describe("bsb.getAccess()", () => {
       session: fromSnapshot.session,
       sessionActive: true,
       authzVersion: 9,
+      tokenAuthzVersion: 9,
+      stale: false,
       tenant: TENANT,
       data: null,
     });

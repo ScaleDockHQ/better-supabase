@@ -190,7 +190,7 @@ begin${reads.gate}${reads.auditSetup}
       and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y.${a("subjectType")} = list_activity.subject_type)
       and (list_activity.subject_id is null or y.${a("subjectId")} = list_activity.subject_id)
-      and (list_activity.before is null or y.${a("occurredAt")} < list_activity.before)
+      and (list_activity.before is null or y.${a("occurredAt")} < list_activity.before)${reads.eventDedupe}
     order by y.${a("occurredAt")} desc, y.${a("id")} desc
     limit v_limit)${reads.auditBranch}${reads.sourceBranches}
     ) u

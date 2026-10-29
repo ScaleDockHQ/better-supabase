@@ -435,6 +435,62 @@ describe("BS407", () => {
   });
 });
 
+describe("BS420", () => {
+  const versioned = resolveConfig(
+    {
+      auth: {
+        authorization: withProvider({
+          versions: { function: "authz.user_version" },
+        }),
+      },
+    },
+    "/project",
+  );
+
+  const reader = hookFn({
+    source:
+      "begin return jsonb_set(event, '{claims,authz_ver}', to_jsonb(better_supabase.authz_version(uid))); end",
+  });
+
+  it("reports the module's version table and a hook that reads it", async () => {
+    const findings = await runRules(
+      context(withHook([reader]), { config: versioned }),
+      only("BS420"),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "better_supabase.user_authz_versions",
+      "rbac.custom_access_token_hook(event jsonb)",
+    ]);
+    expect(findings[1]?.message).toContain("read authz.user_version instead");
+  });
+
+  it("skips a provider without versions and a hook that reads none", async () => {
+    const config = resolveConfig(
+      { auth: { authorization: stubProvider } },
+      "/project",
+    );
+
+    expect(
+      await runRules(context(withHook([reader]), { config }), only("BS420")),
+    ).toEqual([]);
+
+    const snapshot: Snapshot = {
+      ...withHook([hookFn({ source: "begin return event; end" })]),
+      generator: {
+        ...base.generator,
+        tables: base.generator.tables.filter(
+          (table) => table.name !== "user_authz_versions",
+        ),
+      },
+    };
+
+    expect(
+      await runRules(context(snapshot, { config: versioned }), only("BS420")),
+    ).toEqual([]);
+  });
+});
+
 describe("BS410 HTTP auth hooks", () => {
   const httpContext = (toml: string, document = parseToml(toml)) =>
     context(base, {

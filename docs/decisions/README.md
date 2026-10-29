@@ -132,3 +132,4 @@ add one, and link it from the code or config it explains.
 | [0126](0126-workflow-node-registry-and-lifecycle-defaults.md) | A registry of the app's own workflow node kinds; lifecycle definitions with one default per subject type                                           |
 | [0127](0127-fractional-stock-lots-and-allocations.md)         | Stock is numeric with a unit scale; lots, bins, average cost, document allocations, orders from lines or a quote, and shipment lines               |
 | [0128](0128-brand-templates-schedules-workflow-machines.md)   | Templates gain brand starters and schedules on reminders' rules; a machine can read its edges from a workflow version                              |
+| [0129](0129-native-authz-refresh.md)                          | Native apps refresh on the authorization version and reconnect PowerSync; bootstrap reports the live version                                       |

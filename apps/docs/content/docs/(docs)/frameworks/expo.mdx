@@ -130,6 +130,96 @@ For public data on routes that are rendered at build time, use
 `createStaticLoader((params) => ...)` from `expo-server`. It gets no request,
 so it can't run as a caller; read only data that every visitor may see.
 
+## Reading the session and the page data in one call
+
+`bsb.bootstrap(request, { rpc })` runs the `bootstrap_<rpc>` wrapper the
+sessions module renders for `sessions.options.bootstrap`: one database call
+returns whether the session is still active, the live authorization version,
+the token's version and the page's data. The layout and page loaders of one
+navigation share the call for 10 seconds, keyed on the request, the session
+and the arguments, so a layout and a page that both bootstrap make one round
+trip. A signed-out caller makes no call.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  sessions: {
+    options: {
+      authzVersions: true,
+      bootstrap: { islands: "public.island_counts" },
+    },
+  },
+},
+```
+
+```tsx title="src/app/activity.tsx"
+export const loader = bsb.loader(
+  async (_ctx, _params, request) => {
+    const boot = await bsb.bootstrap<IslandCounts>(request, { rpc: "islands" });
+    const access = await bsb.getAccess(request, { bootstrap: boot });
+    return {
+      counts: boot.data,
+      stale: boot.stale,
+      canWrite: await access.can("customers.write"),
+    };
+  },
+  { allow: ["user"] },
+);
+```
+
+| Field               | What it holds                                                    |
+| ------------------- | ---------------------------------------------------------------- |
+| `session`           | The verified caller                                              |
+| `sessionActive`     | `false` once the Auth session was revoked; `data` is then `null` |
+| `authzVersion`      | The user's live authorization version, read in the same call     |
+| `tokenAuthzVersion` | The `authz_ver` the token carries                                |
+| `stale`             | The live version is ahead of the token's                         |
+| `tenant`            | The active tenant the call ran for                               |
+| `data`              | What the function returned                                       |
+
+`getAccess` with `bootstrap` checks permissions against the live version, so
+a role taken away since the token was issued is already gone in this loader.
+Pass `args` for the function's arguments and `tenant` for a tenant from the
+route's params. `gen` records the wrapper's schema (the API schema when
+the config sets `sql.api`); `bootstrapSchema` in the server options or `schema`
+on the call overrides it.
+
+## Caching loader results
+
+`bsb.cached(request, { tables, tags, tenant })` returns the request's context
+and the tags an app-side cache should store a loader's result under: the
+user's session tag, the authorization provider's session tags, the tag of the
+Auth session and the table tags of `tables`. Calls for the same request share
+one context.
+
+```ts title="src/app/customers/index.tsx"
+export const loader = bsb.loader(async (_ctx, params, request) => {
+  const { context, tags } = await bsb.cached(request, {
+    tables: ["customers"],
+    tenant: String(params.org),
+  });
+  return appCache.remember(tags, () =>
+    context.db.customers.list({ select: ["id", "name"] }).orThrow(),
+  );
+});
+```
+
+Purge the cache when a write invalidates those tags. Attach a
+[cache adapter](/docs/extending/interfaces#cacheadapter) to the events hub,
+and build the tags a mutation invalidates with `cacheTagsOf` from
+`better-supabase/server`:
+
+```ts title="src/lib/supabase/server.ts"
+import { cacheTagsOf, sessionTag } from "better-supabase/server";
+
+betterSupabase.cache({
+  name: "app-cache",
+  invalidate: (target) => appCache.purge(cacheTagsOf(target)),
+});
+
+// After a role change, drop the user's own entries too.
+appCache.purge([sessionTag(userId)]);
+```
+
 ## API routes
 
 `bsb.handler(fn, options)` turns a function into an API route handler.

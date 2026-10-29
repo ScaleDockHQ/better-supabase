@@ -69,6 +69,13 @@ config has the organizations block, so the organization switcher can show the
 names offline. Other blocks can't sync yet; the command names the instance it
 refuses.
 
+A block that runs over the app's own table (`blocks.<name>.tables`, such as
+`memberships: { tables: { memberships: "public.memberships" } }`) syncs that
+table: the stream selects from `public.memberships`, the publication adds it,
+and the client `Table` takes its columns from the snapshot `gen` saves. Save a
+snapshot first (`better-supabase gen --save-snapshot`); without one the command
+can't read the app table's columns and refuses the instance.
+
 PowerSync replicates past the column grants and RLS policies, so each stream
 selects only what the block lets the user read: the organizations stream lists
 its columns instead of `*`, teams sync only for their members, and profiles

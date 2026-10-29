@@ -23,6 +23,14 @@ export type {
   WebBrowserLike,
 } from "./auth-link.ts";
 
+export { startNativeAuthzRefresh } from "./authz-refresh.ts";
+
+export type {
+  NativeAuthzRefreshClient,
+  NativeAuthzRefreshOptions,
+  PowerSyncReconnect,
+} from "./authz-refresh.ts";
+
 export { autoRefreshOnForeground } from "./auto-refresh.ts";
 
 export type { AppStateLike, AutoRefreshClient } from "./auto-refresh.ts";

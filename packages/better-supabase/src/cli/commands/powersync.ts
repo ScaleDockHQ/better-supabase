@@ -18,7 +18,7 @@ import {
   POWERSYNC_BLOCKS,
   powersyncOutput,
 } from "../powersync/streams.ts";
-import { migrationsDir } from "../sql-layout.ts";
+import { migrationsDir, snapshotColumnTypes } from "../sql-layout.ts";
 import { stampAfter } from "../sql/migrations.ts";
 import { layoutFor } from "../sql/providers.ts";
 
@@ -47,6 +47,23 @@ export interface PowerSyncFlags extends PlanFlags {
 const PUBLICATION_SUFFIX = "_powersync_publication.sql";
 
 const REGENERATE = "better-supabase powersync streams";
+
+/** The qualified app tables `blocks.<key>.tables` maps the instance onto. */
+function mappedTables(config: ResolvedConfig, key: string): string[] {
+  const { tables, schema } = config.instances[key]?.config ?? {};
+
+  return Object.values(tables ?? {}).flatMap((name) => {
+    if (typeof name !== "string") {
+      return [];
+    }
+
+    if (name.includes(".")) {
+      return [name];
+    }
+
+    return typeof schema === "string" ? [`${schema}.${name}`] : [];
+  });
+}
 
 function instancesOf(
   config: ResolvedConfig,
@@ -133,6 +150,28 @@ export async function runPowerSync(
     return { code: 1, errorCode: "config_invalid", error: instances };
   }
 
+  const mapped = Object.keys(config.instances).map(
+    (key) => [key, mappedTables(config, key)] as const,
+  );
+
+  const types = await snapshotColumnTypes(
+    config,
+    mapped.flatMap(([, tables]) => tables),
+  );
+
+  const own = new Map(
+    mapped.map(([key, tables]) => [
+      key,
+      new Map(
+        tables.flatMap((table) => {
+          const columns = types.get(table);
+
+          return columns === undefined ? [] : [[table, columns] as const];
+        }),
+      ),
+    ]),
+  );
+
   const layout = await layoutFor(config, {}, config.blockNames);
   let output: ReturnType<typeof powersyncOutput>;
 
@@ -140,6 +179,7 @@ export async function runPowerSync(
     output = powersyncOutput({
       files: renderBlocks(config.blockNames, layout),
       instances,
+      own,
       importFrom: settings?.import ?? "@powersync/common",
     });
   } catch (cause) {

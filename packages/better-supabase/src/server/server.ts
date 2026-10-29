@@ -10,6 +10,7 @@ import type {
   VerifiedUser,
 } from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
+import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthzVersionCache, RequestMemo } from "../core/authorizer.ts";
 import type {
   DelegationPermissions,
@@ -57,6 +58,7 @@ import { StatsRecorder } from "../core/stats.ts";
 import { credentialProviderOf } from "../credentials/provider.ts";
 import { loadEnv } from "../env/index.ts";
 import { serverAudit } from "./audit.ts";
+import { serverBootstrap } from "./bootstrap.ts";
 import { createClients } from "./clients.ts";
 import { deleteAccount } from "./delete-account.ts";
 import { withServerContext } from "./entries/context.ts";
@@ -833,7 +835,16 @@ export function createServer<
         ),
     });
 
+  const boot = serverBootstrap<
+    ServerContext<M, F, E, C, P, B>,
+    C,
+    P,
+    SessionSnapshot<C>
+  >(betterSupabase, options, () => server);
+
   const server: BetterServer<M, F, E, C, P, B, V> = {
+    bootstrapFor: boot.bootstrapFor,
+    accessFor: boot.accessFor,
     get env() {
       return env();
     },

@@ -12,12 +12,19 @@ import type {
   OAuthSignInOptions,
   WebBrowserLike,
 } from "../../client/native/auth-link.ts";
+import type {
+  NativeAuthzRefreshClient,
+  PowerSyncReconnect,
+} from "../../client/native/authz-refresh.ts";
+import type { AppStateLike } from "../../client/native/auto-refresh.ts";
+import type { AuthzVersionSource } from "../../core/authz-topic.ts";
 import type { PendingState } from "../sign-in.ts";
 
 import {
   handleAuthDeepLink,
   signInWithOAuthBrowser,
 } from "../../client/native/auth-link.ts";
+import { startNativeAuthzRefresh } from "../../client/native/authz-refresh.ts";
 import { ClientContext, useAuth } from "../hooks.ts";
 import { usePending } from "../sign-in.ts";
 
@@ -301,6 +308,71 @@ export function AuthGate(props: AuthGateProps): ReactNode {
   if (status === "signed-out") {
     return props.signedOut ?? null;
   }
+
+  return props.children ?? null;
+}
+
+export interface NativeSessionProviderProps {
+  /** React Native's `AppState`. */
+  readonly appState: AppStateLike;
+  /** A supabase-js client for apps without `<BetterSupabaseProvider>`. */
+  readonly client?: NativeAuthzRefreshClient;
+  /** Runs after the token refresh, such as refetching the screen's queries. */
+  readonly onAuthzChange?: () => unknown;
+  /**
+   * The value `syncWithAuth` returned. It reconnects after a refresh, so the
+   * sync service drops rows the user lost.
+   */
+  readonly powersync?: PowerSyncReconnect;
+  /** Where versions come from, for a library with its own channel. */
+  readonly source?: AuthzVersionSource;
+  /** The topic for a user id. Defaults to `authz:<uid>`. Pass a stable function. */
+  readonly topic?: (userId: string) => string;
+  /** The broadcast event. Defaults to `changed`. */
+  readonly event?: string;
+  readonly onError?: (error: Error) => void;
+  readonly children?: ReactNode;
+}
+
+/**
+ * Refreshes the signed-in user's token when their authorization version
+ * changes, on iOS and Android. It listens while the app is in the foreground,
+ * catches up on return, and reconnects PowerSync after the refresh. Render it
+ * inside `<BetterSupabaseProvider>`.
+ *
+ * ```tsx
+ * import { AppState } from "react-native";
+ * <SessionProvider appState={AppState} powersync={sync}>
+ *   {children}
+ * </SessionProvider>;
+ * ```
+ */
+export function SessionProvider(props: NativeSessionProviderProps): ReactNode {
+  const auth = useAuth();
+  const client = useClientOf(props.client, "SessionProvider");
+  const userId = auth.status === "signed-in" ? auth.user.id : undefined;
+  const handlers = useRef(props);
+  // oxlint-disable-next-line react/refs -- latest-ref pattern; the react peer range predates useEffectEvent.
+  handlers.current = props;
+  const { appState, powersync, source, topic, event } = props;
+
+  useEffect(() => {
+    if (!userId) {
+      return;
+    }
+
+    return startNativeAuthzRefresh({
+      client,
+      userId,
+      appState,
+      ...(powersync ? { powersync } : {}),
+      ...(source ? { source } : {}),
+      ...(topic ? { topic } : {}),
+      ...(event ? { event } : {}),
+      onChange: () => handlers.current.onAuthzChange?.(),
+      onError: (error) => handlers.current.onError?.(error),
+    });
+  }, [client, userId, appState, powersync, source, topic, event]);
 
   return props.children ?? null;
 }

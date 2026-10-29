@@ -111,6 +111,7 @@ Name the definition `betterSupabase` (in `lib/supabase/index.ts`) and every runt
 - Astro: `bsb.locals(Astro).db`; SolidStart: `(await bsb.require()).db`
 - A supabase-js client on the server (Storage, Realtime, a call no repository covers): `bsb.contextClient(ctx.auth)` sends the caller's token to PostgREST, Storage and Realtime, so RLS applies. `bsb.admin().$client` is the shared secret-key client, for work no user owns
 - Browser: `bsb.db`, or the hooks from `createHooks<typeof bsb>()`
+- Expo Router loaders: `bsb.loader(fn)` from `createExpo`, with `bsb.bootstrap(request, { rpc })` for the session, the live authorization version and the page data in one call. iOS and Android with PowerSync: `syncWithAuth` plus the native `SessionProvider`; the `better-supabase-auth` skill's `references/native.md` has both
 - Vue, Solid and Svelte, TanStack DB collections and a local SQLite database: [references/frontend.md](references/frontend.md)
 - UI for a block (notification bell, notification list, command search, onboarding checklist): build it from the app's shadcn or React Native components and the block's hook, following [references/ui-recipes.md](references/ui-recipes.md). There is no better-supabase UI package; install glue with `npx shadcn add @better-supabase/<item>`.
 

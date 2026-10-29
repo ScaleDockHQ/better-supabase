@@ -41,6 +41,20 @@ describe("approval policies", () => {
     expect(sql).toContain("consume_approval");
   });
 
+  it("checks a tenant step's required count against its users", () => {
+    const sql = sqlOf(
+      ["approvals"],
+      approvals({ policies: FLOORS, tenantPolicies: true }),
+    );
+
+    expect(sql).toContain(
+      "and (v_step ->> 'required')::numeric > jsonb_array_length(v_step -> 'approvers' -> 'users'))",
+    );
+    expect(sql).toContain(
+      "then jsonb_set(s, '{required}', to_jsonb(jsonb_array_length(s -> 'approvers' -> 'users')))",
+    );
+  });
+
   it("skips conditions without automations and renders plain SQL when off", () => {
     const on = sqlOf(
       ["approvals"],

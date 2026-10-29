@@ -4,7 +4,7 @@
 -- acme, Globex (…02) under none; …a1 is an Acme admin. Run with
 -- `supabase test db`.
 begin;
-select plan(20);
+select plan(22);
 
 update public.organizations set brand = 'acme' where id = '00000000-0000-4000-8000-000000000001';
 
@@ -200,6 +200,36 @@ select is(
    )) e),
   array['status.changed', 'status.changed', 'status.changed'],
   'the transition source lists each status change of the record'
+);
+
+-- A status change the sink also stored shows once, from status_history.
+set local role service_role;
+insert into better_supabase.activity_entries (organization_id, event_id, type, subject_type, subject_id)
+values (
+  '00000000-0000-4000-8000-000000000001', 'test:status-changed', 'status.changed', 'change_request',
+  (select id::text from public.change_requests where title = 'Rotate keys')
+);
+reset role;
+
+select is(
+  (select count(*)::int
+   from jsonb_array_elements(better_supabase.list_activity(
+     '00000000-0000-4000-8000-000000000001', 'change_request',
+     (select id::text from public.change_requests where title = 'Rotate keys')
+   )) e
+   where e ->> 'type' = 'status.changed'),
+  3,
+  'the feed drops the stored status change the transition source returns'
+);
+select is(
+  (select array_agg(e ->> 'source')
+   from jsonb_array_elements(better_supabase.list_activity(
+     '00000000-0000-4000-8000-000000000001', 'change_request',
+     (select id::text from public.change_requests where title = 'Rotate keys'),
+     null, 50, array['event']
+   )) e),
+  array['event'],
+  'the stored status change stays when the transition source is not asked for'
 );
 
 select * from finish();

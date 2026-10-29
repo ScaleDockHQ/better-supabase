@@ -15,7 +15,10 @@ export type {
   AuthorizationRoleSource,
   AuthorizationScope,
   AuthorizationTokenHook,
+  AuthorizationVersions,
 } from "../config/authorization.ts";
+
+export type { AuthzVersionSource } from "../core/authz-topic.ts";
 
 export type {
   AnyAuthorizer,

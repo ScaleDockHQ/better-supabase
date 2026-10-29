@@ -1,6 +1,7 @@
 -- blocks['sessions'].options.bootstrap: bsb.bootstrap({ rpc }) calls these.
 -- Each checks the session and returns the caller's authorization version
--- with the app function's data, so a cache miss is one query.
+-- (the live one when the database keeps it, and the token's) with the app
+-- function's data, so a cache miss is one query.
 create or replace function better_supabase.bootstrap_home(args jsonb default '{}'::jsonb)
 returns jsonb
 language plpgsql
@@ -12,6 +13,7 @@ begin
     return jsonb_build_object(
       'session_active', false,
       'authz_version', auth.jwt() -> 'authz_ver',
+      'token_authz_version', auth.jwt() -> 'authz_ver',
       'tenant', args ->> 'tenant',
       'data', null
     );
@@ -19,6 +21,7 @@ begin
   return jsonb_build_object(
     'session_active', true,
     'authz_version', auth.jwt() -> 'authz_ver',
+    'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
     'data', to_jsonb(app.home_data(args))
   );
@@ -39,6 +42,7 @@ begin
     return jsonb_build_object(
       'session_active', false,
       'authz_version', auth.jwt() -> 'authz_ver',
+      'token_authz_version', auth.jwt() -> 'authz_ver',
       'tenant', args ->> 'tenant',
       'data', null
     );
@@ -46,6 +50,7 @@ begin
   return jsonb_build_object(
     'session_active', true,
     'authz_version', auth.jwt() -> 'authz_ver',
+    'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
     'data', to_jsonb(app.inbox(args))
   );

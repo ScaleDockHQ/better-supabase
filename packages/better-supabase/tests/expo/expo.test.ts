@@ -308,3 +308,103 @@ describe("createExpo", () => {
     expect(refreshed).toHaveBeenCalledOnce();
   });
 });
+
+describe("createExpo bootstrap, getAccess and cached", () => {
+  const seed = vi.fn<(userId: string, version: number) => void>();
+
+  const bsb = createExpo(defineSupabase(schema), {
+    env,
+    auth: { jwks: signer.jwks },
+    versions: {
+      get: () => undefined,
+      set: () => undefined,
+      evict: () => undefined,
+      seed,
+    } as never,
+    tenant: (request) =>
+      new URL(request.url).searchParams.get("t") ?? undefined,
+  });
+
+  let rpcCalls = 0;
+
+  beforeEach(() => {
+    rpcCalls = 0;
+    seed.mockReset();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (
+        String(input instanceof Request ? input.url : input).includes("/rpc/")
+      ) {
+        rpcCalls += 1;
+      }
+
+      return Response.json({
+        session_active: true,
+        authz_version: 9,
+        token_authz_version: 9,
+        tenant: "acme",
+        data: { ok: true },
+      });
+    });
+  });
+
+  const bearer = async (): Promise<Record<string, string>> => ({
+    authorization: `Bearer ${await signer.sign({ sub: USER, session_id: "s-1", authz_ver: 9 })}`,
+  });
+
+  it("shares one call among the loaders of a navigation", async () => {
+    const headers = await bearer();
+
+    // Expo wraps the request in a new ImmutableRequest for each loader.
+    const [layout, page] = await Promise.all([
+      bsb.bootstrap(immutable("https://app.test/team", headers), {
+        rpc: "home",
+      }),
+      bsb.bootstrap(immutable("https://app.test/team", headers), {
+        rpc: "home",
+      }),
+    ]);
+
+    expect(layout).toMatchObject({ authzVersion: 9, data: { ok: true } });
+    expect(page).toEqual(layout);
+    expect(rpcCalls).toBe(1);
+    expect(seed).toHaveBeenCalledWith(USER, 9);
+
+    await bsb.bootstrap(immutable("https://app.test/team", headers), {
+      rpc: "home",
+      args: { page: 2 },
+    });
+    expect(rpcCalls).toBe(2);
+  });
+
+  it("reads access from a request, with the tenant resolver", async () => {
+    const access = await bsb.getAccess(
+      immutable("https://app.test/team?t=acme", await bearer()),
+    );
+
+    expect(access).toMatchObject({ tenant: "acme", authzVersion: 9 });
+    expect((await bsb.getAccess(null)).session.kind).toBe("none");
+  });
+
+  it("returns the context and its cache tags", async () => {
+    const request = immutable("https://app.test/team", await bearer());
+
+    const cached = await bsb.cached(request, {
+      tables: ["tasks"],
+      tenant: "acme",
+      tags: ["app:team"],
+    });
+
+    expect(cached.tenant).toBe("acme");
+    expect(cached.session.kind).toBe("user");
+    expect(cached.tags).toEqual([
+      `bsb:session:${USER}`,
+      "bsb:session-id:s-1",
+      "bsb:tasks@acme",
+      "bsb:tasks@*",
+      "app:team",
+    ]);
+    expect((await bsb.cached(request, { tenant: "acme" })).context).toBe(
+      cached.context,
+    );
+  });
+});

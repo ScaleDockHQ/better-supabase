@@ -42,10 +42,12 @@ export type {
   SqliteValue,
 } from "../compile/sqlite.ts";
 
-export { syncWithAuth } from "./auth.ts";
+export { claimsFingerprint, syncWithAuth } from "./auth.ts";
 
 export type {
   AuthSourceLike,
+  AuthSync,
+  SyncClaims,
   SyncedDatabaseLike,
   SyncWithAuthOptions,
 } from "./auth.ts";

@@ -36,6 +36,7 @@ import type {
 import type { PaymentProvider, TaxProvider } from "../../src/commerce/index.ts";
 import type {
   AuthorizationProvider,
+  AuthorizationVersions,
   BetterSupabaseConfig,
   Generator,
 } from "../../src/config/index.ts";
@@ -243,6 +244,15 @@ describe("AuthorizationProvider", () => {
     const accepts = (provider: AuthorizationProvider) => provider;
     // @ts-expect-error a provider needs the two caller templates
     accepts({ ...minimal, functions: {} });
+  });
+
+  it("keeps the authorization versions without a new apiVersion", () => {
+    expectTypeOf<AuthorizationProvider["versions"]>().toEqualTypeOf<
+      AuthorizationVersions | undefined
+    >();
+    expectTypeOf<AuthorizationVersions>().toEqualTypeOf<{
+      readonly function: string;
+    }>();
   });
 });
 
