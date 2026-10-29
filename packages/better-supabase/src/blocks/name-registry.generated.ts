@@ -928,6 +928,22 @@ export interface BlockNameRegistry {
     };
     readonly primary: "incident";
   };
+  readonly "inspections": {
+    readonly tables: {
+      readonly "programs": "id" | "tenant" | "name" | "periodStart" | "periodEnd" | "owner" | "status" | "notes" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "inspections": "id" | "tenant" | "program" | "number" | "kind" | "title" | "scope" | "criteria" | "auditeeType" | "auditeeId" | "lead" | "plannedStart" | "plannedEnd" | "startedAt" | "completedAt" | "closedAt" | "status" | "summary" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "findings": "id" | "tenant" | "inspection" | "number" | "type" | "title" | "description" | "clause" | "case" | "createdBy" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "add_inspection_finding" | "approve_inspection_program" | "cancel_inspection" | "close_inspection" | "close_inspection_program" | "complete_inspection" | "delete_inspection_finding" | "get_inspection" | "list_inspection_programs" | "list_inspections" | "notify_due_inspections" | "raise_inspection_finding_case" | "save_inspection_program" | "schedule_inspection" | "start_inspection" | "update_inspection" | "update_inspection_finding";
+    readonly actions: "read" | "write" | "manage";
+    readonly hooks: never;
+    readonly entities: {
+      readonly "inspection": "id" | "tenant_id" | "program_id" | "number" | "kind" | "title" | "scope" | "criteria" | "auditee_type" | "auditee_id" | "lead_id" | "planned_start" | "planned_end" | "started_at" | "completed_at" | "closed_at" | "status" | "summary" | "created_by" | "created_at" | "updated_at";
+      readonly "inspection_program": "id" | "tenant_id" | "name" | "period_start" | "period_end" | "owner_id" | "status" | "notes" | "archived_at" | "created_at" | "updated_at";
+      readonly "inspection_finding": "id" | "tenant_id" | "inspection_id" | "number" | "type" | "title" | "description" | "clause" | "case_id" | "created_by" | "created_at" | "updated_at";
+    };
+    readonly primary: "inspection";
+  };
   readonly "inventory": {
     readonly tables: {
       readonly "locations": "id" | "tenant" | "code" | "name" | "kind" | "active" | "createdAt" | "updatedAt";

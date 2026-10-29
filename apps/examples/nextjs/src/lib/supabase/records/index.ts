@@ -20,6 +20,7 @@ export { expenseLineRecord } from "./expense-line.ts";
 export { expenseReportRecord } from "./expense-report.ts";
 export { formRecord } from "./form.ts";
 export { incidentRecord } from "./incident.ts";
+export { inspectionRecord } from "./inspection.ts";
 export { orderRecord } from "./order.ts";
 export { personRecord } from "./person.ts";
 export { policyRecord } from "./policy.ts";

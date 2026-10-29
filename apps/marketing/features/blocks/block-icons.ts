@@ -163,6 +163,7 @@ export const BLOCK_ICONS = {
   cases: ClipboardCheckIcon,
   qualifications: BadgeCheckIcon,
   risks: ChartLineIcon,
+  inspections: ClipboardCheckIcon,
   identities: FingerprintIcon,
   // Tenancy & accounts
   memberships: BuildingIcon,

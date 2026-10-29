@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_146_acknowledgements.sql
+-- ==== schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
 -- @bsb-hash sha256:47ab780b120d5392b3b20010cd2570b9cc1dab49bd2d8d644aa59ed84a2556f9
@@ -445,7 +445,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_146_acknowledgements.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block-data acknowledgements
 -- @bsb-hash sha256:f804dc1bd56a250af2771946adc718a33fc2dbcbbb8cd45180ca0480d6b11329

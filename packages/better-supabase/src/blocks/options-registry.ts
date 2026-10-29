@@ -3,6 +3,7 @@ import type { AcknowledgementsSqlOptions } from "./acknowledgements/options.ts";
 import type { CasesSqlOptions } from "./cases/options.ts";
 import type { QualificationsSqlOptions } from "./qualifications/options.ts";
 import type { RisksSqlOptions } from "./risks/options.ts";
+import type { InspectionsSqlOptions } from "./inspections/options.ts";
 import type { ActivitiesSqlOptions } from "./activities/options.ts";
 import type { AgentsSqlOptions } from "./agents/options.ts";
 import type { AiCacheSqlOptions } from "./ai-cache/options.ts";
@@ -134,6 +135,7 @@ import { acknowledgementsSqlOptions } from "./acknowledgements/options.ts";
 import { casesSqlOptions } from "./cases/options.ts";
 import { qualificationsSqlOptions } from "./qualifications/options.ts";
 import { risksSqlOptions } from "./risks/options.ts";
+import { inspectionsSqlOptions } from "./inspections/options.ts";
 import { activitiesSqlOptions } from "./activities/options.ts";
 import { agentsSqlOptions } from "./agents/options.ts";
 import { aiCacheSqlOptions } from "./ai-cache/options.ts";
@@ -273,6 +275,7 @@ export interface BlockOptionsRegistry {
   readonly cases: CasesSqlOptions;
   readonly qualifications: QualificationsSqlOptions;
   readonly risks: RisksSqlOptions;
+  readonly inspections: InspectionsSqlOptions;
   readonly activities: ActivitiesSqlOptions;
   readonly agents: AgentsSqlOptions;
   readonly "ai-cache": AiCacheSqlOptions;
@@ -428,6 +431,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   cases: casesSqlOptions,
   qualifications: qualificationsSqlOptions,
   risks: risksSqlOptions,
+  inspections: inspectionsSqlOptions,
   activities: activitiesSqlOptions,
   agents: agentsSqlOptions,
   "ai-cache": aiCacheSqlOptions,

@@ -1,0 +1,77 @@
+---
+title: Audits and inspections
+description: Audit and inspection programs, scheduled audits, findings and a close guard that needs a case for each nonconformity.
+---
+
+`inspections` runs audit and inspection programs: a program covers a period,
+each inspection has a scope, criteria and lead, findings record what was seen,
+and a nonconformity must have a case before the inspection can close.
+
+```bash
+better-supabase add inspections
+```
+
+```ts
+import { createInspections } from "better-supabase/blocks/inspections";
+```
+
+## Tables
+
+| Table                  | Holds                                                     |
+| ---------------------- | --------------------------------------------------------- |
+| `inspection_programs`  | A period, its owner and its approval state                 |
+| `inspections`          | One scheduled audit or inspection, its scope and status    |
+| `inspection_findings`  | Findings, their type and the case raised from one          |
+
+## Programs
+
+`saveProgram` creates a program for a period; `approveProgram` and
+`closeProgram` move it through `draft`, `approved` and `closed`.
+
+## Inspections
+
+`schedule(organizationId, input)` numbers the inspection (`AUD-YYYY-NNN`) and
+sets it to `planned`. `start` moves it to `in_progress`; `complete` stores the
+summary and moves it to `reporting`; `close` needs `inspections.manage` and
+refuses while a nonconformity has no case. `cancel` closes it as cancelled.
+
+## Findings
+
+`addFinding` records a finding while the inspection runs or reports.
+`updateFinding` changes it; `deleteFinding` refuses when a case is linked.
+`raiseCase` opens a case in the `cases` block and links it to the finding.
+
+## Errors
+
+| Hint code                          | Meaning                                        |
+| ---------------------------------- | ---------------------------------------------- |
+| `INSPECTION_FORBIDDEN`             | The caller lacks the permission                |
+| `INSPECTION_NOT_FOUND`             | The inspection does not exist                  |
+| `INSPECTION_INVALID`               | An input is invalid                            |
+| `INSPECTION_STATUS_INVALID`        | The inspection is in the wrong state           |
+| `INSPECTION_FINDING_NOT_FOUND`     | The finding does not exist                     |
+| `INSPECTION_FINDING_HAS_CASE`      | The finding already has a case                 |
+| `INSPECTION_FINDINGS_OPEN`         | A nonconformity has no case                    |
+| `INSPECTION_PROGRAM_NOT_FOUND`     | The program does not exist                     |
+| `INSPECTION_CASES_NOT_INSTALLED`   | The cases block is not installed               |
+
+## Events
+
+| Type                               | Payload                                                |
+| ---------------------------------- | ------------------------------------------------------ |
+| `inspection_program.*`             | `organizationId`, `programId`                          |
+| `inspection.scheduled`, `inspection.started`, `inspection.completed`, `inspection.closed`, `inspection.cancelled` | `organizationId`, `inspectionId`, `number` |
+| `inspection.updated`               | the same and `changed`                                 |
+| `inspection_finding.created`       | `organizationId`, `inspectionId`, `findingId`, `type`  |
+| `inspection_finding.updated`, `inspection_finding.deleted` | the same without `type`                     |
+| `inspection_finding.case_raised`   | the same and `caseId`                                  |
+
+## Without the client
+
+`save_inspection_program`, `approve_inspection_program`,
+`close_inspection_program`, `list_inspection_programs`,
+`schedule_inspection`, `update_inspection`, `start_inspection`,
+`add_inspection_finding`, `update_inspection_finding`,
+`delete_inspection_finding`, `raise_inspection_finding_case`,
+`complete_inspection`, `close_inspection`, `cancel_inspection`,
+`get_inspection`, `list_inspections` and `notify_due_inspections`.

@@ -223,6 +223,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "consume_quota mark_usage_reported purge_usage_events purge_usage_history record_usage record_usage_batch unreported_usage usage_breakdown usage_history usage_meters usage_overview usage_status",
   "vercel-marketplace":
     "delete_marketplace_resource link_marketplace_tenant mark_marketplace_meter_sent marketplace_access_token marketplace_installation marketplace_resource marketplace_resources record_marketplace_invoice record_marketplace_meter_report remove_marketplace_installation seal_marketplace_access_token set_marketplace_resource_state unreported_marketplace_meter_reports upsert_marketplace_installation upsert_marketplace_plan upsert_marketplace_resource",
+  inspections:
+    "add_inspection_finding approve_inspection_program cancel_inspection close_inspection close_inspection_program complete_inspection delete_inspection_finding get_inspection list_inspection_programs list_inspections notify_due_inspections raise_inspection_finding_case save_inspection_program schedule_inspection start_inspection update_inspection update_inspection_finding",
   risks:
     "assess_risk close_risk create_risk get_risk list_risk_matrices list_risks notify_due_risk_reviews review_risk risk_heatmap save_risk_matrix set_risk_treatment update_risk",
   qualifications:

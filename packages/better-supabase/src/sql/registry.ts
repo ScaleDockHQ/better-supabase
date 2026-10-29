@@ -148,6 +148,7 @@ import { ACKNOWLEDGEMENTS } from "./modules/acknowledgements.ts";
 import { CASES } from "./modules/cases.ts";
 import { QUALIFICATIONS } from "./modules/qualifications.ts";
 import { RISKS } from "./modules/risks.ts";
+import { INSPECTIONS } from "./modules/inspections.ts";
 import { VERSIONS } from "./modules/versions.ts";
 import { WAITLIST } from "./modules/waitlist.ts";
 import { WEBHOOK_INBOX } from "./modules/webhook-inbox.ts";
@@ -387,6 +388,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(CASES),
       built(QUALIFICATIONS),
       built(RISKS),
+      built(INSPECTIONS),
       built(ACKNOWLEDGEMENTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),

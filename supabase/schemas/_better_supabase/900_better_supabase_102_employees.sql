@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:3abb478da986ab896b4482b44be692f4b5fd1ac9bd40069f355a9748d8919b73
+-- @bsb-hash sha256:dcaed11e77792c86c38346cbeb1732ebc1aa107d05fc7e5b8f850f8f7d6cfdd8
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -646,6 +646,7 @@ begin
       when 'document' then (select s."name"::text from "better_supabase"."documents" s where s."id" = (v_application."candidate_id")::uuid)
       when 'case' then (select s."title"::text from "better_supabase"."cases" s where s."id" = (v_application."candidate_id")::uuid)
       when 'risk' then (select s."title"::text from "better_supabase"."risks" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'inspection' then (select s."title"::text from "better_supabase"."inspections" s where s."id" = (v_application."candidate_id")::uuid)
       when 'customer' then (select s."name"::text from "public"."customers" s where s."id" = (v_application."candidate_id")::uuid)
       when 'drive_node' then (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (v_application."candidate_id")::uuid)
       when 'change_request' then (select s."title"::text from "public"."change_requests" s where s."id" = (v_application."candidate_id")::uuid)

@@ -92,6 +92,7 @@ const PURE_BARRELS = [
   "blocks/cases",
   "blocks/qualifications",
   "blocks/risks",
+  "blocks/inspections",
   "blocks/documents",
   "blocks/catalog",
   "blocks/inventory",

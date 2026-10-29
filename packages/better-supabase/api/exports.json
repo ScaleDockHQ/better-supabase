@@ -7042,6 +7042,41 @@
       "RpcClient"
     ]
   },
+  "./blocks/inspections": {
+    "values": [
+      "createInspections",
+      "dbTransport",
+      "extendBlock",
+      "inspectionInputSchema",
+      "inspectionsBlock",
+      "inspectionsEvents",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Inspection",
+      "InspectionChange",
+      "InspectionEventData",
+      "InspectionFinding",
+      "InspectionFindingEventData",
+      "InspectionFindingInput",
+      "InspectionInput",
+      "InspectionInputSchema",
+      "InspectionListOptions",
+      "InspectionProgram",
+      "InspectionProgramEventData",
+      "Inspections",
+      "InspectionsEvents",
+      "InspectionsOptions",
+      "InspectionUpdatedEventData",
+      "RpcClient"
+    ]
+  },
   "./blocks/documents": {
     "values": [
       "createDocuments",

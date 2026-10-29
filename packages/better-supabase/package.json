@@ -872,6 +872,11 @@
       "types": "./dist/blocks/risks/index.d.ts",
       "default": "./dist/blocks/risks/index.js"
     },
+    "./blocks/inspections": {
+      "@better-supabase/source": "./src/blocks/inspections/index.ts",
+      "types": "./dist/blocks/inspections/index.d.ts",
+      "default": "./dist/blocks/inspections/index.js"
+    },
     "./blocks/documents": {
       "@better-supabase/source": "./src/blocks/documents/index.ts",
       "types": "./dist/blocks/documents/index.d.ts",
@@ -1771,6 +1776,10 @@
       "./blocks/risks": {
         "types": "./dist/blocks/risks/index.d.ts",
         "default": "./dist/blocks/risks/index.js"
+      },
+      "./blocks/inspections": {
+        "types": "./dist/blocks/inspections/index.d.ts",
+        "default": "./dist/blocks/inspections/index.js"
       },
       "./blocks/documents": {
         "types": "./dist/blocks/documents/index.d.ts",

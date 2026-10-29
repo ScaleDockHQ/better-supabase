@@ -65,4 +65,5 @@ posts
 cases
 qualifications
 risks
+inspections
 acknowledgements

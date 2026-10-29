@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:d4ae02abb0d1509936f9030d0b159e22861c83b17fe7391d5abf6c888269e3b4
+-- @bsb-hash sha256:970afae38f8dd35af3a19909dda1ece356f6672818d7370a109ff202f0218b86
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -148,7 +148,7 @@ begin
     end if;
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
-  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'engagement', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'policy', 'incident', 'content_entry', 'form', 'document', 'case', 'risk', 'customer', 'drive_node', 'application', 'change_request', 'project', 'task') then
+  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'engagement', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'policy', 'incident', 'content_entry', 'form', 'document', 'case', 'risk', 'inspection', 'customer', 'drive_node', 'application', 'change_request', 'project', 'task') then
     raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
@@ -325,6 +325,7 @@ begin
     when 'document' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'documents.read'), false)
     when 'case' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'cases.read'), false)
     when 'risk' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.read'), false)
+    when 'inspection' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.read'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'customers.read'), false)
     when 'drive_node' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'drive.read'), false)
     when 'application' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'hiring.read'), false)
@@ -397,6 +398,7 @@ as $$
     when 'document' then coalesce(better_supabase.can('tenant', x."tenant_id", 'documents.read'), false)
     when 'case' then coalesce(better_supabase.can('tenant', x."tenant_id", 'cases.read'), false)
     when 'risk' then coalesce(better_supabase.can('tenant', x."tenant_id", 'risks.read'), false)
+    when 'inspection' then coalesce(better_supabase.can('tenant', x."tenant_id", 'inspections.read'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', x."tenant_id", 'customers.read'), false)
     when 'drive_node' then coalesce(better_supabase.can('tenant', x."tenant_id", 'drive.read'), false)
     when 'application' then coalesce(better_supabase.can('tenant', x."tenant_id", 'hiring.read'), false)
@@ -679,6 +681,13 @@ begin
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."risks" s
       where s."tenant_id" = v_row."tenant_id" and s."archived_at" is null
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
+  elsif v_row."subject_type" = 'inspection' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."inspections" s
+      where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;

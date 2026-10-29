@@ -955,7 +955,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:ea681f2fbccd5ed24d4f6d022fce5662aecff4b99c0f552bfd2a75d8b456ca47
+-- @bsb-hash sha256:4ab6d0bde9d43585879b07fafd3cc3cf54f5a793854afeb2746841c21e3b930e
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1488,6 +1488,7 @@ as $$
     ('user', 'better_supabase.cases', '"better_supabase"."cases"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.qualifications', '"better_supabase"."qualifications"', 'granted_by', true, '{}'::text[], true),
     ('user', 'better_supabase.risks', '"better_supabase"."risks"', 'created_by', true, '{}'::text[], true),
+    ('user', 'better_supabase.inspections', '"better_supabase"."inspections"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.acknowledgement_assignments', '"better_supabase"."acknowledgement_assignments"', 'created_by', true, '{}'::text[], true),
     ('user', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.audit_events', '"better_supabase"."audit_events"', 'organization_id', false, array['old_record', 'new_record', 'impersonated_by', 'impersonation_reason', 'support_session_id']::text[], true),
@@ -1821,6 +1822,9 @@ as $$
     ('organization', 'better_supabase.risk_matrices', '"better_supabase"."risk_matrices"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.risks', '"better_supabase"."risks"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.risk_assessments', '"better_supabase"."risk_assessments"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.inspection_programs', '"better_supabase"."inspection_programs"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.inspections', '"better_supabase"."inspections"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.inspection_findings', '"better_supabase"."inspection_findings"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.acknowledgement_assignments', '"better_supabase"."acknowledgement_assignments"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.acknowledgements', '"better_supabase"."acknowledgements"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)

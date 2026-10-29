@@ -7145,6 +7145,123 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "inspections",
+      "title": "Inspections",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "cases",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "inspections",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "inspections",
+      "entities": {
+        "specs": {
+          "inspection": {
+            "table": "inspections",
+            "singular": "inspection",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "number",
+                  "scope",
+                  "summary"
+                ]
+              }
+            }
+          },
+          "inspection_program": {
+            "table": "programs",
+            "singular": "inspection_program"
+          },
+          "inspection_finding": {
+            "table": "findings",
+            "singular": "inspection_finding"
+          }
+        },
+        "tables": {
+          "inspections": {
+            "name": "inspections",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "program": "program_id",
+              "number": "number",
+              "kind": "kind",
+              "title": "title",
+              "scope": "scope",
+              "criteria": "criteria",
+              "auditeeType": "auditee_type",
+              "auditeeId": "auditee_id",
+              "lead": "lead_id",
+              "plannedStart": "planned_start",
+              "plannedEnd": "planned_end",
+              "startedAt": "started_at",
+              "completedAt": "completed_at",
+              "closedAt": "closed_at",
+              "status": "status",
+              "summary": "summary",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "programs": {
+            "name": "inspection_programs",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "periodStart": "period_start",
+              "periodEnd": "period_end",
+              "owner": "owner_id",
+              "status": "status",
+              "notes": "notes",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "findings": {
+            "name": "inspection_findings",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "inspection": "inspection_id",
+              "number": "number",
+              "type": "type",
+              "title": "title",
+              "description": "description",
+              "clause": "clause",
+              "case": "case_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "inspections.read",
+          "write": "inspections.write",
+          "manage": "inspections.manage"
+        }
+      }
+    },
+    {
       "name": "acknowledgements",
       "title": "Acknowledgements",
       "category": "collaboration",
@@ -7709,6 +7826,71 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Risk"
+        },
+        {
+          "name": "RiskAssessedEventData"
+        },
+        {
+          "name": "RiskAssessment"
+        },
+        {
+          "name": "RiskAssessmentInput"
+        },
+        {
+          "name": "RiskBand"
+        },
+        {
+          "name": "RiskChange"
+        },
+        {
+          "name": "RiskCreatedEventData"
+        },
+        {
+          "name": "RiskHeatmap"
+        },
+        {
+          "name": "RiskHeatmapCell"
+        },
+        {
+          "name": "RiskInput"
+        },
+        {
+          "name": "RiskInputSchema"
+        },
+        {
+          "name": "RiskLevel"
+        },
+        {
+          "name": "RiskLifecycleEventData"
+        },
+        {
+          "name": "RiskListOptions"
+        },
+        {
+          "name": "RiskMatrix"
+        },
+        {
+          "name": "RiskMatrixSavedEventData"
+        },
+        {
+          "name": "Risks"
+        },
+        {
+          "name": "RisksEvents"
+        },
+        {
+          "name": "RisksOptions"
+        },
+        {
+          "name": "RiskTreatmentChangedEventData"
+        },
+        {
+          "name": "RiskUpdatedEventData"
+        }
+      ],
       "entitySchemas": {
         "risk": {
           "input": {
@@ -7784,6 +7966,116 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": "integer",
                   "minimum": 1,
                   "maximum": 120
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "RisksEvents",
+        "types": [
+          "risk_matrix.created",
+          "risk_matrix.updated",
+          "risk.created",
+          "risk.updated",
+          "risk.assessed",
+          "risk.treatment_changed",
+          "risk.reviewed",
+          "risk.closed",
+          "risk.review_reminded"
+        ]
+      }
+    },
+    {
+      "name": "inspections",
+      "sql": [
+        "inspections"
+      ],
+      "category": "work",
+      "client": {
+        "export": "inspectionsBlock",
+        "subpath": "better-supabase/blocks/inspections"
+      },
+      "consumes": {},
+      "provides": [],
+      "entitySchemas": {
+        "inspection": {
+          "input": {
+            "title": "InspectionInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "kind": {
+                "kind": "string",
+                "optional": true
+              },
+              "scope": {
+                "kind": "string",
+                "optional": true
+              },
+              "criteria": {
+                "kind": "string",
+                "optional": true
+              },
+              "programId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "leadId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "plannedStart": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "plannedEnd": {
+                "kind": "plainDate",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "InspectionInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "kind": {
+                  "type": "string"
+                },
+                "scope": {
+                  "type": "string"
+                },
+                "criteria": {
+                  "type": "string"
+                },
+                "programId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "leadId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "plannedStart": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "plannedEnd": {
+                  "type": "string",
+                  "format": "date"
                 }
               },
               "required": [

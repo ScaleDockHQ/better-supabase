@@ -5,6 +5,7 @@ import { acknowledgementsBlock } from "./acknowledgements/manifest.ts";
 import { casesBlock } from "./cases/manifest.ts";
 import { qualificationsBlock } from "./qualifications/manifest.ts";
 import { risksBlock } from "./risks/manifest.ts";
+import { inspectionsBlock } from "./inspections/manifest.ts";
 import { activitiesBlock } from "./activities/manifest.ts";
 import { agentsBlock } from "./agents/manifest.ts";
 import { aiCacheBlock } from "./ai-cache/manifest.ts";
@@ -158,6 +159,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   casesBlock,
   qualificationsBlock,
   risksBlock,
+  inspectionsBlock,
   createdByBlock,
   agentsBlock,
   aiCacheBlock,

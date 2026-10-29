@@ -442,5 +442,6 @@ export default defineConfig({
     cases: {},
     qualifications: {},
     risks: {},
+    inspections: {},
   },
 });
