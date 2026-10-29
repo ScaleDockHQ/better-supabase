@@ -2,6 +2,11 @@ import type { BlockSqlContext } from "../context.ts";
 import type { Names } from "./catalog-names.ts";
 
 import {
+  columnDefaults,
+  uniqueViolationOn,
+  withColumnDefault,
+} from "../column-defaults.ts";
+import {
   columnsObject,
   extraFieldsArg,
   fail,
@@ -9,13 +14,8 @@ import {
   userGrant,
   updateExtraColumns,
 } from "../shared.ts";
-import {
-  SLUG,
-  amountOf,
-  catalogRank,
-  categoryExtras,
-  guard,
-} from "./catalog-functions.ts";
+import { SLUG, amountOf, categoryExtras, guard } from "./catalog-functions.ts";
+import { catalogRank } from "./catalog-names.ts";
 
 /**
  * The price functions when the catalog has no prices table: a variant's price
@@ -497,6 +497,7 @@ declare
   v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
+  v_defaults jsonb;
 begin
   if v_id is null then
     ${guard(names, "save_category.tenant", names.categoryCreate)}
@@ -515,8 +516,9 @@ begin
       select max(${rank.order(`x.${k("rank")}`)}) into v_last from ${categories} x
       where x.${k("tenant")} = save_category.tenant and x.${k("parent")} is not distinct from save_category.parent;
       v_rank := ${rank.after("v_last")};
+      ${columnDefaults(categories, [[k("description"), "save_category.description"]], "v_defaults")}
       insert into ${categories} (${k("tenant")}, ${k("parent")}, ${k("name")}, ${k("slug")}, ${k("description")}, ${k("rank")}${inserted.columns})
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, ${rank.write("v_rank")}${inserted.values})
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, ${withColumnDefault(categories, k("description"), "save_category.description", "v_defaults")}, ${rank.write("v_rank")}${inserted.values})
       returning ${k("id")} into v_id;
     else
       update ${categories} x set ${k("parent")} = save_category.parent, ${k("name")} = save_category.name, ${k("slug")} = v_slug,
@@ -528,7 +530,7 @@ begin
       end if;
     end if;
   exception when unique_violation then
-    ${fail("CATALOG_SLUG_TAKEN", "another category has this slug", "23505")}
+    ${uniqueViolationOn(categories, k("slug"), fail("CATALOG_SLUG_TAKEN", "another category has this slug", "23505"))}
   end;
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank)${
     extras.length === 0

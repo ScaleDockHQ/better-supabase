@@ -442,6 +442,61 @@ describe("leave client", () => {
     ]);
   });
 
+  it("dates adjustments and accruals and reads busy entries and names in a feed", async () => {
+    const fake = transport({
+      adjust_leave_balance: () => ENTRY,
+      accrue_leave: () => 2,
+      leave_feed: () => ({
+        organizationId: "o",
+        organizationName: "Acme",
+        teamId: "team-1",
+        teamName: "Support",
+        requests: [],
+        busy: [
+          {
+            id: "q9",
+            employeeId: "e1",
+            name: "Dana",
+            startsOn: "2026-10-19",
+            endsOn: "2026-10-20",
+            partial: "full",
+            startPart: "full",
+            endPart: "full",
+            updatedAt: AT,
+          },
+        ],
+      }),
+    });
+
+    const leave = createLeave({ transport: fake });
+
+    await leave
+      .adjust("o", {
+        userId: "u1",
+        typeId: "t1",
+        amount: 2,
+        effectiveOn: Temporal.PlainDate.from("2026-01-15"),
+      })
+      .orThrow();
+    await leave
+      .accrue("o", {
+        typeId: "t1",
+        effectiveOn: Temporal.PlainDate.from("2026-11-01"),
+      })
+      .orThrow();
+
+    const feed = await leave.feed("t".repeat(40)).orThrow();
+
+    expect(fake.calls[0]?.[1]).toMatchObject({ effective_on: "2026-01-15" });
+    expect(fake.calls[1]?.[1]).toMatchObject({ effective_on: "2026-11-01" });
+    expect(feed).toMatchObject({
+      organizationName: "Acme",
+      teamName: "Support",
+      busy: [{ id: "q9", employeeId: "e1", name: "Dana", partial: "full" }],
+    });
+    expect(feed?.busy?.[0]?.endsOn.toString()).toBe("2026-10-20");
+  });
+
   it("decides a request and reads a leave feed", async () => {
     const fake = transport({
       decide_leave_request: () => ({

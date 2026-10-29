@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:916d3140d758f01eae729573a1f7b74a4a5b5c2b1fb32d37b00216cb5c211154
+-- @bsb-hash sha256:8e8c6e0ede00354851cc3ce51d85c591d41c56d47af12233d74104fcbc019769
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -512,6 +512,7 @@ declare
   v_slug text := nullif(save_product.slug, '');
   v_status text;
   v_created boolean := save_product.product is null;
+  v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -550,8 +551,11 @@ begin
   end;
   begin
     if v_created then
+      execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
+    from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+    where d.adrelid = '"better_supabase"."products"'::regclass and a.attname = any (array[case when save_product.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."products" ("tenant_id", "title", "slug", "description", "kind", "app_note")
-      values (save_product.tenant, v_title, v_slug, save_product.description, coalesce(save_product.kind, 'physical'), (jsonb_populate_record(null::"better_supabase"."products", jsonb_build_object('app_note', coalesce(save_product.fields, '{}'::jsonb) -> 'app_note')))."app_note")
+      values (save_product.tenant, v_title, v_slug, coalesce(save_product.description, (jsonb_populate_record(null::"better_supabase"."products", v_defaults))."description"), coalesce(save_product.kind, 'physical'), (jsonb_populate_record(null::"better_supabase"."products", jsonb_build_object('app_note', coalesce(save_product.fields, '{}'::jsonb) -> 'app_note')))."app_note")
       returning "id", "status" into v_id, v_status;
     else
       update "better_supabase"."products" x set "title" = v_title, "slug" = v_slug, "description" = case when 'description' = any (coalesce(save_product.clear, '{}'::text[])) then null else coalesce(save_product.description, x."description") end, "kind" = coalesce(save_product.kind, x."kind"), "updated_at" = now(), "app_note" = case when save_product.fields ? 'app_note' then (jsonb_populate_record(null::"better_supabase"."products", jsonb_build_object('app_note', save_product.fields -> 'app_note')))."app_note" else x."app_note" end
@@ -562,7 +566,21 @@ begin
       end if;
     end if;
   exception when unique_violation then
-    raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+    declare
+      v_constraint text;
+    begin
+      get stacked diagnostics v_constraint = constraint_name;
+      if exists (
+        select 1 from pg_catalog.pg_index i
+        join pg_catalog.pg_class c on c.oid = i.indexrelid
+        where i.indrelid = '"better_supabase"."products"'::regclass and c.relname = v_constraint
+          and (exists (select 1 from pg_catalog.pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey) and a.attname = 'slug')
+            or coalesce(pg_catalog.pg_get_expr(i.indexprs, i.indrelid), '') ~ ('\m' || 'slug' || '\M'))
+      ) then
+        raise exception 'another product has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+      end if;
+      raise;
+    end;
   end;
   if v_created then
     null;
@@ -680,6 +698,7 @@ declare
   v_last text;
   v_rank text;
   v_sku text := save_variant.sku;
+  v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -739,9 +758,12 @@ begin
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
-      insert into "better_supabase"."product_variants" ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
-      values (v_tenant, save_variant.product, save_variant.sku, save_variant.title, save_variant.barcode, save_variant.weight_grams, coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
-      returning "id" into v_id;
+      execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
+    from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+    where d.adrelid = '"better_supabase"."product_variants"'::regclass and a.attname = any (array[case when save_variant.sku is null then 'sku' end, case when save_variant.title is null then 'title' end, case when save_variant.barcode is null then 'barcode' end, case when save_variant.weight_grams is null then 'weight_grams' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
+      insert into "better_supabase"."product_variants" as x ("tenant_id", "product_id", "sku", "title", "barcode", "weight_grams", "track_inventory", "allow_backorder", "rank")
+      values (v_tenant, save_variant.product, coalesce(save_variant.sku, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."sku"), coalesce(save_variant.title, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."title"), coalesce(save_variant.barcode, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."barcode"), coalesce(save_variant.weight_grams, (jsonb_populate_record(null::"better_supabase"."product_variants", v_defaults))."weight_grams"), coalesce(save_variant.track_inventory, true), coalesce(save_variant.allow_backorder, false), v_rank)
+      returning x."id", x."sku" into v_id, v_sku;
     else
       update "better_supabase"."product_variants" x set "sku" = case when 'sku' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.sku, x."sku") end, "title" = case when 'title' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.title, x."title") end, "barcode" = case when 'barcode' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.barcode, x."barcode") end, "weight_grams" = case when 'weight' = any (coalesce(save_variant.clear, '{}'::text[])) then null else coalesce(save_variant.weight_grams, x."weight_grams") end, "track_inventory" = coalesce(save_variant.track_inventory, x."track_inventory"), "allow_backorder" = coalesce(save_variant.allow_backorder, x."allow_backorder"), "updated_at" = now()
       where x."id" = save_variant.variant and x."product_id" = save_variant.product
@@ -751,7 +773,21 @@ begin
       end if;
     end if;
   exception when unique_violation then
-    raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
+    declare
+      v_constraint text;
+    begin
+      get stacked diagnostics v_constraint = constraint_name;
+      if exists (
+        select 1 from pg_catalog.pg_index i
+        join pg_catalog.pg_class c on c.oid = i.indexrelid
+        where i.indrelid = '"better_supabase"."product_variants"'::regclass and c.relname = v_constraint
+          and (exists (select 1 from pg_catalog.pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey) and a.attname = 'sku')
+            or coalesce(pg_catalog.pg_get_expr(i.indexprs, i.indrelid), '') ~ ('\m' || 'sku' || '\M'))
+      ) then
+        raise exception 'another variant has this SKU' using errcode = '23505', hint = 'CATALOG_SKU_TAKEN';
+      end if;
+      raise;
+    end;
   end;
   if v_wanted is not null then
   delete from "better_supabase"."product_variant_values" x where x."variant_id" = v_id and not (x."option_value_id" = any (v_wanted));
@@ -1376,6 +1412,7 @@ declare
   v_slug text := coalesce(nullif(save_category.slug, ''), trim(both '-' from regexp_replace(lower(save_category.name), '[^a-z0-9]+', '-', 'g')));
   v_last text;
   v_rank text;
+  v_defaults jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1414,8 +1451,11 @@ begin
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
+      execute coalesce((select 'select jsonb_build_object(' || string_agg(pg_catalog.quote_literal(a.attname) || ', ' || pg_catalog.pg_get_expr(d.adbin, d.adrelid), ', ') || ')'
+    from pg_catalog.pg_attrdef d join pg_catalog.pg_attribute a on a.attrelid = d.adrelid and a.attnum = d.adnum
+    where d.adrelid = '"better_supabase"."categories"'::regclass and a.attname = any (array[case when save_category.description is null then 'description' end]::text[])), 'select ''{}''::jsonb') into v_defaults;
       insert into "better_supabase"."categories" ("tenant_id", "parent_id", "name", "slug", "description", "rank")
-      values (save_category.tenant, save_category.parent, save_category.name, v_slug, save_category.description, v_rank)
+      values (save_category.tenant, save_category.parent, save_category.name, v_slug, coalesce(save_category.description, (jsonb_populate_record(null::"better_supabase"."categories", v_defaults))."description"), v_rank)
       returning "id" into v_id;
     else
       update "better_supabase"."categories" x set "parent_id" = save_category.parent, "name" = save_category.name, "slug" = v_slug,
@@ -1427,7 +1467,21 @@ begin
       end if;
     end if;
   exception when unique_violation then
-    raise exception 'another category has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+    declare
+      v_constraint text;
+    begin
+      get stacked diagnostics v_constraint = constraint_name;
+      if exists (
+        select 1 from pg_catalog.pg_index i
+        join pg_catalog.pg_class c on c.oid = i.indexrelid
+        where i.indrelid = '"better_supabase"."categories"'::regclass and c.relname = v_constraint
+          and (exists (select 1 from pg_catalog.pg_attribute a where a.attrelid = i.indrelid and a.attnum = any (i.indkey) and a.attname = 'slug')
+            or coalesce(pg_catalog.pg_get_expr(i.indexprs, i.indrelid), '') ~ ('\m' || 'slug' || '\M'))
+      ) then
+        raise exception 'another category has this slug' using errcode = '23505', hint = 'CATALOG_SLUG_TAKEN';
+      end if;
+      raise;
+    end;
   end;
   return jsonb_build_object('id', v_id, 'slug', v_slug, 'rank', v_rank);
 end;

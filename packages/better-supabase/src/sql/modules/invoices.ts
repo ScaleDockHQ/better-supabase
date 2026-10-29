@@ -103,6 +103,8 @@ const NAMES: BlockSqlNames = {
     "chargeExtraColumns",
     "totals",
     "providerPaymentMethods",
+    "uniqueNumber",
+    "linePositionKey",
   ],
   tables: {
     invoices: {
@@ -196,6 +198,7 @@ function tables(ctx: BlockSqlContext, n: InvoiceNames): string {
   const company = invoiceParty(ctx, "company");
   const contact = invoiceParty(ctx, "contact");
   const origin = invoiceParty(ctx, "origin");
+  const uniqueNumber = invoiceUniqueNumber(ctx);
   const ch = (column: string): string => c("charges", column);
 
   const chargeColumns = [
@@ -265,12 +268,11 @@ create table if not exists ${t("invoices")} (
   ${i("createdAt")} timestamptz not null default now(),
   ${i("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "invoices")},
-  unique (${i("tenant")}, ${i("kind")}, ${i("number")}),
-  check ((${i("kind")} = 'credit_note') = (${i("original")} is not null)),
+${uniqueNumber === false ? "" : `  unique (${i("tenant")}, ${i("kind")}, ${i(uniqueNumber)}),\n`}  check ((${i("kind")} = 'credit_note') = (${i("original")} is not null)),
   check (${i("status")} <> 'draft' or ${i("number")} is null),
   check (${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}
 );
-create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${appUniqueIndex(ctx, "invoices", ["tenant", "kind", "number"])}
+create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", ["tenant", "kind", uniqueNumber])}
 ${lockModuleTable(ctx, "invoices", { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -304,6 +306,24 @@ ${renderPolicy(
 )}
 ${charges}
 `;
+}
+
+/**
+ * `options.uniqueNumber`: the column that is unique per tenant and kind, or
+ * `false` when the app keeps numbers unique itself.
+ */
+function invoiceUniqueNumber(
+  ctx: BlockSqlContext,
+): "number" | "identifier" | false {
+  const value = ctx.option("uniqueNumber") ?? "number";
+
+  if (value !== "number" && value !== "identifier" && value !== false) {
+    throw new TypeError(
+      'blocks.invoices.options.uniqueNumber must be "number", "identifier" or false',
+    );
+  }
+
+  return value;
 }
 
 /** `options.totals`: who keeps an invoice's totals. */

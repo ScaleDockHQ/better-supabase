@@ -686,7 +686,7 @@ export interface BlockNameRegistry {
       readonly "expenses": "id" | "tenant" | "user" | "employee" | "category" | "spentOn" | "description" | "merchant" | "amount" | "currency" | "status" | "submittedAt" | "approvedAt" | "rejectedAt" | "decidedBy" | "decidedAt" | "decisionNote" | "reimbursedAt" | "reimbursedBy" | "reimbursement" | "createdBy" | "createdAt" | "updatedAt";
     };
     readonly functions: "add_expense_line" | "approve_expense_report" | "archive_expense_category" | "cancel_expense_report" | "check_expense_report" | "create_expense_report" | "expense_report_violations" | "get_expense_report" | "list_expense_categories" | "list_expense_reports" | "reimburse_expense_report" | "remove_expense_line" | "save_expense_category" | "submit_expense_report" | "update_expense_line";
-    readonly actions: "read" | "submit" | "approve" | "manage" | "create" | "update" | "delete" | "reimburse" | "categories";
+    readonly actions: "read" | "submit" | "approve" | "manage" | "create" | "update" | "delete" | "reimburse" | "categories" | "withdraw" | "deleteSubmitted";
     readonly hooks: never;
     readonly entities: {
       readonly "expense_report": "id" | "tenant_id" | "user_id" | "title" | "currency" | "note" | "approval_id" | "submitted_at" | "approved_at" | "approval_transaction_id" | "reimbursed_at" | "reimbursement_transaction_id" | "cancelled_at" | "created_at" | "updated_at" | "rejected_at" | "decided_by" | "decision_note";

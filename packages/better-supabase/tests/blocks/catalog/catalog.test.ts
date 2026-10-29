@@ -307,6 +307,64 @@ describe("catalog block", () => {
     expect(invalid.ok).toBe(false);
   });
 
+  it("writes whole-number ranks with rankType integer", async () => {
+    const { calls, transport } = recorder(true, true, true, "7");
+    const catalog = createCatalog({ transport, rankType: "integer" });
+    expect(
+      await catalog
+        .reorderVariant("x1", { previous: "2", next: null })
+        .orThrow(),
+    ).toBe("3");
+    expect(
+      await catalog
+        .moveCategory("c1", null, { previous: "2", next: "8" })
+        .orThrow(),
+    ).toBe("5");
+    expect(
+      await catalog.moveCategory("c1", "c0", { position: 4 }).orThrow(),
+    ).toBe("4");
+    expect(
+      await catalog
+        .addToCollection("k1", "p1", { previous: null, next: "1" })
+        .orThrow(),
+    ).toBe("7");
+    expect(calls.map((call) => call.args)).toEqual([
+      { variant: "x1", rank: "3" },
+      { category: "c1", parent: null, rank: "5" },
+      { category: "c1", parent: "c0", rank: "4" },
+      { collection: "k1", product: "p1", rank: "0" },
+    ]);
+
+    const full = await catalog.reorderVariant("x1", {
+      previous: "2",
+      next: "3",
+    });
+
+    const text = await catalog.reorderVariant("x1", {
+      previous: "V",
+      next: null,
+    });
+
+    const fraction = await catalog.reorderVariant("x1", { position: 1.5 });
+
+    expect([full, text, fraction].map((result) => result.ok)).toEqual([
+      false,
+      false,
+      false,
+    ]);
+    expect(full.ok ? undefined : full.error.hint).toBe("RANK_KEY_INVALID");
+    expect(calls).toHaveLength(4);
+  });
+
+  it("refuses a position with text ranks", async () => {
+    const { calls, transport } = recorder(true);
+    const catalog = createCatalog({ transport });
+    const moved = await catalog.moveCategory("c1", null, { position: 2 });
+
+    expect(moved.ok ? undefined : moved.error.hint).toBe("RANK_KEY_INVALID");
+    expect(calls).toHaveLength(0);
+  });
+
   it("stores a rule collection's filter tree", async () => {
     const { calls, transport } = recorder({
       id: "k1",

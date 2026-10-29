@@ -106,6 +106,15 @@ A draft has no number. `issue(invoiceId, issuedOn?)` gives it the next number of
 
 The number belongs to the period of the issue date, so a numbering format with a year (`{yyyy}-{n}`) numbers an invoice issued on 31 December in that year's sequence, even when it is issued in January.
 
+The invoices table keeps the number unique per organization and kind. When numbering restarts each period, the number repeats (2025-1 and 2026-1), so make the identifier unique instead with `options.uniqueNumber: "identifier"`, or set it to `false` when your app keeps numbers unique itself. Over your own table the block then adds no unique index; on its own table the option takes effect when the table is created.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  invoices: { options: { uniqueNumber: "identifier" } },
+  numbering: { options: { entities: { invoice: { period: "format", format: "{yyyy}-{n}" } } } },
+}
+```
+
 ## Payments, credits and balance
 
 Amounts are `Money` values from [commerce](/docs/concepts/commerce): lines, totals, payments, the paid, credited and outstanding sums and the aging buckets. The database functions send them as text, so they stay exact past 2^53. Every line, credit and payment must be in the invoice's currency: the client returns `CURRENCY_MISMATCH` before calling the database, and `record_invoice_payment` refuses a payment in another currency (`INVOICE_CURRENCY_MISMATCH`). An invoice created without a `currency` takes the currency of its lines.
@@ -138,6 +147,8 @@ Your own charges table can carry columns the block doesn't know, such as a `kind
 ### Line rates as percentages
 
 Lines carry `discountBps` and `taxRateBps` in basis points (2100 is 21%). When your own line table keeps percentages, such as `vat_rate numeric(5, 2)`, map the columns and set `options.lineRates: "percent"`: the block writes `taxRateBps / 100` and reads the column times 100, so the client still sees basis points. The option needs your own line table; quotes and deals take it too.
+
+Over your own line table, the block adds a unique index on the invoice and position, which `setLines` uses to update lines in place. If your app renumbers lines with one `update`, which that index refuses halfway, set `options.linePositionKey: false`: the block leaves the index out, and `setLines` updates the lines by position and inserts the rest.
 
 ### Staff reads and portal reads
 

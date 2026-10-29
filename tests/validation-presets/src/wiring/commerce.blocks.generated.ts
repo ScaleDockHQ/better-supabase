@@ -60,7 +60,9 @@ export const blockConfig = {
   },
   catalog: {
     schema: "better_supabase",
-    options: {},
+    options: {
+      rankType: "text",
+    },
   },
   ledger: {
     schema: "better_supabase",

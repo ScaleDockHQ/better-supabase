@@ -64,3 +64,5 @@ export { catalogEvents } from "./events.ts";
 export type { CatalogEvents } from "./events.ts";
 
 export { productInputSchema } from "./schemas.ts";
+
+export type { CatalogRank, RankPosition } from "./rank.ts";

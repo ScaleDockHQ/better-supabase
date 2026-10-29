@@ -16,6 +16,26 @@ export type LeaveFeedOptions = ShareLinkFeedOptions & {
   readonly teams?: boolean;
   /** Each entry carries the request's extra columns. */
   readonly fields?: boolean;
+  /**
+   * A column of the employees table that names an employee's team, such as
+   * `department_team_id`. A team feed then shares the leave of the employees
+   * whose column holds the team's id, instead of the team's members. Needs
+   * `teams` and the employees block.
+   */
+  readonly teamColumn?: string;
+  /** A team feed carries the team's name. Needs `teams`. */
+  readonly teamName?: boolean;
+  /**
+   * `"schema.table.column"` of the organization's name, matched on the table's
+   * `id`; the feed carries it as `organizationName`.
+   */
+  readonly organizationName?: string;
+  /**
+   * `"busy"` lists the confidential leave the link's creator can't see under
+   * `busy`, with who and when but without the type, amount or fields. Default
+   * `"hide"` leaves it out. Needs `columns.types.confidential`.
+   */
+  readonly confidential?: "hide" | "busy";
 };
 
 /** `blocks.leave.options`. */

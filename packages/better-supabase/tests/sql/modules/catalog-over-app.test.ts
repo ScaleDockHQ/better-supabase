@@ -664,6 +664,134 @@ $$;`,
     },
   );
 
+  it(
+    "keeps column defaults for omitted values and names the violated unique index",
+    { timeout: 60_000 },
+    async () => {
+      const catalog = VARIANT_BLOCKS["catalog"];
+
+      const blocks: AnyBlocksConfig = {
+        catalog: {
+          ...catalog,
+          columns: {
+            ...catalog?.columns,
+            products: {
+              ...catalog?.columns?.["products"],
+              description: "description",
+            },
+            variants: {
+              ...catalog?.columns?.["variants"],
+              title: "title",
+              barcode: "ean",
+            },
+          },
+        },
+      };
+
+      const files = renderBlocks(["catalog"], {
+        modules: blocks,
+        ownTables: VARIANT_OWN,
+      });
+
+      await using stack = await liteStack({
+        driver: "pglite",
+        migrations: [
+          `${VARIANT_APP}
+alter table public.items add column description text not null default '';
+alter table public.items add column ean text;
+create unique index items_org_ean_key on public.items (org_id, ean);
+alter table public.item_variants alter column sku drop not null;
+alter table public.item_variants add column title text not null default '';
+alter table public.item_variants add column ean text;
+create unique index item_variants_org_ean_key on public.item_variants (org_id, lower(ean));
+alter table public.item_categories alter column description set default '' ;
+alter table public.item_categories alter column description set not null;`,
+          ...files
+            .filter((file) => file.kind !== "data")
+            .map((file) => file.contents),
+        ],
+        seed: [
+          ...files
+            .filter((file) => file.kind === "data")
+            .map((file) => file.contents),
+          `do $$
+declare
+  v_product uuid;
+  v_other uuid;
+  v_third uuid;
+  v_variant jsonb;
+  v_state text;
+  v_constraint text;
+  v_hint text;
+begin
+  ${SERVICE}
+  v_product := (better_supabase.save_product('${TENANT}', null, 'Shirt', null, null, null) ->> 'id')::uuid;
+  if (select description from public.items where id = v_product) <> '' then
+    raise exception 'product description %', (select description from public.items where id = v_product);
+  end if;
+  perform better_supabase.set_product_options(v_product, '[{"name": "Size", "values": ["S", "M"]}]');
+  if (select count(*) from public.item_variants where item_id = v_product) <> 2
+    or exists (select 1 from public.item_variants where item_id = v_product and title not in ('S', 'M')) then
+    raise exception 'option titles %', (select jsonb_agg(title) from public.item_variants where item_id = v_product);
+  end if;
+  perform better_supabase.set_product_options(v_product, '[{"name": "Size", "values": ["S", "M"]}]', null);
+  v_other := (better_supabase.save_product('${TENANT}', null, 'Mug', null, null, null) ->> 'id')::uuid;
+  v_variant := better_supabase.save_variant(v_other, null, 'MUG-1', null, null, 'abc', null, null, null);
+  if (select title from public.item_variants where id = (v_variant ->> 'id')::uuid) <> '' then
+    raise exception 'variant title %', v_variant;
+  end if;
+  if (better_supabase.save_category('${TENANT}', null, null, 'Tops', null, null) ->> 'id') is null
+    or (select description from public.item_categories where slug = 'tops') <> '' then
+    raise exception 'category description';
+  end if;
+  v_third := (better_supabase.save_product('${TENANT}', null, 'Cup', null, null, null) ->> 'id')::uuid;
+  begin
+    perform better_supabase.save_variant(v_third, null, 'MUG-2', null, null, 'ABC', null, null, null);
+    raise exception 'duplicate barcode passed';
+  exception when unique_violation then
+    get stacked diagnostics v_constraint = constraint_name, v_hint = pg_exception_hint;
+    if v_constraint <> 'item_variants_org_ean_key' or coalesce(v_hint, '') <> '' then
+      raise exception 'barcode violation % %', v_constraint, v_hint;
+    end if;
+  end;
+  begin
+    perform better_supabase.save_variant(v_third, null, 'MUG-1', null, null, null, null, null, null);
+    raise exception 'duplicate sku passed';
+  exception when unique_violation then
+    get stacked diagnostics v_hint = pg_exception_hint;
+    if v_hint <> 'CATALOG_SKU_TAKEN' then
+      raise exception 'sku violation %', v_hint;
+    end if;
+  end;
+  update public.items set ean = 'dup' where id = v_product;
+  alter table public.items alter column ean set default 'dup';
+  begin
+    perform better_supabase.save_product('${TENANT}', null, 'Hat', null, null, null);
+    raise exception 'duplicate ean passed';
+  exception when unique_violation then
+    get stacked diagnostics v_constraint = constraint_name, v_hint = pg_exception_hint;
+    if v_constraint <> 'items_org_ean_key' or coalesce(v_hint, '') <> '' then
+      raise exception 'ean violation % %', v_constraint, v_hint;
+    end if;
+  end;
+  begin
+    perform better_supabase.save_product('${TENANT}', null, 'Shirt', null, null, null);
+    raise exception 'duplicate slug passed';
+  exception when unique_violation then
+    get stacked diagnostics v_hint = pg_exception_hint;
+    if v_hint <> 'CATALOG_SLUG_TAKEN' then
+      raise exception 'slug violation %', v_hint;
+    end if;
+  end;
+end;
+$$;`,
+        ],
+      });
+
+      expect(stack.url).not.toBe("");
+    },
+  );
+
   it("checks separate create, update and delete keys when the config names them", () => {
     const sql = renderBlocks(["catalog"], {
       modules: {

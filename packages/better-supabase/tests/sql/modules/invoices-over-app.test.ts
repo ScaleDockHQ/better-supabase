@@ -863,6 +863,156 @@ $$;`,
     ).toContain("'invoice.update'");
   });
 
+  it("numbers per year under a unique identifier and lets the app renumber lines", async () => {
+    const modules: AnyBlocksConfig = {
+      invoices: {
+        ...BLOCKS["invoices"],
+        tables: { invoices: "public.bills", lines: "public.bill_lines" },
+        columns: {
+          ...BLOCKS["invoices"]?.columns,
+          lines: {
+            tenant: "org_id",
+            parent: "bill_id",
+            productType: null,
+            productId: null,
+            taxCode: null,
+            createdAt: null,
+          },
+        },
+        options: { uniqueNumber: "identifier", linePositionKey: false },
+      },
+      numbering: {
+        options: {
+          entities: { invoice: { period: "format", format: "{yyyy}-{n}" } },
+        },
+      },
+    };
+
+    const files = renderBlocks(["invoices", "numbering"], {
+      modules,
+      ownTables: { ...OWN_TABLES, "public.bill_lines": "app.sql" },
+    });
+
+    const check = `do $$
+declare
+  v_old uuid;
+  v_new uuid;
+  v_draft uuid;
+  v_invoice jsonb;
+begin
+  ${SERVICE}
+  v_old := (better_supabase.create_invoice('${TENANT}', '{"title": "Old", "currency": "EUR"}'::jsonb,
+    '[{"description": "Work", "quantity": 1, "unitAmount": "1000"}]'::jsonb) ->> 'id')::uuid;
+  v_new := (better_supabase.create_invoice('${TENANT}', '{"title": "New", "currency": "EUR"}'::jsonb,
+    '[{"description": "Work", "quantity": 1, "unitAmount": "1000"}]'::jsonb) ->> 'id')::uuid;
+  perform better_supabase.issue_invoice(v_old, date '2025-06-30');
+  perform better_supabase.issue_invoice(v_new, date '2026-06-30');
+  if (select array_agg(code order by code) from public.bills where id in (v_old, v_new)) <> array['2025-1', '2026-1']
+    or (select count(distinct seq) from public.bills where id in (v_old, v_new)) <> 1 then
+    raise exception 'numbers %', (select jsonb_agg(jsonb_build_array(seq, code)) from public.bills);
+  end if;
+  begin
+    update public.bills set code = '2025-1' where id = v_new;
+    raise exception 'duplicate identifier passed';
+  exception when unique_violation then
+    null;
+  end;
+  v_draft := (better_supabase.create_invoice('${TENANT}', '{"title": "Draft", "currency": "EUR"}'::jsonb,
+    '[{"description": "A", "quantity": 1, "unitAmount": "100"}, {"description": "B", "quantity": 1, "unitAmount": "200"}]'::jsonb) ->> 'id')::uuid;
+  update public.bill_lines set position = 3 - position where bill_id = v_draft;
+  if (select string_agg(description, '' order by position) from public.bill_lines where bill_id = v_draft) <> 'BA' then
+    raise exception 'renumbered %', (select jsonb_agg(row_to_json(l)) from public.bill_lines l where bill_id = v_draft);
+  end if;
+  v_invoice := better_supabase.set_invoice_lines(v_draft,
+    '[{"description": "C", "quantity": 1, "unitAmount": "300"}, {"description": "D", "quantity": 2, "unitAmount": "400"}, {"description": "E", "quantity": 1, "unitAmount": "500"}]'::jsonb);
+  if (select string_agg(description, '' order by position) from public.bill_lines where bill_id = v_draft) <> 'CDE'
+    or (select count(*) from public.bill_lines where bill_id = v_draft) <> 3
+    or (v_invoice ->> 'total')::bigint <> 1600 then
+    raise exception 'set lines % %', v_invoice, (select jsonb_agg(row_to_json(l)) from public.bill_lines l where bill_id = v_draft);
+  end if;
+  perform better_supabase.set_invoice_lines(v_draft, '[{"description": "F", "quantity": 1, "unitAmount": "600"}]'::jsonb);
+  if (select string_agg(description, '' order by position) from public.bill_lines where bill_id = v_draft) <> 'F' then
+    raise exception 'shrunk lines';
+  end if;
+  if exists (select 1 from pg_indexes where tablename = 'bill_lines' and indexname <> 'bill_lines_pkey' and indexdef like 'CREATE UNIQUE%')
+    or exists (select 1 from pg_indexes where tablename = 'bills' and indexdef like '%(org_id, kind, seq)%') then
+    raise exception 'unexpected unique index';
+  end if;
+end;
+$$;`;
+
+    await using stack = await liteStack({
+      driver: "pglite",
+      migrations: [
+        ROLES,
+        `${APP}
+create table public.bill_lines (
+  id uuid primary key default gen_random_uuid(),
+  org_id uuid not null,
+  bill_id uuid not null references public.bills (id) on delete cascade,
+  description text not null,
+  quantity numeric not null default 1,
+  unit_amount bigint not null,
+  discount_bps integer not null default 0,
+  tax_rate_bps integer not null default 0,
+  position integer not null default 0
+);
+`,
+        ...files
+          .filter((file) => file.kind !== "data")
+          .map((file) => file.contents),
+      ],
+      seed: [
+        ...files
+          .filter((file) => file.kind === "data")
+          .map((file) => file.contents),
+        check,
+      ],
+    });
+
+    expect(stack.url).not.toBe("");
+  });
+
+  it("keeps the unique number and line position indexes by default", () => {
+    const render = (options?: Record<string, unknown>): string =>
+      renderBlocks(["invoices"], {
+        modules: {
+          invoices: {
+            ...BLOCKS["invoices"],
+            tables: { invoices: "public.bills", lines: "public.bill_lines" },
+            ...(options === undefined ? {} : { options }),
+          },
+        },
+        ownTables: { ...OWN_TABLES, "public.bill_lines": "app.sql" },
+      })
+        .map((file) => file.contents)
+        .join("\n");
+
+    const defaults = render();
+    expect(defaults).toContain(
+      'create unique index if not exists "bills_org_id_kind_seq_key" on "public"."bills" ("org_id", "kind", "seq");',
+    );
+    expect(defaults).toContain('"bsb_bill_lines_position_key"');
+    expect(defaults).toContain('"position") do update');
+
+    const off = render({ uniqueNumber: false, linePositionKey: false });
+    expect(off).not.toContain("bills_org_id_kind");
+    expect(off).not.toContain("bsb_bill_lines_position_key");
+    expect(off).not.toContain('"position") do update');
+    expect(render({ uniqueNumber: "identifier" })).toContain(
+      '"bills_org_id_kind_code_key" on "public"."bills" ("org_id", "kind", "code")',
+    );
+
+    const own = renderBlocks(["invoices"], {
+      modules: { invoices: { options: { uniqueNumber: "identifier" } } },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(own).toContain('unique ("tenant_id", "kind", "identifier")');
+    expect(() => render({ uniqueNumber: "year" })).toThrow(/uniqueNumber/);
+  });
+
   it("leaves the totals trigger out when the app owns the totals", () => {
     const sql = renderBlocks(["invoices"], {
       modules: { invoices: { options: { totals: "app" } } },

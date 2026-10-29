@@ -647,6 +647,107 @@ $$;`,
     }
   });
 
+  it("withdraws approved expenses and deletes submitted ones when the config allows it", async () => {
+    const payroll = "88888888-8888-4888-8888-888888888888";
+
+    const refused = (call: string, reason: string): string => `begin
+    perform ${call};
+    raise exception 'allowed: ${call.replaceAll("'", "''")}';
+  exception when others then
+    if sqlerrm like 'allowed: %' or sqlerrm not like '%${reason}%' then
+      raise;
+    end if;
+  end;`;
+
+    await expect(
+      runStandalone(
+        `create table public.denied (user_id uuid, permission text);
+insert into public.denied values ('${payroll}', 'expense.withdraw'), ('${payroll}', 'expense.purge'),
+  ('${payroll}', 'expense.update'), ('${payroll}', 'expense.manage'), ('${ALICE}', 'expense.purge');
+create or replace function better_supabase.can(scope text, scope_id uuid, permission text)
+returns boolean language sql stable as $$ select not exists (select 1 from public.denied d where d.user_id = auth.uid() and d.permission = can.permission) $$;
+insert into auth.users (id) values ('${payroll}');
+insert into better_supabase.memberships (organization_id, user_id, role) values ('${TENANT}', '${payroll}', 'member');
+do $$
+declare
+  v_id uuid;
+  v_other uuid;
+  v_paid uuid;
+  v_expense jsonb;
+begin
+  ${AS(ALICE)}
+  v_id := (better_supabase.create_expense('${TENANT}', '2099-03-02', 900, 'EUR', null, 'Taxi') ->> 'id')::uuid;
+  v_other := (better_supabase.create_expense('${TENANT}', '2099-03-03', 400, 'EUR', null, 'Lunch') ->> 'id')::uuid;
+  v_paid := (better_supabase.create_expense('${TENANT}', '2099-03-04', 300, 'EUR', null, 'Bus') ->> 'id')::uuid;
+  perform better_supabase.submit_expense(v_id);
+  perform better_supabase.submit_expense(v_other);
+  perform better_supabase.submit_expense(v_paid);
+  ${AS(BOB)}
+  perform better_supabase.decide_expense(v_id, true);
+  perform better_supabase.decide_expense(v_other, true);
+  perform better_supabase.decide_expense(v_paid, true);
+  perform better_supabase.reimburse_expense(v_paid, 'batch-1');
+  ${AS(ALICE)}
+  v_expense := better_supabase.withdraw_expense(v_id);
+  if v_expense ->> 'status' <> 'draft' or v_expense ->> 'decidedBy' is not null or v_expense ->> 'submittedAt' is not null then
+    raise exception 'withdrawn %', v_expense;
+  end if;
+  ${refused("better_supabase.delete_expense(v_other)", "not allowed")}
+  ${refused("better_supabase.withdraw_expense(v_paid)", "submitted or approved")}
+  perform better_supabase.submit_expense(v_id);
+  ${AS(BOB)}
+  perform better_supabase.decide_expense(v_id, true);
+  ${AS(payroll)}
+  ${refused("better_supabase.withdraw_expense(v_id)", "not allowed")}
+  ${refused("better_supabase.delete_expense(v_other)", "not allowed")}
+  ${AS(BOB)}
+  if better_supabase.withdraw_expense(v_id) ->> 'status' <> 'draft' then
+    raise exception 'withdrawn by a key holder';
+  end if;
+  if not better_supabase.delete_expense(v_other) then
+    raise exception 'approved expense not deleted';
+  end if;
+  ${refused("better_supabase.get_expense(v_other)", "no such expense")}
+  ${refused("better_supabase.delete_expense(v_paid)", "only a draft")}
+end;
+$$;`,
+        {
+          expenses: {
+            tables: { reports: null, lines: null },
+            permissions: {
+              manage: "expense.manage",
+              update: "expense.update",
+              withdraw: "expense.withdraw",
+              deleteSubmitted: "expense.purge",
+            },
+            options: { withdrawApproved: true },
+          },
+        },
+        {},
+        "",
+      ),
+    ).resolves.toBeUndefined();
+
+    const sql = renderBlocks(["employees", "expenses"], {
+      modules: { expenses: { tables: { reports: null, lines: null } } },
+    })
+      .map((file) => file.contents)
+      .join("\n");
+
+    const body = (name: string): string => {
+      const start = sql.indexOf(`function "better_supabase"."${name}"(`);
+
+      return sql.slice(start, sql.indexOf("$$;", start));
+    };
+
+    expect(body("withdraw_expense")).toContain(
+      "only a submitted expense is withdrawn",
+    );
+    expect(body("withdraw_expense")).toContain("not in ('submitted')");
+    expect(body("delete_expense")).toContain("only a draft expense is deleted");
+    expect(body("delete_expense")).not.toContain("'approved'");
+  });
+
   it("runs over categories without key and currency columns, with extra columns", async () => {
     const modules: AnyBlocksConfig = {
       expenses: {

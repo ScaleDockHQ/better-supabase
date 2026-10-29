@@ -194,6 +194,15 @@ export function expenseStandaloneSql(ctx: BlockSqlContext): string {
   const updateOthers = expenseKey(ctx, "update");
   const deleteOthers = expenseKey(ctx, "delete");
   const reimburse = expenseKey(ctx, "reimburse");
+  const withdrawApproved = ctx.flag("withdrawApproved", false);
+
+  const withdrawOthers = sqlString(
+    ctx.config.permissions["withdraw"] ??
+      ctx.config.permissions["update"] ??
+      ctx.permissionKey("manage", ops.manage),
+  );
+
+  const deleteSubmitted = ctx.config.permissions["deleteSubmitted"];
   const extras = ctx.extraColumns("expenses", EXPENSE_RESERVED);
   const extra = extraFieldsArg(extras);
   const statusColumn = has("status");
@@ -480,11 +489,11 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
-begin${load("withdraw_expense.expense_id")}${ownerOrManager(updateOthers)}
-  if ${status("v_row")} <> 'submitted' then
-    ${fail("EXPENSE_LOCKED", "only a submitted expense is withdrawn", "55000")}
+begin${load("withdraw_expense.expense_id")}${ownerOrManager(withdrawApproved ? withdrawOthers : updateOthers)}
+  if ${status("v_row")} not in (${withdrawApproved ? "'submitted', 'approved'" : "'submitted'"}) then
+    ${fail("EXPENSE_LOCKED", withdrawApproved ? "only a submitted or approved expense is withdrawn" : "only a submitted expense is withdrawn", "55000")}
   end if;
-  update ${table} x set ${e("submittedAt")} = null${setStatus("draft")}, ${e("updatedAt")} = now()
+  update ${table} x set ${e("submittedAt")} = null${setStatus("draft")}${withdrawApproved ? `${set("approvedAt", "null")}${set("decidedBy", "null")}${set("decidedAt", "null")}` : ""}, ${e("updatedAt")} = now()
     where x.${e("id")} = v_row.${e("id")}
     returning * into v_row;
   ${record("expense.withdrawn", "withdrew an expense")}
@@ -501,9 +510,19 @@ set search_path = ''
 as $$
 declare
   v_row ${table}%rowtype;
-begin${load("delete_expense.expense_id")}${ownerOrManager(deleteOthers)}
-  if ${status("v_row")} <> 'draft' then
-    ${fail("EXPENSE_LOCKED", "only a draft expense is deleted", "55000")}
+begin${load("delete_expense.expense_id")}${
+    deleteSubmitted === undefined
+      ? ownerOrManager(deleteOthers)
+      : `
+  if ${status("v_row")} in ('submitted', 'approved') then
+    if not (${SERVICE_CALLER} or ${ctx.can("tenant", `v_row.${e("tenant")}`, sqlString(deleteSubmitted))}) then
+      ${forbidden("not allowed to delete a submitted or approved expense")}
+    end if;
+  else${ownerOrManager(deleteOthers).replaceAll("\n", "\n  ")}
+  end if;`
+  }
+  if ${status("v_row")} <> 'draft'${deleteSubmitted === undefined ? "" : ` and ${status("v_row")} not in ('submitted', 'approved')`} then
+    ${fail("EXPENSE_LOCKED", deleteSubmitted === undefined ? "only a draft expense is deleted" : "only a draft, submitted or approved expense is deleted", "55000")}
   end if;
   delete from ${table} x where x.${e("id")} = v_row.${e("id")};
   ${record("expense.deleted", "deleted an expense")}

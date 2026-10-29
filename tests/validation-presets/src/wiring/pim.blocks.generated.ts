@@ -80,7 +80,9 @@ export const blockConfig = {
   },
   catalog: {
     schema: "better_supabase",
-    options: {},
+    options: {
+      rankType: "text",
+    },
   },
   "custom-fields": {
     schema: "better_supabase",

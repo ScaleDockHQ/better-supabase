@@ -157,6 +157,18 @@ blocks: {
 
 The balance on a date is the sum of the rows effective by then, where a credit that has expired counts only as far as the debits used it: taken leave uses the credits that expire first. `balances` reads it at the end of `period`, or today for this year, and a request checks it on its start date. Approving a request adds a `taken` row dated on its start, and cancelling it deletes that row. `adjust` adds a row and takes `expiresOn`. `closePeriod` adds an `expiry` row on 31 December for the balance above `carryoverMax`; it needs `effectiveOn`. An `idempotencyKey` needs `key`.
 
+`adjust` and `accrue` take an `effectiveOn` date, such as a backdated correction or an accrual on the first of the month. Without `period` the entry belongs to that date's year; without `effectiveOn` it counts from the first day of the period, as before. Without an `effectiveOn` column they refuse a date (`LEAVE_EFFECTIVE_UNSUPPORTED`).
+
+```ts
+await leave
+  .accrue(organizationId, {
+    typeId: vacation.id,
+    amount: 13.33,
+    effectiveOn: Temporal.PlainDate.from("2026-11-01"),
+  })
+  .orThrow();
+```
+
 ### Confidential leave types
 
 Every member with `leave.read` reads everyone's leave, which is right for a team calendar but not for sick leave. Over your own types table, map `columns.types.confidential` to a boolean column, and leave of a confidential type stays with the people allowed to see it: the employee, their manager (with `options.owner: "employee"`) and members with `permissions.readConfidential` (`leave.manage` when unset). `list`, `balances`, `ledger` and the feeds leave the others out, and so does the read policy of the block's own requests table.
@@ -197,13 +209,17 @@ const feed = await leave.feed(link.token).orThrow();
 
 Each entry has `startPart` and `endPart`. `options.feed` takes more:
 
-| Option      | Effect                                                                                                                                                       |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `teams`     | with the [teams](/docs/blocks/teams) block, a link of subject type `leave_team_feed` whose subject id is a team's id shares the leave of that team's members |
-| `names`     | each entry carries the employee's `name`, or first and last name with the employees block's `name: "split"`; needs the employees block                       |
-| `hideTypes` | type keys whose `type` name the feed leaves out, such as `["sick"]`                                                                                          |
-| `typeKey`   | the types table column `hideTypes` matches, such as `category`, instead of the type key                                                                      |
-| `fields`    | each entry carries the request's extra columns, such as start and end times                                                                                  |
+| Option             | Effect                                                                                                                                                                                                                                                                                    |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `teams`            | with the [teams](/docs/blocks/teams) block, a link of subject type `leave_team_feed` whose subject id is a team's id shares the leave of that team's members                                                                                                                              |
+| `names`            | each entry carries the employee's `name`, or first and last name with the employees block's `name: "split"`; needs the employees block                                                                                                                                                    |
+| `hideTypes`        | type keys whose `type` name the feed leaves out, such as `["sick"]`                                                                                                                                                                                                                       |
+| `typeKey`          | the types table column `hideTypes` matches, such as `category`, instead of the type key                                                                                                                                                                                                   |
+| `fields`           | each entry carries the request's extra columns, such as start and end times                                                                                                                                                                                                               |
+| `teamColumn`       | a column of the employees table that names an employee's team, such as `department_team_id`: a team feed shares the leave of the employees whose column holds the team's id, including employees without an account, instead of the team's members; needs `teams` and the employees block |
+| `teamName`         | a team feed carries the team's `teamName`; needs `teams`                                                                                                                                                                                                                                  |
+| `organizationName` | `"schema.table.column"` of the organization's name, matched on that table's `id`; the feed carries it as `organizationName`                                                                                                                                                               |
+| `confidential`     | `"busy"` lists the confidential leave the link's creator can't see under `busy`, with who and when but without the type, amount or fields; `"hide"` (the default) leaves it out; needs `columns.types.confidential`                                                                       |
 
 ```ts
 leave: {

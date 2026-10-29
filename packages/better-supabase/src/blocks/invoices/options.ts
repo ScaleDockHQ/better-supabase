@@ -28,6 +28,18 @@ export type InvoicesSqlOptions = {
    */
   readonly totals?: "block" | "app";
   readonly providerPaymentMethods?: readonly string[];
+  /**
+   * The column an invoice's number is unique on, per tenant and kind:
+   * `"number"` (default), `"identifier"` for numbering that restarts each
+   * period with the period in the identifier, or `false` when the app keeps
+   * numbers unique itself.
+   */
+  readonly uniqueNumber?: "number" | "identifier" | false;
+  /**
+   * `false` leaves out the unique `(invoice, position)` index on your own line
+   * table, so the app can renumber lines in one update. Default `true`.
+   */
+  readonly linePositionKey?: boolean;
 };
 
 export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
@@ -43,4 +55,6 @@ export const invoicesSqlOptions: BlockOptionsSchema<InvoicesSqlOptions> =
     chargeExtraColumns: option.extraColumns(),
     totals: option.string<"block" | "app">({ default: "block" }),
     providerPaymentMethods: option.strings({ default: ["stripe", "order"] }),
+    uniqueNumber: option.unknown<"number" | "identifier" | false>(),
+    linePositionKey: option.boolean({ default: true }),
   });

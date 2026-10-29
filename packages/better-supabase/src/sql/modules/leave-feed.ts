@@ -4,10 +4,11 @@ import type { ShareLinkContribution } from "../contributions.ts";
 import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { feedDateWindow, feedOptions } from "../feed-options.ts";
-import { extraFieldsJson } from "../shared.ts";
+import { columnRef, extraFieldsJson } from "../shared.ts";
 import { splitName } from "./employees-options.ts";
 import {
   leaveByEmployee,
+  leaveConfidential,
   leaveConfidentialFilter,
   leaveConfidentialKey,
   leavePartsMapped,
@@ -84,7 +85,19 @@ interface LeaveFeedExtras {
   readonly teams: boolean;
   /** Each entry carries the request's extra columns. */
   readonly fields: boolean;
+  /** An employees column that names an employee's team, instead of team members. */
+  readonly teamColumn: string | undefined;
+  /** The feed carries the team's name. */
+  readonly teamName: boolean;
+  /** Where the feed reads the organization's name. */
+  readonly organizationName:
+    | { readonly table: string; readonly column: string }
+    | undefined;
+  /** `busy` lists the confidential leave the link's creator can't see. */
+  readonly busy: boolean;
 }
+
+const COLUMN_NAME = /^[a-z_][a-z0-9_]*$/u;
 
 function leaveFeedExtras(ctx: BlockSqlContext): LeaveFeedExtras {
   const raw = ctx.option("feed") ?? {};
@@ -96,18 +109,27 @@ function leaveFeedExtras(ctx: BlockSqlContext): LeaveFeedExtras {
     typeKey,
     teams = false,
     fields = false,
+    teamColumn,
+    teamName = false,
+    organizationName,
+    confidential = "hide",
   } = feed;
 
   if (
     typeKey !== undefined &&
-    (typeof typeKey !== "string" || !/^[a-z_][a-z0-9_]*$/u.test(typeKey))
+    (typeof typeKey !== "string" || !COLUMN_NAME.test(typeKey))
   ) {
     throw new TypeError(
       `${FEED_WHERE}.typeKey is a column name of the leave types table`,
     );
   }
 
-  for (const [key, value] of Object.entries({ names, teams, fields })) {
+  for (const [key, value] of Object.entries({
+    names,
+    teams,
+    fields,
+    teamName,
+  })) {
     if (typeof value !== "boolean") {
       throw new TypeError(`${FEED_WHERE}.${key} is a boolean`);
     }
@@ -138,12 +160,62 @@ function leaveFeedExtras(ctx: BlockSqlContext): LeaveFeedExtras {
     throw new TypeError(`${FEED_WHERE}.teams needs the teams block`);
   }
 
+  if (
+    teamColumn !== undefined &&
+    (typeof teamColumn !== "string" || !COLUMN_NAME.test(teamColumn))
+  ) {
+    throw new TypeError(
+      `${FEED_WHERE}.teamColumn is a column name of the employees table`,
+    );
+  }
+
+  if (
+    teamColumn !== undefined &&
+    (teams !== true || !ctx.installed("employees"))
+  ) {
+    throw new TypeError(
+      `${FEED_WHERE}.teamColumn needs feed.teams and the employees block`,
+    );
+  }
+
+  if (
+    teamName === true &&
+    (teams !== true || !ctx.of("teams").has("teams", "name"))
+  ) {
+    throw new TypeError(
+      `${FEED_WHERE}.teamName needs feed.teams and a teams name column`,
+    );
+  }
+
+  if (organizationName !== undefined && typeof organizationName !== "string") {
+    throw new TypeError(
+      `${FEED_WHERE}.organizationName is "schema.table.column", matched on the table's id`,
+    );
+  }
+
+  if (confidential !== "hide" && confidential !== "busy") {
+    throw new TypeError(`${FEED_WHERE}.confidential is "hide" or "busy"`);
+  }
+
+  if (confidential === "busy" && !leaveConfidential(ctx)) {
+    throw new TypeError(
+      `${FEED_WHERE}.confidential needs columns.types.confidential`,
+    );
+  }
+
   return {
     names: names === true,
     hideTypes,
     typeKey,
     teams: teams === true,
     fields: fields === true,
+    teamColumn,
+    teamName: teamName === true,
+    organizationName:
+      organizationName === undefined
+        ? undefined
+        : columnRef(`${FEED_WHERE}.organizationName`, organizationName),
+    busy: confidential === "busy",
   };
 }
 
@@ -231,11 +303,73 @@ export function leaveFeed(ctx: BlockSqlContext): string {
       ? ty("name")
       : `case when ${extras.typeKey === undefined ? leaveTypeKey(ctx, "t") : `t.${sqlIdent(extras.typeKey)}::text`} = any (${sqlString(`{${extras.hideTypes.join(",")}}`)}::text[]) then null else ${ty("name")} end`;
 
+  const teamMember = (): string => {
+    if (teams === undefined) {
+      return "";
+    }
+
+    if (extras.teamColumn === undefined) {
+      return `${leaveRequestUser(ctx, "r")} in (select m.${teams.col("members", "user")} from ${teams.table("members")} m where m.${teams.col("members", "team")}::text = v_team)`;
+    }
+
+    const staff = ctx.of("employees");
+    const y = (column: string): string => `y.${staff.col("employees", column)}`;
+
+    return `exists (select 1 from ${staff.table("employees")} y where ${
+      leaveByEmployee(ctx)
+        ? `${y("id")} = ${q("employee")}`
+        : `${y("tenant")} = ${q("tenant")} and ${y("user")} = ${q("user")}`
+    } and y.${sqlIdent(extras.teamColumn)}::text = v_team)`;
+  };
+
   const teamFilter =
     teams === undefined
       ? ""
       : `
-          and (v_team is null or ${leaveRequestUser(ctx, "r")} in (select m.${teams.col("members", "user")} from ${teams.table("members")} m where m.${teams.col("members", "team")}::text = v_team))`;
+          and (v_team is null or ${teamMember()})`;
+
+  const confidentialType = (): string =>
+    `exists (select 1 from ${ctx.table("types")} lc where lc.${ctx.col("types", "id")}::text = (${q("type")})::text and lc.${ctx.col("types", "confidential")})`;
+
+  const sees = ctx.scope.canUser(
+    "v_creator",
+    "v_tenant",
+    leaveConfidentialKey(ctx),
+  );
+
+  const header = [
+    ...(extras.organizationName === undefined
+      ? []
+      : [
+          `'organizationName', (select o.${extras.organizationName.column}::text from ${extras.organizationName.table} o where o.id = v_tenant)`,
+        ]),
+    ...(teams === undefined ? [] : ["'teamId', v_team"]),
+    ...(teams !== undefined && extras.teamName
+      ? [
+          `'teamName', (select t.${teams.col("teams", "name")}::text from ${teams.table("teams")} t where t.${teams.col("teams", "id")}::text = v_team)`,
+        ]
+      : []),
+  ]
+    .map((entry) => `\n    ${entry},`)
+    .join("");
+
+  const busy = extras.busy
+    ? `,
+    'busy', coalesce((
+      select jsonb_agg(x.item order by x.starts_on, x.id)
+      from (
+        select jsonb_build_object('id', ${q("id")}, 'userId', ${leaveRequestUser(ctx, "r")}${leaveByEmployee(ctx) ? `, 'employeeId', ${q("employee")}` : ""}${extras.names ? `, 'name', ${employeeName(ctx, "r")}` : ""},
+          'startsOn', ${q("startsOn")}, 'endsOn', ${q("endsOn")}, 'partial', ${leavePartial(ctx, "r")}, 'startPart', ${leaveStartPart(ctx, "r")}, 'endPart', ${leaveEndPart(ctx, "r")}, 'updatedAt', ${q("updatedAt")}) as item,
+          ${q("startsOn")} as starts_on, ${q("id")} as id
+        from ${ctx.table("requests")} r
+        where ${q("tenant")} = v_tenant and ${q("approvedAt")} is not null and ${q("cancelledAt")} is null
+          and ${feedDateWindow(feed, q("startsOn"), q("endsOn"))}${teamFilter}
+          and not (${sees}) and ${confidentialType()}
+        order by ${q("startsOn")}, ${q("id")}
+        limit ${String(feed.limit)}
+      ) x
+    ), '[]'::jsonb)`
+    : "";
 
   return `
 -- The approved leave of the organization or team a share link points at,
@@ -270,7 +404,7 @@ begin
   end if;
   ${touchShareLink(s, "v_link")}
   return jsonb_build_object(
-    'organizationId', v_tenant,${teams === undefined ? "" : "\n    'teamId', v_team,"}
+    'organizationId', v_tenant,${header}
     'requests', coalesce((
       select jsonb_agg(x.item order by x.starts_on, x.id)
       from (
@@ -280,11 +414,11 @@ begin
         from ${ctx.table("requests")} r
         join ${ctx.table("types")} t on ${ty("id")} = ${q("type")}
         where ${q("tenant")} = v_tenant and ${q("approvedAt")} is not null and ${q("cancelledAt")} is null
-          and ${feedDateWindow(feed, q("startsOn"), q("endsOn"))}${teamFilter}${leaveConfidentialFilter(ctx, q("type"), ctx.scope.canUser("v_creator", "v_tenant", leaveConfidentialKey(ctx)))}
+          and ${feedDateWindow(feed, q("startsOn"), q("endsOn"))}${teamFilter}${leaveConfidentialFilter(ctx, q("type"), sees)}
         order by ${q("startsOn")}, ${q("id")}
         limit ${String(feed.limit)}
       ) x
-    ), '[]'::jsonb)
+    ), '[]'::jsonb)${busy}
   );
 end;
 $$;

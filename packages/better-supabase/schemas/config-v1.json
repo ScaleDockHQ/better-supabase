@@ -4792,6 +4792,10 @@
               "companyExpenses": {
                 "type": "boolean",
                 "default": false
+              },
+              "withdrawApproved": {
+                "type": "boolean",
+                "default": false
               }
             }
           }
@@ -5188,6 +5192,11 @@
                   "type": "string"
                 },
                 "default": ["stripe", "order"]
+              },
+              "uniqueNumber": {},
+              "linePositionKey": {
+                "type": "boolean",
+                "default": true
               }
             }
           }

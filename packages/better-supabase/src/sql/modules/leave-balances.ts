@@ -53,6 +53,14 @@ export function leaveBalanceFunctions(
   const ownerDrop = (name: string, types: string): string =>
     employee ? `drop function if exists ${fn(name)}(${types});\n` : "";
 
+  const effectiveCheck = (arg: string): string =>
+    has("effectiveOn")
+      ? ""
+      : `
+  if ${arg} is not null then
+    ${fail("LEAVE_EFFECTIVE_UNSUPPORTED", "this leave balances table has no effective date column", "22023")}
+  end if;`;
+
   const effective = (row: string): string =>
     has("effectiveOn") ? `${row}.${b("effectiveOn")}` : "null::date";
 
@@ -258,7 +266,8 @@ $$;
 ${userGrant(`${fn("leave_ledger_entries")}(${idType}, uuid, integer, uuid${employee ? ", uuid" : ""})`)}
 
 drop function if exists ${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text);
-${employee ? `drop function if exists ${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text, uuid);\n` : ""}create or replace function ${fn("adjust_leave_balance")}(tenant ${idType}, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null${employee ? ", employee_id uuid default null" : ""}, expires_on date default null)
+${employee ? `drop function if exists ${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text, uuid);\n` : ""}drop function if exists ${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text${employee ? ", uuid" : ""}, date);
+create or replace function ${fn("adjust_leave_balance")}(tenant ${idType}, user_id uuid, type_id uuid, amount numeric, period integer default null, kind text default 'adjustment', note text default null${employee ? ", employee_id uuid default null" : ""}, expires_on date default null, effective_on date default null)
 returns jsonb
 language plpgsql
 security definer
@@ -266,7 +275,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_period integer := coalesce(adjust_leave_balance.period, extract(year from current_date)::integer);
+  v_period integer := coalesce(adjust_leave_balance.period, extract(year from coalesce(adjust_leave_balance.effective_on, current_date))::integer);
   v_entry uuid;
   v_row jsonb;${employee ? "\n  v_owner uuid;\n  v_user uuid;" : "\n  v_user uuid := adjust_leave_balance.user_id;"}
 begin
@@ -278,7 +287,7 @@ begin
   end if;
   if adjust_leave_balance.amount is null or adjust_leave_balance.amount = 0 then
     ${invalid("amount must not be zero")}
-  end if;
+  end if;${effectiveCheck("adjust_leave_balance.effective_on")}
 ${
   employee
     ? `  if adjust_leave_balance.user_id is null and adjust_leave_balance.employee_id is null then
@@ -296,15 +305,16 @@ ${
     ${fail("LEAVE_TYPE_NOT_FOUND", "leave type not found", "P0002")}
   end if;
   v_entry := ${fn("leave_post")}(adjust_leave_balance.tenant, ${key}, adjust_leave_balance.type_id,
-    coalesce(adjust_leave_balance.kind, 'adjustment'), adjust_leave_balance.amount, v_period, null, adjust_leave_balance.note, null, null, adjust_leave_balance.expires_on);
+    coalesce(adjust_leave_balance.kind, 'adjustment'), adjust_leave_balance.amount, v_period, null, adjust_leave_balance.note, null, null, adjust_leave_balance.expires_on, adjust_leave_balance.effective_on);
   select ${entryJson("y")} into v_row from ${balances} y where y.${b("id")} = v_entry;
   ${adjusted}
   return v_row;
 end;
 $$;
-${userGrant(`${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text${employee ? ", uuid" : ""}, date)`)}
+${userGrant(`${fn("adjust_leave_balance")}(${idType}, uuid, uuid, numeric, integer, text, text${employee ? ", uuid" : ""}, date, date)`)}
 
-${ownerDrop("accrue_leave", `${idType}, uuid, numeric, integer, uuid[], text, text`)}create or replace function ${fn("accrue_leave")}(tenant ${idType}, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null${employee ? ", employee_ids uuid[] default null" : ""})
+${ownerDrop("accrue_leave", `${idType}, uuid, numeric, integer, uuid[], text, text`)}drop function if exists ${fn("accrue_leave")}(${idType}, uuid, numeric, integer, uuid[], text, text${employee ? ", uuid[]" : ""});
+create or replace function ${fn("accrue_leave")}(tenant ${idType}, type_id uuid, amount numeric default null, period integer default null, user_ids uuid[] default null, idempotency_key text default null, note text default null${employee ? ", employee_ids uuid[] default null" : ""}, effective_on date default null)
 returns integer
 language plpgsql
 security definer
@@ -327,20 +337,21 @@ begin
   v_amount := ${ctx.has("types", "allowance") ? `coalesce(accrue_leave.amount, v_type.${ty("allowance")})` : "accrue_leave.amount"};
   if v_amount is null or v_amount <= 0 then
     ${invalid("name an amount, or give the type an allowance")}
-  end if;
+  end if;${effectiveCheck("accrue_leave.effective_on")}
   for v_owner in
 ${accrueOwners}
   loop
     continue when accrue_leave.idempotency_key is not null
       and ${fn("leave_posted")}(accrue_leave.tenant, v_owner, v_type.${ty("id")}, accrue_leave.idempotency_key);
     perform ${fn("leave_post")}(accrue_leave.tenant, v_owner, v_type.${ty("id")}, 'accrual', v_amount,
-      coalesce(accrue_leave.period, extract(year from current_date)::integer), null, accrue_leave.note, accrue_leave.idempotency_key);
+      coalesce(accrue_leave.period, extract(year from coalesce(accrue_leave.effective_on, current_date))::integer), null, accrue_leave.note, accrue_leave.idempotency_key,
+      null, null, accrue_leave.effective_on);
     v_count := v_count + 1;
   end loop;
   return v_count;
 end;
 $$;
-${userGrant(`${fn("accrue_leave")}(${idType}, uuid, numeric, integer, uuid[], text, text${employee ? ", uuid[]" : ""})`)}
+${userGrant(`${fn("accrue_leave")}(${idType}, uuid, numeric, integer, uuid[], text, text${employee ? ", uuid[]" : ""}, date)`)}
 
 create or replace function ${fn("close_leave_year")}(tenant ${idType}, period integer)
 returns integer

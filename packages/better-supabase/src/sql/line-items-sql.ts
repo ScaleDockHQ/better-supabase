@@ -232,6 +232,12 @@ export interface LineItems {
   readonly extras?: readonly ExtraColumn[];
   /** The logical table the recount writes the record's tax per rate to. */
   readonly taxLines?: string;
+  /**
+   * `false` leaves out the unique `(parent, position)` index on the app's line
+   * table, so the app can renumber lines in one update; the setter then updates
+   * lines by position and inserts the rest. Default `true`.
+   */
+  readonly positionKey?: boolean;
 }
 
 /**
@@ -292,6 +298,7 @@ export function lineItemsSql(
   // The app's line table keeps its line ids: a line moves in place by position,
   // so foreign keys to it survive. The block's own table is replaced outright.
   const replaces = ctx.owns(items.lines);
+  const positionKey = items.positionKey ?? true;
 
   const written = (
     [
@@ -353,7 +360,7 @@ export function lineItemsSql(
   ${c("position")} integer not null${has("createdAt") ? `,\n  ${c("createdAt")} timestamptz not null default now()` : ""}${has("productType") && has("productId") ? `,\n  check ((${c("productType")} is null) = (${c("productId")} is null))` : ""}
 );
 create index if not exists ${sqlIdent(`${name}_parent_idx`)} on ${t} (${c("parent")}, ${c("position")});${
-        ctx.owns(items.lines)
+        ctx.owns(items.lines) || !positionKey
           ? ""
           : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_position_key`)} on ${t} (${c("parent")}, ${c("position")});`
       }${addExtraColumns(t, extras)}
@@ -501,18 +508,31 @@ begin
     ${fail("LINES_CURRENCY", "every line must be in the record's currency", "22023")}
   end if;
   delete from ${t} l where l.${c("parent")} = v_parent${replaces ? "" : ` and l.${c("position")} > jsonb_array_length(coalesce(${options.setter}.lines, '[]'))`};
-  begin
+  begin${
+    replaces || positionKey
+      ? ""
+      : `
+    update ${t} l set ${written
+      .filter(([column]) => !["tenant", "parent", "position"].includes(column))
+      .map(([column, value]) => `${c(column)} = ${value}`)
+      .join(", ")}
+    from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x
+    where l.${c("parent")} = v_parent and l.${c("position")} = x.ordinality;`
+  }
     insert into ${t} (${written.map(([column]) => c(column)).join(", ")}${extrasInsert.columns})
     select ${written.map(([, value]) => value).join(",\n      ")}${extrasInsert.values}
     from jsonb_array_elements(coalesce(${options.setter}.lines, '[]')) with ordinality x${
       replaces
         ? ""
-        : `\n    on conflict (${c("parent")}, ${c("position")}) do update set ${written
-            .filter(
-              ([column]) => !["tenant", "parent", "position"].includes(column),
-            )
-            .map(([column]) => `${c(column)} = excluded.${c(column)}`)
-            .join(", ")}`
+        : positionKey
+          ? `\n    on conflict (${c("parent")}, ${c("position")}) do update set ${written
+              .filter(
+                ([column]) =>
+                  !["tenant", "parent", "position"].includes(column),
+              )
+              .map(([column]) => `${c(column)} = excluded.${c(column)}`)
+              .join(", ")}`
+          : `\n    where not exists (select 1 from ${t} l where l.${c("parent")} = v_parent and l.${c("position")} = x.ordinality)`
     };
   exception when check_violation or not_null_violation or invalid_text_representation or numeric_value_out_of_range then
     ${fail("LINES_INVALID", "every line needs a description, a positive quantity and a unit amount", "22023")}
