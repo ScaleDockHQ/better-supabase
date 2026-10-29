@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:d369740c7f8f8ddc3b61c670d146e45151e91699819fe56382111ddd40ef07d3
+-- @bsb-hash sha256:113e2f627d133b14e6ef596e52b4103508a062f6df300de0df5dcea0c1de1c59
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -137,6 +137,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -160,8 +161,11 @@ begin
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
@@ -235,8 +239,13 @@ begin
   if not found then
     return null;
   end if;
-  if v_link."password_hash" is not null and (resolve_share_link.password is null or extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash") then
-    return jsonb_build_object('passwordRequired', true);
+  if v_link."password_hash" is not null then
+    if resolve_share_link.password is null then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+    if extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash" then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
   end if;
   update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses", 'downloadAllowed', v_link."download_allowed", 'passwordRequired', v_link."password_hash" is not null);
@@ -375,7 +384,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:90945f0f3bd7bac4bb6354cd1fc53f9ea5d3f55a18f6f8b90977e5b93b666eff
+-- @bsb-hash sha256:958dbd23d18249a78ea688b5bc741d62d848c41473a418097307aa684fc1265c
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -511,6 +520,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -571,8 +581,11 @@ begin
     where x."tenant_id" = create_share_link.tenant and x."subject_type" = create_share_link.subject_type
       and x."subject_id" = create_share_link.subject_id and x."created_by" is not distinct from auth.uid() and x."revoked_at" is null;
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   perform "better_supabase".emit_event('share_link.created', jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id), 'share-links/' || v_id::text, (create_share_link.tenant)::text, null, 'better-supabase/share-links');
   return jsonb_build_object('id', v_id, 'token', v_token);
@@ -890,7 +903,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:bbc7a69bf8869385969f897a41ef28fb2c202eddc0049027799bfeb665d239f6
+-- @bsb-hash sha256:e085b87e5b986ae5190207658156536ee85a1a1f32579aa1cd75d35a55955cfc
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1031,6 +1044,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1054,8 +1068,11 @@ begin
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "app_private"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
@@ -1129,8 +1146,13 @@ begin
   if not found then
     return null;
   end if;
-  if v_link."password_hash" is not null and (resolve_share_link.password is null or extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash") then
-    return jsonb_build_object('passwordRequired', true);
+  if v_link."password_hash" is not null then
+    if resolve_share_link.password is null then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+    if extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash" then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
   end if;
   update "app_private"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses", 'downloadAllowed', v_link."download_allowed", 'passwordRequired', v_link."password_hash" is not null);
@@ -1269,7 +1291,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:7c4938c94352f6ba98b52d355b8ea6fa5a8b82b2d829c9be03623852bc7fe502
+-- @bsb-hash sha256:6323c07b1f95db5d1a1541b0fb7165e244718aef0e7217c3ddfff1c2ab61eb85
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1405,6 +1427,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1428,8 +1451,11 @@ begin
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
@@ -1503,8 +1529,13 @@ begin
   if not found then
     return null;
   end if;
-  if v_link."password_hash" is not null and (resolve_share_link.password is null or extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash") then
-    return jsonb_build_object('passwordRequired', true);
+  if v_link."password_hash" is not null then
+    if resolve_share_link.password is null then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+    if extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash" then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
   end if;
   update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses", 'downloadAllowed', v_link."download_allowed", 'passwordRequired', v_link."password_hash" is not null);
@@ -1732,7 +1763,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:2956ca15826a1dcee9fada38ee7ba2e8735b49ef80c27221ee90ba85d55b3285
+-- @bsb-hash sha256:7918f39ccbc86d96623c7d21938b3bed715a35538f5d3da8017ab386861b40ab
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1860,6 +1891,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1883,8 +1915,11 @@ begin
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
@@ -1958,8 +1993,13 @@ begin
   if not found then
     return null;
   end if;
-  if v_link."password_hash" is not null and (resolve_share_link.password is null or extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash") then
-    return jsonb_build_object('passwordRequired', true);
+  if v_link."password_hash" is not null then
+    if resolve_share_link.password is null then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+    if extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash" then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
   end if;
   update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses", 'downloadAllowed', v_link."download_allowed", 'passwordRequired', v_link."password_hash" is not null);
@@ -2098,7 +2138,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:2072b40665b6d1165e8ba1a8779857bab3212e5a667ffd203e481aa905838748
+-- @bsb-hash sha256:fff470a9f2ca8bf27608d9d7f533da61ce0a83300ff66eb616fedbd15eb67b86
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2234,6 +2274,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2257,8 +2298,11 @@ begin
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "better_supabase"."share_links" ("org_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id, 'token', v_token);
@@ -2332,8 +2376,13 @@ begin
   if not found then
     return null;
   end if;
-  if v_link."password_hash" is not null and (resolve_share_link.password is null or extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash") then
-    return jsonb_build_object('passwordRequired', true);
+  if v_link."password_hash" is not null then
+    if resolve_share_link.password is null then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+    if extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash" then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
   end if;
   update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."org_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses", 'downloadAllowed', v_link."download_allowed", 'passwordRequired', v_link."password_hash" is not null);

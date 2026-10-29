@@ -122,6 +122,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -220,8 +221,11 @@ begin
     where x."tenant_id" = create_share_link.tenant and x."subject_type" = create_share_link.subject_type
       and x."subject_id" = create_share_link.subject_id and x."created_by" is not distinct from auth.uid() and x."revoked_at" is null;
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   perform "better_supabase".emit_event('share_link.created', jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id), 'share-links/' || v_id::text, (create_share_link.tenant)::text, null, 'better-supabase/share-links');
   return jsonb_build_object('id', v_id, 'token', v_token);

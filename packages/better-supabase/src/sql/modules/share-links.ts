@@ -446,7 +446,9 @@ const PASSWORD_ATTEMPTS = 10;
  * password returns `{ passwordRequired: true }` instead of raising, so the
  * attempt the rate-limit module counts is kept. Once a link has taken too many
  * wrong passwords in the window, every attempt fails with
- * `SHARE_LINK_RATE_LIMITED`, the right password too.
+ * `SHARE_LINK_RATE_LIMITED`, the right password too. `extensions.crypt` sits in
+ * its own branch because PL/pgSQL resolves a whole expression at once, so a
+ * database without pgcrypto still resolves links without a password.
  */
 function passwordGate(ctx: BlockSqlContext): string {
   if (!ctx.has("links", "passwordHash")) {
@@ -459,8 +461,13 @@ function passwordGate(ctx: BlockSqlContext): string {
 
   if (!ctx.installed("rate-limit")) {
     return `
-  if ${hash} is not null and (resolve_share_link.password is null or extensions.crypt(resolve_share_link.password, ${hash}) <> ${hash}) then
-    ${locked}
+  if ${hash} is not null then
+    if resolve_share_link.password is null then
+      ${locked}
+    end if;
+    if extensions.crypt(resolve_share_link.password, ${hash}) <> ${hash} then
+      ${locked}
+    end if;
   end if;`;
   }
 
@@ -657,7 +664,7 @@ as $$
 declare
   v_token text := ${hashed ? "case when create_share_link.token_hash is null then encode(extensions.gen_random_bytes(24), 'hex') end" : "encode(extensions.gen_random_bytes(24), 'hex')"};
   v_id uuid;
-  v_subject_ok boolean;
+  v_subject_ok boolean;${protectedLink ? "\n  v_password_hash text;" : ""}
 begin
   if not (auth.role() = 'service_role' or ${ctx.scope.can("create_share_link.tenant", create)}) then
     ${fail("SHARE_FORBIDDEN", "not allowed to share")}
@@ -677,9 +684,16 @@ begin
   }${settingsCheck(ctx)}
 ${allowedCheck(ctx)}${roleCheck(ctx)}
   ${subjectCheck(ctx)}
-  ${versionCheck(ctx)}${singleRevoke(ctx)}
+  ${versionCheck(ctx)}${singleRevoke(ctx)}${
+    protectedLink
+      ? `
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;`
+      : ""
+  }
   insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "role")}, ${ctx.col("links", "expiresAt")}, ${ctx.col("links", "maxUses")}, ${ctx.col("links", "createdBy")}${pinned ? `, ${ctx.col("links", "versionId")}` : ""}${protectedLink ? `, ${ctx.col("links", "passwordHash")}` : ""}${downloads ? `, ${ctx.col("links", "downloadAllowed")}` : ""})
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${hashed ? `coalesce(create_share_link.token_hash, ${sha256Hex("convert_to(v_token, 'utf8')")})` : sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid()${pinned ? ", create_share_link.version_id" : ""}${protectedLink ? ", case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end" : ""}${downloads ? ", coalesce(create_share_link.download_allowed, true)" : ""})
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, ${hashed ? `coalesce(create_share_link.token_hash, ${sha256Hex("convert_to(v_token, 'utf8')")})` : sha256Hex("convert_to(v_token, 'utf8')")}, coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid()${pinned ? ", create_share_link.version_id" : ""}${protectedLink ? ", v_password_hash" : ""}${downloads ? ", coalesce(create_share_link.download_allowed, true)" : ""})
   returning ${ctx.col("links", "id")} into v_id;${writeExtraColumns(links, extras, "create_share_link.fields", `x.${linkId} = v_id`)}
   ${ctx.record({
     type: "share_link.created",

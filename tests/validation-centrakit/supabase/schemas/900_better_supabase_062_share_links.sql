@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:54c601a46307aab51f2c23f9f881b6ad1ab85313425094ed6f3b232dad0f18cd
+-- @bsb-hash sha256:f033bbec207ac262ba8d94dbc3cfee0aa9e4f3998d1bcb62f4f526a114770824
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,6 +100,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (centrakit.authz_actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -145,8 +146,11 @@ begin
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "centrakit"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   perform "better_supabase".emit_event('share_link.created', jsonb_build_object('organizationId', create_share_link.tenant, 'id', v_id, 'subjectType', create_share_link.subject_type, 'subjectId', create_share_link.subject_id), 'share-links/' || v_id::text, (create_share_link.tenant)::text, null, 'domain');
   return jsonb_build_object('id', v_id, 'token', v_token);
@@ -220,8 +224,13 @@ begin
   if not found then
     return null;
   end if;
-  if v_link."password_hash" is not null and (resolve_share_link.password is null or extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash") then
-    return jsonb_build_object('passwordRequired', true);
+  if v_link."password_hash" is not null then
+    if resolve_share_link.password is null then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+    if extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash" then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
   end if;
   update "centrakit"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', null, 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses", 'downloadAllowed', v_link."download_allowed", 'passwordRequired', v_link."password_hash" is not null);

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:0fbea349cc489bbe4486cfd55721fd9fb907093fbc920bbee70b0c2e0f7d6c93
+-- @bsb-hash sha256:51ad34792b234cf96ff347ef0f4de5847b0602a7e9a5a8337edf6aec1d64690f
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -138,6 +138,7 @@ declare
   v_token text := encode(extensions.gen_random_bytes(24), 'hex');
   v_id uuid;
   v_subject_ok boolean;
+  v_password_hash text;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -161,8 +162,11 @@ begin
   if create_share_link.version_id is not null then
     raise exception 'install the versions module to share a version' using errcode = '22023', hint = 'SHARE_VERSION_INVALID';
   end if;
+  if create_share_link.password is not null then
+    v_password_hash := extensions.crypt(create_share_link.password, extensions.gen_salt('bf'));
+  end if;
   insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "role", "expires_at", "max_uses", "created_by", "version_id", "password_hash", "download_allowed")
-  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, case when create_share_link.password is not null then extensions.crypt(create_share_link.password, extensions.gen_salt('bf')) end, coalesce(create_share_link.download_allowed, true))
+  values (create_share_link.tenant, create_share_link.subject_type, create_share_link.subject_id, encode(extensions.digest(convert_to(v_token, 'utf8'), 'sha256'), 'hex'), coalesce(create_share_link.role, 'view'), create_share_link.expires_at, create_share_link.max_uses, auth.uid(), create_share_link.version_id, v_password_hash, coalesce(create_share_link.download_allowed, true))
   returning "id" into v_id;
   update "better_supabase"."share_links" x set "app_note" = case when create_share_link.fields ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."share_links", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(create_share_link.fields) e where e.key in ('app_note'))) r
@@ -239,8 +243,13 @@ begin
   if not found then
     return null;
   end if;
-  if v_link."password_hash" is not null and (resolve_share_link.password is null or extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash") then
-    return jsonb_build_object('passwordRequired', true);
+  if v_link."password_hash" is not null then
+    if resolve_share_link.password is null then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
+    if extensions.crypt(resolve_share_link.password, v_link."password_hash") <> v_link."password_hash" then
+      return jsonb_build_object('passwordRequired', true);
+    end if;
   end if;
   update "better_supabase"."share_links" set "use_count" = "use_count" + 1, "last_used_at" = now() where "id" = v_link."id";
   return jsonb_build_object('id', v_link."id", 'organizationId', v_link."tenant_id", 'subjectType', v_link."subject_type", 'subjectId', v_link."subject_id", 'role', v_link."role", 'versionId', v_link."version_id", 'expiresAt', v_link."expires_at", 'maxUses', v_link."max_uses", 'downloadAllowed', v_link."download_allowed", 'passwordRequired', v_link."password_hash" is not null);
