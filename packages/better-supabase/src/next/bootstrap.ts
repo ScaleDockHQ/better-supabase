@@ -1,15 +1,23 @@
+import type { AuthSession } from "../auth/view.ts";
 import type { Executor } from "../core/executor.ts";
+import type { Bootstrap } from "./types.ts";
 
 import { DbException, dbError } from "../core/errors.ts";
 import { isRecord } from "../core/guards.ts";
 
 /**
- * One bootstrap wrapper's answer: the session flag, the authz version, the
+ * One bootstrap wrapper's answer: the session flag, the authz versions, the
  * tenant and the data.
  */
 export interface BootstrapRow {
   readonly sessionActive: boolean;
+  /**
+   * The live version when the database keeps one, else the token's. A wrapper
+   * generated before 0.40 returns the token's.
+   */
   readonly authzVersion: number | null;
+  /** The `authz_ver` claim of the token the query ran with. */
+  readonly tokenAuthzVersion: number | null;
   readonly tenant: string | null;
   readonly data: unknown;
 }
@@ -33,6 +41,22 @@ export function bootstrapSchema(
     owner.meta.bootstrap?.schema ??
     "better_supabase"
   );
+}
+
+/** A caller without a session: no wrapper call, nothing to cache. */
+export function signedOutBootstrap<C, P>(
+  view: AuthSession<C, P>,
+  tenant: string | undefined,
+): Bootstrap<C, P, never> {
+  return {
+    session: view,
+    tenant: tenant ?? null,
+    authzVersion: null,
+    tokenAuthzVersion: null,
+    stale: false,
+    sessionActive: false,
+    data: null,
+  };
 }
 
 /** Calls `<schema>.bootstrap_<rpc>(args)` and checks the row it returns. */
@@ -72,18 +96,28 @@ function bootstrapRow(value: unknown): BootstrapRow {
     );
   }
 
-  const version = value["authz_version"];
   const tenant = value["tenant"];
+  const authzVersion = versionOf(value["authz_version"]);
 
   return {
     sessionActive: value["session_active"],
-    authzVersion:
-      typeof version === "number"
-        ? version
-        : typeof version === "string" && /^\d+$/.test(version)
-          ? Number(version)
-          : null,
+    authzVersion,
+    tokenAuthzVersion:
+      "token_authz_version" in value
+        ? versionOf(value["token_authz_version"])
+        : authzVersion,
     tenant: typeof tenant === "string" ? tenant : null,
     data: value["data"] ?? null,
   };
+}
+
+/** A version as jsonb returns it: a number, or a bigint as a digit string. */
+function versionOf(value: unknown): number | null {
+  if (typeof value === "number") {
+    return value;
+  }
+
+  return typeof value === "string" && /^\d+$/.test(value)
+    ? Number(value)
+    : null;
 }

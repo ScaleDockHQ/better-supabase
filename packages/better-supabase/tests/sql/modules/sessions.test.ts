@@ -66,8 +66,74 @@ describe("sessions authorization versions", () => {
     expect(sql).toContain(
       "revoke all on better_supabase.user_authz_versions from public, anon, authenticated;",
     );
+    expect(sql).toContain("return better_supabase.authz_version(auth.uid());");
+    expect(sql).toContain(
+      "grant execute on function better_supabase.caller_authz_version() to authenticated;",
+    );
     await expect(
       sql.slice(sql.indexOf("-- blocks['sessions'].options.authzVersions")),
     ).toMatchFileSnapshot("../__golden__/sessions-authz-versions.sql");
+  });
+
+  it("returns the live version from the bootstrap wrappers when it keeps one", () => {
+    const live = sessions({
+      options: { authzVersions: true, bootstrap: { home: "app.home_data" } },
+    });
+
+    expect(live).toContain(
+      "'authz_version', to_jsonb(better_supabase.caller_authz_version())",
+    );
+    expect(live).toContain("'token_authz_version', auth.jwt() -> 'authz_ver'");
+    expect(
+      live.indexOf("function better_supabase.caller_authz_version"),
+    ).toBeLessThan(live.indexOf("function better_supabase.bootstrap_home"));
+
+    const token = sessions({
+      options: { bootstrap: { home: "app.home_data" } },
+    });
+
+    expect(token).not.toContain("caller_authz_version");
+    expect(token).toContain("'authz_version', auth.jwt() -> 'authz_ver'");
+  });
+
+  it("reads the provider's function and writes no table when the provider keeps the versions", async () => {
+    const sql = moduleBody("sessions", {
+      modules: {
+        sessions: {
+          options: {
+            authzVersions: true,
+            bootstrap: { home: "app.home_data" },
+          },
+        },
+      },
+      authzVersionsProvider: {
+        name: "acme-authz",
+        function: "acme.authz_version_for",
+      },
+    })!;
+
+    expect(sql).not.toContain("user_authz_versions");
+    expect(sql).not.toContain("bump_authz_version");
+    expect(sql).not.toContain("bsb_authz_versions_receive");
+    expect(sql).toContain("return acme.authz_version_for(auth.uid());");
+    expect(sql).toContain(
+      "'authz_version', to_jsonb(better_supabase.caller_authz_version())",
+    );
+    await expect(
+      sql.slice(sql.indexOf("-- The caller's own authorization version")),
+    ).toMatchFileSnapshot("../__golden__/sessions-provider-versions.sql");
+  });
+
+  it("reads the provider's function without the module option", () => {
+    const sql = moduleBody("sessions", {
+      modules: { sessions: {} },
+      authzVersionsProvider: {
+        name: "acme-authz",
+        function: "acme.authz_version_for",
+      },
+    })!;
+
+    expect(sql).toContain("function better_supabase.caller_authz_version()");
+    expect(sql).not.toContain("user_authz_versions");
   });
 });

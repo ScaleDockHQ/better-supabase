@@ -415,6 +415,19 @@ export interface BlockSqlLayout {
    * (with `blocks.permissions.scopes` merged over it).
    */
   readonly delegationScopes?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * `authorization.versions`: the provider keeps the authorization versions, so
+   * `sessions` reads them through its function and creates no table.
+   */
+  readonly authzVersionsProvider?: BlockSqlAuthzVersionsProvider;
+}
+
+/** The provider function `caller_authz_version()` reads a user's version from. */
+export interface BlockSqlAuthzVersionsProvider {
+  /** The provider's name, for comments. */
+  readonly name: string;
+  /** `schema.fn(uuid) returns bigint`. */
+  readonly function: string;
 }
 
 /**

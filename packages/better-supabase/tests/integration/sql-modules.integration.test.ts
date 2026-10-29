@@ -1198,6 +1198,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await call({ session_id: session, authz_ver: 7 })).toEqual({
         session_active: true,
         authz_version: 7,
+        token_authz_version: 7,
         tenant: "acme",
         data: { who: sub, page: "inbox" },
       });
@@ -1206,6 +1207,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(await call({ session_id: session, authz_ver: 7 })).toEqual({
         session_active: false,
         authz_version: 7,
+        token_authz_version: 7,
         tenant: "acme",
         data: null,
       });
@@ -1219,6 +1221,99 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       await pool.query(`drop function if exists ${wrapper}(jsonb)`);
       await pool.query(`drop function if exists ${fn}(jsonb)`);
       await pool.query("delete from auth.users where id = $1", [sub]);
+    }
+  });
+
+  it("bootstrap wrappers return the live authz version next to the token's", async () => {
+    const name = `live_${RUN}`;
+    const wrapper = `better_supabase.bootstrap_${name}`;
+    const fn = `public.bsb_live_${RUN}`;
+
+    const users = await pool.query<{ id: string }>(
+      `insert into auth.users (id, instance_id, aud, role, email)
+       select gen_random_uuid(), '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', email
+       from unnest($1::text[]) as email returning id`,
+      [[`live-${RUN}@example.com`, `live-other-${RUN}@example.com`]],
+    );
+
+    // SAFETY: the insert above returns one row per email, two of them.
+    const [sub, other] = users.rows.map((row) => row.id) as [string, string];
+    const session = crypto.randomUUID();
+
+    try {
+      await pool.query(
+        `insert into auth.sessions (id, user_id, created_at, updated_at) values ($1, $2, now(), now())`,
+        [session, sub],
+      );
+      await pool.query(
+        `create function ${fn}(args jsonb) returns jsonb language sql stable
+         as $$ select '{}'::jsonb $$;
+         grant execute on function ${fn}(jsonb) to authenticated;`,
+      );
+
+      const [file] = renderBlocks(["sessions"], {
+        modules: {
+          sessions: {
+            options: { authzVersions: true, bootstrap: { [name]: fn } },
+          },
+        },
+      });
+
+      await pool.query(file!.contents);
+      await pool.query(
+        "select better_supabase.bump_authz_versions(array[$1, $1, $2]::uuid[])",
+        [sub, other],
+      );
+
+      const asUser = postgres.asUser({
+        sub,
+        role: "authenticated",
+        session_id: session,
+        authz_ver: 0,
+      });
+
+      const live = await pool.query<{ version: string }>(
+        "select better_supabase.authz_version($1) as version",
+        [sub],
+      );
+
+      const [row] = await asUser.queryRaw<{ out: Record<string, unknown> }>(
+        `select ${wrapper}('{}'::jsonb) as out`,
+      );
+
+      expect(row!.out).toMatchObject({
+        session_active: true,
+        authz_version: Number(live.rows[0]!.version),
+        token_authz_version: 0,
+      });
+      expect(Number(live.rows[0]!.version)).toBeGreaterThan(0);
+
+      const [own] = await asUser.queryRaw<{ version: string | null }>(
+        "select better_supabase.caller_authz_version() as version",
+      );
+
+      expect(Number(own!.version)).toBe(Number(live.rows[0]!.version));
+
+      await expect(
+        postgres
+          .asUser({ sub, role: "anon" })
+          .queryRaw("select better_supabase.caller_authz_version()"),
+      ).rejects.toMatchObject({ code: "42501" });
+      await expect(
+        asUser.queryRaw("select better_supabase.authz_version($1::uuid)", [
+          other,
+        ]),
+      ).rejects.toMatchObject({ code: "42501" });
+    } finally {
+      await pool.query(`drop function if exists ${wrapper}(jsonb)`);
+      await pool.query(`drop function if exists ${fn}(jsonb)`);
+      await pool.query(
+        "delete from better_supabase.user_authz_versions where user_id = any($1::uuid[])",
+        [[sub, other]],
+      );
+      await pool.query("delete from auth.users where id = any($1::uuid[])", [
+        [sub, other],
+      ]);
     }
   });
 

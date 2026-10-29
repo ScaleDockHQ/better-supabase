@@ -68,7 +68,11 @@ import {
 import { resourceRouter } from "../server/resources.ts";
 import { defaultExpose, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
-import { bootstrapSchema, runBootstrap } from "./bootstrap.ts";
+import {
+  bootstrapSchema,
+  runBootstrap,
+  signedOutBootstrap,
+} from "./bootstrap.ts";
 import {
   cachedLife,
   invalidateAll,
@@ -572,17 +576,6 @@ export function createNext<
   /** The bootstrap calls of one request, by session key, schema, rpc and args. */
   const bootstrapCalls = cache(() => new Map<string, Promise<BootstrapRow>>());
 
-  const signedOutBootstrap = (
-    view: AuthSession<C, P>,
-    tenant: string | undefined,
-  ): Bootstrap<C, P, never> => ({
-    session: view,
-    tenant: tenant ?? null,
-    authzVersion: null,
-    sessionActive: false,
-    data: null,
-  });
-
   const next: BetterNext<M, F, E, C, P, PermissionRef<A>, B, V> = extendServer<
     BetterNext<M, F, E, C, P, PermissionRef<A>, B, V>
   >(withAccounts, {
@@ -675,13 +668,15 @@ export function createNext<
           session: view,
           sessionActive: false,
           authzVersion: row.authzVersion,
+          tokenAuthzVersion: row.tokenAuthzVersion,
+          stale: false,
           tenant: row.tenant ?? tenant ?? null,
           data: null,
         };
       }
 
       if (row.authzVersion !== null) {
-        await options.versions?.seed?.(view.user.id, row.authzVersion);
+        await base.versions?.seed?.(view.user.id, row.authzVersion);
       }
 
       applyEntry(
@@ -696,6 +691,11 @@ export function createNext<
         session: view,
         sessionActive: true,
         authzVersion: row.authzVersion,
+        tokenAuthzVersion: row.tokenAuthzVersion,
+        stale:
+          row.authzVersion !== null &&
+          row.tokenAuthzVersion !== null &&
+          row.authzVersion > row.tokenAuthzVersion,
         tenant: row.tenant ?? tenant ?? null,
         // SAFETY: the app's function decides the data's type; the wrapper passes its jsonb through.
         data: row.data as T | null,

@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:cce787a68896759eab8b4a6e4184d874401ee55f4c8861427ac57b2a27d58346
+-- @bsb-hash sha256:c6d659509c871e208fdbd84f8f90c1bff8e077ce336acb29bbed460d7faa2526
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -236,36 +236,6 @@ create policy bsb_session_active on "public"."tasks" as restrictive
   using ((select better_supabase.session_active()))
   with check ((select better_supabase.session_active()));
 
--- blocks['sessions'].options.bootstrap: bsb.bootstrap({ rpc }) calls these.
--- Each checks the session and returns the caller's authorization version
--- with the app function's data, so a cache miss is one query.
-create or replace function better_supabase.bootstrap_islands(args jsonb default '{}'::jsonb)
-returns jsonb
-language plpgsql
-security invoker
-set search_path = ''
-as $$
-begin
-  if not (select better_supabase.session_active()) then
-    return jsonb_build_object(
-      'session_active', false,
-      'authz_version', auth.jwt() -> 'authz_ver',
-      'tenant', args ->> 'tenant',
-      'data', null
-    );
-  end if;
-  return jsonb_build_object(
-    'session_active', true,
-    'authz_version', auth.jwt() -> 'authz_ver',
-    'tenant', args ->> 'tenant',
-    'data', to_jsonb(public.island_counts(args))
-  );
-end;
-$$;
-
-revoke execute on function better_supabase.bootstrap_islands(jsonb) from public, anon;
-grant execute on function better_supabase.bootstrap_islands(jsonb) to authenticated;
-
 -- blocks['sessions'].options.authzVersions: one authorization version per
 -- user. Attach better_supabase.bump_authz_version() to the tables a user's
 -- access comes from; the access token hook reads better_supabase.authz_version().
@@ -379,6 +349,60 @@ create policy bsb_authz_versions_receive on realtime.messages
 end;
 $$;
 
+-- The caller's own authorization version, null without a signed-in user.
+-- Clients compare it with the token's authz_ver to catch up on a broadcast
+-- they missed.
+create or replace function better_supabase.caller_authz_version()
+returns bigint
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null then
+    return null;
+  end if;
+  return better_supabase.authz_version(auth.uid());
+end;
+$$;
+
+revoke execute on function better_supabase.caller_authz_version() from public, anon;
+grant execute on function better_supabase.caller_authz_version() to authenticated;
+
+-- blocks['sessions'].options.bootstrap: bsb.bootstrap({ rpc }) calls these.
+-- Each checks the session and returns the caller's authorization version
+-- (the live one when the database keeps it, and the token's) with the app
+-- function's data, so a cache miss is one query.
+create or replace function better_supabase.bootstrap_islands(args jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = ''
+as $$
+begin
+  if not (select better_supabase.session_active()) then
+    return jsonb_build_object(
+      'session_active', false,
+      'authz_version', auth.jwt() -> 'authz_ver',
+      'token_authz_version', auth.jwt() -> 'authz_ver',
+      'tenant', args ->> 'tenant',
+      'data', null
+    );
+  end if;
+  return jsonb_build_object(
+    'session_active', true,
+    'authz_version', to_jsonb(better_supabase.caller_authz_version()),
+    'token_authz_version', auth.jwt() -> 'authz_ver',
+    'tenant', args ->> 'tenant',
+    'data', to_jsonb(public.island_counts(args))
+  );
+end;
+$$;
+
+revoke execute on function better_supabase.bootstrap_islands(jsonb) from public, anon;
+grant execute on function better_supabase.bootstrap_islands(jsonb) to authenticated;
+
 -- blocks.sessions.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -431,15 +455,6 @@ as $$ select "better_supabase"."end_my_session"($1) $$;
 revoke execute on function "api"."end_my_session"(uuid) from public, anon, service_role;
 grant execute on function "api"."end_my_session"(uuid) to authenticated;
 
-create or replace function "api"."bootstrap_islands"(args jsonb default '{}'::jsonb)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."bootstrap_islands"($1) $$;
-revoke execute on function "api"."bootstrap_islands"(jsonb) from public, anon, service_role;
-grant execute on function "api"."bootstrap_islands"(jsonb) to authenticated;
-
 create or replace function "api"."authz_version"(p_user uuid)
 returns bigint
 language sql
@@ -457,6 +472,24 @@ set search_path = ''
 as $$ select "better_supabase"."bump_authz_versions"($1) $$;
 revoke execute on function "api"."bump_authz_versions"(uuid[]) from public, anon, authenticated;
 grant execute on function "api"."bump_authz_versions"(uuid[]) to service_role;
+
+create or replace function "api"."caller_authz_version"()
+returns bigint
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."caller_authz_version"() $$;
+revoke execute on function "api"."caller_authz_version"() from public, anon, service_role;
+grant execute on function "api"."caller_authz_version"() to authenticated;
+
+create or replace function "api"."bootstrap_islands"(args jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."bootstrap_islands"($1) $$;
+revoke execute on function "api"."bootstrap_islands"(jsonb) from public, anon, service_role;
+grant execute on function "api"."bootstrap_islands"(jsonb) to authenticated;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

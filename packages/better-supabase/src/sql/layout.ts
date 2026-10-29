@@ -20,6 +20,14 @@ export function moduleLayout(
     ...(entitlementsProvider ? { entitlementsProvider } : {}),
     ...(accessProvider ? { accessProvider } : {}),
     ...(permissionCatalog ? { permissionCatalog } : {}),
+    ...(config.authorization?.versions
+      ? {
+          authzVersionsProvider: {
+            name: config.authorization.name,
+            function: config.authorization.versions.function,
+          },
+        }
+      : {}),
     ...(config.authorization?.delegation?.scopes
       ? { delegationScopes: config.authorization.delegation.scopes }
       : {}),

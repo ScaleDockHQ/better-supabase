@@ -915,7 +915,20 @@ export type BootstrapOptions<T extends string = string> = CachedOptions<T> & {
 export interface Bootstrap<C = unknown, P = unknown, T = unknown> {
   readonly session: AuthSession<C, P>;
   readonly tenant: string | null;
+  /**
+   * The caller's live authorization version when the database keeps one
+   * (`blocks.sessions.options.authzVersions` or `authorization.versions`), else
+   * the token's.
+   */
   readonly authzVersion: number | null;
+  /** The `authz_ver` claim of the caller's access token. */
+  readonly tokenAuthzVersion: number | null;
+  /**
+   * The live version is ahead of the token's: permissions changed after the
+   * token was issued. The proxy's next refresh picks them up; a client
+   * `SessionProvider` refreshes on the broadcast.
+   */
+  readonly stale: boolean;
   readonly sessionActive: boolean;
   readonly data: T | null;
 }

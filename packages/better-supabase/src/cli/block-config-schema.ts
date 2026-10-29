@@ -1,5 +1,21 @@
 import * as v from "valibot";
 
+/**
+ * `authorization.versions`: the provider's `(uuid) returns bigint` function,
+ * spliced into `caller_authz_version()`, so only a plain `schema.name` passes.
+ */
+export const authorizationVersionsSchema: v.GenericSchema<{
+  function: string;
+}> = v.strictObject({
+  function: v.pipe(
+    v.string(),
+    v.regex(
+      /^[a-z_][a-z0-9_$]*\.[a-z_][a-z0-9_$]*$/,
+      "Use schema.function, e.g. permissions.authz_version_for",
+    ),
+  ),
+});
+
 type ValueMapsInput = Record<
   string,
   Record<string, Record<string, string | string[] | null>>
