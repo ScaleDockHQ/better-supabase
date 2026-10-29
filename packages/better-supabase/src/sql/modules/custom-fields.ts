@@ -23,13 +23,15 @@ import {
   schemaPreamble,
   userGrant,
 } from "../shared.ts";
-import { subjectActionCheck } from "../subjects.ts";
+import { subjectActionCheck, subjectReadable } from "../subjects.ts";
 import {
   checkSubjectColumns,
+  fieldReadGate,
   fieldSubjects,
   keyedContract,
   keyedFields,
   keyedOptions,
+  recordReadSubjects,
 } from "./custom-fields-keyed.ts";
 import { FIELD_CIPHER_PREFIX } from "./field-encryption.ts";
 import { OPERATIONS } from "./permissions-model.ts";
@@ -186,17 +188,26 @@ ${keyedFields(
 )}`;
   }
 
-  if (rankType !== "text" || readAccess !== "tenant") {
+  if (rankType !== "text") {
     throw new TypeError(
-      'blocks.custom-fields.options.rankType and readAccess apply only to layout "keyed"',
+      'blocks.custom-fields.options.rankType applies only to layout "keyed"',
     );
   }
 
   checkSubjectColumns(ctx, false);
 
+  const subjects = fieldSubjects(ctx);
+  const recordSubjects = recordReadSubjects(subjects, readAccess);
+
+  if (readAccess === "record" && subjects.length === 0) {
+    throw new TypeError(
+      'blocks.custom-fields.options.readAccess "record" needs record types in config.subjects or blocks.custom-fields.on',
+    );
+  }
+
   const subjectWrite = subjectActionCheck(
     ctx,
-    fieldSubjects(ctx),
+    subjects,
     { type: "set_field_value.subject_type", id: "set_field_value.subject_id" },
     ["fields"],
   );
@@ -343,7 +354,19 @@ begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('ten
   where v.${ctx.col("values", "tenant")} = read_field_values.tenant
     and v.${ctx.col("values", "subjectType")} = read_field_values.subject_type
     and v.${ctx.col("values", "subjectId")} = read_field_values.subject_id
-    and (auth.role() = 'service_role' or ${ctx.scope.can("read_field_values.tenant", read)})
+    and (auth.role() = 'service_role' or ${fieldReadGate(
+      "read_field_values.subject_type",
+      recordSubjects,
+      readAccess === "record" && recordSubjects.length === subjects.length,
+      {
+        record: subjectReadable(ctx, recordSubjects, {
+          type: "read_field_values.subject_type",
+          id: "read_field_values.subject_id",
+          tenant: "read_field_values.tenant",
+        }),
+        tenant: ctx.scope.can("read_field_values.tenant", read),
+      },
+    )})
     and (${visible});${
       audited
         ? `
@@ -713,11 +736,20 @@ alter table ${definitions} drop column if exists position;`;
   names: NAMES,
   contract,
   build,
-  unusedPermissions: (ctx) =>
-    ctx.text("layout", "normalized") === "keyed"
-      ? [
-          "sensitive",
-          ...(keyedOptions(ctx).readAccess === "record" ? ["read"] : []),
-        ]
-      : [],
+  unusedPermissions: (ctx) => {
+    if (ctx.text("layout", "normalized") !== "keyed") {
+      return [];
+    }
+
+    const { readAccess } = keyedOptions(ctx);
+    const subjects = fieldSubjects(ctx);
+
+    return [
+      "sensitive",
+      ...(readAccess === "record" &&
+      recordReadSubjects(subjects, readAccess).length === subjects.length
+        ? ["read"]
+        : []),
+    ];
+  },
 };

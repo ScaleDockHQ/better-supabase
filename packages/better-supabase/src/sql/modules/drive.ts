@@ -53,6 +53,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "drive_grants", args: ["uuid"], returns: "jsonb" },
     { name: "drive_node_held", args: ["uuid"], returns: "boolean" },
+    { name: "drive_node_readable", args: ["uuid"], returns: "boolean" },
     { name: "drive_node_writable", args: ["uuid"], returns: "boolean" },
     ...(hold
       ? [

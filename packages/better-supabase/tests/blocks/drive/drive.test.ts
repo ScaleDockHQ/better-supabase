@@ -707,9 +707,20 @@ describe("drive client", () => {
     expect(driveSubject()).toMatchObject({
       table: "better_supabase.drive_nodes",
       tenant: "tenant_id",
-      permissions: { read: "drive.read", write: "drive.manage" },
+      permissions: {
+        read: {
+          key: "drive.read",
+          check: "better_supabase.drive_node_readable",
+        },
+        write: "drive.manage",
+        fields: { check: "better_supabase.drive_node_writable" },
+      },
+      readAccess: "record",
       search: { title: "name" },
     });
-    expect(driveSubject({ schema: "app" }).table).toBe("app.drive_nodes");
+    expect(driveSubject({ schema: "app" })).toMatchObject({
+      table: "app.drive_nodes",
+      permissions: { fields: { check: "app.drive_node_writable" } },
+    });
   });
 });

@@ -44,12 +44,13 @@ type SubjectPermissionsInput = Record<
       rows?: string | undefined;
       owner?: string | undefined;
       also?: string | undefined;
+      check?: string | undefined;
     }
 >;
 
 /**
  * `records.<type>.permissions`: action to a key, or to `{ key, rows, owner,
- * also }`. The subject registry checks the names.
+ * also, check }`. The subject registry checks the names.
  */
 export const subjectPermissionsSchema: v.GenericSchema<SubjectPermissionsInput> =
   v.record(
@@ -61,6 +62,7 @@ export const subjectPermissionsSchema: v.GenericSchema<SubjectPermissionsInput> 
         rows: v.optional(v.string()),
         owner: v.optional(v.string()),
         also: v.optional(v.string()),
+        check: v.optional(v.string()),
       }),
     ]),
   );

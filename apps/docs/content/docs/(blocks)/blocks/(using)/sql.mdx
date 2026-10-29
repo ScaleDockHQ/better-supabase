@@ -1398,12 +1398,13 @@ export default defineConfig({
 | `tenant`      | `organization_id` | The tenant column, or `false` for a subject without one                                                                                                        |
 | `title`       | none              | The column `subject_title` returns                                                                                                                             |
 | `url`         | none              | A path template whose `{column}` placeholders `subject_url` fills from the row                                                                                 |
-| `permissions` | none              | Action to permission key, or to `{ key, rows, owner, also }` (see below); `read` is the key modules check before they attach to the row                        |
+| `permissions` | none              | Action to permission key, or to `{ key, rows, owner, also, check }` (see below); `read` is the key modules check before they attach to the row                 |
 | `scope`       | none              | A record scope to check the keys in, for subjects without a tenant                                                                                             |
 | `cascade`     | none              | Delete a module's rows when the subject row is deleted                                                                                                         |
 | `deletedAt`   | none              | A soft-delete column; rows where it is set count as gone                                                                                                       |
 | `search`      | none              | `title` and `body` columns for search, plus `description`, `exclude`, `from` and `watch` ([Search](/docs/blocks/search#labels-descriptions-and-archived-rows)) |
 | `rank`        | none              | The rank column and an optional group column (such as `status`) that `move` uses                                                                               |
+| `readAccess`  | `tenant`          | `record` makes `custom-fields` show a value only to members who can read the record, through the `read` entry                                                  |
 
 A block's `on` works three ways:
 
@@ -1469,6 +1470,7 @@ export default defineConfig({
 | `rows`  | the authorization provider lists the row among the rows of that resource the caller holds `key` on (needs `key`) |
 | `owner` | the uuid column it names holds the caller's id                                                                   |
 | `also`  | never alone: the caller must also hold this key in the row's tenant (or on `scope`)                              |
+| `check` | the SQL function it names, `(subject_id <idType>) returns boolean`, returns true for the row and the caller      |
 
 Any one of `key`, `rows` and `owner` grants the action. With `also`, the
 caller needs that key too, so `{ key: "file.read", rows: "file", also:
@@ -1479,6 +1481,18 @@ and a provider with the `rowsWith` template (see
 [Authorization providers](/docs/extending/authorization-providers)). For
 `can_subject_for`, row grants count only when the provider also has
 `rowsWithFor`, and `owner` compares the column with the given user.
+
+`check` names a schema-qualified function, such as
+`better_supabase.drive_node_writable`, that answers for the caller
+(`auth.uid()`). Use it when the grants live in your own tables, as the drive's
+per-node grants do. Alone it decides the action; next to `key`, `rows` or
+`owner` the function must return true as well, so
+`{ key: "drive.read", check: "better_supabase.drive_node_readable" }` asks
+for the key and a grant on the node. A null result counts as false.
+`can_subject` still requires that the caller can see the row.
+`can_subject_for` can't run the function for another user, so it returns
+false for that action. The function runs inside every check, so keep it a
+cheap `stable` lookup.
 
 Blocks that act on a record ask `can_subject` for the action when the record
 type declares it, on top of their own key: `tags` checks `tag` before it

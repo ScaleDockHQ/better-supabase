@@ -665,6 +665,60 @@ describe.skipIf(!live)("drive", () => {
     }
   });
 
+  it("shows a node's custom field values only to members with a grant", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install([...MODULES, "subjects", "custom-fields"], {
+        subjects: { drive_node: driveSubject() },
+      });
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const tenant = await s.organization(owner, { member });
+
+      const read = (node: string): Promise<{ text: string }[]> =>
+        s.value("better_supabase.read_field_values($1, 'drive_node', $2)", [
+          tenant,
+          node,
+        ]);
+
+      await s.asRole(owner);
+
+      const folder = await s.value<Node>(
+        "better_supabase.drive_create_folder($1, null, 'Contracts')",
+        [tenant],
+      );
+
+      const definition = await s.value<string>(
+        "(better_supabase.save_field_definition($1, 'drive_node', 'status', 'Status', 'text', false) ->> 'id')",
+        [tenant],
+      );
+
+      await s.value(
+        "better_supabase.set_field_value($1, 'drive_node', $2, $3, 'signed')",
+        [tenant, folder.id, definition],
+      );
+      expect((await read(folder.id)).map((value) => value.text)).toEqual([
+        "signed",
+      ]);
+
+      await s.asRole(member);
+      expect(await read(folder.id)).toEqual([]);
+
+      await s.asRole(owner);
+      await s.value("better_supabase.drive_share($1, 'user', $2, 'viewer')", [
+        folder.id,
+        member.id,
+      ]);
+      await s.asRole(member);
+      expect((await read(folder.id)).map((value) => value.text)).toEqual([
+        "signed",
+      ]);
+    } finally {
+      await s.close();
+    }
+  });
+
   it("creates drives, shares them, holds subtrees and mirrors connections", async () => {
     const s = await BlockSession.open(pool);
 

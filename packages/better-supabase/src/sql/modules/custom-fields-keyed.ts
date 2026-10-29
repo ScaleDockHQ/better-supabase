@@ -55,11 +55,55 @@ export function keyedOptions(ctx: BlockSqlContext): KeyedOptions {
   return { rankType, readAccess };
 }
 
-/** `blocks.custom-fields.on`, with `column` read per subject. */
+/** `blocks.custom-fields.on`, with `column` and `readAccess` read per subject. */
 export function fieldSubjects(
   ctx: BlockSqlContext,
 ): readonly (readonly [string, Subject])[] {
-  return subjectsOption(ctx, ["column"]);
+  return subjectsOption(ctx, ["column", "readAccess"]);
+}
+
+/**
+ * The subjects whose field values follow record reads: `readAccess` on the
+ * record type (`config.subjects.<type>` or `on.<type>`), else the module's
+ * `options.readAccess`.
+ */
+export function recordReadSubjects(
+  subjects: readonly (readonly [string, Subject])[],
+  fallback: KeyedOptions["readAccess"],
+): readonly (readonly [string, Subject])[] {
+  return subjects.filter(([type, subject]) => {
+    const access = subject.extra["readAccess"] ?? fallback;
+
+    if (access !== "tenant" && access !== "record") {
+      throw new TypeError(
+        `blocks.custom-fields.on.${type}.readAccess must be "tenant" or "record"`,
+      );
+    }
+
+    return access === "record";
+  });
+}
+
+/**
+ * The read check of `read_field_values`: `record` for the subject types in
+ * `byRecord`, `tenant` for the others, or `record` alone when every subject
+ * reads by record under the module's own `readAccess: "record"`.
+ */
+export function fieldReadGate(
+  type: string,
+  byRecord: readonly (readonly [string, Subject])[],
+  all: boolean,
+  checks: { readonly record: string; readonly tenant: string },
+): string {
+  if (all) {
+    return checks.record;
+  }
+
+  if (byRecord.length === 0) {
+    return checks.tenant;
+  }
+
+  return `(case when ${type} in (${byRecord.map(([name]) => sqlString(name)).join(", ")}) then ${checks.record} else ${checks.tenant} end)`;
 }
 
 const boundSubjects = (ctx: BlockSqlContext): readonly BoundSubject[] =>
@@ -360,15 +404,31 @@ export function keyedFields(
     ? `v.${c("rank")}${integerRank ? "" : ' collate "C"'} nulls last, v.${c("key")}`
     : `v.${c("key")}`;
 
-  const byRecord = options.readAccess === "record";
+  const recordSubjects = recordReadSubjects(subjects, options.readAccess);
 
-  const readable = byRecord
-    ? `(auth.role() = 'service_role' or (${subjectReadable(ctx, subjects, {
+  const all =
+    options.readAccess === "record" &&
+    recordSubjects.length === subjects.length;
+
+  const byRecord = recordSubjects.length > 0 || all;
+
+  const canRead = ctx.installed("subjects")
+    ? ` and coalesce(${ctx.of("subjects").fn("can_subject")}(read_field_values.subject_type, read_field_values.subject_id, 'read'), false)`
+    : "";
+
+  const readable = `(auth.role() = 'service_role' or ${fieldReadGate(
+    "read_field_values.subject_type",
+    recordSubjects,
+    all,
+    {
+      record: `(${subjectReadable(ctx, all ? subjects : recordSubjects, {
         type: "read_field_values.subject_type",
         id: "read_field_values.subject_id",
         tenant: "read_field_values.tenant",
-      })}) and coalesce(${ctx.of("subjects").fn("can_subject")}(read_field_values.subject_type, read_field_values.subject_id, 'read'), false))`
-    : `(auth.role() = 'service_role' or ${ctx.scope.can("read_field_values.tenant", keys.read)})`;
+      })})${canRead}`,
+      tenant: ctx.scope.can("read_field_values.tenant", keys.read),
+    },
+  )})`;
 
   const removed = rowSubject(ctx, "v");
 
