@@ -319,6 +319,123 @@ describe("drive previews", () => {
     }
   });
 
+  it("refuses maxPages below 1", () => {
+    expect(() =>
+      createDrivePreviews({
+        transport: transport({}),
+        storage: storage({}).store,
+        renderer: RENDERER,
+        maxPages: 0,
+      }),
+    ).toThrow(/maxPages must be 1 or more/u);
+  });
+
+  it("skips folders and types the renderer leaves out", async () => {
+    const folder = await createDrivePreviews({
+      transport: transport({ drive_get: () => ({ ...NODE, kind: "folder" }) }),
+      storage: storage({}).store,
+      renderer: RENDERER,
+    })
+      .render("n1")
+      .orThrow();
+
+    expect(folder).toBeUndefined();
+
+    const fake = transport({
+      drive_get: () => NODE,
+      get_attachment: () => ({ ...ATTACHMENT, mime_type: "text/plain" }),
+      drive_previews: () => PREVIEWS,
+    });
+
+    const text = await createDrivePreviews({
+      transport: fake,
+      storage: storage({ "o/a1/plan.pdf": new Blob(["text"]) }).store,
+      renderer: RENDERER,
+    })
+      .render("n1")
+      .orThrow();
+
+    expect(text).toBeUndefined();
+    expect(fake.calls.map(([fn]) => fn)).not.toContain("drive_set_previews");
+  });
+
+  it("fails without an uploading storage client, and on a failed upload", async () => {
+    const results = {
+      drive_get: () => NODE,
+      get_attachment: () => ATTACHMENT,
+      drive_previews: () => PREVIEWS,
+    };
+
+    const files = storage({ "o/a1/plan.pdf": new Blob(["pdf"]) });
+
+    const readOnly: AttachmentStorage = {
+      from: () => ({
+        createSignedUploadUrl: () =>
+          Promise.resolve({ data: { signedUrl: "", token: "" }, error: null }),
+        createSignedUrl: () =>
+          Promise.resolve({ data: { signedUrl: "" }, error: null }),
+        download: () =>
+          Promise.resolve({ data: new Blob(["pdf"]), error: null }),
+        remove: () => Promise.resolve({ data: [], error: null }),
+      }),
+    };
+
+    const missing = await createDrivePreviews({
+      transport: transport(results),
+      storage: readOnly,
+      renderer: RENDERER,
+    }).render("n1");
+
+    expect(missing.ok ? undefined : missing.error.hint).toBe(
+      "DRIVE_STORAGE_CLIENT",
+    );
+
+    const failing: AttachmentStorage = {
+      from: (bucket) => ({
+        ...files.store.from(bucket),
+        upload: () =>
+          Promise.resolve({ data: null, error: { message: "quota" } }),
+      }),
+    };
+
+    const failed = await createDrivePreviews({
+      transport: transport(results),
+      storage: failing,
+      renderer: RENDERER,
+    }).render("n1");
+
+    expect(failed.ok).toBe(false);
+  });
+
+  it("runs as a job and throws so the queue retries", async () => {
+    const files = storage({ "o/a1/plan.pdf": new Blob(["pdf"]) });
+
+    const previews = createDrivePreviews({
+      transport: transport({
+        drive_get: () => NODE,
+        get_attachment: () => ATTACHMENT,
+        drive_previews: () => PREVIEWS,
+        drive_set_previews: () => PREVIEWS,
+      }),
+      storage: files.store,
+      renderer: RENDERER,
+    });
+
+    await previews.job({ nodeId: "n1" }, {} as never, undefined as never);
+
+    expect(files.uploads).toHaveLength(3);
+
+    const broken = createDrivePreviews({
+      transport: transport({}),
+      storage: files.store,
+      renderer: RENDERER,
+    });
+
+    await expect(
+      broken.job({ nodeId: "n1" }, {} as never, undefined as never),
+    ).rejects.toThrow(/unexpected drive_get/u);
+  });
+
   it("renders from drive attachment events", async () => {
     const fake = transport({
       drive_get: () => NODE,
@@ -370,5 +487,27 @@ describe("drive previews", () => {
       "https://storage.test/files/_previews/o/n1/a1/1",
       "https://storage.test/files/_previews/o/n1/a1/2",
     ]);
+
+    const unsigned = await createDrive({ transport: fake })
+      .previewUrls("n1")
+      .orThrow()
+      .catch((error: unknown) => error);
+
+    expect(unsigned).toBeInstanceOf(Error);
+
+    const refusing: AttachmentStorage = {
+      from: (bucket) => ({
+        ...files.store.from(bucket),
+        createSignedUrl: () =>
+          Promise.resolve({ data: null, error: { message: "denied" } }),
+      }),
+    };
+
+    const denied = await createDrive({
+      transport: fake,
+      storage: refusing,
+    }).previewUrls("n1");
+
+    expect(denied.ok).toBe(false);
   });
 });
