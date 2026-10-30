@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_144_accounting.sql
+-- ==== schema supabase/schemas/900_better_supabase_145_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
 -- @bsb-hash sha256:b49e72727a8d29ce4528d16b8b8656f67acb913daa966573682cf1198138500c
@@ -2152,7 +2152,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_144_accounting.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_145_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block-data accounting
 -- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
