@@ -71,6 +71,7 @@ import type { leasesBlock } from "../../src/blocks/leases/manifest.ts";
 import type { leaveBlock } from "../../src/blocks/leave/manifest.ts";
 import type { ledgerBlock } from "../../src/blocks/ledger/manifest.ts";
 import type { mailSyncBlock } from "../../src/blocks/mail-sync/manifest.ts";
+import type { medicationsBlock } from "../../src/blocks/medications/manifest.ts";
 import type { membershipsBlock } from "../../src/blocks/memberships/manifest.ts";
 import type { memoryBlock } from "../../src/blocks/memory/manifest.ts";
 import type { messagingBlock } from "../../src/blocks/messaging/manifest.ts";
@@ -231,6 +232,7 @@ export type AllBlocks = {
   readonly qualifications: typeof qualificationsBlock;
   readonly shifts: typeof shiftsBlock;
   readonly consents: typeof consentsBlock;
+  readonly medications: typeof medicationsBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

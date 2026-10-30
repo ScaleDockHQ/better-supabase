@@ -114,3 +114,4 @@ accounting
 acknowledgements
 consents
 observations
+medications

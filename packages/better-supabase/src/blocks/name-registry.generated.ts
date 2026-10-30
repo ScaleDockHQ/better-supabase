@@ -1107,6 +1107,22 @@ export interface BlockNameRegistry {
     };
     readonly primary: "mail_thread";
   };
+  readonly "medications": {
+    readonly tables: {
+      readonly "medications": "id" | "tenant" | "name" | "codeSystem" | "code" | "form" | "strength" | "unit" | "highRisk" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "orders": "id" | "tenant" | "subjectType" | "subjectId" | "medication" | "dose" | "doseUnit" | "route" | "schedule" | "asNeeded" | "asNeededReason" | "maxPerDay" | "startsOn" | "endsOn" | "prescriber" | "source" | "externalId" | "requiresDoubleCheck" | "status" | "stoppedReason" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "administrations": "id" | "tenant" | "order" | "scheduledAt" | "administeredAt" | "status" | "dose" | "performer" | "checkedBy" | "reason" | "note";
+    };
+    readonly functions: "archive_medication" | "import_medication" | "import_medication_orders" | "list_medications" | "mark_missed_medication_administrations" | "medication_chart" | "medication_orders_of" | "pause_medication_order" | "plan_medication_administrations" | "prescribe_medication" | "record_as_needed_administration" | "record_medication_administration" | "save_medication" | "stop_medication_order" | "update_medication_order";
+    readonly actions: "read" | "prescribe" | "administer" | "manage";
+    readonly hooks: "before_medication_order_prescribe" | "after_medication_order_prescribe" | "before_medication_order_stop" | "after_medication_order_stop" | "before_medication_administration_record" | "after_medication_administration_record";
+    readonly entities: {
+      readonly "medication": "id" | "tenant_id" | "name" | "code_system" | "code" | "form" | "strength" | "unit" | "high_risk" | "archived_at" | "created_at" | "updated_at";
+      readonly "medication_order": "id" | "tenant_id" | "subject_type" | "subject_id" | "medication_id" | "dose" | "dose_unit" | "route" | "schedule" | "as_needed" | "as_needed_reason" | "max_per_day" | "starts_on" | "ends_on" | "prescriber" | "source" | "external_id" | "requires_double_check" | "status" | "stopped_reason" | "created_by" | "created_at" | "updated_at";
+      readonly "medication_administration": "id" | "tenant_id" | "order_id" | "scheduled_at" | "administered_at" | "status" | "dose" | "performer_id" | "checked_by" | "reason" | "note";
+    };
+    readonly primary: "medication";
+  };
   readonly "memberships": {
     readonly tables: {
       readonly "memberships": "tenant" | "user" | "role" | "createdAt" | "updatedAt" | "lastUsedAt" | "disabledAt";

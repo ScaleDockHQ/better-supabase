@@ -115,6 +115,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "waitlist.invite",
     "accounting.*",
     "observations.*",
+    "medications.*",
   ],
   member: [
     "organization.read",
@@ -551,6 +552,10 @@ export const OPERATIONS = {
   "consents.read": "consents.read",
   "consents.record": "consents.record",
   "consents.manage": "consents.manage",
+  "medications.read": "medications.read",
+  "medications.prescribe": "medications.prescribe",
+  "medications.administer": "medications.administer",
+  "medications.manage": "medications.manage",
   "messaging.read": "messages.read",
   "messaging.send": "messages.send",
   "messaging.moderate": "messages.moderate",

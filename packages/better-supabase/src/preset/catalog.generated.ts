@@ -7699,6 +7699,112 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "medications",
+      "title": "Medications",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "medications",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "orders",
+      "entities": {
+        "specs": {
+          "medication": {
+            "table": "medications",
+            "singular": "medication",
+            "primary": true
+          },
+          "medication_order": {
+            "table": "orders",
+            "singular": "medication_order"
+          },
+          "medication_administration": {
+            "table": "administrations",
+            "singular": "medication_administration"
+          }
+        },
+        "tables": {
+          "medications": {
+            "name": "medications",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "codeSystem": "code_system",
+              "code": "code",
+              "form": "form",
+              "strength": "strength",
+              "unit": "unit",
+              "highRisk": "high_risk",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "orders": {
+            "name": "medication_orders",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "medication": "medication_id",
+              "dose": "dose",
+              "doseUnit": "dose_unit",
+              "route": "route",
+              "schedule": "schedule",
+              "asNeeded": "as_needed",
+              "asNeededReason": "as_needed_reason",
+              "maxPerDay": "max_per_day",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "prescriber": "prescriber",
+              "source": "source",
+              "externalId": "external_id",
+              "requiresDoubleCheck": "requires_double_check",
+              "status": "status",
+              "stoppedReason": "stopped_reason",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "administrations": {
+            "name": "medication_administrations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "order": "order_id",
+              "scheduledAt": "scheduled_at",
+              "administeredAt": "administered_at",
+              "status": "status",
+              "dose": "dose",
+              "performer": "performer_id",
+              "checkedBy": "checked_by",
+              "reason": "reason",
+              "note": "note"
+            }
+          }
+        },
+        "keys": {
+          "read": "medications.read",
+          "prescribe": "medications.prescribe",
+          "administer": "medications.administer",
+          "manage": "medications.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -17122,6 +17228,341 @@ export const PRESET_CATALOG: PresetCatalog = {
           "observation.critical_recorded",
           "observation.amended",
           "observation.error_marked"
+        ]
+      }
+    },
+    {
+      "name": "medications",
+      "sql": [
+        "medications"
+      ],
+      "category": "people",
+      "client": {
+        "export": "medicationsBlock",
+        "subpath": "better-supabase/blocks/medications"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Medication"
+        },
+        {
+          "name": "MedicationAdministration"
+        },
+        {
+          "name": "MedicationAdministrationInput"
+        },
+        {
+          "name": "MedicationAdministrationMissedEventData"
+        },
+        {
+          "name": "MedicationAdministrationRecordedEventData"
+        },
+        {
+          "name": "MedicationAdministrationStatus"
+        },
+        {
+          "name": "MedicationAsNeededInput"
+        },
+        {
+          "name": "MedicationCatalog"
+        },
+        {
+          "name": "MedicationCatalogItem"
+        },
+        {
+          "name": "MedicationChart",
+          "fields": true
+        },
+        {
+          "name": "MedicationCodeSystem"
+        },
+        {
+          "name": "MedicationInput"
+        },
+        {
+          "name": "MedicationOrder",
+          "fields": true
+        },
+        {
+          "name": "MedicationOrderCreatedEventData"
+        },
+        {
+          "name": "MedicationOrderImport",
+          "fields": true
+        },
+        {
+          "name": "MedicationOrderInput",
+          "fields": true
+        },
+        {
+          "name": "MedicationOrderPatch",
+          "fields": true
+        },
+        {
+          "name": "MedicationOrderPausedEventData"
+        },
+        {
+          "name": "MedicationOrderSource"
+        },
+        {
+          "name": "MedicationOrderStatus"
+        },
+        {
+          "name": "MedicationOrderStoppedEventData"
+        },
+        {
+          "name": "MedicationOrderUpdatedEventData"
+        },
+        {
+          "name": "MedicationOrderWithMedication",
+          "fields": true
+        },
+        {
+          "name": "Medications",
+          "fields": true
+        },
+        {
+          "name": "MedicationSchedule"
+        },
+        {
+          "name": "MedicationsEvents"
+        },
+        {
+          "name": "MedicationsOptions"
+        }
+      ],
+      "entitySchemas": {
+        "medication": {
+          "input": {
+            "title": "MedicationInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "unit": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "codeSystem": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "gtin",
+                  "hpk",
+                  "atc",
+                  "rxnorm",
+                  "custom"
+                ]
+              },
+              "code": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 100
+              },
+              "form": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 100
+              },
+              "strength": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 100
+              },
+              "highRisk": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "medicationId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MedicationInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "unit": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "codeSystem": {
+                  "type": "string",
+                  "enum": [
+                    "gtin",
+                    "hpk",
+                    "atc",
+                    "rxnorm",
+                    "custom"
+                  ]
+                },
+                "code": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "form": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "strength": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "highRisk": {
+                  "type": "boolean"
+                },
+                "medicationId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "name",
+                "unit"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "medication_order": {
+          "input": {
+            "title": "MedicationOrderInput",
+            "fields": {
+              "dose": {
+                "kind": "number",
+                "minimum": 0
+              },
+              "doseUnit": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 50
+              },
+              "route": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 100
+              },
+              "schedule": {
+                "kind": "json",
+                "optional": true,
+                "description": "When the doses fall: { times: [HH:MM] } or { everyHours, startTime }, with optional ISO weekdays."
+              },
+              "asNeeded": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "asNeededReason": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 500
+              },
+              "maxPerDay": {
+                "kind": "number",
+                "optional": true,
+                "minimum": 0
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "prescriber": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 300
+              },
+              "requiresDoubleCheck": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "MedicationOrderInput",
+              "type": "object",
+              "properties": {
+                "dose": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "doseUnit": {
+                  "type": "string",
+                  "maxLength": 50
+                },
+                "route": {
+                  "type": "string",
+                  "maxLength": 100
+                },
+                "schedule": {
+                  "description": "When the doses fall: { times: [HH:MM] } or { everyHours, startTime }, with optional ISO weekdays."
+                },
+                "asNeeded": {
+                  "type": "boolean"
+                },
+                "asNeededReason": {
+                  "type": "string",
+                  "maxLength": 500
+                },
+                "maxPerDay": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "startsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "prescriber": {
+                  "type": "string",
+                  "maxLength": 300
+                },
+                "requiresDoubleCheck": {
+                  "type": "boolean"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "dose"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "MedicationsEvents",
+        "types": [
+          "medication_order.created",
+          "medication_order.updated",
+          "medication_order.paused",
+          "medication_order.stopped",
+          "medication_administration.recorded",
+          "medication_administration.missed"
         ]
       }
     },

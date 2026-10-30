@@ -258,4 +258,10 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   consents: { read: "tenant", record: "tenant", manage: "tenant" },
   observations: { read: "tenant", record: "tenant", manage: "tenant" },
+  medications: {
+    read: "tenant",
+    prescribe: "tenant",
+    administer: "tenant",
+    manage: "tenant",
+  },
 };

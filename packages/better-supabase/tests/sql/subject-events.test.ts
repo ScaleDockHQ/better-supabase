@@ -208,6 +208,12 @@ const SUBJECT_EVENTS = [
   "consent.expired",
   "access_request.emergency_opened",
   "access_request.emergency_reviewed",
+  "medication_order.created",
+  "medication_order.updated",
+  "medication_order.paused",
+  "medication_order.stopped",
+  "medication_administration.recorded",
+  "medication_administration.missed",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

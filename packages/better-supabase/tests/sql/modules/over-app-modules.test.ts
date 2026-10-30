@@ -95,6 +95,7 @@ const MODULES = [
   "qualifications",
   "shifts",
   "acknowledgements",
+  "medications",
   "mail-sync",
   "usage",
   "oauth-server",
