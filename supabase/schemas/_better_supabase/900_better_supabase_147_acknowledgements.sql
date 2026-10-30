@@ -1,6 +1,6 @@
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:54509f6f839334f01d6a85e16ee082c4023f0afbdf21c1dfb6c8014bc112bb2f
+-- @bsb-hash sha256:8660bba398350009f580c7d2c4d83486fdf1d0be4b8f36f8e8f89ec4e5f73a51
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -152,7 +152,7 @@ begin
     return (select s."current_version_id"::uuid from "better_supabase"."policies" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
   end if;
   if current_acknowledgement_version.subject_type = 'drive_node' then
-    return (select s."""effective_version_id"""::uuid from "better_supabase"."drive_nodes" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
+    return (select s."effective_version_id"::uuid from "better_supabase"."drive_nodes" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
   end if;
   return (
     select x."id" from "better_supabase"."versions" x

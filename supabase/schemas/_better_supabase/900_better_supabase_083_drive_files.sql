@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:5df32622279c86629b32589cc430e88c4358ec297708d93cd841ef5149a509f6
+-- @bsb-hash sha256:bd404303dc262a2ce0d9ff40fdb2e00e3d57c318c0d067cc0d69be23ed5c50b9
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1189,8 +1189,9 @@ revoke execute on function "better_supabase"."drive_document_save"(uuid, text, u
 grant execute on function "better_supabase"."drive_document_save"(uuid, text, uuid, integer) to authenticated, service_role;
 
 -- Sends a draft or an effective document's attachment (the current one by
--- default) for release: the document moves to in_review and an approval
--- request with action release goes to approvals.
+-- default) for release through an approval request with action release. A
+-- draft moves to in_review; an effective document stays effective, so its
+-- readers keep the released version until the new one is approved.
 create or replace function "better_supabase"."drive_document_submit"(node uuid, attachment uuid default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -1221,12 +1222,12 @@ begin
   if v_node."document_status" is null then
     raise exception 'save the file as a controlled document first' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
   end if;
-  if not (v_node."document_status" in ('draft', 'effective') or (v_node."document_status" = 'in_review' and not exists (
+  if not (v_node."document_status" = 'draft' or (v_node."document_status" in ('in_review', 'effective') and not exists (
     select 1 from "better_supabase"."approval_requests" q
     where q."subject_type" = 'drive_node' and q."subject_id" = v_node."id"::text
       and q."action" = 'release' and q."status" = 'pending'
   ))) then
-    raise exception 'only a draft or an effective document can be submitted' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
+    raise exception 'only a draft, or an effective document without a pending release, can be submitted' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
   end if;
   select * into v_file from "better_supabase"."attachments" f
   where f."id" = coalesce(drive_document_submit.attachment, v_node."attachment_id")
@@ -1239,7 +1240,7 @@ begin
   where r."subject_type" = 'drive_node' and r."subject_id" = v_node."id"::text
     and r."content" ->> 'attachmentId' = v_file."id"::text
   order by r."number" limit 1;
-  if v_node."document_status" <> 'in_review' then
+  if v_node."document_status" = 'draft' then
     perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'in_review', drive_document_submit.reason);
   end if;
   v_request := "better_supabase"."request_approval"(v_node."tenant_id", 'drive_node', v_node."id"::text, 'release',
@@ -1295,8 +1296,8 @@ begin
   if v_node."kind" <> 'file' then
     raise exception 'only a file can be released' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
   end if;
-  if v_node."document_status" is distinct from 'in_review' then
-    raise exception 'only a document in review can be released' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
+  if v_node."document_status" is null or v_node."document_status" not in ('in_review', 'effective') then
+    raise exception 'only a document in review or an effective one can be released' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
   end if;
   select * into v_file from "better_supabase"."attachments" f
   where f."id" = drive_document_release.attachment
@@ -1322,7 +1323,9 @@ begin
   update "better_supabase"."drive_nodes" x set "effective_version_id" = v_version, "effective_from" = now(),
     "next_review_on" = (current_date + make_interval(months => coalesce(v_node."review_interval_months", 12)))::date, "review_notified_for" = null
   where x."id" = v_node."id";
-  perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'effective', 'released');
+  if v_node."document_status" = 'in_review' then
+    perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'effective', 'released');
+  end if;
   select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
   perform "better_supabase".emit_event('drive.node_released', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'versionId', v_version, 'attachmentId', v_file."id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
@@ -1342,8 +1345,8 @@ revoke execute on function "better_supabase"."drive_document_release"(uuid, uuid
 grant execute on function "better_supabase"."drive_document_release"(uuid, uuid) to service_role;
 
 -- Runs when approvals decides a release request: an approval releases the
--- attachment it names, a rejection sends the document back to draft. Other
--- actions on the file pass.
+-- attachment it names, a rejection sends a document in review back to draft
+-- and leaves an effective one as it is. Other actions on the file pass.
 create or replace function "better_supabase"."drive_document_decided"(request uuid, approved boolean)
 returns void
 language plpgsql
@@ -1359,14 +1362,14 @@ begin
     return;
   end if;
   select * into v_node from "better_supabase"."drive_nodes" x where x."id"::text = v_req."subject_id" for update;
-  if not found or v_node."document_status" is distinct from 'in_review' then
+  if not found or v_node."document_status" is null or v_node."document_status" not in ('in_review', 'effective') then
     return;
   end if;
   if drive_document_decided.approved then
     perform set_config('better_supabase.approval', v_req."id"::text, true);
     perform "better_supabase"."drive_document_release"(v_node."id", coalesce((v_req."payload" ->> 'attachmentId')::uuid, v_node."attachment_id"));
     perform set_config('better_supabase.approval', '', true);
-  else
+  elsif v_node."document_status" = 'in_review' then
     perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'draft', 'rejected');
   end if;
 end;
@@ -1499,8 +1502,8 @@ begin
       and (coalesce((drive_documents.filters ->> 'reviewDue')::boolean, false) = false
         or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
       and (coalesce(drive_documents.filters ->> 'search', '') = ''
-        or x."document_number" ilike '%' || drive_documents.filters ->> 'search' || '%'
-        or x."name" ilike '%' || drive_documents.filters ->> 'search' || '%')
+        or x."document_number" ilike '%' || (drive_documents.filters ->> 'search') || '%'
+        or x."name" ilike '%' || (drive_documents.filters ->> 'search') || '%')
   ), '[]'::jsonb);
 end;
 $$;
@@ -1508,8 +1511,8 @@ revoke execute on function "better_supabase"."drive_documents"(uuid, jsonb) from
 grant execute on function "better_supabase"."drive_documents"(uuid, jsonb) to authenticated, service_role;
 
 -- Reports each effective document whose review date has come once per date:
--- a drive.node_review_due event and, with notifications, a notification to
--- its owner. Run it daily from a job.
+-- a drive.node_review_requested event and, with notifications, a notification
+-- to its owner. Run it daily from a job.
 create or replace function "better_supabase"."notify_due_drive_reviews"()
 returns integer
 language plpgsql
@@ -1519,6 +1522,7 @@ as $$
 declare
   v_node "better_supabase"."drive_nodes"%rowtype;
   v_count integer := 0;
+  v_claims text;
 begin
   for v_node in
     select * from "better_supabase"."drive_nodes" x
@@ -1526,7 +1530,7 @@ begin
       and x."review_notified_for" is distinct from x."next_review_on" and x."deleted_at" is null
     for update skip locked
   loop
-    perform "better_supabase".emit_event('drive.node_review_due', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'ownerId', v_node."document_owner_id", 'nextReviewOn', v_node."next_review_on"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+    perform "better_supabase".emit_event('drive.node_review_requested', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'ownerId', v_node."document_owner_id", 'nextReviewOn', v_node."next_review_on"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
     if v_node."document_owner_id" is not null then
       v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);

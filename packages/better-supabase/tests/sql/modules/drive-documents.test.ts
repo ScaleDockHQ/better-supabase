@@ -95,9 +95,26 @@ describe("drive controlled documents", () => {
     expect(() => render({ types: ["sop"], releaseRole: "boss" })).toThrow(
       TypeError,
     );
+    expect(() => render({ types: ["sop"], releaseRole: 3 })).toThrow(TypeError);
     expect(() => render("sop" as unknown as Record<string, unknown>)).toThrow(
       TypeError,
     );
+  });
+
+  it("renders without acknowledgements, relations and notifications", () => {
+    const files = render({ types: ["sop"] }, [
+      "drive",
+      "versions",
+      "approvals",
+      "state-machine",
+      "numbering",
+    ]);
+
+    const functions = sqlOf(files, "drive-files");
+
+    expect(functions).toContain("notify_due_drive_reviews");
+    expect(functions).not.toContain("v_claims");
+    expect(files.some((file) => file.module === "relations")).toBe(false);
   });
 
   it("needs numbering, versions, approvals and state-machine", () => {
