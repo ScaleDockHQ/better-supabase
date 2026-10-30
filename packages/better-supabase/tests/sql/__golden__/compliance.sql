@@ -2158,7 +2158,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:a8a68c80e028fbb91c82c6f549a2ed40fbb305a8e809f07dea9f63051391b2a7
+-- @bsb-hash sha256:4a8ca08ae1243dc1aa52aa73660999d4cc602cf6b99736b57a46c50697193620
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2244,6 +2244,7 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."consents"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."consents" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."observations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."observations" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."medication_orders"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."medication_orders" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 1, 'managed')

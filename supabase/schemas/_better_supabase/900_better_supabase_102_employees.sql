@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:0a7e46b8ec9d8d56fb2d0c5b7da7c37eb335663fcdd6b7a3939413f5beb3c6f3
+-- @bsb-hash sha256:64b79682aed3aa9f72b355527a80f534c3789a2ce80174d64fc64bc23fd5ea26
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -642,6 +642,7 @@ begin
       when 'compliance_policy' then (select s."title"::text from "better_supabase"."policies" s where s."id" = (v_application."candidate_id")::uuid)
       when 'qualification_type' then (select s."name"::text from "better_supabase"."qualification_types" s where s."id" = (v_application."candidate_id")::uuid)
       when 'risk' then (select s."title"::text from "better_supabase"."risks" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'care_plan' then (select s."title"::text from "better_supabase"."care_plans" s where s."id" = (v_application."candidate_id")::uuid)
       when 'incident' then (select s."title"::text from "better_supabase"."incidents" s where s."id" = (v_application."candidate_id")::uuid)
       when 'content_entry' then (select s."title"::text from "better_supabase"."content_entries" s where s."id" = (v_application."candidate_id")::uuid)
       when 'form' then (select s."title"::text from "better_supabase"."forms" s where s."id" = (v_application."candidate_id")::uuid)

@@ -39,10 +39,10 @@ describe("care-plans module", () => {
   });
 
   it("creates work items and notifies owners only with those blocks installed", () => {
-    expect(sqlOf()).not.toContain("create_work_item");
+    expect(sqlOf()).not.toContain("create_task");
     expect(sqlOf()).not.toContain("'care_plan.review_date_reached:' ||");
     const full = sqlOf({}, [...BASE, "tasks", "notifications"]);
-    expect(full).toContain("create_work_item");
+    expect(full).toContain("create_task");
     expect(full).toContain("'care_plan.review_date_reached:' ||");
   });
 

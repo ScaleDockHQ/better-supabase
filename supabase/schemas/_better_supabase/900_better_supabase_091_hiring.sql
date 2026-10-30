@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:f76fd5632702d7b1ee17445d315721bcfe21cc3f1b741c1441502a59ef96346f
+-- @bsb-hash sha256:6f99dbd24f43f41ba20bc6a2685e39f39587136e23a5f42573c689e0a132388e
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -335,6 +335,7 @@ begin
       when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
+      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)

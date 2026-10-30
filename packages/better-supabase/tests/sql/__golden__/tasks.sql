@@ -2080,7 +2080,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:7c2c1623fa283480922b3af761cbdfcc6ed70deb3e4cfb0d09657ee28d23c588
+-- @bsb-hash sha256:2acb9a9764dc835b02fa4ba18e656b9dd0c2e70b795b58b13f87aa24491d67b8
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2166,6 +2166,7 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."consents"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."consents" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."observations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."observations" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."medication_orders"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."medication_orders" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tasks', 2, 'managed')

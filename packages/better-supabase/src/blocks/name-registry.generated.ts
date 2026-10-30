@@ -65,17 +65,17 @@ export interface BlockNameRegistry {
   };
   readonly "activities": {
     readonly tables: {
-      readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt" | "audience" | "restrictedRoles" | "category" | "lockedAt" | "amends" | "goal" | "markedErrorAt" | "markedErrorBy" | "markedErrorReason";
       readonly "links": "tenant" | "engagement" | "subjectType" | "subjectId" | "position";
       readonly "recordings": "id" | "tenant" | "engagement" | "file" | "filename" | "mediaType" | "status" | "language" | "durationSeconds" | "error" | "model" | "createdBy" | "createdAt" | "transcribedAt";
       readonly "segments": "recording" | "tenant" | "position" | "speaker" | "speakerUser" | "startsMs" | "endsMs" | "text" | "confidence";
       readonly "notes": "engagement" | "tenant" | "summary" | "actionItems" | "model" | "source" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "activities_of" | "complete_activity" | "delete_activity" | "log_activity" | "next_activity" | "open_activities" | "update_activity";
-    readonly actions: "read" | "write" | "manage";
+    readonly functions: "activities_of" | "amend_activity" | "complete_activity" | "delete_activity" | "log_activity" | "mark_activity_error" | "next_activity" | "open_activities" | "update_activity";
+    readonly actions: "read" | "write" | "manage" | "readRestricted";
     readonly hooks: "before_activity_log" | "after_activity_log";
     readonly entities: {
-      readonly "activity": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_user_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at";
+      readonly "activity": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_user_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at" | "audience" | "restricted_roles" | "category" | "locked_at" | "amends_id" | "goal_id" | "marked_error_at" | "marked_error_by" | "marked_error_reason";
     };
     readonly primary: "activity";
     readonly formerKeys: "engagement";
@@ -374,6 +374,27 @@ export interface BlockNameRegistry {
       readonly "calendar": "id" | "tenant_id" | "name" | "tz" | "color" | "owner_type" | "owner_id" | "created_at" | "visibility" | "description" | "rank" | "is_default";
     };
     readonly primary: "calendar_event";
+    readonly formerKeys: never;
+  };
+  readonly "care-plans": {
+    readonly tables: {
+      readonly "plans": "id" | "tenant" | "subjectType" | "subjectId" | "title" | "status" | "version" | "startsOn" | "reviewOn" | "owner" | "signature" | "agreedAt" | "publishedVersion" | "publishedAt" | "publishedBy" | "archivedAt" | "reviewNotifiedFor" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "problems": "id" | "tenant" | "plan" | "codeSystem" | "code" | "title" | "description" | "status" | "rank" | "createdAt" | "updatedAt";
+      readonly "goals": "id" | "tenant" | "plan" | "problem" | "title" | "targetOn" | "status" | "measure" | "rank" | "createdAt" | "updatedAt";
+      readonly "actions": "id" | "tenant" | "plan" | "goal" | "kind" | "title" | "instructions" | "frequency" | "teamRole" | "measureKind" | "task" | "bookingSeries" | "requiresApproval" | "approval" | "reviewEvery" | "reviewedAt" | "reviewNotifiedAt" | "startsOn" | "endsOn" | "status" | "startedAt" | "endedAt" | "endReason" | "rank" | "createdAt" | "updatedAt";
+      readonly "evaluations": "id" | "tenant" | "plan" | "goal" | "evaluatedAt" | "status" | "outcome" | "submission" | "author";
+    };
+    readonly functions: "add_care_plan_action" | "add_care_plan_goal" | "add_care_plan_problem" | "archive_care_plan" | "care_plan_action_approved" | "care_plan_action_end" | "care_plan_action_start" | "care_plan_json" | "create_care_plan" | "due_care_plan_reviews" | "end_care_plan_action" | "get_care_plan" | "list_care_plan_measures" | "list_care_plans" | "publish_care_plan" | "record_care_plan_evaluation" | "request_care_plan_agreement" | "review_care_plan_action" | "start_care_plan_action" | "update_care_plan" | "update_care_plan_action" | "update_care_plan_goal" | "update_care_plan_problem";
+    readonly actions: "read" | "write" | "evaluate" | "publish" | "manage";
+    readonly hooks: "before_care_plan_create" | "after_care_plan_create" | "before_care_plan_publish" | "after_care_plan_publish" | "before_care_plan_evaluation_create" | "after_care_plan_evaluation_create";
+    readonly entities: {
+      readonly "care_plan": "id" | "tenant_id" | "subject_type" | "subject_id" | "title" | "status" | "version" | "starts_on" | "review_on" | "owner_id" | "signature_id" | "agreed_at" | "published_version_id" | "published_at" | "published_by" | "archived_at" | "review_notified_for" | "created_by" | "created_at" | "updated_at";
+      readonly "care_plan_problem": "id" | "tenant_id" | "plan_id" | "code_system" | "code" | "title" | "description" | "status" | "rank" | "created_at" | "updated_at";
+      readonly "care_plan_goal": "id" | "tenant_id" | "plan_id" | "problem_id" | "title" | "target_on" | "status" | "measure" | "rank" | "created_at" | "updated_at";
+      readonly "care_plan_action": "id" | "tenant_id" | "plan_id" | "goal_id" | "kind" | "title" | "instructions" | "frequency" | "team_role" | "measure_kind" | "task_id" | "booking_series_id" | "requires_approval" | "approval_id" | "review_every" | "reviewed_at" | "review_notified_at" | "starts_on" | "ends_on" | "status" | "started_at" | "ended_at" | "end_reason" | "rank" | "created_at" | "updated_at";
+      readonly "care_plan_evaluation": "id" | "tenant_id" | "plan_id" | "goal_id" | "evaluated_at" | "status" | "outcome" | "submission_id" | "author_id";
+    };
+    readonly primary: "care_plan";
     readonly formerKeys: never;
   };
   readonly "catalog": {
@@ -1945,7 +1966,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "members": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "team" | "role" | "startsOn" | "endsOn" | "endsAt" | "emergency" | "reason" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "close_subject_member" | "end_subject_member" | "grant_subject_member" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "close_subject_member" | "end_subject_member" | "grant_subject_member" | "has_subject_role" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
