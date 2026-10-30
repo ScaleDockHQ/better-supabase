@@ -6,14 +6,17 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { ActivitySourceName } from "./timeline-reads.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { SERVICE_CALLER, schemaPreamble, pageSize, fail } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { storedTypesData } from "./event-type-renames.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { activityReads } from "./timeline-reads.ts";
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("timeline", 1),
   entities: {
     timeline_entry: {
       table: "activity",
@@ -24,7 +27,7 @@ const NAMES: BlockSqlNames = {
   },
   tables: {
     activity: {
-      name: "activity_entries",
+      name: "timeline_entries",
       app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
@@ -142,10 +145,10 @@ create table if not exists ${activity} (
   ${a("data")} jsonb not null default '{}'::jsonb,
   ${a("occurredAt")} timestamptz not null default now()
 );${appUniqueIndex(ctx, "activity", ["event"])}
-create index if not exists ${ctx.naming.rename("activity_entries_feed_idx")} on ${activity} (${a("tenant")}, ${a("occurredAt")} desc, ${a("id")} desc);
-create index if not exists ${ctx.naming.rename("activity_entries_subject_idx")} on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
-${ctx.has("activity", "actor") ? `create index if not exists ${ctx.naming.rename("activity_entries_actor_idx")} on ${activity} (${a("actor")});\n` : ""}${lockModuleTable(ctx, "activity", { read: true })}
-${reads.readable}${renderPolicy(makePolicy({ table: activity, name: ctx.naming.rename("activity_entries_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(a("tenant"), read)}${reads.rowCheck}` }), { drop: true, target: activity })}${reads.dropReadable}${reads.helpers}
+create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_feed_idx`)} on ${activity} (${a("tenant")}, ${a("occurredAt")} desc, ${a("id")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_subject_idx`)} on ${activity} (${a("tenant")}, ${a("subjectType")}, ${a("subjectId")});
+${ctx.has("activity", "actor") ? `create index if not exists ${sqlIdent(`${ctx.tableName("activity").name}_actor_idx`)} on ${activity} (${a("actor")});\n` : ""}${lockModuleTable(ctx, "activity", { read: true })}
+${reads.readable}${renderPolicy(makePolicy({ table: activity, name: sqlIdent(`${ctx.tableName("activity").name}_read`), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(a("tenant"), read)}${reads.rowCheck}` }), { drop: true, target: activity })}${reads.dropReadable}${reads.helpers}
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -246,7 +249,7 @@ export const ACTIVITY: BlockSqlDefinition = {
   scopes: ["tenant", "user", "none"],
   title: "Activity feed",
   description:
-    "An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.",
+    "A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.",
   requires: ["memberships", "permissions"],
   integrates: [
     "notifications",
@@ -258,6 +261,7 @@ export const ACTIVITY: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
   names: NAMES,
   data: (ctx) => storedTypesData(ctx, [["activity", "type"]]),
   contract,

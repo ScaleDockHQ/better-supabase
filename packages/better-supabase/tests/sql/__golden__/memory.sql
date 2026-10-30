@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
--- @bsb-block memory@4 managed
--- @bsb-hash sha256:34d662fa77eab4eeeba66628e53c5c0a7f33d9210a5d722a5dac5dac240cce67
+-- @bsb-block memory@5 managed
+-- @bsb-hash sha256:76bfc744504b2681724a36b470b27f3f606119b1ad40a1d4a87c5e3210d2dcf5
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -53,11 +53,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -125,7 +125,7 @@ create policy memories_read on "better_supabase"."memories"
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
-create table if not exists "better_supabase"."ai_message_embeddings" (
+create table if not exists "better_supabase"."memory_message_embeddings" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -135,14 +135,14 @@ create table if not exists "better_supabase"."ai_message_embeddings" (
   "created_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id")
 );
-create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "organization_id");
-create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
-alter table "better_supabase"."ai_message_embeddings" enable row level security;
-revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authenticated;
-grant select on "better_supabase"."ai_message_embeddings" to authenticated;
-grant all on "better_supabase"."ai_message_embeddings" to service_role;
-drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+create index if not exists "memory_message_embeddings_user_idx" on "better_supabase"."memory_message_embeddings" ("user_id", "organization_id");
+create index if not exists "memory_message_embeddings_embedding_idx" on "better_supabase"."memory_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
+alter table "better_supabase"."memory_message_embeddings" enable row level security;
+revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
+grant select on "better_supabase"."memory_message_embeddings" to authenticated;
+grant all on "better_supabase"."memory_message_embeddings" to service_role;
+drop policy if exists memory_message_embeddings_read on "better_supabase"."memory_message_embeddings";
+create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -958,7 +958,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."ai_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
+  insert into "better_supabase"."memory_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
   values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
   on conflict ("chat_id", "message_id") do update set "embedding" = excluded."embedding", "embedding_model" = excluded."embedding_model";
   return true;
@@ -995,7 +995,7 @@ begin
   into v_rows
   from (
     select x."chat_id" as chat_id, x."message_id" as message_id, x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding as distance
-    from "better_supabase"."ai_message_embeddings" x
+    from "better_supabase"."memory_message_embeddings" x
     where x."user_id" = v_user and x."organization_id" = recall_ai_messages.tenant
       and x."chat_id" is distinct from recall_ai_messages.exclude_chat
     order by x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding
@@ -1141,25 +1141,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
 create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -1179,21 +1179,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:72113eafbd322f1ddb4356fb6bdb8a172da173f627879bdf142866af33aade94
+-- @bsb-hash sha256:c9ee4b319d14d465c6f95834df79c6fe7d16c7730b2450ff8ad4fba0175be588
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memory', 4, 'managed')
+values ('memory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
--- @bsb-block memory@4 managed
--- @bsb-hash sha256:894f3bfe41e2b9342c2cd64635002f5b68a19e8f6757f5a9e7af22829faf3be7
+-- @bsb-block memory@5 managed
+-- @bsb-hash sha256:3843ac12fbc20f6ada35e191d0d6701db6f0b1127b2dbcaa68f85f09b8ab6f5e
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1245,11 +1245,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1317,7 +1317,7 @@ create policy memories_read on "better_supabase"."memories"
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
-create table if not exists "better_supabase"."ai_message_embeddings" (
+create table if not exists "better_supabase"."memory_message_embeddings" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -1327,14 +1327,14 @@ create table if not exists "better_supabase"."ai_message_embeddings" (
   "created_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id")
 );
-create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "organization_id");
-create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
-alter table "better_supabase"."ai_message_embeddings" enable row level security;
-revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authenticated;
-grant select on "better_supabase"."ai_message_embeddings" to authenticated;
-grant all on "better_supabase"."ai_message_embeddings" to service_role;
-drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+create index if not exists "memory_message_embeddings_user_idx" on "better_supabase"."memory_message_embeddings" ("user_id", "organization_id");
+create index if not exists "memory_message_embeddings_embedding_idx" on "better_supabase"."memory_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
+alter table "better_supabase"."memory_message_embeddings" enable row level security;
+revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
+grant select on "better_supabase"."memory_message_embeddings" to authenticated;
+grant all on "better_supabase"."memory_message_embeddings" to service_role;
+drop policy if exists memory_message_embeddings_read on "better_supabase"."memory_message_embeddings";
+create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -2153,7 +2153,7 @@ begin
   if exists (select 1 from "better_supabase"."ai_chats" x where x."id" = set_ai_message_embedding.chat_id and x."is_temporary") then
     return false;
   end if;
-  insert into "better_supabase"."ai_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
+  insert into "better_supabase"."memory_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
   values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
   on conflict ("chat_id", "message_id") do update set "embedding" = excluded."embedding", "embedding_model" = excluded."embedding_model";
   return true;
@@ -2190,7 +2190,7 @@ begin
   into v_rows
   from (
     select x."chat_id" as chat_id, x."message_id" as message_id, x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding as distance
-    from "better_supabase"."ai_message_embeddings" x
+    from "better_supabase"."memory_message_embeddings" x
     where x."user_id" = v_user and x."organization_id" = recall_ai_messages.tenant
       and x."chat_id" is distinct from recall_ai_messages.exclude_chat
     order by x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding
@@ -2336,25 +2336,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
 create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -2374,21 +2374,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:72113eafbd322f1ddb4356fb6bdb8a172da173f627879bdf142866af33aade94
+-- @bsb-hash sha256:c9ee4b319d14d465c6f95834df79c6fe7d16c7730b2450ff8ad4fba0175be588
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memory', 4, 'managed')
+values ('memory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
--- @bsb-block memory@4 managed
--- @bsb-hash sha256:3a3366fde7b79e5cec7ace29e51fd6e19d508004c13c761d162b6ce3a0eb947e
+-- @bsb-block memory@5 managed
+-- @bsb-hash sha256:e293a14b1919e6ccc39f1fd8ac9780003ab304e2930857d8d1a57157b6049f01
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2440,11 +2440,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "app_private"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope on "app_private"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."memory_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2517,7 +2517,7 @@ create policy memories_read on "app_private"."memories"
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
-create table if not exists "app_private"."ai_message_embeddings" (
+create table if not exists "app_private"."memory_message_embeddings" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -2527,14 +2527,14 @@ create table if not exists "app_private"."ai_message_embeddings" (
   "created_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id")
 );
-create index if not exists ai_message_embeddings_user_idx on "app_private"."ai_message_embeddings" ("user_id", "organization_id");
-create index if not exists ai_message_embeddings_embedding_idx on "app_private"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
-alter table "app_private"."ai_message_embeddings" enable row level security;
-revoke all on "app_private"."ai_message_embeddings" from public, anon, authenticated;
-grant select on "app_private"."ai_message_embeddings" to authenticated;
-grant all on "app_private"."ai_message_embeddings" to service_role;
-drop policy if exists ai_message_embeddings_read on "app_private"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "app_private"."ai_message_embeddings"
+create index if not exists "memory_message_embeddings_user_idx" on "app_private"."memory_message_embeddings" ("user_id", "organization_id");
+create index if not exists "memory_message_embeddings_embedding_idx" on "app_private"."memory_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
+alter table "app_private"."memory_message_embeddings" enable row level security;
+revoke all on "app_private"."memory_message_embeddings" from public, anon, authenticated;
+grant select on "app_private"."memory_message_embeddings" to authenticated;
+grant all on "app_private"."memory_message_embeddings" to service_role;
+drop policy if exists memory_message_embeddings_read on "app_private"."memory_message_embeddings";
+create policy memory_message_embeddings_read on "app_private"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -3350,7 +3350,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "app_private"."ai_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
+  insert into "app_private"."memory_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
   values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
   on conflict ("chat_id", "message_id") do update set "embedding" = excluded."embedding", "embedding_model" = excluded."embedding_model";
   return true;
@@ -3387,7 +3387,7 @@ begin
   into v_rows
   from (
     select x."chat_id" as chat_id, x."message_id" as message_id, x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding as distance
-    from "app_private"."ai_message_embeddings" x
+    from "app_private"."memory_message_embeddings" x
     where x."user_id" = v_user and x."organization_id" = recall_ai_messages.tenant
       and x."chat_id" is distinct from recall_ai_messages.exclude_chat
     order by x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding
@@ -3533,25 +3533,25 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."memories";
 create policy bsb_tenant_scope_delete on "app_private"."memories" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."ai_message_embeddings";
-drop policy if exists bsb_tenant_scope_select on "app_private"."ai_message_embeddings";
-create policy bsb_tenant_scope_select on "app_private"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope on "app_private"."memory_message_embeddings";
+drop policy if exists bsb_tenant_scope_select on "app_private"."memory_message_embeddings";
+create policy bsb_tenant_scope_select on "app_private"."memory_message_embeddings" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_message_embeddings";
-create policy bsb_tenant_scope_insert on "app_private"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "app_private"."memory_message_embeddings";
+create policy bsb_tenant_scope_insert on "app_private"."memory_message_embeddings" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."ai_message_embeddings";
-create policy bsb_tenant_scope_update on "app_private"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_update on "app_private"."memory_message_embeddings";
+create policy bsb_tenant_scope_update on "app_private"."memory_message_embeddings" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."ai_message_embeddings";
-create policy bsb_tenant_scope_delete on "app_private"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "app_private"."memory_message_embeddings";
+create policy bsb_tenant_scope_delete on "app_private"."memory_message_embeddings" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -3571,21 +3571,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:72113eafbd322f1ddb4356fb6bdb8a172da173f627879bdf142866af33aade94
+-- @bsb-hash sha256:c9ee4b319d14d465c6f95834df79c6fe7d16c7730b2450ff8ad4fba0175be588
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memory', 4, 'managed')
+values ('memory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
--- @bsb-block memory@4 managed
--- @bsb-hash sha256:87a402e2a8ba05b0bb414781e7a73a21a216d26c13043ae0e4d969c865507106
+-- @bsb-block memory@5 managed
+-- @bsb-hash sha256:7df95be86e19aec3db7bbb6a94fbea09bcd008ce6bf2d8949c09ed5d67556c0e
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3637,11 +3637,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3709,7 +3709,7 @@ create policy memories_read on "better_supabase"."memories"
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
-create table if not exists "better_supabase"."ai_message_embeddings" (
+create table if not exists "better_supabase"."memory_message_embeddings" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -3719,14 +3719,14 @@ create table if not exists "better_supabase"."ai_message_embeddings" (
   "created_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id")
 );
-create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "organization_id");
-create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
-alter table "better_supabase"."ai_message_embeddings" enable row level security;
-revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authenticated;
-grant select on "better_supabase"."ai_message_embeddings" to authenticated;
-grant all on "better_supabase"."ai_message_embeddings" to service_role;
-drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+create index if not exists "memory_message_embeddings_user_idx" on "better_supabase"."memory_message_embeddings" ("user_id", "organization_id");
+create index if not exists "memory_message_embeddings_embedding_idx" on "better_supabase"."memory_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
+alter table "better_supabase"."memory_message_embeddings" enable row level security;
+revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
+grant select on "better_supabase"."memory_message_embeddings" to authenticated;
+grant all on "better_supabase"."memory_message_embeddings" to service_role;
+drop policy if exists memory_message_embeddings_read on "better_supabase"."memory_message_embeddings";
+create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -4542,7 +4542,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."ai_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
+  insert into "better_supabase"."memory_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
   values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
   on conflict ("chat_id", "message_id") do update set "embedding" = excluded."embedding", "embedding_model" = excluded."embedding_model";
   return true;
@@ -4579,7 +4579,7 @@ begin
   into v_rows
   from (
     select x."chat_id" as chat_id, x."message_id" as message_id, x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding as distance
-    from "better_supabase"."ai_message_embeddings" x
+    from "better_supabase"."memory_message_embeddings" x
     where x."user_id" = v_user and x."organization_id" = recall_ai_messages.tenant
       and x."chat_id" is distinct from recall_ai_messages.exclude_chat
     order by x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding
@@ -4725,25 +4725,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
 create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -4969,21 +4969,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:72113eafbd322f1ddb4356fb6bdb8a172da173f627879bdf142866af33aade94
+-- @bsb-hash sha256:c9ee4b319d14d465c6f95834df79c6fe7d16c7730b2450ff8ad4fba0175be588
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memory', 4, 'managed')
+values ('memory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
--- @bsb-block memory@4 managed
--- @bsb-hash sha256:aacf79302c6c9e3f486b938cc771941116652534dc5bf93706120990764423a6
+-- @bsb-block memory@5 managed
+-- @bsb-hash sha256:b8ec2dda8a3d614f2f1083e86e60f4f25481bd3a6d3bd517cca4d17471543417
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5051,11 +5051,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5118,22 +5118,22 @@ create policy bsb_memories_select on "better_supabase"."memories"
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
--- better_supabase.ai_message_embeddings is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_message_embeddings" add column if not exists "chat_id" uuid;
-alter table "better_supabase"."ai_message_embeddings" add column if not exists "message_id" text;
-alter table "better_supabase"."ai_message_embeddings" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_message_embeddings" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."ai_message_embeddings" add column if not exists "embedding" extensions.vector(1536);
-alter table "better_supabase"."ai_message_embeddings" add column if not exists "embedding_model" text;
-alter table "better_supabase"."ai_message_embeddings" add column if not exists "created_at" timestamptz not null default now();
-create unique index if not exists "bsb_ai_message_embeddings_message_key" on "better_supabase"."ai_message_embeddings" ("chat_id", "message_id");
-create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "organization_id");
-create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
-alter table "better_supabase"."ai_message_embeddings" enable row level security;
-grant select on "better_supabase"."ai_message_embeddings" to authenticated;
-grant all on "better_supabase"."ai_message_embeddings" to service_role;
-drop policy if exists bsb_ai_message_embeddings_select on "better_supabase"."ai_message_embeddings";
-create policy bsb_ai_message_embeddings_select on "better_supabase"."ai_message_embeddings"
+-- better_supabase.memory_message_embeddings is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."memory_message_embeddings" add column if not exists "chat_id" uuid;
+alter table "better_supabase"."memory_message_embeddings" add column if not exists "message_id" text;
+alter table "better_supabase"."memory_message_embeddings" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."memory_message_embeddings" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."memory_message_embeddings" add column if not exists "embedding" extensions.vector(1536);
+alter table "better_supabase"."memory_message_embeddings" add column if not exists "embedding_model" text;
+alter table "better_supabase"."memory_message_embeddings" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "bsb_memory_message_embeddings_message_key" on "better_supabase"."memory_message_embeddings" ("chat_id", "message_id");
+create index if not exists "memory_message_embeddings_user_idx" on "better_supabase"."memory_message_embeddings" ("user_id", "organization_id");
+create index if not exists "memory_message_embeddings_embedding_idx" on "better_supabase"."memory_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
+alter table "better_supabase"."memory_message_embeddings" enable row level security;
+grant select on "better_supabase"."memory_message_embeddings" to authenticated;
+grant all on "better_supabase"."memory_message_embeddings" to service_role;
+drop policy if exists bsb_memory_message_embeddings_select on "better_supabase"."memory_message_embeddings";
+create policy bsb_memory_message_embeddings_select on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -5949,7 +5949,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."ai_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
+  insert into "better_supabase"."memory_message_embeddings" ("chat_id", "message_id", "user_id", "organization_id", "embedding", "embedding_model")
   values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
   on conflict ("chat_id", "message_id") do update set "embedding" = excluded."embedding", "embedding_model" = excluded."embedding_model";
   return true;
@@ -5986,7 +5986,7 @@ begin
   into v_rows
   from (
     select x."chat_id" as chat_id, x."message_id" as message_id, x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding as distance
-    from "better_supabase"."ai_message_embeddings" x
+    from "better_supabase"."memory_message_embeddings" x
     where x."user_id" = v_user and x."organization_id" = recall_ai_messages.tenant
       and x."chat_id" is distinct from recall_ai_messages.exclude_chat
     order by x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding
@@ -6130,25 +6130,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
 create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings" as restrictive
   for insert to public
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings" as restrictive
   for update to public
   using ("organization_id" in (select better_supabase.member_organization_ids()))
   with check ("organization_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings" as restrictive
   for delete to public
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
@@ -6168,21 +6168,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:72113eafbd322f1ddb4356fb6bdb8a172da173f627879bdf142866af33aade94
+-- @bsb-hash sha256:c9ee4b319d14d465c6f95834df79c6fe7d16c7730b2450ff8ad4fba0175be588
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memory', 4, 'managed')
+values ('memory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
--- @bsb-block memory@4 managed
--- @bsb-hash sha256:2cbaea41510d03f4b4ec22f67ba30a31721a6c824fcf40dd9d917eea4d57d8ec
+-- @bsb-block memory@5 managed
+-- @bsb-hash sha256:2dad1948bdba5c4ad6f8d6c433a70b510774168ffdb967febcfd2e8ce3149b92
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6234,11 +6234,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -6306,7 +6306,7 @@ create policy memories_read on "better_supabase"."memories"
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
-create table if not exists "better_supabase"."ai_message_embeddings" (
+create table if not exists "better_supabase"."memory_message_embeddings" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
@@ -6316,14 +6316,14 @@ create table if not exists "better_supabase"."ai_message_embeddings" (
   "created_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id")
 );
-create index if not exists ai_message_embeddings_user_idx on "better_supabase"."ai_message_embeddings" ("user_id", "org_id");
-create index if not exists ai_message_embeddings_embedding_idx on "better_supabase"."ai_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
-alter table "better_supabase"."ai_message_embeddings" enable row level security;
-revoke all on "better_supabase"."ai_message_embeddings" from public, anon, authenticated;
-grant select on "better_supabase"."ai_message_embeddings" to authenticated;
-grant all on "better_supabase"."ai_message_embeddings" to service_role;
-drop policy if exists ai_message_embeddings_read on "better_supabase"."ai_message_embeddings";
-create policy ai_message_embeddings_read on "better_supabase"."ai_message_embeddings"
+create index if not exists "memory_message_embeddings_user_idx" on "better_supabase"."memory_message_embeddings" ("user_id", "org_id");
+create index if not exists "memory_message_embeddings_embedding_idx" on "better_supabase"."memory_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
+alter table "better_supabase"."memory_message_embeddings" enable row level security;
+revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
+grant select on "better_supabase"."memory_message_embeddings" to authenticated;
+grant all on "better_supabase"."memory_message_embeddings" to service_role;
+drop policy if exists memory_message_embeddings_read on "better_supabase"."memory_message_embeddings";
+create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -7139,7 +7139,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."ai_message_embeddings" ("chat_id", "message_id", "user_id", "org_id", "embedding", "embedding_model")
+  insert into "better_supabase"."memory_message_embeddings" ("chat_id", "message_id", "user_id", "org_id", "embedding", "embedding_model")
   values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
   on conflict ("chat_id", "message_id") do update set "embedding" = excluded."embedding", "embedding_model" = excluded."embedding_model";
   return true;
@@ -7176,7 +7176,7 @@ begin
   into v_rows
   from (
     select x."chat_id" as chat_id, x."message_id" as message_id, x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding as distance
-    from "better_supabase"."ai_message_embeddings" x
+    from "better_supabase"."memory_message_embeddings" x
     where x."user_id" = v_user and x."org_id" = recall_ai_messages.tenant
       and x."chat_id" is distinct from recall_ai_messages.exclude_chat
     order by x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding
@@ -7322,25 +7322,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memories";
 create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."ai_message_embeddings";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_select on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."memory_message_embeddings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_insert on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_update on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings";
-create policy bsb_tenant_scope_delete on "better_supabase"."ai_message_embeddings" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings";
+create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
@@ -7360,13 +7360,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:72113eafbd322f1ddb4356fb6bdb8a172da173f627879bdf142866af33aade94
+-- @bsb-hash sha256:c9ee4b319d14d465c6f95834df79c6fe7d16c7730b2450ff8ad4fba0175be588
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memory', 4, 'managed')
+values ('memory', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

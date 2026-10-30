@@ -21,6 +21,7 @@ import {
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
+import { tableMoves } from "../table-renames.ts";
 import { bookingEngagementsSql, logsBookings } from "./activities-bookings.ts";
 import {
   NOTE_COLUMNS,
@@ -81,6 +82,7 @@ const EVENTS: BlockSqlEvents<ActivitiesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("activities", 1),
   entities: {
     activity: {
       table: "engagements",
@@ -99,7 +101,7 @@ const NAMES: BlockSqlNames = {
   options: ["types", "extraColumns", "recordings", "bookings", ...NOTE_OPTIONS],
   tables: {
     engagements: {
-      name: "engagements",
+      name: "activities",
       lifecycle: { tenant: "tenant", user: "owner", export: true },
       app: {},
       optional: [
@@ -370,9 +372,9 @@ ${
   ${e("doneAt")} timestamptz,${optional("engagements", "durationSeconds", (x) => `${x} integer check (${x} >= 0)`)}${optional("engagements", "externalRef", (x) => `${x} text`)}${optional("engagements", "createdBy", (x) => `${x} uuid`)}
   ${e("createdAt")} timestamptz not null default now()${owned("updatedAt") ? `,\n  ${e("updatedAt")} timestamptz not null default now()` : ""}
 );
-create index if not exists ${ctx.naming.rename("engagements_owner_open_idx")} on ${t("engagements")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
-create index if not exists ${ctx.naming.rename("engagements_tenant_created_idx")} on ${t("engagements")} (${e("tenant")}, ${e("createdAt")} desc);
-${owned("externalRef") ? `create unique index if not exists ${ctx.naming.rename("engagements_external_ref_idx")} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;` : ""}${addExtraColumns(t("engagements"), extras)}${noteColumnsSql(ctx)}
+create index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_owner_open_idx`)} on ${t("engagements")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
+create index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_tenant_created_idx`)} on ${t("engagements")} (${e("tenant")}, ${e("createdAt")} desc);
+${owned("externalRef") ? `create unique index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_external_ref_idx`)} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;` : ""}${addExtraColumns(t("engagements"), extras)}${noteColumnsSql(ctx)}
 ${lockTable(t("engagements"), { read: true })}
 create table if not exists ${t("links")} (
   ${l("tenant")} ${ctx.idType} not null,
@@ -736,7 +738,7 @@ export const ENGAGEMENTS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

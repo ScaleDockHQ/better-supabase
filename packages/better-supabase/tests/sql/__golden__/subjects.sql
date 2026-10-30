@@ -778,7 +778,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:e696fec561695ec338f750bb0865f22e081ec3733aa529f6fbfc3d9b2d5baf06
+-- @bsb-hash sha256:045c35912785635ae051d949378654eb2b123a83abc10dc97a6e4627d2175eec
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1564,8 +1564,8 @@ begin
     union all
     select 'assigned'::text, 'task'::text, i."id"::text, i."id"::text, i."title"::text,
       coalesce(i."due_at", a."created_at")
-    from "better_supabase"."work_item_assignees" a
-    join "better_supabase"."work_items" i on i."id" = a."work_item_id"
+    from "better_supabase"."task_assignees" a
+    join "better_supabase"."tasks" i on i."id" = a."work_item_id"
     where a."user_id" = v_me
       and i."state" not in ('completed', 'canceled')
       and i."archived_at" is null
@@ -1579,7 +1579,7 @@ begin
       and k."met_at" is null
       and (my_work.tenant is null or k."tenant_id" = my_work.tenant)
       and exists (
-        select 1 from "better_supabase"."work_item_assignees" a
+        select 1 from "better_supabase"."task_assignees" a
         where a."work_item_id"::text = k."subject_id"::text
           and a."user_id" = v_me)
     union all

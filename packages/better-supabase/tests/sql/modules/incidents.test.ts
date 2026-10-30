@@ -63,7 +63,7 @@ describe("incidents module", () => {
       'create table if not exists "better_supabase"."incident_postmortem_actions" (',
     );
     expect(sql).toContain(
-      'references "better_supabase"."work_items" ("id") on delete cascade',
+      'references "better_supabase"."tasks" ("id") on delete cascade',
     );
     expect(sql).toContain('unique ("postmortem_id", "task_id")');
     expect(sql).toContain('"better_supabase"."create_task"(');

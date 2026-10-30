@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
--- @bsb-block tasks@2 managed
--- @bsb-hash sha256:a0795ffabb253537a7c5e601e6d28439de7a4784ce2e87abfb1e3f84857a7b83
+-- @bsb-block tasks@3 managed
+-- @bsb-hash sha256:31345941089bac1c1b1678447b275a3d3e30142071f28809fc81873c20b24b81
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -169,11 +169,11 @@ create table if not exists "better_supabase"."work_items" (
   unique ("tenant_id", "number"),
   check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
-create index if not exists work_items_board_idx on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
-create index if not exists work_items_parent_idx on "better_supabase"."work_items" ("parent_id");
-create index if not exists work_items_project_idx on "better_supabase"."work_items" ("project_id");
-create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
-create index if not exists work_items_due_idx on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
+create index if not exists "work_items_board_idx" on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
+create index if not exists "work_items_parent_idx" on "better_supabase"."work_items" ("parent_id");
+create index if not exists "work_items_project_idx" on "better_supabase"."work_items" ("project_id");
+create index if not exists "work_items_iteration_idx" on "better_supabase"."work_items" ("iteration_id");
+create index if not exists "work_items_due_idx" on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."work_items" enable row level security;
 revoke all on "better_supabase"."work_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_items" to authenticated;
@@ -190,7 +190,7 @@ create table if not exists "better_supabase"."work_item_assignees" (
   "created_at" timestamptz not null default now(),
   primary key ("work_item_id", "user_id")
 );
-create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
+create index if not exists "work_item_assignees_user_idx" on "better_supabase"."work_item_assignees" ("user_id");
 alter table "better_supabase"."work_item_assignees" enable row level security;
 revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_assignees" to authenticated;
@@ -201,7 +201,7 @@ create policy work_item_assignees_read on "better_supabase"."work_item_assignees
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
 alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
-create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
+create unique index if not exists "work_items_recurs_from_idx" on "better_supabase"."work_items" ("recurs_from");
 
 create table if not exists "better_supabase"."work_item_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -215,7 +215,7 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
+create index if not exists "work_item_checklist_item_idx" on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
 alter table "better_supabase"."work_item_checklist_items" enable row level security;
 revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."work_item_checklist_items" to authenticated;

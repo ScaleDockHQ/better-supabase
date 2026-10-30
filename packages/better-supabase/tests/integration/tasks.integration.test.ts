@@ -25,8 +25,8 @@ const MODULES = [
   "tasks",
 ];
 
-// The shared stack's work_items table references `work_projects` (the Next.js
-// example renames it), and `create table if not exists` keeps that table.
+// The Next.js example names its projects table `work_projects`; this suite does
+// too.
 const layout = (
   maxAssignees = 0,
   options: Readonly<Record<string, unknown>> = {},
@@ -335,7 +335,7 @@ describe.skipIf(!live)("work items", () => {
 
       await s.service();
       await s.client.query(
-        "update better_supabase.work_items set locked = true where id = $1",
+        "update better_supabase.tasks set locked = true where id = $1",
         [item.id],
       );
       await s.as(dev);

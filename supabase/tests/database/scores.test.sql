@@ -5,7 +5,7 @@
 begin;
 select plan(12);
 
-insert into better_supabase.rule_fields (subject_type, field_id, label, type, path, column_type)
+insert into better_supabase.automation_fields (subject_type, field_id, label, type, path, column_type)
 values
   ('lead', 'stage', 'Stage', 'select', 'stage', 'text'),
   ('lead', 'employees', 'Employees', 'number', 'employees', 'integer');

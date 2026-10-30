@@ -27,14 +27,14 @@ the caller, which is the provider's `canAssign` under the provider model
 (or `blocks.permissions.functions.canAssign`), so a manager can't make a domain
 hand out a role they couldn't grant themselves (`SSO_ROLE_FORBIDDEN`).
 
-| Table                        | Holds                                                                                    |
-| ---------------------------- | ---------------------------------------------------------------------------------------- |
-| `organization_domains`       | `domain`, the verification token, `verified_at`, `auto_join_role` and `enforce_sso`      |
-| `organization_sso_providers` | The Supabase Auth SAML provider's `id`, its `metadata_url` and the `domains` it signs in |
-| `scim_users`                 | The SCIM User resources, with the auth user they are linked to                           |
-| `scim_groups`                | The SCIM Group resources                                                                 |
-| `scim_group_members`         | Which users are in which group                                                           |
-| `scim_sync_log`              | One row per SCIM write, with `syncLog`                                                   |
+| Table                | Holds                                                                                    |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `sso_domains`        | `domain`, the verification token, `verified_at`, `auto_join_role` and `enforce_sso`      |
+| `sso_providers`      | The Supabase Auth SAML provider's `id`, its `metadata_url` and the `domains` it signs in |
+| `scim_users`         | The SCIM User resources, with the auth user they are linked to                           |
+| `scim_groups`        | The SCIM Group resources                                                                 |
+| `scim_group_members` | Which users are in which group                                                           |
+| `scim_sync_log`      | One row per SCIM write, with `syncLog`                                                   |
 
 | Permission   | Lets a member                                                    | Default roles |
 | ------------ | ---------------------------------------------------------------- | ------------- |

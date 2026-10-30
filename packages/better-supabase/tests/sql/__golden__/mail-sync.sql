@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:36d5bd7408c1b7f595a04f423d1381e66493a8666a8362225465b026a21d3923
+-- @bsb-hash sha256:9c7a86fdd1a63a2d8e06ab5a6c13de4bb0b6c8da13cc1f77329d2b721bb61fd4
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1172,7 +1172,7 @@ create table if not exists "better_supabase"."mail_threads" (
   "snippet" text,
   "last_message_at" timestamptz,
   "message_count" integer not null default 0,
-  "engagement_id" uuid references "better_supabase"."engagements" ("id") on delete set null,
+  "engagement_id" uuid references "better_supabase"."activities" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("account_id", "external_id")

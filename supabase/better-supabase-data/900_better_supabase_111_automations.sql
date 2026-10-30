@@ -1,13 +1,13 @@
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:86e3c916fc7d0b9f6af41c40316ebe1eab79cd57b7d81fcea7449bcdb4e74af0
+-- @bsb-hash sha256:ac3e82d5d2d887b2694839df9617c2dbfcff632ad914aabbdc33aa37fdcc15b7
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."rules" t set "trigger" = m.next_type
+update "better_supabase"."automations" t set "trigger" = m.next_type
 from (values
   ('access.ended', 'access_request.ended'),
   ('access.request_approved', 'access_request.approved'),
@@ -101,7 +101,7 @@ from (values
 ) as m(old_type, next_type)
 where t."trigger" = m.old_type;
 
-update "better_supabase"."rule_defaults" t set "trigger" = m.next_type
+update "better_supabase"."automation_defaults" t set "trigger" = m.next_type
 from (values
   ('access.ended', 'access_request.ended'),
   ('access.request_approved', 'access_request.approved'),
@@ -196,6 +196,6 @@ from (values
 where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('automations', 1, 'managed')
+values ('automations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlString, sqlIdent } from "../../core/template.ts";
 import {
   fail,
   lockTable,
@@ -15,6 +15,7 @@ import {
   SERVICE_CALLER,
   schemaPreamble,
 } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<DomainsEvents> = {
@@ -49,12 +50,13 @@ const HOSTNAMES = {
 } as const;
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("domains", 1),
   events: EVENTS,
   options: ["platformDomain", "txtPrefix"],
   hooks: [],
   tables: {
     hostnames: {
-      name: "organization_hostnames",
+      name: "hostnames",
       lifecycle: { tenant: "tenant" },
       columns: HOSTNAMES,
       app: {},
@@ -200,9 +202,9 @@ ${createdBy ? `  ${c("createdBy")} uuid references auth.users (id) on delete set
   unique (${c("tenant")}, ${c("hostname")}),
   check (not ${c("primary")} or ${c("verifiedAt")} is not null)
 );
-create unique index if not exists ${ctx.naming.rename("organization_hostnames_verified_idx")} on ${t} (${c("hostname")}) where ${c("verifiedAt")} is not null;
-create unique index if not exists ${ctx.naming.rename("organization_hostnames_primary_idx")} on ${t} (${c("tenant")}) where ${c("primary")};
-${createdBy ? `create index if not exists ${ctx.naming.rename("organization_hostnames_created_by_idx")} on ${t} (${c("createdBy")}) where ${c("createdBy")} is not null;\n` : ""}${lockTable(t)}
+create unique index if not exists ${sqlIdent(`${ctx.tableName("hostnames").name}_verified_idx`)} on ${t} (${c("hostname")}) where ${c("verifiedAt")} is not null;
+create unique index if not exists ${sqlIdent(`${ctx.tableName("hostnames").name}_primary_idx`)} on ${t} (${c("tenant")}) where ${c("primary")};
+${createdBy ? `create index if not exists ${sqlIdent(`${ctx.tableName("hostnames").name}_created_by_idx`)} on ${t} (${c("createdBy")}) where ${c("createdBy")} is not null;\n` : ""}${lockTable(t)}
 
 -- Adds a hostname (needs the manage permission). A custom domain comes back
 -- with the TXT record to publish; adding it again returns the same row.
@@ -424,7 +426,7 @@ export const DOMAINS: BlockSqlDefinition = {
   integrates: ["reserved-slugs"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

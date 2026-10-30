@@ -770,7 +770,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:9dfc2f4177d10a9fbbd3ea9c8b4b780b774ba22c272d6ce2e4c2b13dfb7ad041
+-- @bsb-hash sha256:29654eb48e0227737037bf390ebb1d1e965bfeb0663af2b243aa635bec5f5114
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1286,8 +1286,8 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists bsb_pipeline_task on "better_supabase"."work_items";
-create trigger bsb_pipeline_task before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"
+drop trigger if exists bsb_pipeline_task on "better_supabase"."tasks";
+create trigger bsb_pipeline_task before insert or update of "stage_id", "pipeline_id" on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_pipeline_task();
 
 create or replace function better_supabase.bsb_pipeline_status_task()
@@ -1302,14 +1302,14 @@ begin
   select case s."category" when 'triage' then 'triage' when 'backlog' then 'backlog' when 'unstarted' then 'unstarted' when 'started' then 'started' when 'completed' then 'completed' when 'canceled' then 'canceled' end into v_status
   from "better_supabase"."pipeline_stages" s where s."id" = new."stage_id";
   if v_status is not null and v_status is distinct from new."state"::text then
-    update "better_supabase"."work_items" r set "state" = (jsonb_populate_record(null::"better_supabase"."work_items", jsonb_build_object('state', v_status)))."state"
+    update "better_supabase"."tasks" r set "state" = (jsonb_populate_record(null::"better_supabase"."tasks", jsonb_build_object('state', v_status)))."state"
     where r."id" = new."id";
   end if;
   return null;
 end;
 $$;
-drop trigger if exists bsb_pipeline_status_task on "better_supabase"."work_items";
-create trigger bsb_pipeline_status_task after insert or update of "stage_id" on "better_supabase"."work_items"
+drop trigger if exists bsb_pipeline_status_task on "better_supabase"."tasks";
+create trigger bsb_pipeline_status_task after insert or update of "stage_id" on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_pipeline_status_task();
 
 create or replace function better_supabase.bsb_pipeline_application()
@@ -1671,7 +1671,7 @@ begin
       perform 1 from "better_supabase"."deals" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
       v_used := found;
     when 'task' then
-      perform 1 from "better_supabase"."work_items" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
+      perform 1 from "better_supabase"."tasks" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
       v_used := found;
     when 'application' then
       perform 1 from "better_supabase"."applications" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
@@ -1791,7 +1791,7 @@ begin
       perform 1 from "better_supabase"."deals" r where r."stage_id" = v_stage limit 1;
       v_used := found;
     when 'task' then
-      perform 1 from "better_supabase"."work_items" r where r."stage_id" = v_stage limit 1;
+      perform 1 from "better_supabase"."tasks" r where r."stage_id" = v_stage limit 1;
       v_used := found;
     when 'application' then
       perform 1 from "better_supabase"."applications" r where r."stage_id" = v_stage limit 1;
@@ -1916,7 +1916,7 @@ begin
       perform 1 from "better_supabase"."deals" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
       v_used := found;
     when 'task' then
-      perform 1 from "better_supabase"."work_items" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
+      perform 1 from "better_supabase"."tasks" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
       v_used := found;
     when 'application' then
       perform 1 from "better_supabase"."applications" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
@@ -2041,7 +2041,7 @@ begin
       return (
         with rows as (
           select r."stage_id" as stage_id, null::text as currency, null::bigint as amount, null::numeric as weighted
-          from "better_supabase"."work_items" r
+          from "better_supabase"."tasks" r
           join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
           where r."pipeline_id" = pipeline_board.pipeline
         ),

@@ -99,7 +99,7 @@ on or off leaves one function that a call matches.
 | deals            | `options.extraColumns` on `deals`                         | every deal it returns, `create`, `update`                                          |
 | drive            | `options.extraColumns` on `drive_nodes`                   | every node it returns, `createFolder`, `upload`                                    |
 | employees        | `options.extraColumns` on `employees`                     | every employee it returns, `create`, `update`                                      |
-| engagements      | `options.extraColumns` on `engagements`                   | every engagement it returns, `log`, `update`                                       |
+| engagements      | `options.extraColumns` on `activities`                    | every engagement it returns, `log`, `update`                                       |
 | flags            | `options.extraColumns` on `flags`                         | `list`, `save`                                                                     |
 | forms            | `options.extraColumns` on `forms`                         | `create`, `update`, `get`, `list`                                                  |
 | hiring           | `options.extraColumns` on `jobs`                          | `saveJob`                                                                          |
@@ -160,7 +160,7 @@ others keep their default.
 | versions        | `versions`             | `snapshot`                         |
 | waitlist        | `waitlist_entries`     | `join`, for a new address only     |
 | webhook-inbox   | `webhook_inbox`        | `store`                            |
-| tasks           | `work_items`           | `create`, `update` by column name  |
+| tasks           | `tasks`                | `create`, `update` by column name  |
 | workflow-editor | `workflow_definitions` | `definitions.save`                 |
 
 sso, state-machine, usage, webhooks and workflows take `hooks` but no

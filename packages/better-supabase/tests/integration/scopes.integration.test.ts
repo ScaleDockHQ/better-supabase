@@ -67,7 +67,7 @@ describe.skipIf(!live)("blocks without organizations", () => {
       );
 
       expect(nullable.map((row) => row.table_name)).toEqual(
-        expect.arrayContaining(["activity_entries", "tags"]),
+        expect.arrayContaining(["timeline_entries", "tags"]),
       );
     });
 
@@ -222,8 +222,8 @@ describe.skipIf(!live)("blocks without organizations", () => {
 
       expect(feed.map((entry) => entry.type)).toEqual(["note.created"]);
       await s.asRole("anon");
-      expect(await s.hint("select 1 from scope_it.activity_entries")).toMatch(
-        /GRANT SELECT ON scope_it.activity_entries TO anon/,
+      expect(await s.hint("select 1 from scope_it.timeline_entries")).toMatch(
+        /GRANT SELECT ON scope_it.timeline_entries TO anon/,
       );
     });
   });

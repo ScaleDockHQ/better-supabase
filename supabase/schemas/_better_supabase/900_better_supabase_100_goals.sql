@@ -1,6 +1,6 @@
 -- better-supabase module: goals
--- @bsb-block goals@1 managed
--- @bsb-hash sha256:03bdfaff427cd1790f9be13bd6328c6d2c6b628ef42074cd926d8a2107934521
+-- @bsb-block goals@2 managed
+-- @bsb-hash sha256:91f3e12c2e6cd5800e1cc0cd29c9f8a1c33c707c7edff0e2d41e2df317d76c5a
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,11 +44,11 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."targets";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."targets";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."targets";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."targets";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -57,7 +57,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Targets: a goal per period for a metric, for a member, a team or the
 -- whole organization, with progress from the data the blocks keep.
-create table if not exists "better_supabase"."targets" (
+create table if not exists "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
@@ -74,13 +74,13 @@ create table if not exists "better_supabase"."targets" (
   "updated_at" timestamptz not null default now(),
   check ("period_end" >= "period_start")
 );
-create index if not exists targets_period_idx on "better_supabase"."targets" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
-alter table "better_supabase"."targets" enable row level security;
-revoke all on "better_supabase"."targets" from public, anon, authenticated;
-grant select on "better_supabase"."targets" to authenticated;
-grant all on "better_supabase"."targets" to service_role;
-drop policy if exists targets_read on "better_supabase"."targets";
-create policy targets_read on "better_supabase"."targets"
+create index if not exists "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
+alter table "better_supabase"."goals" enable row level security;
+revoke all on "better_supabase"."goals" from public, anon, authenticated;
+grant select on "better_supabase"."goals" to authenticated;
+grant all on "better_supabase"."goals" to service_role;
+drop policy if exists goals_read on "better_supabase"."goals";
+create policy goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
@@ -104,13 +104,13 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."targets" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
       returning "id" into v_id;
     else
-      update "better_supabase"."targets" x set
+      update "better_supabase"."goals" x set
         "name" = coalesce(save_goal.attrs ->> 'name', x."name"),
         "goal" = coalesce((save_goal.attrs ->> 'goal')::bigint, x."goal"),
         "actual" = coalesce((save_goal.attrs ->> 'actual')::bigint, x."actual"),
@@ -126,7 +126,7 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
     raise exception 'a target needs a name, a metric, a period and a positive goal' using errcode = '22023', hint = 'GOAL_INVALID';
   end;
-  return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."targets" x where x."id" = v_id);
+  return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."goals" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from public, anon;
@@ -144,7 +144,7 @@ as $$
   select coalesce(jsonb_agg((to_jsonb(p) || jsonb_build_object('goal', p."goal"::text, 'actual', p."actual"::text)) - 'period_start_order' - 'name_order' order by p.period_start_order, p.name_order), '[]'::jsonb)
   from (
     select x.*, v.value::text as progress, round(v.value::numeric / x."goal", 4) as attainment, x."period_start" as period_start_order, x."name" as name_order
-    from "better_supabase"."targets" x
+    from "better_supabase"."goals" x
     cross join lateral (select case x."metric"
         when 'deals.won_amount' then (select coalesce(sum(d."amount"), 0) from "better_supabase"."deals" d where d."tenant_id" = x."tenant_id" and d."outcome" = 'won' and d."closed_at"::date between x."period_start" and x."period_end"
         and (x."owner_user_id" is null or d."owner_user_id" = x."owner_user_id") and d."currency" = x."currency")
@@ -183,25 +183,25 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."targets";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."targets";
-create policy bsb_tenant_scope_select on "better_supabase"."targets" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."goals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."goals";
+create policy bsb_tenant_scope_select on "better_supabase"."goals" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
-create policy bsb_tenant_scope_insert on "better_supabase"."targets" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."goals";
+create policy bsb_tenant_scope_insert on "better_supabase"."goals" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."targets";
-create policy bsb_tenant_scope_update on "better_supabase"."targets" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."goals";
+create policy bsb_tenant_scope_update on "better_supabase"."goals" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."targets";
-create policy bsb_tenant_scope_delete on "better_supabase"."targets" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."goals";
+create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 

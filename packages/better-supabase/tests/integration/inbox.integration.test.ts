@@ -298,7 +298,7 @@ describe.skipIf(!live)("inbox module", () => {
       expect(mirrored.authorType).toBe("bot");
       expect(await claim(s, "inbox_outbound")).toEqual([]);
       await s.rows(
-        "update better_supabase.inbound_events set received_at = now() - interval '2 days'",
+        "update better_supabase.inbox_inbound_events set received_at = now() - interval '2 days'",
       );
       expect(await inbox.inbound.purge({ olderThan: "1 day" }).orThrow()).toBe(
         1,

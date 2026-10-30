@@ -98,6 +98,55 @@ begin
 end $$;`;
 }
 
+/**
+ * Renames the indexes, policies, triggers, constraints and owned sequences of
+ * `table` whose names start with `from_` to start with the table's name, unless
+ * the new name is taken.
+ */
+export function renameTableObjects(table: Qualified, from: string): string {
+  const schema = sqlString(table.schema);
+  const prefix = sqlString(`${from}_`);
+  const to = sqlString(table.name);
+  const relation = sqlString(sqlName(table));
+  const renamed = `${to} || substr(o.name, ${String(from.length + 1)})`;
+
+  const fresh = (exists: string): string =>
+    `left(o.name, ${String(from.length + 1)}) = ${prefix} and not exists (${exists})`;
+
+  return `do $$
+declare o record;
+begin
+  if to_regclass(${relation}) is null then return; end if;
+  for o in select c.relname as name from pg_index i join pg_class c on c.oid = i.indexrelid
+    where i.indrelid = ${relation}::regclass loop
+    if ${fresh(`select 1 from pg_class x join pg_namespace n on n.oid = x.relnamespace where n.nspname = ${schema} and x.relname = ${renamed}`)} then
+      execute format('alter index %I.%I rename to %I', ${schema}, o.name, ${renamed});
+    end if;
+  end loop;
+  for o in select p.polname as name from pg_policy p where p.polrelid = ${relation}::regclass loop
+    if ${fresh(`select 1 from pg_policy x where x.polrelid = ${relation}::regclass and x.polname = ${renamed}`)} then
+      execute format('alter policy %I on %s rename to %I', o.name, ${relation}, ${renamed});
+    end if;
+  end loop;
+  for o in select t.tgname as name from pg_trigger t where t.tgrelid = ${relation}::regclass and not t.tgisinternal loop
+    if ${fresh(`select 1 from pg_trigger x where x.tgrelid = ${relation}::regclass and x.tgname = ${renamed}`)} then
+      execute format('alter trigger %I on %s rename to %I', o.name, ${relation}, ${renamed});
+    end if;
+  end loop;
+  for o in select k.conname as name from pg_constraint k where k.conrelid = ${relation}::regclass loop
+    if ${fresh(`select 1 from pg_constraint x join pg_namespace n on n.oid = x.connamespace where n.nspname = ${schema} and x.conname = ${renamed}`)} then
+      execute format('alter table %s rename constraint %I to %I', ${relation}, o.name, ${renamed});
+    end if;
+  end loop;
+  for o in select s.relname as name from pg_depend d join pg_class s on s.oid = d.objid
+    where d.refobjid = ${relation}::regclass and d.classid = 'pg_class'::regclass and s.relkind = 'S' loop
+    if ${fresh(`select 1 from pg_class x join pg_namespace n on n.oid = x.relnamespace where n.nspname = ${schema} and x.relname = ${renamed}`)} then
+      execute format('alter sequence %I.%I rename to %I', ${schema}, o.name, ${renamed});
+    end if;
+  end loop;
+end $$;`;
+}
+
 /** The `alter table ... rename` statements for one declared move. */
 export function nameMigrationSql(
   ctx: BlockSqlContext,
@@ -111,12 +160,15 @@ export function nameMigrationSql(
   const statements: string[] = [];
 
   if (migration.was !== undefined) {
-    statements.push(
-      renameTable(
-        { schema: table.schema, name: ctx.naming.rename(migration.was) },
-        table,
-      ),
-    );
+    const was = ctx.naming.rename(migration.was);
+
+    if (was !== table.name) {
+      statements.push(renameTable({ schema: table.schema, name: was }, table));
+    }
+
+    if (migration.objects === true && was !== table.name) {
+      statements.push(renameTableObjects(table, was));
+    }
   }
 
   for (const [logical, was] of Object.entries(migration.columns ?? {})) {

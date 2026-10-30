@@ -3341,7 +3341,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "tables": {
           "engagements": {
-            "name": "engagements",
+            "name": "activities",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -3556,7 +3556,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "tables": {
           "items": {
-            "name": "work_items",
+            "name": "tasks",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -3621,7 +3621,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "checklist": {
-            "name": "work_item_checklist_items",
+            "name": "task_checklist_items",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -3919,7 +3919,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "tables": {
           "targets": {
-            "name": "targets",
+            "name": "goals",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -4459,7 +4459,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "tables": {
           "rules": {
-            "name": "rules",
+            "name": "automations",
             "columns": {
               "id": "id",
               "tenant": "organization_id",
@@ -5093,7 +5093,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "tables": {
           "leases": {
-            "name": "lease_agreements",
+            "name": "leases",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -5827,7 +5827,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "policies": {
-            "name": "policies",
+            "name": "compliance_policies",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -5918,7 +5918,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "components": {
-            "name": "status_components",
+            "name": "incident_status_components",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -5951,7 +5951,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "pages": {
-            "name": "status_pages",
+            "name": "incident_status_pages",
             "columns": {
               "id": "id",
               "tenant": "tenant_id",
@@ -6307,7 +6307,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         "tables": {
           "activity": {
-            "name": "activity_entries",
+            "name": "timeline_entries",
             "columns": {
               "id": "id",
               "tenant": "organization_id",

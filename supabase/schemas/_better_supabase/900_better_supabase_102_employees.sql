@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:fd24144e66165b621a0a19a9dbeb9cf8caeb8c7c1ecc6dfa50aaf99ba330e464
+-- @bsb-hash sha256:55337ead942c0c7616ec07e01cd777427984782ea26004fc4d3f556f152cf902
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -689,7 +689,7 @@ begin
       when 'deal' then (select s."name"::text from "better_supabase"."deals" s where s."id" = (v_application."candidate_id")::uuid)
       when 'course' then (select s."title"::text from "better_supabase"."courses" s where s."id" = (v_application."candidate_id")::uuid)
       when 'post' then (select s."title"::text from "better_supabase"."posts" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'activity' then (select s."title"::text from "better_supabase"."engagements" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'activity' then (select s."title"::text from "better_supabase"."activities" s where s."id" = (v_application."candidate_id")::uuid)
       when 'quote' then (select s."title"::text from "better_supabase"."quotes" s where s."id" = (v_application."candidate_id")::uuid)
       when 'work_item' then (select s."title"::text from "better_supabase"."work_items" s where s."id" = (v_application."candidate_id")::uuid)
       when 'employee' then (select s."name"::text from "better_supabase"."employees" s where s."id" = (v_application."candidate_id")::uuid)
@@ -702,7 +702,7 @@ begin
       when 'booking' then (select s."customer_name"::text from "better_supabase"."bookings" s where s."id" = (v_application."candidate_id")::uuid)
       when 'asset' then (select s."name"::text from "better_supabase"."assets" s where s."id" = (v_application."candidate_id")::uuid)
       when 'asset_location' then (select s."name"::text from "better_supabase"."asset_locations" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'lease' then (select s."title"::text from "better_supabase"."lease_agreements" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'lease' then (select s."title"::text from "better_supabase"."leases" s where s."id" = (v_application."candidate_id")::uuid)
       when 'expense_report' then (select s."title"::text from "better_supabase"."expense_reports" s where s."id" = (v_application."candidate_id")::uuid)
       when 'expense_line' then (select s."description"::text from "better_supabase"."expense_lines" s where s."id" = (v_application."candidate_id")::uuid)
       when 'donation_fund' then (select s."name"::text from "better_supabase"."donation_funds" s where s."id" = (v_application."candidate_id")::uuid)
@@ -710,7 +710,7 @@ begin
       when 'shipment' then (select s."reference"::text from "better_supabase"."shipments" s where s."id" = (v_application."candidate_id")::uuid)
       when 'contract' then (select s."title"::text from "better_supabase"."contracts" s where s."id" = (v_application."candidate_id")::uuid)
       when 'control' then (select s."title"::text from "better_supabase"."controls" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'compliance_policy' then (select s."title"::text from "better_supabase"."policies" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'compliance_policy' then (select s."title"::text from "better_supabase"."compliance_policies" s where s."id" = (v_application."candidate_id")::uuid)
       when 'qualification_type' then (select s."name"::text from "better_supabase"."qualification_types" s where s."id" = (v_application."candidate_id")::uuid)
       when 'risk' then (select s."title"::text from "better_supabase"."risks" s where s."id" = (v_application."candidate_id")::uuid)
       when 'case' then (select s."title"::text from "better_supabase"."cases" s where s."id" = (v_application."candidate_id")::uuid)

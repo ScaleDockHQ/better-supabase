@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@1 managed
--- @bsb-hash sha256:0c4fffc53f8d0505cd554feb4ee5b52a2573e257057b6657675f6759c12f2b8a
+-- @bsb-block collections@2 managed
+-- @bsb-hash sha256:c00b8ebe60587f75c72d5c3d994a6204ada70b443b7d3bfe894e245f3d01c02f
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,11 +61,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -124,7 +124,7 @@ revoke all on "better_supabase"."subject_collection_entries" from public, anon, 
 grant select on "better_supabase"."subject_collection_entries" to authenticated;
 grant all on "better_supabase"."subject_collection_entries" to service_role;
 
-create table if not exists "better_supabase"."favorites" (
+create table if not exists "better_supabase"."collection_favorites" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -133,12 +133,12 @@ create table if not exists "better_supabase"."favorites" (
   "created_at" timestamptz not null default now(),
   primary key ("user_id", "subject_type", "subject_id")
 );
-create index if not exists favorites_user_rank_idx on "better_supabase"."favorites" ("user_id", "tenant_id", "rank");
-create index if not exists favorites_subject_idx on "better_supabase"."favorites" ("subject_type", "subject_id");
-alter table "better_supabase"."favorites" enable row level security;
-revoke all on "better_supabase"."favorites" from public, anon, authenticated;
-grant select on "better_supabase"."favorites" to authenticated;
-grant all on "better_supabase"."favorites" to service_role;
+create index if not exists "collection_favorites_user_rank_idx" on "better_supabase"."collection_favorites" ("user_id", "tenant_id", "rank");
+create index if not exists "collection_favorites_subject_idx" on "better_supabase"."collection_favorites" ("subject_type", "subject_id");
+alter table "better_supabase"."collection_favorites" enable row level security;
+revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
+grant select on "better_supabase"."collection_favorites" to authenticated;
+grant all on "better_supabase"."collection_favorites" to service_role;
 
 create table if not exists "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -179,8 +179,8 @@ create policy subject_collection_entries_read on "better_supabase"."subject_coll
   using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
-drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites"
+drop policy if exists collection_favorites_read on "better_supabase"."collection_favorites";
+create policy collection_favorites_read on "better_supabase"."collection_favorites"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
@@ -696,17 +696,17 @@ begin
     raise exception 'the record is unknown or not readable in this organization' using errcode = '42501', hint = 'FAVORITE_SUBJECT_FORBIDDEN';
   end if;
   if not exists (
-    select 1 from "better_supabase"."favorites" f
+    select 1 from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id
   ) then
-    select max(f."rank") into v_last from "better_supabase"."favorites" f
+    select max(f."rank") into v_last from "better_supabase"."collection_favorites" f
       where f."user_id" = v_user and f."tenant_id" = star_subject.tenant;
     v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
-    insert into "better_supabase"."favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
+    insert into "better_supabase"."collection_favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
     values (v_user, star_subject.tenant, star_subject.subject_type, star_subject.subject_id, v_rank)
     on conflict ("user_id", "subject_type", "subject_id") do nothing;
   end if;
@@ -715,7 +715,7 @@ begin
       'subjectId', f."subject_id",
       'organizationId', f."tenant_id",
       'rank', f."rank",
-      'starredAt', f."created_at") from "better_supabase"."favorites" f
+      'starredAt', f."created_at") from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id);
 end;
 $$;
@@ -732,7 +732,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."favorites" f
+  delete from "better_supabase"."collection_favorites" f
   where f."user_id" = auth.uid() and f."subject_type" = unstar_subject.subject_type and f."subject_id" = unstar_subject.subject_id;
   return found;
 end;
@@ -753,7 +753,7 @@ begin
   if rank_star.rank is null or rank_star.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'not a rank key' using errcode = '22023', hint = 'FAVORITE_RANK_INVALID';
   end if;
-  update "better_supabase"."favorites" f set "rank" = rank_star.rank
+  update "better_supabase"."collection_favorites" f set "rank" = rank_star.rank
   where f."user_id" = auth.uid() and f."subject_type" = rank_star.subject_type and f."subject_id" = rank_star.subject_id;
   return found;
 end;
@@ -779,7 +779,7 @@ as $$
       'title', "better_supabase"."subject_title"(f."subject_type", f."subject_id"),
       'url', "better_supabase"."subject_url"(f."subject_type", f."subject_id"))
     order by f."rank", f."subject_type", f."subject_id" collate "C"), '[]'::jsonb)
-  from "better_supabase"."favorites" f
+  from "better_supabase"."collection_favorites" f
   where f."user_id" = (select auth.uid())
     and f."tenant_id" = starred_subjects.tenant
     and (starred_subjects.subject_type is null or f."subject_type" = starred_subjects.subject_type)
@@ -1027,9 +1027,9 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_coll
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_collection_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_select on "better_supabase"."collection_favorites" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
@@ -1037,17 +1037,17 @@ create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restri
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-create policy bsb_tenant_scope_insert on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_insert on "better_supabase"."collection_favorites" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-create policy bsb_tenant_scope_update on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_update on "better_supabase"."collection_favorites" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
-create policy bsb_tenant_scope_delete on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_delete on "better_supabase"."collection_favorites" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."saved_items";
@@ -1090,21 +1090,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:77080beb5b84e4f94399188b93d547f7a72b4cd89f7a97593a08e54057c736a8
+-- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 1, 'managed')
+values ('collections', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@1 managed
--- @bsb-hash sha256:a35c682e7e2a6623b6b3ff8577d512a43a70bef27ab481fc15db2214ed414c6e
+-- @bsb-block collections@2 managed
+-- @bsb-hash sha256:d55a74e81d11f94223028a2747b4ec2e968895dc9eeaf28e91841dc8abb260ba
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1164,11 +1164,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -1227,7 +1227,7 @@ revoke all on "better_supabase"."subject_collection_entries" from public, anon, 
 grant select on "better_supabase"."subject_collection_entries" to authenticated;
 grant all on "better_supabase"."subject_collection_entries" to service_role;
 
-create table if not exists "better_supabase"."favorites" (
+create table if not exists "better_supabase"."collection_favorites" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -1236,12 +1236,12 @@ create table if not exists "better_supabase"."favorites" (
   "created_at" timestamptz not null default now(),
   primary key ("user_id", "subject_type", "subject_id")
 );
-create index if not exists favorites_user_rank_idx on "better_supabase"."favorites" ("user_id", "tenant_id", "rank");
-create index if not exists favorites_subject_idx on "better_supabase"."favorites" ("subject_type", "subject_id");
-alter table "better_supabase"."favorites" enable row level security;
-revoke all on "better_supabase"."favorites" from public, anon, authenticated;
-grant select on "better_supabase"."favorites" to authenticated;
-grant all on "better_supabase"."favorites" to service_role;
+create index if not exists "collection_favorites_user_rank_idx" on "better_supabase"."collection_favorites" ("user_id", "tenant_id", "rank");
+create index if not exists "collection_favorites_subject_idx" on "better_supabase"."collection_favorites" ("subject_type", "subject_id");
+alter table "better_supabase"."collection_favorites" enable row level security;
+revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
+grant select on "better_supabase"."collection_favorites" to authenticated;
+grant all on "better_supabase"."collection_favorites" to service_role;
 
 create table if not exists "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1282,8 +1282,8 @@ create policy subject_collection_entries_read on "better_supabase"."subject_coll
   using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
-drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites"
+drop policy if exists collection_favorites_read on "better_supabase"."collection_favorites";
+create policy collection_favorites_read on "better_supabase"."collection_favorites"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
@@ -1799,17 +1799,17 @@ begin
     raise exception 'the record is unknown or not readable in this organization' using errcode = '42501', hint = 'FAVORITE_SUBJECT_FORBIDDEN';
   end if;
   if not exists (
-    select 1 from "better_supabase"."favorites" f
+    select 1 from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id
   ) then
-    select max(f."rank") into v_last from "better_supabase"."favorites" f
+    select max(f."rank") into v_last from "better_supabase"."collection_favorites" f
       where f."user_id" = v_user and f."tenant_id" = star_subject.tenant;
     v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
-    insert into "better_supabase"."favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
+    insert into "better_supabase"."collection_favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
     values (v_user, star_subject.tenant, star_subject.subject_type, star_subject.subject_id, v_rank)
     on conflict ("user_id", "subject_type", "subject_id") do nothing;
   end if;
@@ -1818,7 +1818,7 @@ begin
       'subjectId', f."subject_id",
       'organizationId', f."tenant_id",
       'rank', f."rank",
-      'starredAt', f."created_at") from "better_supabase"."favorites" f
+      'starredAt', f."created_at") from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id);
 end;
 $$;
@@ -1835,7 +1835,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."favorites" f
+  delete from "better_supabase"."collection_favorites" f
   where f."user_id" = auth.uid() and f."subject_type" = unstar_subject.subject_type and f."subject_id" = unstar_subject.subject_id;
   return found;
 end;
@@ -1856,7 +1856,7 @@ begin
   if rank_star.rank is null or rank_star.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'not a rank key' using errcode = '22023', hint = 'FAVORITE_RANK_INVALID';
   end if;
-  update "better_supabase"."favorites" f set "rank" = rank_star.rank
+  update "better_supabase"."collection_favorites" f set "rank" = rank_star.rank
   where f."user_id" = auth.uid() and f."subject_type" = rank_star.subject_type and f."subject_id" = rank_star.subject_id;
   return found;
 end;
@@ -1882,7 +1882,7 @@ as $$
       'title', "better_supabase"."subject_title"(f."subject_type", f."subject_id"),
       'url', "better_supabase"."subject_url"(f."subject_type", f."subject_id"))
     order by f."rank", f."subject_type", f."subject_id" collate "C"), '[]'::jsonb)
-  from "better_supabase"."favorites" f
+  from "better_supabase"."collection_favorites" f
   where f."user_id" = (select auth.uid())
     and f."tenant_id" = starred_subjects.tenant
     and (starred_subjects.subject_type is null or f."subject_type" = starred_subjects.subject_type)
@@ -2130,9 +2130,9 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_coll
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_collection_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_select on "better_supabase"."collection_favorites" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
@@ -2140,17 +2140,17 @@ create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restri
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-create policy bsb_tenant_scope_insert on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_insert on "better_supabase"."collection_favorites" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-create policy bsb_tenant_scope_update on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_update on "better_supabase"."collection_favorites" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
-create policy bsb_tenant_scope_delete on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_delete on "better_supabase"."collection_favorites" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."saved_items";
@@ -2193,21 +2193,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:77080beb5b84e4f94399188b93d547f7a72b4cd89f7a97593a08e54057c736a8
+-- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 1, 'managed')
+values ('collections', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@1 managed
--- @bsb-hash sha256:e7e7df944edcd03c294406c041417f520a74a7c44a6e29b6af4630dfd5448a72
+-- @bsb-block collections@2 managed
+-- @bsb-hash sha256:6b64bf0a5146b1c81dbb5e7687a62468c6f324941cf7edb5482968396e714b15
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2267,11 +2267,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "app_private"."favorites";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."favorites";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."favorites";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."favorites";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."favorites";
+    drop policy if exists bsb_tenant_scope on "app_private"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."collection_favorites";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -2335,7 +2335,7 @@ revoke all on "app_private"."subject_collection_entries" from public, anon, auth
 grant select on "app_private"."subject_collection_entries" to authenticated;
 grant all on "app_private"."subject_collection_entries" to service_role;
 
-create table if not exists "app_private"."favorites" (
+create table if not exists "app_private"."collection_favorites" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -2344,12 +2344,12 @@ create table if not exists "app_private"."favorites" (
   "created_at" timestamptz not null default now(),
   primary key ("user_id", "subject_type", "subject_id")
 );
-create index if not exists favorites_user_rank_idx on "app_private"."favorites" ("user_id", "tenant_id", "rank");
-create index if not exists favorites_subject_idx on "app_private"."favorites" ("subject_type", "subject_id");
-alter table "app_private"."favorites" enable row level security;
-revoke all on "app_private"."favorites" from public, anon, authenticated;
-grant select on "app_private"."favorites" to authenticated;
-grant all on "app_private"."favorites" to service_role;
+create index if not exists "collection_favorites_user_rank_idx" on "app_private"."collection_favorites" ("user_id", "tenant_id", "rank");
+create index if not exists "collection_favorites_subject_idx" on "app_private"."collection_favorites" ("subject_type", "subject_id");
+alter table "app_private"."collection_favorites" enable row level security;
+revoke all on "app_private"."collection_favorites" from public, anon, authenticated;
+grant select on "app_private"."collection_favorites" to authenticated;
+grant all on "app_private"."collection_favorites" to service_role;
 
 create table if not exists "app_private"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2390,8 +2390,8 @@ create policy subject_collection_entries_read on "app_private"."subject_collecti
   using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "app_private"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
-drop policy if exists favorites_read on "app_private"."favorites";
-create policy favorites_read on "app_private"."favorites"
+drop policy if exists collection_favorites_read on "app_private"."collection_favorites";
+create policy collection_favorites_read on "app_private"."collection_favorites"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
@@ -2907,17 +2907,17 @@ begin
     raise exception 'the record is unknown or not readable in this organization' using errcode = '42501', hint = 'FAVORITE_SUBJECT_FORBIDDEN';
   end if;
   if not exists (
-    select 1 from "app_private"."favorites" f
+    select 1 from "app_private"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id
   ) then
-    select max(f."rank") into v_last from "app_private"."favorites" f
+    select max(f."rank") into v_last from "app_private"."collection_favorites" f
       where f."user_id" = v_user and f."tenant_id" = star_subject.tenant;
     v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
-    insert into "app_private"."favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
+    insert into "app_private"."collection_favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
     values (v_user, star_subject.tenant, star_subject.subject_type, star_subject.subject_id, v_rank)
     on conflict ("user_id", "subject_type", "subject_id") do nothing;
   end if;
@@ -2926,7 +2926,7 @@ begin
       'subjectId', f."subject_id",
       'organizationId', f."tenant_id",
       'rank', f."rank",
-      'starredAt', f."created_at") from "app_private"."favorites" f
+      'starredAt', f."created_at") from "app_private"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id);
 end;
 $$;
@@ -2943,7 +2943,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "app_private"."favorites" f
+  delete from "app_private"."collection_favorites" f
   where f."user_id" = auth.uid() and f."subject_type" = unstar_subject.subject_type and f."subject_id" = unstar_subject.subject_id;
   return found;
 end;
@@ -2964,7 +2964,7 @@ begin
   if rank_star.rank is null or rank_star.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'not a rank key' using errcode = '22023', hint = 'FAVORITE_RANK_INVALID';
   end if;
-  update "app_private"."favorites" f set "rank" = rank_star.rank
+  update "app_private"."collection_favorites" f set "rank" = rank_star.rank
   where f."user_id" = auth.uid() and f."subject_type" = rank_star.subject_type and f."subject_id" = rank_star.subject_id;
   return found;
 end;
@@ -2990,7 +2990,7 @@ as $$
       'title', "better_supabase"."subject_title"(f."subject_type", f."subject_id"),
       'url', "better_supabase"."subject_url"(f."subject_type", f."subject_id"))
     order by f."rank", f."subject_type", f."subject_id" collate "C"), '[]'::jsonb)
-  from "app_private"."favorites" f
+  from "app_private"."collection_favorites" f
   where f."user_id" = (select auth.uid())
     and f."tenant_id" = starred_subjects.tenant
     and (starred_subjects.subject_type is null or f."subject_type" = starred_subjects.subject_type)
@@ -3238,9 +3238,9 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."subject_collecti
 create policy bsb_tenant_scope_delete on "app_private"."subject_collection_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."favorites";
-drop policy if exists bsb_tenant_scope_select on "app_private"."favorites";
-create policy bsb_tenant_scope_select on "app_private"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope on "app_private"."collection_favorites";
+drop policy if exists bsb_tenant_scope_select on "app_private"."collection_favorites";
+create policy bsb_tenant_scope_select on "app_private"."collection_favorites" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
@@ -3248,17 +3248,17 @@ create policy bsb_tenant_scope_select on "app_private"."favorites" as restrictiv
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."favorites";
-create policy bsb_tenant_scope_insert on "app_private"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "app_private"."collection_favorites";
+create policy bsb_tenant_scope_insert on "app_private"."collection_favorites" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."favorites";
-create policy bsb_tenant_scope_update on "app_private"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_update on "app_private"."collection_favorites";
+create policy bsb_tenant_scope_update on "app_private"."collection_favorites" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."favorites";
-create policy bsb_tenant_scope_delete on "app_private"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "app_private"."collection_favorites";
+create policy bsb_tenant_scope_delete on "app_private"."collection_favorites" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."saved_items";
@@ -3301,21 +3301,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:77080beb5b84e4f94399188b93d547f7a72b4cd89f7a97593a08e54057c736a8
+-- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 1, 'managed')
+values ('collections', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@1 managed
--- @bsb-hash sha256:3260adcecfd741d5cd10b7d09302e1045575594139bc2507adfb56ba968cebc4
+-- @bsb-block collections@2 managed
+-- @bsb-hash sha256:cf0d079da332cd19f1d90df176f192adc439747842c4989f6b2125d230dde713
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3375,11 +3375,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -3438,7 +3438,7 @@ revoke all on "better_supabase"."subject_collection_entries" from public, anon, 
 grant select on "better_supabase"."subject_collection_entries" to authenticated;
 grant all on "better_supabase"."subject_collection_entries" to service_role;
 
-create table if not exists "better_supabase"."favorites" (
+create table if not exists "better_supabase"."collection_favorites" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
   "subject_type" text not null,
@@ -3447,12 +3447,12 @@ create table if not exists "better_supabase"."favorites" (
   "created_at" timestamptz not null default now(),
   primary key ("user_id", "subject_type", "subject_id")
 );
-create index if not exists favorites_user_rank_idx on "better_supabase"."favorites" ("user_id", "tenant_id", "rank");
-create index if not exists favorites_subject_idx on "better_supabase"."favorites" ("subject_type", "subject_id");
-alter table "better_supabase"."favorites" enable row level security;
-revoke all on "better_supabase"."favorites" from public, anon, authenticated;
-grant select on "better_supabase"."favorites" to authenticated;
-grant all on "better_supabase"."favorites" to service_role;
+create index if not exists "collection_favorites_user_rank_idx" on "better_supabase"."collection_favorites" ("user_id", "tenant_id", "rank");
+create index if not exists "collection_favorites_subject_idx" on "better_supabase"."collection_favorites" ("subject_type", "subject_id");
+alter table "better_supabase"."collection_favorites" enable row level security;
+revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
+grant select on "better_supabase"."collection_favorites" to authenticated;
+grant all on "better_supabase"."collection_favorites" to service_role;
 
 create table if not exists "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -3493,8 +3493,8 @@ create policy subject_collection_entries_read on "better_supabase"."subject_coll
   using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
-drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites"
+drop policy if exists collection_favorites_read on "better_supabase"."collection_favorites";
+create policy collection_favorites_read on "better_supabase"."collection_favorites"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
@@ -4010,17 +4010,17 @@ begin
     raise exception 'the record is unknown or not readable in this organization' using errcode = '42501', hint = 'FAVORITE_SUBJECT_FORBIDDEN';
   end if;
   if not exists (
-    select 1 from "better_supabase"."favorites" f
+    select 1 from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id
   ) then
-    select max(f."rank") into v_last from "better_supabase"."favorites" f
+    select max(f."rank") into v_last from "better_supabase"."collection_favorites" f
       where f."user_id" = v_user and f."tenant_id" = star_subject.tenant;
     v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
-    insert into "better_supabase"."favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
+    insert into "better_supabase"."collection_favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
     values (v_user, star_subject.tenant, star_subject.subject_type, star_subject.subject_id, v_rank)
     on conflict ("user_id", "subject_type", "subject_id") do nothing;
   end if;
@@ -4029,7 +4029,7 @@ begin
       'subjectId', f."subject_id",
       'organizationId', f."tenant_id",
       'rank', f."rank",
-      'starredAt', f."created_at") from "better_supabase"."favorites" f
+      'starredAt', f."created_at") from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id);
 end;
 $$;
@@ -4046,7 +4046,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."favorites" f
+  delete from "better_supabase"."collection_favorites" f
   where f."user_id" = auth.uid() and f."subject_type" = unstar_subject.subject_type and f."subject_id" = unstar_subject.subject_id;
   return found;
 end;
@@ -4067,7 +4067,7 @@ begin
   if rank_star.rank is null or rank_star.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'not a rank key' using errcode = '22023', hint = 'FAVORITE_RANK_INVALID';
   end if;
-  update "better_supabase"."favorites" f set "rank" = rank_star.rank
+  update "better_supabase"."collection_favorites" f set "rank" = rank_star.rank
   where f."user_id" = auth.uid() and f."subject_type" = rank_star.subject_type and f."subject_id" = rank_star.subject_id;
   return found;
 end;
@@ -4093,7 +4093,7 @@ as $$
       'title', "better_supabase"."subject_title"(f."subject_type", f."subject_id"),
       'url', "better_supabase"."subject_url"(f."subject_type", f."subject_id"))
     order by f."rank", f."subject_type", f."subject_id" collate "C"), '[]'::jsonb)
-  from "better_supabase"."favorites" f
+  from "better_supabase"."collection_favorites" f
   where f."user_id" = (select auth.uid())
     and f."tenant_id" = starred_subjects.tenant
     and (starred_subjects.subject_type is null or f."subject_type" = starred_subjects.subject_type)
@@ -4341,9 +4341,9 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_coll
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_collection_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_select on "better_supabase"."collection_favorites" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
@@ -4351,17 +4351,17 @@ create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restri
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-create policy bsb_tenant_scope_insert on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_insert on "better_supabase"."collection_favorites" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-create policy bsb_tenant_scope_update on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_update on "better_supabase"."collection_favorites" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
-create policy bsb_tenant_scope_delete on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_delete on "better_supabase"."collection_favorites" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."saved_items";
@@ -4600,21 +4600,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:77080beb5b84e4f94399188b93d547f7a72b4cd89f7a97593a08e54057c736a8
+-- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 1, 'managed')
+values ('collections', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@1 managed
--- @bsb-hash sha256:a4750b970a26de648c7e991a6b1716858ce8c5b658def262287e6935ffbcde67
+-- @bsb-block collections@2 managed
+-- @bsb-hash sha256:9ad165a9d03c2f7fcf602d930456c8689a609a67079f61db19f84bbabfe1f31e
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4690,11 +4690,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -4747,19 +4747,19 @@ alter table "better_supabase"."subject_collection_entries" enable row level secu
 grant select on "better_supabase"."subject_collection_entries" to authenticated;
 grant all on "better_supabase"."subject_collection_entries" to service_role;
 
--- better_supabase.favorites is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."favorites" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."favorites" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."favorites" add column if not exists "subject_type" text;
-alter table "better_supabase"."favorites" add column if not exists "subject_id" text;
-alter table "better_supabase"."favorites" add column if not exists "rank" text collate "C";
-alter table "better_supabase"."favorites" add column if not exists "created_at" timestamptz not null default now();
-create unique index if not exists "bsb_favorites_subject_key" on "better_supabase"."favorites" ("user_id", "subject_type", "subject_id");
-create index if not exists favorites_user_rank_idx on "better_supabase"."favorites" ("user_id", "tenant_id", "rank");
-create index if not exists favorites_subject_idx on "better_supabase"."favorites" ("subject_type", "subject_id");
-alter table "better_supabase"."favorites" enable row level security;
-grant select on "better_supabase"."favorites" to authenticated;
-grant all on "better_supabase"."favorites" to service_role;
+-- better_supabase.collection_favorites is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."collection_favorites" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
+alter table "better_supabase"."collection_favorites" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."collection_favorites" add column if not exists "subject_type" text;
+alter table "better_supabase"."collection_favorites" add column if not exists "subject_id" text;
+alter table "better_supabase"."collection_favorites" add column if not exists "rank" text collate "C";
+alter table "better_supabase"."collection_favorites" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "bsb_collection_favorites_subject_key" on "better_supabase"."collection_favorites" ("user_id", "subject_type", "subject_id");
+create index if not exists "collection_favorites_user_rank_idx" on "better_supabase"."collection_favorites" ("user_id", "tenant_id", "rank");
+create index if not exists "collection_favorites_subject_idx" on "better_supabase"."collection_favorites" ("subject_type", "subject_id");
+alter table "better_supabase"."collection_favorites" enable row level security;
+grant select on "better_supabase"."collection_favorites" to authenticated;
+grant all on "better_supabase"."collection_favorites" to service_role;
 
 -- better_supabase.saved_items is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."saved_items" add column if not exists "id" uuid default gen_random_uuid();
@@ -4798,8 +4798,8 @@ create policy bsb_subject_collection_entries_select on "better_supabase"."subjec
   using ("tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
-drop policy if exists bsb_favorites_select on "better_supabase"."favorites";
-create policy bsb_favorites_select on "better_supabase"."favorites"
+drop policy if exists bsb_collection_favorites_select on "better_supabase"."collection_favorites";
+create policy bsb_collection_favorites_select on "better_supabase"."collection_favorites"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
@@ -5315,17 +5315,17 @@ begin
     raise exception 'the record is unknown or not readable in this organization' using errcode = '42501', hint = 'FAVORITE_SUBJECT_FORBIDDEN';
   end if;
   if not exists (
-    select 1 from "better_supabase"."favorites" f
+    select 1 from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id
   ) then
-    select max(f."rank") into v_last from "better_supabase"."favorites" f
+    select max(f."rank") into v_last from "better_supabase"."collection_favorites" f
       where f."user_id" = v_user and f."tenant_id" = star_subject.tenant;
     v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
-    insert into "better_supabase"."favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
+    insert into "better_supabase"."collection_favorites" ("user_id", "tenant_id", "subject_type", "subject_id", "rank")
     values (v_user, star_subject.tenant, star_subject.subject_type, star_subject.subject_id, v_rank)
     on conflict ("user_id", "subject_type", "subject_id") do nothing;
   end if;
@@ -5334,7 +5334,7 @@ begin
       'subjectId', f."subject_id",
       'organizationId', f."tenant_id",
       'rank', f."rank",
-      'starredAt', f."created_at") from "better_supabase"."favorites" f
+      'starredAt', f."created_at") from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id);
 end;
 $$;
@@ -5351,7 +5351,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."favorites" f
+  delete from "better_supabase"."collection_favorites" f
   where f."user_id" = auth.uid() and f."subject_type" = unstar_subject.subject_type and f."subject_id" = unstar_subject.subject_id;
   return found;
 end;
@@ -5372,7 +5372,7 @@ begin
   if rank_star.rank is null or rank_star.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'not a rank key' using errcode = '22023', hint = 'FAVORITE_RANK_INVALID';
   end if;
-  update "better_supabase"."favorites" f set "rank" = rank_star.rank
+  update "better_supabase"."collection_favorites" f set "rank" = rank_star.rank
   where f."user_id" = auth.uid() and f."subject_type" = rank_star.subject_type and f."subject_id" = rank_star.subject_id;
   return found;
 end;
@@ -5398,7 +5398,7 @@ as $$
       'title', "better_supabase"."subject_title"(f."subject_type", f."subject_id"),
       'url', "better_supabase"."subject_url"(f."subject_type", f."subject_id"))
     order by f."rank", f."subject_type", f."subject_id" collate "C"), '[]'::jsonb)
-  from "better_supabase"."favorites" f
+  from "better_supabase"."collection_favorites" f
   where f."user_id" = (select auth.uid())
     and f."tenant_id" = starred_subjects.tenant
     and (starred_subjects.subject_type is null or f."subject_type" = starred_subjects.subject_type)
@@ -5646,9 +5646,9 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_coll
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_collection_entries" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_select on "better_supabase"."collection_favorites" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
@@ -5656,17 +5656,17 @@ create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restri
   and "tenant_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-create policy bsb_tenant_scope_insert on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_insert on "better_supabase"."collection_favorites" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-create policy bsb_tenant_scope_update on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_update on "better_supabase"."collection_favorites" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
-create policy bsb_tenant_scope_delete on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_delete on "better_supabase"."collection_favorites" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."saved_items";
@@ -5709,21 +5709,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:77080beb5b84e4f94399188b93d547f7a72b4cd89f7a97593a08e54057c736a8
+-- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 1, 'managed')
+values ('collections', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
--- @bsb-block collections@1 managed
--- @bsb-hash sha256:230568fc0564ab5a9ee8a1ee18cf2a1731dd5b09313ca7da2b3e3fd22806a22f
+-- @bsb-block collections@2 managed
+-- @bsb-hash sha256:974c15594f8f308492d14508e1fc9643a26b4c087e6cb1cbe298bfa7b6c90e2e
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5783,11 +5783,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -5846,7 +5846,7 @@ revoke all on "better_supabase"."subject_collection_entries" from public, anon, 
 grant select on "better_supabase"."subject_collection_entries" to authenticated;
 grant all on "better_supabase"."subject_collection_entries" to service_role;
 
-create table if not exists "better_supabase"."favorites" (
+create table if not exists "better_supabase"."collection_favorites" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "org_id" uuid not null,
   "subject_type" text not null,
@@ -5855,12 +5855,12 @@ create table if not exists "better_supabase"."favorites" (
   "created_at" timestamptz not null default now(),
   primary key ("user_id", "subject_type", "subject_id")
 );
-create index if not exists favorites_user_rank_idx on "better_supabase"."favorites" ("user_id", "org_id", "rank");
-create index if not exists favorites_subject_idx on "better_supabase"."favorites" ("subject_type", "subject_id");
-alter table "better_supabase"."favorites" enable row level security;
-revoke all on "better_supabase"."favorites" from public, anon, authenticated;
-grant select on "better_supabase"."favorites" to authenticated;
-grant all on "better_supabase"."favorites" to service_role;
+create index if not exists "collection_favorites_user_rank_idx" on "better_supabase"."collection_favorites" ("user_id", "org_id", "rank");
+create index if not exists "collection_favorites_subject_idx" on "better_supabase"."collection_favorites" ("subject_type", "subject_id");
+alter table "better_supabase"."collection_favorites" enable row level security;
+revoke all on "better_supabase"."collection_favorites" from public, anon, authenticated;
+grant select on "better_supabase"."collection_favorites" to authenticated;
+grant all on "better_supabase"."collection_favorites" to service_role;
 
 create table if not exists "better_supabase"."saved_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -5901,8 +5901,8 @@ create policy subject_collection_entries_read on "better_supabase"."subject_coll
   using ("org_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and exists (select 1 from "better_supabase"."subject_collections" c where c."id" = "collection_id")
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
-drop policy if exists favorites_read on "better_supabase"."favorites";
-create policy favorites_read on "better_supabase"."favorites"
+drop policy if exists collection_favorites_read on "better_supabase"."collection_favorites";
+create policy collection_favorites_read on "better_supabase"."collection_favorites"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   and "org_id" in (select better_supabase.tenant_ids_with('collections.read'))
@@ -6418,17 +6418,17 @@ begin
     raise exception 'the record is unknown or not readable in this organization' using errcode = '42501', hint = 'FAVORITE_SUBJECT_FORBIDDEN';
   end if;
   if not exists (
-    select 1 from "better_supabase"."favorites" f
+    select 1 from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id
   ) then
-    select max(f."rank") into v_last from "better_supabase"."favorites" f
+    select max(f."rank") into v_last from "better_supabase"."collection_favorites" f
       where f."user_id" = v_user and f."org_id" = star_subject.tenant;
     v_rank := case
     when v_last is null then 'V'
     when length(substring(v_last from '^z*')) = length(v_last) then v_last || 'V'
     else left(v_last, length(substring(v_last from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr(v_last, length(substring(v_last from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end;
-    insert into "better_supabase"."favorites" ("user_id", "org_id", "subject_type", "subject_id", "rank")
+    insert into "better_supabase"."collection_favorites" ("user_id", "org_id", "subject_type", "subject_id", "rank")
     values (v_user, star_subject.tenant, star_subject.subject_type, star_subject.subject_id, v_rank)
     on conflict ("user_id", "subject_type", "subject_id") do nothing;
   end if;
@@ -6437,7 +6437,7 @@ begin
       'subjectId', f."subject_id",
       'organizationId', f."org_id",
       'rank', f."rank",
-      'starredAt', f."created_at") from "better_supabase"."favorites" f
+      'starredAt', f."created_at") from "better_supabase"."collection_favorites" f
     where f."user_id" = v_user and f."subject_type" = star_subject.subject_type and f."subject_id" = star_subject.subject_id);
 end;
 $$;
@@ -6454,7 +6454,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."favorites" f
+  delete from "better_supabase"."collection_favorites" f
   where f."user_id" = auth.uid() and f."subject_type" = unstar_subject.subject_type and f."subject_id" = unstar_subject.subject_id;
   return found;
 end;
@@ -6475,7 +6475,7 @@ begin
   if rank_star.rank is null or rank_star.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'not a rank key' using errcode = '22023', hint = 'FAVORITE_RANK_INVALID';
   end if;
-  update "better_supabase"."favorites" f set "rank" = rank_star.rank
+  update "better_supabase"."collection_favorites" f set "rank" = rank_star.rank
   where f."user_id" = auth.uid() and f."subject_type" = rank_star.subject_type and f."subject_id" = rank_star.subject_id;
   return found;
 end;
@@ -6501,7 +6501,7 @@ as $$
       'title', "better_supabase"."subject_title"(f."subject_type", f."subject_id"),
       'url', "better_supabase"."subject_url"(f."subject_type", f."subject_id"))
     order by f."rank", f."subject_type", f."subject_id" collate "C"), '[]'::jsonb)
-  from "better_supabase"."favorites" f
+  from "better_supabase"."collection_favorites" f
   where f."user_id" = (select auth.uid())
     and f."org_id" = starred_subjects.tenant
     and (starred_subjects.subject_type is null or f."subject_type" = starred_subjects.subject_type)
@@ -6749,9 +6749,9 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."subject_coll
 create policy bsb_tenant_scope_delete on "better_supabase"."subject_collection_entries" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."favorites";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."favorites";
-create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."collection_favorites";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_select on "better_supabase"."collection_favorites" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
@@ -6759,17 +6759,17 @@ create policy bsb_tenant_scope_select on "better_supabase"."favorites" as restri
   and "org_id" in (select better_supabase.tenant_ids_with('collections.read'))
   and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."favorites";
-create policy bsb_tenant_scope_insert on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_insert on "better_supabase"."collection_favorites" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."favorites";
-create policy bsb_tenant_scope_update on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_update on "better_supabase"."collection_favorites" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."favorites";
-create policy bsb_tenant_scope_delete on "better_supabase"."favorites" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."collection_favorites";
+create policy bsb_tenant_scope_delete on "better_supabase"."collection_favorites" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."saved_items";
@@ -6812,13 +6812,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block-data collections
--- @bsb-hash sha256:77080beb5b84e4f94399188b93d547f7a72b4cd89f7a97593a08e54057c736a8
+-- @bsb-hash sha256:ae415702fd32b26aa182a134ba2b90a879580f5cd70489fe9c29acdaafc4e3f1
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('collections', 1, 'managed')
+values ('collections', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

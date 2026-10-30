@@ -127,8 +127,14 @@ describe("compliance module", () => {
       'drop function if exists "better_supabase"."acknowledge_compliance_policy"(uuid);',
     );
     expect(upgrade({ modules: { compliance: { mode: "custom" } } })).toBe("");
-    expect(upgrade({ modules: { acknowledgements: { mode: "custom" } } })).toBe(
-      "",
+
+    const customAcknowledgements = upgrade({
+      modules: { acknowledgements: { mode: "custom" } },
+    });
+
+    expect(customAcknowledgements).not.toContain("policy_acknowledgements");
+    expect(customAcknowledgements).toContain(
+      'alter table "better_supabase"."policies" rename to "compliance_policies"',
     );
   });
 

@@ -1181,7 +1181,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:fc1a3507d3897bce7ba42cca188954ea5776902d0c5121e3b63a37fefb76c92d
+-- @bsb-hash sha256:a78bbe5b0f926028716fd0cc1255a989dfb4c950d9ccb362e8d6839f1aedf7c1
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1421,8 +1421,8 @@ create policy asset_depreciations_read on "better_supabase"."asset_depreciations
 
 alter table "better_supabase"."booking_resources" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
 create index if not exists "booking_resources_asset_idx" on "better_supabase"."booking_resources" (asset_id) where asset_id is not null;
-alter table "better_supabase"."work_items" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
-create index if not exists "work_items_asset_idx" on "better_supabase"."work_items" (asset_id) where asset_id is not null;
+alter table "better_supabase"."tasks" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
+create index if not exists "tasks_asset_idx" on "better_supabase"."tasks" (asset_id) where asset_id is not null;
 
 -- Adds a location (a site, building, floor, unit or room) under parent_id,
 -- or at the top when it is null. area is GeoJSON and needs the postgis option.
@@ -1950,7 +1950,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name") order by y."name") from "better_supabase"."booking_resources" y where y.asset_id = v_row."id"), '[]'::jsonb), 'workItems', coalesce((select jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title) order by z.created_at desc) from (select y."id" as id, y."title" as title, y."created_at" as created_at from "better_supabase"."work_items" y where y.asset_id = v_row."id" and y."closed_at" is null order by y."created_at" desc limit 50) z), '[]'::jsonb)));
+    'links', jsonb_build_object('bookingResources', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name") order by y."name") from "better_supabase"."booking_resources" y where y.asset_id = v_row."id"), '[]'::jsonb), 'workItems', coalesce((select jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title) order by z.created_at desc) from (select y."id" as id, y."title" as title, y."created_at" as created_at from "better_supabase"."tasks" y where y.asset_id = v_row."id" and y."closed_at" is null order by y."created_at" desc limit 50) z), '[]'::jsonb)));
 end;
 $$;
 revoke execute on function "better_supabase"."get_asset"(uuid) from public, anon;
@@ -2117,7 +2117,7 @@ begin
   when 'booking_resource' then
     select y."tenant_id" into v_tenant from "better_supabase"."booking_resources" y where y."id" = set_asset_link.target_id;
   when 'task', 'work_item' then
-    select y."tenant_id" into v_tenant from "better_supabase"."work_items" y where y."id" = set_asset_link.target_id;
+    select y."tenant_id" into v_tenant from "better_supabase"."tasks" y where y."id" = set_asset_link.target_id;
   else
     raise exception 'target_type must be booking_resource or work_item' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
   end case;
@@ -2136,7 +2136,7 @@ begin
     update "better_supabase"."booking_resources" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
   if set_asset_link.target_type in ('task', 'work_item') then
-    update "better_supabase"."work_items" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
+    update "better_supabase"."tasks" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
   return jsonb_build_object('targetType', set_asset_link.target_type, 'targetId', set_asset_link.target_id, 'assetId', set_asset_link.asset_id);
 end;

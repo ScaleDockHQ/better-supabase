@@ -81,6 +81,46 @@ export class BlockSession {
       end
     $$`);
 
+    // `create table if not exists` keeps a tasks table an earlier render left
+    // with its projects key on another projects table.
+    if (names.includes("tasks")) {
+      const projects =
+        layout.modules?.["tasks"]?.tables?.["projects"] ?? "projects";
+
+      const { rowCount } = await this.client.query(
+        `select 1 from pg_constraint
+        where conrelid = to_regclass('better_supabase.tasks')
+          and conname = 'tasks_project_id_fkey'
+          and confrelid is distinct from to_regclass($1)`,
+        [projects.includes(".") ? projects : `better_supabase.${projects}`],
+      );
+
+      if (rowCount) {
+        await this.client.query(
+          `drop table if exists better_supabase.task_checklist_items,
+            better_supabase.task_assignees, better_supabase.tasks cascade`,
+        );
+      }
+    }
+
+    // The fixture's postmortem actions reference its work_items table, and
+    // `create table if not exists` would keep that key for a render on tasks.
+    if (names.includes("incidents") && names.includes("tasks")) {
+      await this.client.query(`do $$
+        begin
+          if to_regclass('better_supabase.incident_postmortem_actions') is not null
+            and not exists (
+              select 1 from pg_constraint
+              where conrelid = to_regclass('better_supabase.incident_postmortem_actions')
+                and conname = 'incident_postmortem_actions_task_id_fkey'
+                and confrelid = to_regclass('better_supabase.tasks')
+            ) then
+            drop table better_supabase.incident_postmortem_actions cascade;
+          end if;
+        end
+      $$`);
+    }
+
     for (const file of renderBlocks(names, layout)) {
       if (file.kind !== "test") {
         await this.client.query(file.contents);

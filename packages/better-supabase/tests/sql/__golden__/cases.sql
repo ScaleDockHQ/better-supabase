@@ -1363,7 +1363,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:323e438296f8fbcfaaf82ba2b73b4705b605af877f99034ff389e67c79361373
+-- @bsb-hash sha256:05a8b2150d86dcce0ff3fe19ddaa9d72f061e411b96688e96b4a43d55d7eed41
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2302,7 +2302,7 @@ begin
     raise exception 'type is containment, correction, corrective, preventive or improvement' using errcode = '22023', hint = 'CASE_INVALID';
   end if;
   if not exists (
-    select 1 from "better_supabase"."work_items" i
+    select 1 from "better_supabase"."tasks" i
     where i."id" = link_case_action.task_id and i."tenant_id"::text = v_row."tenant_id"::text
   ) then
     raise exception 'no such work item in this organization' using errcode = 'P0002', hint = 'CASE_INVALID';
@@ -2401,7 +2401,7 @@ begin
   end if;
   if exists (
     select 1 from "better_supabase"."case_actions" x
-    join "better_supabase"."work_items" i on i."id" = x."task_id"
+    join "better_supabase"."tasks" i on i."id" = x."task_id"
     where x."case_id" = case_blockers_of.target."id" and x."required"
       and i."state" not in ('completed', 'canceled')
   ) then
@@ -2698,14 +2698,14 @@ begin
   if exists (select 1 from "better_supabase"."case_actions" x where x."case_id" = v_row."id" and x."required")
     and not exists (
       select 1 from "better_supabase"."case_actions" x
-      join "better_supabase"."work_items" i on i."id" = x."task_id"
+      join "better_supabase"."tasks" i on i."id" = x."task_id"
       where x."case_id" = v_row."id" and x."required"
         and i."state" not in ('completed', 'canceled')
     ) then
     if v_row."effectiveness_due_on" is null then
       update "better_supabase"."cases" x set "effectiveness_due_on" = coalesce((
       select max(i."closed_at")::date from "better_supabase"."case_actions" x
-      join "better_supabase"."work_items" i on i."id" = x."task_id"
+      join "better_supabase"."tasks" i on i."id" = x."task_id"
       where x."case_id" = v_row."id" and x."required"
     ), current_date) + v_days, "updated_at" = now()
       where x."id" = v_row."id";
@@ -2812,10 +2812,10 @@ begin
         'id', x."id", 'taskId', x."task_id", 'type', x."type", 'required', x."required", 'createdAt', x."created_at",
         'title', i."title", 'state', i."state", 'dueAt', i."due_at",
         'done', i."state" in ('completed', 'canceled'),
-        'assignees', coalesce((select jsonb_agg(s."user_id") from "better_supabase"."work_item_assignees" s where s."work_item_id" = x."task_id"), '[]'::jsonb)
+        'assignees', coalesce((select jsonb_agg(s."user_id") from "better_supabase"."task_assignees" s where s."work_item_id" = x."task_id"), '[]'::jsonb)
       ) order by x."created_at")
       from "better_supabase"."case_actions" x
-      left join "better_supabase"."work_items" i on i."id" = x."task_id"
+      left join "better_supabase"."tasks" i on i."id" = x."task_id"
       where x."case_id" = v_row."id"
     ), '[]'::jsonb),
     'blockers', to_jsonb("better_supabase"."case_blockers_of"(v_row)),

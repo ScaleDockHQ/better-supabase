@@ -29,7 +29,7 @@ describe("collections module", () => {
       'create table if not exists "better_supabase"."subject_collection_entries"',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."favorites"',
+      'create table if not exists "better_supabase"."collection_favorites"',
     );
     expect(sql).toContain("create policy subject_collection_entries_read");
     expect(sql).toContain(
@@ -51,7 +51,7 @@ describe("collections module", () => {
     expect(sql).toContain("bsb_collections_company_cascade");
     expect(sql).not.toContain("bsb_collections_deal_cascade");
     expect(sql).toContain(
-      `delete from "better_supabase"."favorites" where "subject_type" = v_type`,
+      `delete from "better_supabase"."collection_favorites" where "subject_type" = v_type`,
     );
   });
 

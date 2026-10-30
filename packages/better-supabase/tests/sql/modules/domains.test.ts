@@ -14,19 +14,19 @@ describe("domains module", () => {
     const sql = body();
 
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."organization_hostnames"',
+      'create table if not exists "better_supabase"."hostnames"',
     );
     expect(sql).toContain(
-      'on "better_supabase"."organization_hostnames" ("hostname") where "verified_at" is not null;',
+      'on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;',
     );
     expect(sql).toContain(
-      'on "better_supabase"."organization_hostnames" ("organization_id") where "is_primary";',
+      'on "better_supabase"."hostnames" ("organization_id") where "is_primary";',
     );
     expect(sql).toContain(
       'check (not "is_primary" or "verified_at" is not null)',
     );
     expect(sql).toContain(
-      'revoke all on "better_supabase"."organization_hostnames" from public, anon, authenticated;',
+      'revoke all on "better_supabase"."hostnames" from public, anon, authenticated;',
     );
   });
 

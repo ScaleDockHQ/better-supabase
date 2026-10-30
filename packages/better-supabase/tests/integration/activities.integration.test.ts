@@ -144,10 +144,9 @@ describe.skipIf(!live)("engagements", () => {
       ).toBe("ACTIVITY_SUBJECT_FORBIDDEN");
       await s.asRole(stranger);
       expect(
-        await s.rows(
-          "select 1 from better_supabase.engagements where id = $1",
-          [call.id],
-        ),
+        await s.rows("select 1 from better_supabase.activities where id = $1", [
+          call.id,
+        ]),
       ).toHaveLength(0);
       await s.as(stranger);
       expect(hint(await engagements.update(call.id, { title: "mine" }))).toBe(

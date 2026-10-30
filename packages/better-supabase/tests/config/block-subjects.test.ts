@@ -7,7 +7,7 @@ describe("withBlockSubjects", () => {
   it("registers a task as a ranked, searchable subject", () => {
     expect(withBlockSubjects({}, ["tasks"], {})).toEqual({
       task: {
-        table: "better_supabase.work_items",
+        table: "better_supabase.tasks",
         idType: "uuid",
         tenant: "tenant_id",
         title: "title",

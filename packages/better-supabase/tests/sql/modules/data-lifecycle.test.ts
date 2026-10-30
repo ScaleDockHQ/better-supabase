@@ -126,7 +126,7 @@ describe("data-lifecycle module", () => {
     for (const table of [
       "better_supabase.profiles",
       "better_supabase.user_settings",
-      "better_supabase.activity_entries",
+      "better_supabase.timeline_entries",
       "better_supabase.attachments",
       "better_supabase.api_keys",
       "better_supabase.usage_quotas",
@@ -170,7 +170,7 @@ describe("data-lifecycle module", () => {
     for (const row of [
       `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true, '{}'::text[], true)`,
       `('user', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'actor_id', true, '{}'::text[], true)`,
-      `('organization', 'better_supabase.organization_sso_providers', '"better_supabase"."organization_sso_providers"', 'organization_id', true, '{}'::text[], true)`,
+      `('organization', 'better_supabase.sso_providers', '"better_supabase"."sso_providers"', 'organization_id', true, '{}'::text[], true)`,
       `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, array['credential_ref']::text[], true)`,
       `('user', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'user_id', true, '{}'::text[], true)`,
     ]) {

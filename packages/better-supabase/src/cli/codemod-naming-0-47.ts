@@ -4,6 +4,7 @@ import {
   ENTITY_RENAMES_CODEMOD,
   HINT_RENAMES,
   SUBJECT_TYPE_RENAMES,
+  TABLE_RENAMES,
 } from "../index.ts";
 import {
   EVENT_REVIEW,
@@ -23,6 +24,16 @@ const AMBIGUOUS_HINT = "ACTIVITY_FORBIDDEN";
 
 const HINT_STRINGS: Readonly<Record<string, string>> = Object.fromEntries(
   Object.entries(HINT_RENAMES).filter(([old]) => old !== AMBIGUOUS_HINT),
+);
+
+const TABLE_PAIRS = Object.values(TABLE_RENAMES).flatMap((module) =>
+  Object.values(module),
+);
+
+const OLD_TABLES = TABLE_PAIRS.map((table) => table.from);
+
+const TABLE_MOVES = TABLE_PAIRS.map(
+  (table) => `\`${table.from}\` is \`${table.to}\``,
 );
 
 const quoted = (values: Iterable<string>): RegExp =>
@@ -59,6 +70,14 @@ const REVIEW_0_47: readonly ReviewHint[] = [
       /acknowledge_compliance_policy|compliance_policy_acknowledgements|policy_acknowledgements|pending_only\s*=>|["'`](?:POLICY_NOT_PUBLISHED|COMPLIANCE_POLICY_NOT_PUBLISHED|compliance\.acknowledge|(?:compliance_)?policy\.acknowledged)["'`]/,
     message:
       "Policy acknowledgements moved onto the acknowledgements block: call `acknowledge('compliance_policy', id)` and `list_my_acknowledgements` instead of `acknowledge_compliance_policy` and `list_compliance_policies(pending_only)`, read `acknowledgements` instead of `policy_acknowledgements`, match `ACKNOWLEDGEMENT_NO_VERSION` and `ACKNOWLEDGEMENT_NOT_ASSIGNED` instead of `POLICY_NOT_PUBLISHED`, grant `acknowledgements.acknowledge` instead of `compliance.acknowledge`, and listen for `acknowledgement.created` instead of `policy.acknowledged`",
+  },
+  {
+    pattern: new RegExp(
+      `\\bbetter_supabase"?\\."?(?:${OLD_TABLES.map(escapeRegExp).join("|")})\\b`,
+    ),
+    message: `Module tables follow the naming convention, and the upgrade migration renames them: ${TABLE_MOVES.join(
+      ", ",
+    )}. Queries on an old name fail; tables you adopted keep their names`,
   },
 ];
 
@@ -105,7 +124,7 @@ function renameSql(source: string): CodemodResult {
 export const CODEMOD_0_47: Codemod = {
   name: ENTITY_RENAMES_CODEMOD,
   description:
-    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, renames event types to <entity>.<past verb> (work_item.created to task.created, rule.removed to automation.deleted, ...) in config, code and the app's SQL, and lists ACTIVITY_FORBIDDEN, the renamed subject types, the split event types such as agent.saved, the support.*, workflow.*, leave.* and waitlist.* patterns and the drive.* and organization.* patterns, postmortem actionItems, ai_document_versions, the old policy acknowledgement calls and the sequence run events for review",
+    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, renames event types to <entity>.<past verb> (work_item.created to task.created, rule.removed to automation.deleted, ...) in config, code and the app's SQL, and lists ACTIVITY_FORBIDDEN, the renamed subject types, the split event types such as agent.saved, the support.*, workflow.*, leave.* and waitlist.* patterns and the drive.* and organization.* patterns, postmortem actionItems, ai_document_versions, the old policy acknowledgement calls, the sequence run events and queries on renamed module tables for review",
   subpathImports: {
     "blocks/tasks": { workItemChecklistBinding: "taskChecklistBinding" },
   },

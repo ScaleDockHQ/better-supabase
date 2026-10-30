@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
--- @bsb-block leases@2 managed
--- @bsb-hash sha256:c640b5edb804fe5dd16596c328a103c6a89325d544320a63a677c9c77d744804
+-- @bsb-block leases@3 managed
+-- @bsb-hash sha256:066f913f1d7f90485f730b4bda638233f56d57bb27bc8e616ba3762f2c1972f3
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,11 +45,11 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -67,7 +67,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
 
-create table if not exists "better_supabase"."lease_agreements" (
+create table if not exists "better_supabase"."leases" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "unit_id" uuid not null references "better_supabase"."assets" ("id") on delete restrict,
@@ -95,16 +95,16 @@ create table if not exists "better_supabase"."lease_agreements" (
   "updated_at" timestamptz not null default now(),
   check ("ends_on" is null or "ends_on" > "starts_on")
 );
-create index if not exists "lease_agreements_tenant_idx" on "better_supabase"."lease_agreements" ("tenant_id", "status", "starts_on" desc);
-create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lease_agreements" ("unit_id");
-create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("tenant_id", "party_type", "party_id");
-create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
-alter table "better_supabase"."lease_agreements" enable row level security;
-revoke all on "better_supabase"."lease_agreements" from public, anon, authenticated;
-grant select on "better_supabase"."lease_agreements" to authenticated;
-grant all on "better_supabase"."lease_agreements" to service_role;
-drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy lease_agreements_read on "better_supabase"."lease_agreements"
+create index if not exists "leases_tenant_idx" on "better_supabase"."leases" ("tenant_id", "status", "starts_on" desc);
+create index if not exists "leases_unit_idx" on "better_supabase"."leases" ("unit_id");
+create index if not exists "leases_party_idx" on "better_supabase"."leases" ("tenant_id", "party_type", "party_id");
+create index if not exists "leases_deposit_hold_idx" on "better_supabase"."leases" ("deposit_hold_id") where "deposit_hold_id" is not null;
+alter table "better_supabase"."leases" enable row level security;
+revoke all on "better_supabase"."leases" from public, anon, authenticated;
+grant select on "better_supabase"."leases" to authenticated;
+grant all on "better_supabase"."leases" to service_role;
+drop policy if exists "leases_read" on "better_supabase"."leases";
+create policy leases_read on "better_supabase"."leases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
@@ -112,7 +112,7 @@ create policy lease_agreements_read on "better_supabase"."lease_agreements"
 create table if not exists "better_supabase"."lease_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "lease_id" uuid not null references "better_supabase"."lease_agreements" ("id") on delete restrict,
+  "lease_id" uuid not null references "better_supabase"."leases" ("id") on delete restrict,
   "period_start" date not null,
   "period_end" date not null,
   "amount" bigint not null check ("amount" > 0),
@@ -146,7 +146,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_unit text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -182,7 +182,7 @@ begin
   if coalesce(create_lease.deposit, 0) < 0 then
     raise exception 'a deposit is zero or more minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  insert into "better_supabase"."lease_agreements" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
+  insert into "better_supabase"."leases" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
     "rent", "currency", "frequency", "deposit", "metadata", "created_by")
   values (create_lease.tenant, create_lease.unit_id, create_lease.party_type, create_lease.party_id,
     coalesce(nullif(trim(create_lease.title), ''), left(v_unit, 190) || ' lease'), create_lease.starts_on, create_lease.ends_on,
@@ -207,14 +207,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_account uuid;
   v_hold "better_supabase"."ledger_holds"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = activate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = activate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -223,7 +223,7 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended('leases.unit:' || v_row."unit_id"::text, 0));
   if exists (
-    select 1 from "better_supabase"."lease_agreements" x
+    select 1 from "better_supabase"."leases" x
     where x."unit_id" = v_row."unit_id" and x."id" <> v_row."id" and x."status" = 'active'
       and daterange(x."starts_on", x."ends_on") && daterange(v_row."starts_on", v_row."ends_on")
   ) then
@@ -242,7 +242,7 @@ begin
       jsonb_build_object('leaseId', v_row."id"));
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
-  update "better_supabase"."lease_agreements" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
+  update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   null;
@@ -263,12 +263,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = renew_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = renew_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -284,7 +284,7 @@ begin
   if renew_lease.rent is not null and renew_lease.rent <= 0 then
     raise exception 'rent is more than zero minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  update "better_supabase"."lease_agreements" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
+  update "better_supabase"."leases" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
       "renewed_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -308,7 +308,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_on date := coalesce(terminate_lease.terminates_on, current_date);
   v_deduction bigint := coalesce(terminate_lease.deposit_deduction, 0);
   v_held bigint;
@@ -316,7 +316,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = terminate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = terminate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -352,7 +352,7 @@ begin
         jsonb_build_object('leaseId', v_row."id"));
     end if;
   end if;
-  update "better_supabase"."lease_agreements" x set
+  update "better_supabase"."leases" x set
       "status" = case when x."status" = 'active' and x."ends_on" is not null and v_on >= x."ends_on" then 'ended' else 'terminated' end,
       "terminated_on" = v_on, "termination_reason" = nullif(trim(terminate_lease.reason), ''), "updated_at" = now()
     where x."id" = v_row."id"
@@ -373,9 +373,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = get_lease.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = get_lease.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -402,7 +402,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'unitId', q."unit_id", 'partyType', q."party_type", 'partyId', q."party_id", 'title', q."title", 'status', q."status", 'startsOn', q."starts_on", 'endsOn', q."ends_on", 'rent', q."rent"::text, 'currency', q."currency", 'frequency', q."frequency", 'deposit', q."deposit"::text, 'depositHoldId', q."deposit_hold_id", 'depositHeld', coalesce((select h."amount" from "better_supabase"."ledger_holds" h where h."id" = q."deposit_hold_id" and h."status" = 'active'), 0)::text, 'balanceDue', coalesce((select y."balance" from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" y on y."account_id" = x."id"
       where x."tenant_id" = q."tenant_id" and x."code" = 'leases.rent:' || q."id"::text), 0)::text, 'renewedAt', q."renewed_at", 'terminatedOn', q."terminated_on", 'terminationReason', q."termination_reason", 'metadata', q."metadata", 'createdBy', q."created_by", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."starts_on" desc, q."id"), '[]'::jsonb)
     from (
-      select * from "better_supabase"."lease_agreements" x
+      select * from "better_supabase"."leases" x
       where x."tenant_id" = list_leases.tenant
         and (list_leases.status is null or x."status" = list_leases.status)
         and (list_leases.unit_id is null or x."unit_id" = list_leases.unit_id)
@@ -433,7 +433,7 @@ declare
   v_through date := coalesce(post_due_rent.through, current_date);
   v_max integer := least(greatest(coalesce(post_due_rent.max_rows, 500), 1), 5000);
   v_count integer := 0;
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_charge "better_supabase"."lease_charges"%rowtype;
   v_n integer;
   v_start date;
@@ -452,7 +452,7 @@ begin
   end if;
   <<periods>>
   for v_row in
-    select * from "better_supabase"."lease_agreements" x
+    select * from "better_supabase"."leases" x
     where x."status" = 'active' and x."starts_on" <= v_through
       and (post_due_rent.tenant is null or x."tenant_id" = post_due_rent.tenant)
     order by x."id"
@@ -501,11 +501,11 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_key text;
   v_tx uuid;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = record_rent_payment.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = record_rent_payment.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -548,9 +548,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = list_lease_charges.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = list_lease_charges.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -582,25 +582,25 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_select on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+create policy bsb_tenant_scope_select on "better_supabase"."leases" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_insert on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+create policy bsb_tenant_scope_insert on "better_supabase"."leases" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_update on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+create policy bsb_tenant_scope_update on "better_supabase"."leases" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_delete on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
+create policy bsb_tenant_scope_delete on "better_supabase"."leases" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
@@ -641,21 +641,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block-data leases
--- @bsb-hash sha256:fb5842bb8aa5f13faa0a2a7802880c3caf01d2532157109865ae05c6b301c500
+-- @bsb-hash sha256:916537b0ac15a44d934f0953f1905d46b0489cbc62ee42af0d92f389f7ae4b1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leases', 2, 'managed')
+values ('leases', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
--- @bsb-block leases@2 managed
--- @bsb-hash sha256:2c62c8a400c0ec3e6e1a95aed8db2408ca7f7c4748672ba8cd28264837b45380
+-- @bsb-block leases@3 managed
+-- @bsb-hash sha256:d6dcc186a67cb6c4d53be338784b986438ac7ba7e487010220b8f849c02d2094
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -699,11 +699,11 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -721,7 +721,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
 
-create table if not exists "better_supabase"."lease_agreements" (
+create table if not exists "better_supabase"."leases" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "unit_id" uuid not null references "better_supabase"."assets" ("id") on delete restrict,
@@ -749,16 +749,16 @@ create table if not exists "better_supabase"."lease_agreements" (
   "updated_at" timestamptz not null default now(),
   check ("ends_on" is null or "ends_on" > "starts_on")
 );
-create index if not exists "lease_agreements_tenant_idx" on "better_supabase"."lease_agreements" ("tenant_id", "status", "starts_on" desc);
-create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lease_agreements" ("unit_id");
-create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("tenant_id", "party_type", "party_id");
-create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
-alter table "better_supabase"."lease_agreements" enable row level security;
-revoke all on "better_supabase"."lease_agreements" from public, anon, authenticated;
-grant select on "better_supabase"."lease_agreements" to authenticated;
-grant all on "better_supabase"."lease_agreements" to service_role;
-drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy lease_agreements_read on "better_supabase"."lease_agreements"
+create index if not exists "leases_tenant_idx" on "better_supabase"."leases" ("tenant_id", "status", "starts_on" desc);
+create index if not exists "leases_unit_idx" on "better_supabase"."leases" ("unit_id");
+create index if not exists "leases_party_idx" on "better_supabase"."leases" ("tenant_id", "party_type", "party_id");
+create index if not exists "leases_deposit_hold_idx" on "better_supabase"."leases" ("deposit_hold_id") where "deposit_hold_id" is not null;
+alter table "better_supabase"."leases" enable row level security;
+revoke all on "better_supabase"."leases" from public, anon, authenticated;
+grant select on "better_supabase"."leases" to authenticated;
+grant all on "better_supabase"."leases" to service_role;
+drop policy if exists "leases_read" on "better_supabase"."leases";
+create policy leases_read on "better_supabase"."leases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
@@ -766,7 +766,7 @@ create policy lease_agreements_read on "better_supabase"."lease_agreements"
 create table if not exists "better_supabase"."lease_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "lease_id" uuid not null references "better_supabase"."lease_agreements" ("id") on delete restrict,
+  "lease_id" uuid not null references "better_supabase"."leases" ("id") on delete restrict,
   "period_start" date not null,
   "period_end" date not null,
   "amount" bigint not null check ("amount" > 0),
@@ -800,7 +800,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_unit text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -836,7 +836,7 @@ begin
   if coalesce(create_lease.deposit, 0) < 0 then
     raise exception 'a deposit is zero or more minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  insert into "better_supabase"."lease_agreements" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
+  insert into "better_supabase"."leases" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
     "rent", "currency", "frequency", "deposit", "metadata", "created_by")
   values (create_lease.tenant, create_lease.unit_id, create_lease.party_type, create_lease.party_id,
     coalesce(nullif(trim(create_lease.title), ''), left(v_unit, 190) || ' lease'), create_lease.starts_on, create_lease.ends_on,
@@ -871,14 +871,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_account uuid;
   v_hold "better_supabase"."ledger_holds"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = activate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = activate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -887,7 +887,7 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended('leases.unit:' || v_row."unit_id"::text, 0));
   if exists (
-    select 1 from "better_supabase"."lease_agreements" x
+    select 1 from "better_supabase"."leases" x
     where x."unit_id" = v_row."unit_id" and x."id" <> v_row."id" and x."status" = 'active'
       and daterange(x."starts_on", x."ends_on") && daterange(v_row."starts_on", v_row."ends_on")
   ) then
@@ -906,7 +906,7 @@ begin
       jsonb_build_object('leaseId', v_row."id"));
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
-  update "better_supabase"."lease_agreements" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
+  update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   perform "better_supabase".emit_event('lease.activated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'unitId', v_row."unit_id", 'partyType', v_row."party_type", 'partyId', v_row."party_id", 'status', v_row."status", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'rent', v_row."rent"::text, 'currency', v_row."currency"), 'leases/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leases');
@@ -937,12 +937,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = renew_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = renew_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -958,7 +958,7 @@ begin
   if renew_lease.rent is not null and renew_lease.rent <= 0 then
     raise exception 'rent is more than zero minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  update "better_supabase"."lease_agreements" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
+  update "better_supabase"."leases" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
       "renewed_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -992,7 +992,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_on date := coalesce(terminate_lease.terminates_on, current_date);
   v_deduction bigint := coalesce(terminate_lease.deposit_deduction, 0);
   v_held bigint;
@@ -1000,7 +1000,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = terminate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = terminate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1036,7 +1036,7 @@ begin
         jsonb_build_object('leaseId', v_row."id"));
     end if;
   end if;
-  update "better_supabase"."lease_agreements" x set
+  update "better_supabase"."leases" x set
       "status" = case when x."status" = 'active' and x."ends_on" is not null and v_on >= x."ends_on" then 'ended' else 'terminated' end,
       "terminated_on" = v_on, "termination_reason" = nullif(trim(terminate_lease.reason), ''), "updated_at" = now()
     where x."id" = v_row."id"
@@ -1067,9 +1067,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = get_lease.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = get_lease.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1096,7 +1096,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'unitId', q."unit_id", 'partyType', q."party_type", 'partyId', q."party_id", 'title', q."title", 'status', q."status", 'startsOn', q."starts_on", 'endsOn', q."ends_on", 'rent', q."rent"::text, 'currency', q."currency", 'frequency', q."frequency", 'deposit', q."deposit"::text, 'depositHoldId', q."deposit_hold_id", 'depositHeld', coalesce((select h."amount" from "better_supabase"."ledger_holds" h where h."id" = q."deposit_hold_id" and h."status" = 'active'), 0)::text, 'balanceDue', coalesce((select y."balance" from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" y on y."account_id" = x."id"
       where x."tenant_id" = q."tenant_id" and x."code" = 'leases.rent:' || q."id"::text), 0)::text, 'renewedAt', q."renewed_at", 'terminatedOn', q."terminated_on", 'terminationReason', q."termination_reason", 'metadata', q."metadata", 'createdBy', q."created_by", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."starts_on" desc, q."id"), '[]'::jsonb)
     from (
-      select * from "better_supabase"."lease_agreements" x
+      select * from "better_supabase"."leases" x
       where x."tenant_id" = list_leases.tenant
         and (list_leases.status is null or x."status" = list_leases.status)
         and (list_leases.unit_id is null or x."unit_id" = list_leases.unit_id)
@@ -1127,7 +1127,7 @@ declare
   v_through date := coalesce(post_due_rent.through, current_date);
   v_max integer := least(greatest(coalesce(post_due_rent.max_rows, 500), 1), 5000);
   v_count integer := 0;
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_charge "better_supabase"."lease_charges"%rowtype;
   v_n integer;
   v_start date;
@@ -1146,7 +1146,7 @@ begin
   end if;
   <<periods>>
   for v_row in
-    select * from "better_supabase"."lease_agreements" x
+    select * from "better_supabase"."leases" x
     where x."status" = 'active' and x."starts_on" <= v_through
       and (post_due_rent.tenant is null or x."tenant_id" = post_due_rent.tenant)
     order by x."id"
@@ -1204,11 +1204,11 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_key text;
   v_tx uuid;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = record_rent_payment.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = record_rent_payment.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1261,9 +1261,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = list_lease_charges.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = list_lease_charges.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1298,7 +1298,7 @@ as $$
       jsonb_build_object('role', 'receivable', 'debit', y."amount"::text, 'partyId', v."party_id"),
       jsonb_build_object('role', 'revenue', 'credit', y."amount"::text))
   )
-  from "better_supabase"."lease_charges" y join "better_supabase"."lease_agreements" v on v."id" = y."lease_id"
+  from "better_supabase"."lease_charges" y join "better_supabase"."leases" v on v."id" = y."lease_id"
   where y."id"::text = source_id and y."amount" <> 0
 $$;
 revoke execute on function "better_supabase"."accounting_lease_rent_lines"(text) from public, anon, authenticated;
@@ -1323,7 +1323,7 @@ as $$
       jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', v."party_id"))
   )
   from "better_supabase"."ledger_transactions" y
-  join "better_supabase"."lease_agreements" v on v."id"::text = y."reference_id"
+  join "better_supabase"."leases" v on v."id"::text = y."reference_id"
   cross join lateral (
     select sum(e."amount") as amount from "better_supabase"."ledger_entries" e
     where e."transaction_id" = y."id" and e."amount" > 0
@@ -1348,25 +1348,25 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_select on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+create policy bsb_tenant_scope_select on "better_supabase"."leases" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_insert on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+create policy bsb_tenant_scope_insert on "better_supabase"."leases" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_update on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+create policy bsb_tenant_scope_update on "better_supabase"."leases" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_delete on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
+create policy bsb_tenant_scope_delete on "better_supabase"."leases" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
@@ -1407,21 +1407,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block-data leases
--- @bsb-hash sha256:fb5842bb8aa5f13faa0a2a7802880c3caf01d2532157109865ae05c6b301c500
+-- @bsb-hash sha256:916537b0ac15a44d934f0953f1905d46b0489cbc62ee42af0d92f389f7ae4b1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leases', 2, 'managed')
+values ('leases', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
--- @bsb-block leases@2 managed
--- @bsb-hash sha256:9df97c672db32351db695050ce8ed8f67e5aa927daaba7797895f585a0dcf9d4
+-- @bsb-block leases@3 managed
+-- @bsb-hash sha256:660dbb52341b81b0fbc59f77bb7c605ec16cd7c290cac7fbee519747cca91e92
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1465,11 +1465,11 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "app_private"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."lease_agreements";
+    drop policy if exists bsb_tenant_scope on "app_private"."leases";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."leases";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."leases";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."leases";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."leases";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -1492,7 +1492,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
 
-create table if not exists "app_private"."lease_agreements" (
+create table if not exists "app_private"."leases" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "unit_id" uuid not null references "better_supabase"."assets" ("id") on delete restrict,
@@ -1520,16 +1520,16 @@ create table if not exists "app_private"."lease_agreements" (
   "updated_at" timestamptz not null default now(),
   check ("ends_on" is null or "ends_on" > "starts_on")
 );
-create index if not exists "lease_agreements_tenant_idx" on "app_private"."lease_agreements" ("tenant_id", "status", "starts_on" desc);
-create index if not exists "lease_agreements_unit_idx" on "app_private"."lease_agreements" ("unit_id");
-create index if not exists "lease_agreements_party_idx" on "app_private"."lease_agreements" ("tenant_id", "party_type", "party_id");
-create index if not exists "lease_agreements_deposit_hold_idx" on "app_private"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
-alter table "app_private"."lease_agreements" enable row level security;
-revoke all on "app_private"."lease_agreements" from public, anon, authenticated;
-grant select on "app_private"."lease_agreements" to authenticated;
-grant all on "app_private"."lease_agreements" to service_role;
-drop policy if exists "lease_agreements_read" on "app_private"."lease_agreements";
-create policy lease_agreements_read on "app_private"."lease_agreements"
+create index if not exists "leases_tenant_idx" on "app_private"."leases" ("tenant_id", "status", "starts_on" desc);
+create index if not exists "leases_unit_idx" on "app_private"."leases" ("unit_id");
+create index if not exists "leases_party_idx" on "app_private"."leases" ("tenant_id", "party_type", "party_id");
+create index if not exists "leases_deposit_hold_idx" on "app_private"."leases" ("deposit_hold_id") where "deposit_hold_id" is not null;
+alter table "app_private"."leases" enable row level security;
+revoke all on "app_private"."leases" from public, anon, authenticated;
+grant select on "app_private"."leases" to authenticated;
+grant all on "app_private"."leases" to service_role;
+drop policy if exists "leases_read" on "app_private"."leases";
+create policy leases_read on "app_private"."leases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
@@ -1537,7 +1537,7 @@ create policy lease_agreements_read on "app_private"."lease_agreements"
 create table if not exists "app_private"."lease_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "lease_id" uuid not null references "app_private"."lease_agreements" ("id") on delete restrict,
+  "lease_id" uuid not null references "app_private"."leases" ("id") on delete restrict,
   "period_start" date not null,
   "period_end" date not null,
   "amount" bigint not null check ("amount" > 0),
@@ -1571,7 +1571,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "app_private"."lease_agreements"%rowtype;
+  v_row "app_private"."leases"%rowtype;
   v_unit text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1607,7 +1607,7 @@ begin
   if coalesce(create_lease.deposit, 0) < 0 then
     raise exception 'a deposit is zero or more minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  insert into "app_private"."lease_agreements" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
+  insert into "app_private"."leases" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
     "rent", "currency", "frequency", "deposit", "metadata", "created_by")
   values (create_lease.tenant, create_lease.unit_id, create_lease.party_type, create_lease.party_id,
     coalesce(nullif(trim(create_lease.title), ''), left(v_unit, 190) || ' lease'), create_lease.starts_on, create_lease.ends_on,
@@ -1632,14 +1632,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."lease_agreements"%rowtype;
+  v_row "app_private"."leases"%rowtype;
   v_account uuid;
   v_hold "better_supabase"."ledger_holds"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."lease_agreements" x where x."id" = activate_lease.lease_id for update;
+  select * into v_row from "app_private"."leases" x where x."id" = activate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1648,7 +1648,7 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended('leases.unit:' || v_row."unit_id"::text, 0));
   if exists (
-    select 1 from "app_private"."lease_agreements" x
+    select 1 from "app_private"."leases" x
     where x."unit_id" = v_row."unit_id" and x."id" <> v_row."id" and x."status" = 'active'
       and daterange(x."starts_on", x."ends_on") && daterange(v_row."starts_on", v_row."ends_on")
   ) then
@@ -1667,7 +1667,7 @@ begin
       jsonb_build_object('leaseId', v_row."id"));
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
-  update "app_private"."lease_agreements" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
+  update "app_private"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   null;
@@ -1688,12 +1688,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "app_private"."lease_agreements"%rowtype;
+  v_row "app_private"."leases"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."lease_agreements" x where x."id" = renew_lease.lease_id for update;
+  select * into v_row from "app_private"."leases" x where x."id" = renew_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1709,7 +1709,7 @@ begin
   if renew_lease.rent is not null and renew_lease.rent <= 0 then
     raise exception 'rent is more than zero minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  update "app_private"."lease_agreements" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
+  update "app_private"."leases" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
       "renewed_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -1733,7 +1733,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "app_private"."lease_agreements"%rowtype;
+  v_row "app_private"."leases"%rowtype;
   v_on date := coalesce(terminate_lease.terminates_on, current_date);
   v_deduction bigint := coalesce(terminate_lease.deposit_deduction, 0);
   v_held bigint;
@@ -1741,7 +1741,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."lease_agreements" x where x."id" = terminate_lease.lease_id for update;
+  select * into v_row from "app_private"."leases" x where x."id" = terminate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1777,7 +1777,7 @@ begin
         jsonb_build_object('leaseId', v_row."id"));
     end if;
   end if;
-  update "app_private"."lease_agreements" x set
+  update "app_private"."leases" x set
       "status" = case when x."status" = 'active' and x."ends_on" is not null and v_on >= x."ends_on" then 'ended' else 'terminated' end,
       "terminated_on" = v_on, "termination_reason" = nullif(trim(terminate_lease.reason), ''), "updated_at" = now()
     where x."id" = v_row."id"
@@ -1798,9 +1798,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."lease_agreements"%rowtype;
+  v_row "app_private"."leases"%rowtype;
 begin
-  select * into v_row from "app_private"."lease_agreements" x where x."id" = get_lease.lease_id;
+  select * into v_row from "app_private"."leases" x where x."id" = get_lease.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1827,7 +1827,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'unitId', q."unit_id", 'partyType', q."party_type", 'partyId', q."party_id", 'title', q."title", 'status', q."status", 'startsOn', q."starts_on", 'endsOn', q."ends_on", 'rent', q."rent"::text, 'currency', q."currency", 'frequency', q."frequency", 'deposit', q."deposit"::text, 'depositHoldId', q."deposit_hold_id", 'depositHeld', coalesce((select h."amount" from "better_supabase"."ledger_holds" h where h."id" = q."deposit_hold_id" and h."status" = 'active'), 0)::text, 'balanceDue', coalesce((select y."balance" from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" y on y."account_id" = x."id"
       where x."tenant_id" = q."tenant_id" and x."code" = 'leases.rent:' || q."id"::text), 0)::text, 'renewedAt', q."renewed_at", 'terminatedOn', q."terminated_on", 'terminationReason', q."termination_reason", 'metadata', q."metadata", 'createdBy', q."created_by", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."starts_on" desc, q."id"), '[]'::jsonb)
     from (
-      select * from "app_private"."lease_agreements" x
+      select * from "app_private"."leases" x
       where x."tenant_id" = list_leases.tenant
         and (list_leases.status is null or x."status" = list_leases.status)
         and (list_leases.unit_id is null or x."unit_id" = list_leases.unit_id)
@@ -1858,7 +1858,7 @@ declare
   v_through date := coalesce(post_due_rent.through, current_date);
   v_max integer := least(greatest(coalesce(post_due_rent.max_rows, 500), 1), 5000);
   v_count integer := 0;
-  v_row "app_private"."lease_agreements"%rowtype;
+  v_row "app_private"."leases"%rowtype;
   v_charge "app_private"."lease_charges"%rowtype;
   v_n integer;
   v_start date;
@@ -1877,7 +1877,7 @@ begin
   end if;
   <<periods>>
   for v_row in
-    select * from "app_private"."lease_agreements" x
+    select * from "app_private"."leases" x
     where x."status" = 'active' and x."starts_on" <= v_through
       and (post_due_rent.tenant is null or x."tenant_id" = post_due_rent.tenant)
     order by x."id"
@@ -1926,11 +1926,11 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "app_private"."lease_agreements"%rowtype;
+  v_row "app_private"."leases"%rowtype;
   v_key text;
   v_tx uuid;
 begin
-  select * into v_row from "app_private"."lease_agreements" x where x."id" = record_rent_payment.lease_id;
+  select * into v_row from "app_private"."leases" x where x."id" = record_rent_payment.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -1973,9 +1973,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."lease_agreements"%rowtype;
+  v_row "app_private"."leases"%rowtype;
 begin
-  select * into v_row from "app_private"."lease_agreements" x where x."id" = list_lease_charges.lease_id;
+  select * into v_row from "app_private"."leases" x where x."id" = list_lease_charges.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -2007,25 +2007,25 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."lease_agreements";
-drop policy if exists bsb_tenant_scope_select on "app_private"."lease_agreements";
-create policy bsb_tenant_scope_select on "app_private"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope on "app_private"."leases";
+drop policy if exists bsb_tenant_scope_select on "app_private"."leases";
+create policy bsb_tenant_scope_select on "app_private"."leases" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."lease_agreements";
-create policy bsb_tenant_scope_insert on "app_private"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "app_private"."leases";
+create policy bsb_tenant_scope_insert on "app_private"."leases" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."lease_agreements";
-create policy bsb_tenant_scope_update on "app_private"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_update on "app_private"."leases";
+create policy bsb_tenant_scope_update on "app_private"."leases" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."lease_agreements";
-create policy bsb_tenant_scope_delete on "app_private"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "app_private"."leases";
+create policy bsb_tenant_scope_delete on "app_private"."leases" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."lease_charges";
@@ -2066,21 +2066,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block-data leases
--- @bsb-hash sha256:fb5842bb8aa5f13faa0a2a7802880c3caf01d2532157109865ae05c6b301c500
+-- @bsb-hash sha256:916537b0ac15a44d934f0953f1905d46b0489cbc62ee42af0d92f389f7ae4b1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leases', 2, 'managed')
+values ('leases', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
--- @bsb-block leases@2 managed
--- @bsb-hash sha256:9ae3923d49ef60d2d25b1617a857afd436c8ed6006286aada7189d995f4d482e
+-- @bsb-block leases@3 managed
+-- @bsb-hash sha256:6883a7ac7fa50c70c4885309cc98517607850f43e4f4910ebc25f9cab3190f0a
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2124,11 +2124,11 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -2146,7 +2146,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
 
-create table if not exists "better_supabase"."lease_agreements" (
+create table if not exists "better_supabase"."leases" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "unit_id" uuid not null references "better_supabase"."assets" ("id") on delete restrict,
@@ -2174,16 +2174,16 @@ create table if not exists "better_supabase"."lease_agreements" (
   "updated_at" timestamptz not null default now(),
   check ("ends_on" is null or "ends_on" > "starts_on")
 );
-create index if not exists "lease_agreements_tenant_idx" on "better_supabase"."lease_agreements" ("tenant_id", "status", "starts_on" desc);
-create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lease_agreements" ("unit_id");
-create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("tenant_id", "party_type", "party_id");
-create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
-alter table "better_supabase"."lease_agreements" enable row level security;
-revoke all on "better_supabase"."lease_agreements" from public, anon, authenticated;
-grant select on "better_supabase"."lease_agreements" to authenticated;
-grant all on "better_supabase"."lease_agreements" to service_role;
-drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy lease_agreements_read on "better_supabase"."lease_agreements"
+create index if not exists "leases_tenant_idx" on "better_supabase"."leases" ("tenant_id", "status", "starts_on" desc);
+create index if not exists "leases_unit_idx" on "better_supabase"."leases" ("unit_id");
+create index if not exists "leases_party_idx" on "better_supabase"."leases" ("tenant_id", "party_type", "party_id");
+create index if not exists "leases_deposit_hold_idx" on "better_supabase"."leases" ("deposit_hold_id") where "deposit_hold_id" is not null;
+alter table "better_supabase"."leases" enable row level security;
+revoke all on "better_supabase"."leases" from public, anon, authenticated;
+grant select on "better_supabase"."leases" to authenticated;
+grant all on "better_supabase"."leases" to service_role;
+drop policy if exists "leases_read" on "better_supabase"."leases";
+create policy leases_read on "better_supabase"."leases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
@@ -2191,7 +2191,7 @@ create policy lease_agreements_read on "better_supabase"."lease_agreements"
 create table if not exists "better_supabase"."lease_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "lease_id" uuid not null references "better_supabase"."lease_agreements" ("id") on delete restrict,
+  "lease_id" uuid not null references "better_supabase"."leases" ("id") on delete restrict,
   "period_start" date not null,
   "period_end" date not null,
   "amount" bigint not null check ("amount" > 0),
@@ -2225,7 +2225,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_unit text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -2261,7 +2261,7 @@ begin
   if coalesce(create_lease.deposit, 0) < 0 then
     raise exception 'a deposit is zero or more minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  insert into "better_supabase"."lease_agreements" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
+  insert into "better_supabase"."leases" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
     "rent", "currency", "frequency", "deposit", "metadata", "created_by")
   values (create_lease.tenant, create_lease.unit_id, create_lease.party_type, create_lease.party_id,
     coalesce(nullif(trim(create_lease.title), ''), left(v_unit, 190) || ' lease'), create_lease.starts_on, create_lease.ends_on,
@@ -2286,14 +2286,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_account uuid;
   v_hold "better_supabase"."ledger_holds"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = activate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = activate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -2302,7 +2302,7 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended('leases.unit:' || v_row."unit_id"::text, 0));
   if exists (
-    select 1 from "better_supabase"."lease_agreements" x
+    select 1 from "better_supabase"."leases" x
     where x."unit_id" = v_row."unit_id" and x."id" <> v_row."id" and x."status" = 'active'
       and daterange(x."starts_on", x."ends_on") && daterange(v_row."starts_on", v_row."ends_on")
   ) then
@@ -2321,7 +2321,7 @@ begin
       jsonb_build_object('leaseId', v_row."id"));
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
-  update "better_supabase"."lease_agreements" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
+  update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   null;
@@ -2342,12 +2342,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = renew_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = renew_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -2363,7 +2363,7 @@ begin
   if renew_lease.rent is not null and renew_lease.rent <= 0 then
     raise exception 'rent is more than zero minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  update "better_supabase"."lease_agreements" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
+  update "better_supabase"."leases" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
       "renewed_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -2387,7 +2387,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_on date := coalesce(terminate_lease.terminates_on, current_date);
   v_deduction bigint := coalesce(terminate_lease.deposit_deduction, 0);
   v_held bigint;
@@ -2395,7 +2395,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = terminate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = terminate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -2431,7 +2431,7 @@ begin
         jsonb_build_object('leaseId', v_row."id"));
     end if;
   end if;
-  update "better_supabase"."lease_agreements" x set
+  update "better_supabase"."leases" x set
       "status" = case when x."status" = 'active' and x."ends_on" is not null and v_on >= x."ends_on" then 'ended' else 'terminated' end,
       "terminated_on" = v_on, "termination_reason" = nullif(trim(terminate_lease.reason), ''), "updated_at" = now()
     where x."id" = v_row."id"
@@ -2452,9 +2452,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = get_lease.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = get_lease.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -2481,7 +2481,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'unitId', q."unit_id", 'partyType', q."party_type", 'partyId', q."party_id", 'title', q."title", 'status', q."status", 'startsOn', q."starts_on", 'endsOn', q."ends_on", 'rent', q."rent"::text, 'currency', q."currency", 'frequency', q."frequency", 'deposit', q."deposit"::text, 'depositHoldId', q."deposit_hold_id", 'depositHeld', coalesce((select h."amount" from "better_supabase"."ledger_holds" h where h."id" = q."deposit_hold_id" and h."status" = 'active'), 0)::text, 'balanceDue', coalesce((select y."balance" from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" y on y."account_id" = x."id"
       where x."tenant_id" = q."tenant_id" and x."code" = 'leases.rent:' || q."id"::text), 0)::text, 'renewedAt', q."renewed_at", 'terminatedOn', q."terminated_on", 'terminationReason', q."termination_reason", 'metadata', q."metadata", 'createdBy', q."created_by", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."starts_on" desc, q."id"), '[]'::jsonb)
     from (
-      select * from "better_supabase"."lease_agreements" x
+      select * from "better_supabase"."leases" x
       where x."tenant_id" = list_leases.tenant
         and (list_leases.status is null or x."status" = list_leases.status)
         and (list_leases.unit_id is null or x."unit_id" = list_leases.unit_id)
@@ -2512,7 +2512,7 @@ declare
   v_through date := coalesce(post_due_rent.through, current_date);
   v_max integer := least(greatest(coalesce(post_due_rent.max_rows, 500), 1), 5000);
   v_count integer := 0;
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_charge "better_supabase"."lease_charges"%rowtype;
   v_n integer;
   v_start date;
@@ -2531,7 +2531,7 @@ begin
   end if;
   <<periods>>
   for v_row in
-    select * from "better_supabase"."lease_agreements" x
+    select * from "better_supabase"."leases" x
     where x."status" = 'active' and x."starts_on" <= v_through
       and (post_due_rent.tenant is null or x."tenant_id" = post_due_rent.tenant)
     order by x."id"
@@ -2580,11 +2580,11 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_key text;
   v_tx uuid;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = record_rent_payment.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = record_rent_payment.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -2627,9 +2627,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = list_lease_charges.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = list_lease_charges.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -2661,25 +2661,25 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_select on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+create policy bsb_tenant_scope_select on "better_supabase"."leases" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_insert on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+create policy bsb_tenant_scope_insert on "better_supabase"."leases" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_update on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+create policy bsb_tenant_scope_update on "better_supabase"."leases" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_delete on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
+create policy bsb_tenant_scope_delete on "better_supabase"."leases" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
@@ -2825,21 +2825,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block-data leases
--- @bsb-hash sha256:fb5842bb8aa5f13faa0a2a7802880c3caf01d2532157109865ae05c6b301c500
+-- @bsb-hash sha256:916537b0ac15a44d934f0953f1905d46b0489cbc62ee42af0d92f389f7ae4b1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leases', 2, 'managed')
+values ('leases', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
--- @bsb-block leases@2 managed
--- @bsb-hash sha256:4955f8989336a356cabdde686b0c7448f64eadc98ce4327b43ae81d2863ed8b5
+-- @bsb-block leases@3 managed
+-- @bsb-hash sha256:762122b2138686b55bdb198856eea87024a1ff7e5c233d4d39db52b3c2aded17
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2899,11 +2899,11 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -2921,37 +2921,37 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
 
--- better_supabase.lease_agreements is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."lease_agreements" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."lease_agreements" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."lease_agreements" add column if not exists "unit_id" uuid references "better_supabase"."assets" ("id") on delete restrict;
-alter table "better_supabase"."lease_agreements" add column if not exists "party_type" text;
-alter table "better_supabase"."lease_agreements" add column if not exists "party_id" text;
-alter table "better_supabase"."lease_agreements" add column if not exists "title" text check (length("title") between 1 and 200);
-alter table "better_supabase"."lease_agreements" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'active', 'ended', 'terminated'));
-alter table "better_supabase"."lease_agreements" add column if not exists "starts_on" date;
-alter table "better_supabase"."lease_agreements" add column if not exists "ends_on" date;
-alter table "better_supabase"."lease_agreements" add column if not exists "rent" bigint check ("rent" > 0);
-alter table "better_supabase"."lease_agreements" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."lease_agreements" add column if not exists "frequency" text not null default 'monthly' check ("frequency" in ('weekly', 'monthly', 'quarterly', 'yearly'));
-alter table "better_supabase"."lease_agreements" add column if not exists "deposit" bigint not null default 0 check ("deposit" >= 0);
-alter table "better_supabase"."lease_agreements" add column if not exists "deposit_hold_id" uuid;
-alter table "better_supabase"."lease_agreements" add column if not exists "renewed_at" timestamptz;
-alter table "better_supabase"."lease_agreements" add column if not exists "terminated_on" date;
-alter table "better_supabase"."lease_agreements" add column if not exists "termination_reason" text check ("termination_reason" is null or length("termination_reason") <= 2000);
-alter table "better_supabase"."lease_agreements" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
-alter table "better_supabase"."lease_agreements" add column if not exists "created_by" uuid;
-alter table "better_supabase"."lease_agreements" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."lease_agreements" add column if not exists "updated_at" timestamptz not null default now();
-create index if not exists "lease_agreements_tenant_idx" on "better_supabase"."lease_agreements" ("tenant_id", "status", "starts_on" desc);
-create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lease_agreements" ("unit_id");
-create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("tenant_id", "party_type", "party_id");
-create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
-alter table "better_supabase"."lease_agreements" enable row level security;
-grant select on "better_supabase"."lease_agreements" to authenticated;
-grant all on "better_supabase"."lease_agreements" to service_role;
-drop policy if exists bsb_lease_agreements_select on "better_supabase"."lease_agreements";
-create policy bsb_lease_agreements_select on "better_supabase"."lease_agreements"
+-- better_supabase.leases is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."leases" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."leases" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."leases" add column if not exists "unit_id" uuid references "better_supabase"."assets" ("id") on delete restrict;
+alter table "better_supabase"."leases" add column if not exists "party_type" text;
+alter table "better_supabase"."leases" add column if not exists "party_id" text;
+alter table "better_supabase"."leases" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."leases" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'active', 'ended', 'terminated'));
+alter table "better_supabase"."leases" add column if not exists "starts_on" date;
+alter table "better_supabase"."leases" add column if not exists "ends_on" date;
+alter table "better_supabase"."leases" add column if not exists "rent" bigint check ("rent" > 0);
+alter table "better_supabase"."leases" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."leases" add column if not exists "frequency" text not null default 'monthly' check ("frequency" in ('weekly', 'monthly', 'quarterly', 'yearly'));
+alter table "better_supabase"."leases" add column if not exists "deposit" bigint not null default 0 check ("deposit" >= 0);
+alter table "better_supabase"."leases" add column if not exists "deposit_hold_id" uuid;
+alter table "better_supabase"."leases" add column if not exists "renewed_at" timestamptz;
+alter table "better_supabase"."leases" add column if not exists "terminated_on" date;
+alter table "better_supabase"."leases" add column if not exists "termination_reason" text check ("termination_reason" is null or length("termination_reason") <= 2000);
+alter table "better_supabase"."leases" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
+alter table "better_supabase"."leases" add column if not exists "created_by" uuid;
+alter table "better_supabase"."leases" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."leases" add column if not exists "updated_at" timestamptz not null default now();
+create index if not exists "leases_tenant_idx" on "better_supabase"."leases" ("tenant_id", "status", "starts_on" desc);
+create index if not exists "leases_unit_idx" on "better_supabase"."leases" ("unit_id");
+create index if not exists "leases_party_idx" on "better_supabase"."leases" ("tenant_id", "party_type", "party_id");
+create index if not exists "leases_deposit_hold_idx" on "better_supabase"."leases" ("deposit_hold_id") where "deposit_hold_id" is not null;
+alter table "better_supabase"."leases" enable row level security;
+grant select on "better_supabase"."leases" to authenticated;
+grant all on "better_supabase"."leases" to service_role;
+drop policy if exists bsb_leases_select on "better_supabase"."leases";
+create policy bsb_leases_select on "better_supabase"."leases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
@@ -2959,7 +2959,7 @@ create policy bsb_lease_agreements_select on "better_supabase"."lease_agreements
 -- better_supabase.lease_charges is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."lease_charges" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."lease_charges" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."lease_charges" add column if not exists "lease_id" uuid references "better_supabase"."lease_agreements" ("id") on delete restrict;
+alter table "better_supabase"."lease_charges" add column if not exists "lease_id" uuid references "better_supabase"."leases" ("id") on delete restrict;
 alter table "better_supabase"."lease_charges" add column if not exists "period_start" date;
 alter table "better_supabase"."lease_charges" add column if not exists "period_end" date;
 alter table "better_supabase"."lease_charges" add column if not exists "amount" bigint check ("amount" > 0);
@@ -2990,7 +2990,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_unit text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3026,11 +3026,11 @@ begin
   if coalesce(create_lease.deposit, 0) < 0 then
     raise exception 'a deposit is zero or more minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  insert into "better_supabase"."lease_agreements" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
+  insert into "better_supabase"."leases" ("tenant_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
     "rent", "currency", "frequency", "deposit", "metadata", "created_by")
   values (create_lease.tenant, create_lease.unit_id, create_lease.party_type, create_lease.party_id,
     coalesce(nullif(trim(create_lease.title), ''), left(v_unit, 190) || ' lease'), create_lease.starts_on, create_lease.ends_on,
-    create_lease.rent, create_lease.currency, better_supabase.as_column_type(coalesce(create_lease.frequency, 'monthly'), (null::"better_supabase"."lease_agreements")."frequency"), coalesce(create_lease.deposit, 0),
+    create_lease.rent, create_lease.currency, better_supabase.as_column_type(coalesce(create_lease.frequency, 'monthly'), (null::"better_supabase"."leases")."frequency"), coalesce(create_lease.deposit, 0),
     coalesce(create_lease.metadata, '{}'::jsonb), auth.uid())
   returning * into v_row;
   null;
@@ -3051,14 +3051,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_account uuid;
   v_hold "better_supabase"."ledger_holds"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = activate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = activate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3067,7 +3067,7 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended('leases.unit:' || v_row."unit_id"::text, 0));
   if exists (
-    select 1 from "better_supabase"."lease_agreements" x
+    select 1 from "better_supabase"."leases" x
     where x."unit_id" = v_row."unit_id" and x."id" <> v_row."id" and x."status" = 'active'
       and daterange(x."starts_on", x."ends_on") && daterange(v_row."starts_on", v_row."ends_on")
   ) then
@@ -3086,7 +3086,7 @@ begin
       jsonb_build_object('leaseId', v_row."id"));
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
-  update "better_supabase"."lease_agreements" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
+  update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   null;
@@ -3107,12 +3107,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = renew_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = renew_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3128,7 +3128,7 @@ begin
   if renew_lease.rent is not null and renew_lease.rent <= 0 then
     raise exception 'rent is more than zero minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  update "better_supabase"."lease_agreements" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
+  update "better_supabase"."leases" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
       "renewed_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -3152,7 +3152,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_on date := coalesce(terminate_lease.terminates_on, current_date);
   v_deduction bigint := coalesce(terminate_lease.deposit_deduction, 0);
   v_held bigint;
@@ -3160,7 +3160,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = terminate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = terminate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3196,8 +3196,8 @@ begin
         jsonb_build_object('leaseId', v_row."id"));
     end if;
   end if;
-  update "better_supabase"."lease_agreements" x set
-      "status" = better_supabase.as_column_type(case when x."status" = 'active' and x."ends_on" is not null and v_on >= x."ends_on" then 'ended' else 'terminated' end, (null::"better_supabase"."lease_agreements")."status"),
+  update "better_supabase"."leases" x set
+      "status" = better_supabase.as_column_type(case when x."status" = 'active' and x."ends_on" is not null and v_on >= x."ends_on" then 'ended' else 'terminated' end, (null::"better_supabase"."leases")."status"),
       "terminated_on" = v_on, "termination_reason" = nullif(trim(terminate_lease.reason), ''), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -3217,9 +3217,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = get_lease.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = get_lease.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3246,7 +3246,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'unitId', q."unit_id", 'partyType', q."party_type", 'partyId', q."party_id", 'title', q."title", 'status', q."status", 'startsOn', q."starts_on", 'endsOn', q."ends_on", 'rent', q."rent"::text, 'currency', q."currency", 'frequency', q."frequency", 'deposit', q."deposit"::text, 'depositHoldId', q."deposit_hold_id", 'depositHeld', coalesce((select h."amount" from "better_supabase"."ledger_holds" h where h."id" = q."deposit_hold_id" and h."status" = 'active'), 0)::text, 'balanceDue', coalesce((select y."balance" from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" y on y."account_id" = x."id"
       where x."tenant_id" = q."tenant_id" and x."code" = 'leases.rent:' || q."id"::text), 0)::text, 'renewedAt', q."renewed_at", 'terminatedOn', q."terminated_on", 'terminationReason', q."termination_reason", 'metadata', q."metadata", 'createdBy', q."created_by", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."starts_on" desc, q."id"), '[]'::jsonb)
     from (
-      select * from "better_supabase"."lease_agreements" x
+      select * from "better_supabase"."leases" x
       where x."tenant_id" = list_leases.tenant
         and (list_leases.status is null or x."status"::text = list_leases.status)
         and (list_leases.unit_id is null or x."unit_id" = list_leases.unit_id)
@@ -3277,7 +3277,7 @@ declare
   v_through date := coalesce(post_due_rent.through, current_date);
   v_max integer := least(greatest(coalesce(post_due_rent.max_rows, 500), 1), 5000);
   v_count integer := 0;
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_charge "better_supabase"."lease_charges"%rowtype;
   v_n integer;
   v_start date;
@@ -3296,7 +3296,7 @@ begin
   end if;
   <<periods>>
   for v_row in
-    select * from "better_supabase"."lease_agreements" x
+    select * from "better_supabase"."leases" x
     where x."status" = 'active' and x."starts_on" <= v_through
       and (post_due_rent.tenant is null or x."tenant_id" = post_due_rent.tenant)
     order by x."id"
@@ -3345,11 +3345,11 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_key text;
   v_tx uuid;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = record_rent_payment.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = record_rent_payment.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3392,9 +3392,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = list_lease_charges.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = list_lease_charges.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3426,25 +3426,25 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_select on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+create policy bsb_tenant_scope_select on "better_supabase"."leases" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_insert on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+create policy bsb_tenant_scope_insert on "better_supabase"."leases" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_update on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+create policy bsb_tenant_scope_update on "better_supabase"."leases" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_delete on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
+create policy bsb_tenant_scope_delete on "better_supabase"."leases" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
@@ -3485,21 +3485,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block-data leases
--- @bsb-hash sha256:fb5842bb8aa5f13faa0a2a7802880c3caf01d2532157109865ae05c6b301c500
+-- @bsb-hash sha256:916537b0ac15a44d934f0953f1905d46b0489cbc62ee42af0d92f389f7ae4b1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leases', 2, 'managed')
+values ('leases', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
--- @bsb-block leases@2 managed
--- @bsb-hash sha256:b7609298e2dae5ee6b3d655d1d30496ef87bc414c2047cc8320666dc89371f77
+-- @bsb-block leases@3 managed
+-- @bsb-hash sha256:ab49ea93035885a899c9c25275442f81a7c27f174cae45e0e501c0ad482a5c90
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3543,11 +3543,11 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -3565,7 +3565,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
 
-create table if not exists "better_supabase"."lease_agreements" (
+create table if not exists "better_supabase"."leases" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "unit_id" uuid not null references "better_supabase"."assets" ("id") on delete restrict,
@@ -3593,16 +3593,16 @@ create table if not exists "better_supabase"."lease_agreements" (
   "updated_at" timestamptz not null default now(),
   check ("ends_on" is null or "ends_on" > "starts_on")
 );
-create index if not exists "lease_agreements_tenant_idx" on "better_supabase"."lease_agreements" ("org_id", "status", "starts_on" desc);
-create index if not exists "lease_agreements_unit_idx" on "better_supabase"."lease_agreements" ("unit_id");
-create index if not exists "lease_agreements_party_idx" on "better_supabase"."lease_agreements" ("org_id", "party_type", "party_id");
-create index if not exists "lease_agreements_deposit_hold_idx" on "better_supabase"."lease_agreements" ("deposit_hold_id") where "deposit_hold_id" is not null;
-alter table "better_supabase"."lease_agreements" enable row level security;
-revoke all on "better_supabase"."lease_agreements" from public, anon, authenticated;
-grant select on "better_supabase"."lease_agreements" to authenticated;
-grant all on "better_supabase"."lease_agreements" to service_role;
-drop policy if exists "lease_agreements_read" on "better_supabase"."lease_agreements";
-create policy lease_agreements_read on "better_supabase"."lease_agreements"
+create index if not exists "leases_tenant_idx" on "better_supabase"."leases" ("org_id", "status", "starts_on" desc);
+create index if not exists "leases_unit_idx" on "better_supabase"."leases" ("unit_id");
+create index if not exists "leases_party_idx" on "better_supabase"."leases" ("org_id", "party_type", "party_id");
+create index if not exists "leases_deposit_hold_idx" on "better_supabase"."leases" ("deposit_hold_id") where "deposit_hold_id" is not null;
+alter table "better_supabase"."leases" enable row level security;
+revoke all on "better_supabase"."leases" from public, anon, authenticated;
+grant select on "better_supabase"."leases" to authenticated;
+grant all on "better_supabase"."leases" to service_role;
+drop policy if exists "leases_read" on "better_supabase"."leases";
+create policy leases_read on "better_supabase"."leases"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
@@ -3610,7 +3610,7 @@ create policy lease_agreements_read on "better_supabase"."lease_agreements"
 create table if not exists "better_supabase"."lease_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "lease_id" uuid not null references "better_supabase"."lease_agreements" ("id") on delete restrict,
+  "lease_id" uuid not null references "better_supabase"."leases" ("id") on delete restrict,
   "period_start" date not null,
   "period_end" date not null,
   "amount" bigint not null check ("amount" > 0),
@@ -3644,7 +3644,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_unit text;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3680,7 +3680,7 @@ begin
   if coalesce(create_lease.deposit, 0) < 0 then
     raise exception 'a deposit is zero or more minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  insert into "better_supabase"."lease_agreements" ("org_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
+  insert into "better_supabase"."leases" ("org_id", "unit_id", "party_type", "party_id", "title", "starts_on", "ends_on",
     "rent", "currency", "frequency", "deposit", "metadata", "created_by")
   values (create_lease.tenant, create_lease.unit_id, create_lease.party_type, create_lease.party_id,
     coalesce(nullif(trim(create_lease.title), ''), left(v_unit, 190) || ' lease'), create_lease.starts_on, create_lease.ends_on,
@@ -3705,14 +3705,14 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_account uuid;
   v_hold "better_supabase"."ledger_holds"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = activate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = activate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3721,7 +3721,7 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended('leases.unit:' || v_row."unit_id"::text, 0));
   if exists (
-    select 1 from "better_supabase"."lease_agreements" x
+    select 1 from "better_supabase"."leases" x
     where x."unit_id" = v_row."unit_id" and x."id" <> v_row."id" and x."status" = 'active'
       and daterange(x."starts_on", x."ends_on") && daterange(v_row."starts_on", v_row."ends_on")
   ) then
@@ -3740,7 +3740,7 @@ begin
       jsonb_build_object('leaseId', v_row."id"));
     v_hold := "better_supabase"."ledger_hold"(v_account, v_row."deposit", 'leases', v_row."id"::text, null);
   end if;
-  update "better_supabase"."lease_agreements" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
+  update "better_supabase"."leases" x set "status" = 'active', "deposit_hold_id" = v_hold."id", "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   null;
@@ -3761,12 +3761,12 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = renew_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = renew_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3782,7 +3782,7 @@ begin
   if renew_lease.rent is not null and renew_lease.rent <= 0 then
     raise exception 'rent is more than zero minor units' using errcode = '22023', hint = 'LEASE_TERMS_INVALID';
   end if;
-  update "better_supabase"."lease_agreements" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
+  update "better_supabase"."leases" x set "ends_on" = renew_lease.ends_on, "rent" = coalesce(renew_lease.rent, x."rent"),
       "renewed_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -3806,7 +3806,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_on date := coalesce(terminate_lease.terminates_on, current_date);
   v_deduction bigint := coalesce(terminate_lease.deposit_deduction, 0);
   v_held bigint;
@@ -3814,7 +3814,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = terminate_lease.lease_id for update;
+  select * into v_row from "better_supabase"."leases" x where x."id" = terminate_lease.lease_id for update;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3850,7 +3850,7 @@ begin
         jsonb_build_object('leaseId', v_row."id"));
     end if;
   end if;
-  update "better_supabase"."lease_agreements" x set
+  update "better_supabase"."leases" x set
       "status" = case when x."status" = 'active' and x."ends_on" is not null and v_on >= x."ends_on" then 'ended' else 'terminated' end,
       "terminated_on" = v_on, "termination_reason" = nullif(trim(terminate_lease.reason), ''), "updated_at" = now()
     where x."id" = v_row."id"
@@ -3871,9 +3871,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = get_lease.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = get_lease.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -3900,7 +3900,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."org_id", 'unitId', q."unit_id", 'partyType', q."party_type", 'partyId', q."party_id", 'title', q."title", 'status', q."status", 'startsOn', q."starts_on", 'endsOn', q."ends_on", 'rent', q."rent"::text, 'currency', q."currency", 'frequency', q."frequency", 'deposit', q."deposit"::text, 'depositHoldId', q."deposit_hold_id", 'depositHeld', coalesce((select h."amount" from "better_supabase"."ledger_holds" h where h."id" = q."deposit_hold_id" and h."status" = 'active'), 0)::text, 'balanceDue', coalesce((select y."balance" from "better_supabase"."ledger_accounts" x join "better_supabase"."ledger_balances" y on y."account_id" = x."id"
       where x."org_id" = q."org_id" and x."code" = 'leases.rent:' || q."id"::text), 0)::text, 'renewedAt', q."renewed_at", 'terminatedOn', q."terminated_on", 'terminationReason', q."termination_reason", 'metadata', q."metadata", 'createdBy', q."created_by", 'createdAt', q."created_at", 'updatedAt', q."updated_at") order by q."starts_on" desc, q."id"), '[]'::jsonb)
     from (
-      select * from "better_supabase"."lease_agreements" x
+      select * from "better_supabase"."leases" x
       where x."org_id" = list_leases.tenant
         and (list_leases.status is null or x."status" = list_leases.status)
         and (list_leases.unit_id is null or x."unit_id" = list_leases.unit_id)
@@ -3931,7 +3931,7 @@ declare
   v_through date := coalesce(post_due_rent.through, current_date);
   v_max integer := least(greatest(coalesce(post_due_rent.max_rows, 500), 1), 5000);
   v_count integer := 0;
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_charge "better_supabase"."lease_charges"%rowtype;
   v_n integer;
   v_start date;
@@ -3950,7 +3950,7 @@ begin
   end if;
   <<periods>>
   for v_row in
-    select * from "better_supabase"."lease_agreements" x
+    select * from "better_supabase"."leases" x
     where x."status" = 'active' and x."starts_on" <= v_through
       and (post_due_rent.tenant is null or x."org_id" = post_due_rent.tenant)
     order by x."id"
@@ -3999,11 +3999,11 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
   v_key text;
   v_tx uuid;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = record_rent_payment.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = record_rent_payment.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leases.manage'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -4046,9 +4046,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."lease_agreements"%rowtype;
+  v_row "better_supabase"."leases"%rowtype;
 begin
-  select * into v_row from "better_supabase"."lease_agreements" x where x."id" = list_lease_charges.lease_id;
+  select * into v_row from "better_supabase"."leases" x where x."id" = list_lease_charges.lease_id;
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'leases.read'), false)) then
     raise exception 'no such lease you can read' using errcode = 'P0002', hint = 'LEASE_NOT_FOUND';
   end if;
@@ -4080,25 +4080,25 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."lease_agreements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_select on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."leases";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."leases";
+create policy bsb_tenant_scope_select on "better_supabase"."leases" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('leases.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_insert on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."leases";
+create policy bsb_tenant_scope_insert on "better_supabase"."leases" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_update on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."leases";
+create policy bsb_tenant_scope_update on "better_supabase"."leases" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."lease_agreements";
-create policy bsb_tenant_scope_delete on "better_supabase"."lease_agreements" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."leases";
+create policy bsb_tenant_scope_delete on "better_supabase"."leases" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."lease_charges";
@@ -4139,13 +4139,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block-data leases
--- @bsb-hash sha256:fb5842bb8aa5f13faa0a2a7802880c3caf01d2532157109865ae05c6b301c500
+-- @bsb-hash sha256:916537b0ac15a44d934f0953f1905d46b0489cbc62ee42af0d92f389f7ae4b1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('leases', 2, 'managed')
+values ('leases', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

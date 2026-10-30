@@ -5,7 +5,7 @@
 begin;
 select plan(13);
 
-insert into better_supabase.rule_fields (subject_type, field_id, label, type, path, column_type)
+insert into better_supabase.automation_fields (subject_type, field_id, label, type, path, column_type)
 values
   ('person', 'lifecycle', 'Lifecycle', 'select', 'lifecycle', 'text'),
   ('person', 'mail.sent', 'Emails sent', 'number', 'mail.sent', 'integer');

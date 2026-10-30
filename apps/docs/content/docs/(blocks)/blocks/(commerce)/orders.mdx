@@ -264,7 +264,7 @@ conversion action: without a `create`, it calls `orders.fromQuote` on the
 
 With `options.kitchen`, each order line gets a preparation state at a
 station, for a kitchen display and an order board. The option is off by
-default and adds three tables: `kitchen_stations`, `kitchen_routes` (which
+default and adds three tables: `order_kitchen_stations`, `order_kitchen_routes` (which
 station prepares a product) and `order_line_preparations`.
 
 ```ts title="better-supabase.config.ts"

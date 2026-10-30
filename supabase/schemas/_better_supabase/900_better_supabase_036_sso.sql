@@ -1,6 +1,6 @@
 -- better-supabase module: sso
--- @bsb-block sso@1 managed
--- @bsb-hash sha256:6242bb1d944706206639c3974668e68a655c0044c18e0d71e85d2d4b4582331a
+-- @bsb-block sso@2 managed
+-- @bsb-hash sha256:a4a8e3cb168be021ed8d3cdb209ea76f7316899606fa29d7e16380928acc56dd
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,19 +44,19 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."organization_domains";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_domains";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_domains";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_domains";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_domains";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."sso_domains";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sso_domains";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sso_domains";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sso_domains";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sso_domains";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."organization_sso_providers";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."organization_sso_providers";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."organization_sso_providers";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."organization_sso_providers";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."organization_sso_providers";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."sso_providers";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."sso_providers";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."sso_providers";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."sso_providers";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."sso_providers";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -84,7 +84,7 @@ grant usage on schema better_supabase to supabase_auth_admin;
 -- Email domains an organization claims. A domain is verified once a DNS TXT
 -- record _better-supabase.<domain> holds its token; one organization holds each
 -- verified domain.
-create table if not exists "better_supabase"."organization_domains" (
+create table if not exists "better_supabase"."sso_domains" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "domain" text not null check ("domain" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
@@ -97,14 +97,14 @@ create table if not exists "better_supabase"."organization_domains" (
   unique ("organization_id", "domain"),
   check (not "enforce_sso" or "verified_at" is not null)
 );
-create unique index if not exists organization_domains_verified_idx on "better_supabase"."organization_domains" ("domain") where "verified_at" is not null;
-create index if not exists organization_domains_created_by_idx on "better_supabase"."organization_domains" ("created_by") where "created_by" is not null;
-alter table "better_supabase"."organization_domains" enable row level security;
-revoke all on "better_supabase"."organization_domains" from public, anon, authenticated;
-grant all on "better_supabase"."organization_domains" to service_role;
+create unique index if not exists "sso_domains_verified_idx" on "better_supabase"."sso_domains" ("domain") where "verified_at" is not null;
+create index if not exists "sso_domains_created_by_idx" on "better_supabase"."sso_domains" ("created_by") where "created_by" is not null;
+alter table "better_supabase"."sso_domains" enable row level security;
+revoke all on "better_supabase"."sso_domains" from public, anon, authenticated;
+grant all on "better_supabase"."sso_domains" to service_role;
 
 -- SAML identity providers registered with Supabase Auth for an organization.
-create table if not exists "better_supabase"."organization_sso_providers" (
+create table if not exists "better_supabase"."sso_providers" (
   "id" uuid primary key,
   "organization_id" uuid not null,
   "type" text not null default 'saml' check ("type" = 'saml'),
@@ -112,10 +112,10 @@ create table if not exists "better_supabase"."organization_sso_providers" (
   "domains" text[] not null default '{}',
   "created_at" timestamptz not null default now()
 );
-create index if not exists organization_sso_providers_tenant_idx on "better_supabase"."organization_sso_providers" ("organization_id");
-alter table "better_supabase"."organization_sso_providers" enable row level security;
-revoke all on "better_supabase"."organization_sso_providers" from public, anon, authenticated;
-grant all on "better_supabase"."organization_sso_providers" to service_role;
+create index if not exists "sso_providers_tenant_idx" on "better_supabase"."sso_providers" ("organization_id");
+alter table "better_supabase"."sso_providers" enable row level security;
+revoke all on "better_supabase"."sso_providers" from public, anon, authenticated;
+grant all on "better_supabase"."sso_providers" to service_role;
 
 -- SCIM 2.0 users and groups per organization, written by the SCIM handler.
 -- A user links to an account whose confirmed email is at a verified domain
@@ -268,7 +268,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."organization_domains";
+  v_row "better_supabase"."sso_domains";
   v_domain text := lower(trim(trailing '.' from trim(add_organization_domain.domain)));
 begin
   if not (better_supabase.actor_may_write()) then
@@ -280,7 +280,7 @@ begin
   if v_domain !~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$' then
     raise exception 'Not a domain name: %', add_organization_domain.domain using errcode = '22023', hint = 'SSO_DOMAIN_INVALID';
   end if;
-  insert into "better_supabase"."organization_domains" as x ("organization_id", "domain") values (add_organization_domain.tenant, v_domain)
+  insert into "better_supabase"."sso_domains" as x ("organization_id", "domain") values (add_organization_domain.tenant, v_domain)
   on conflict ("organization_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
   perform "better_supabase".emit_event('sso_domain.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
@@ -311,7 +311,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(to_jsonb(x) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || x."domain", 'value', 'better-supabase-domain-verification=' || x."verification_token")) order by x."domain"), '[]'::jsonb)
-    from "better_supabase"."organization_domains" x where x."organization_id" = list_organization_domains.tenant
+    from "better_supabase"."sso_domains" x where x."organization_id" = list_organization_domains.tenant
   );
 end;
 $$;
@@ -325,9 +325,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."organization_domains";
+  v_row "better_supabase"."sso_domains";
 begin
-  select * into v_row from "better_supabase"."organization_domains" x where x."id" = organization_domain.id;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = organization_domain.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'sso.manage'), false)) then
     return null;
   end if;
@@ -343,12 +343,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."organization_domains";
+  v_row "better_supabase"."sso_domains";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."organization_domains" x where x."id" = update_organization_domain.id for update;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = update_organization_domain.id for update;
   if v_row."id" is null or not coalesce(better_supabase.can('tenant', v_row."organization_id", 'sso.manage'), false) then
     raise exception 'No domain you manage has this id' using errcode = 'P0002', hint = 'SSO_DOMAIN_NOT_FOUND';
   end if;
@@ -363,7 +363,7 @@ begin
   if (update_organization_domain.enforce_sso or update_organization_domain.auto_join_role is not null) and v_row."verified_at" is null then
     raise exception 'Verify the domain first' using errcode = '22023', hint = 'SSO_DOMAIN_NOT_VERIFIED';
   end if;
-  update "better_supabase"."organization_domains" x set "auto_join_role" = update_organization_domain.auto_join_role, "enforce_sso" = update_organization_domain.enforce_sso
+  update "better_supabase"."sso_domains" x set "auto_join_role" = update_organization_domain.auto_join_role, "enforce_sso" = update_organization_domain.enforce_sso
   where x."id" = v_row."id"
   returning * into v_row;
   perform "better_supabase".emit_event('sso_domain.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
@@ -388,19 +388,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."organization_domains";
+  v_row "better_supabase"."sso_domains";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."organization_domains" x where x."id" = remove_organization_domain.id;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = remove_organization_domain.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'sso.manage'), false)) then
     return false;
   end if;
-  if exists (select 1 from "better_supabase"."organization_sso_providers" sp where sp."organization_id" = v_row."organization_id" and v_row."domain" = any (sp."domains")) then
+  if exists (select 1 from "better_supabase"."sso_providers" sp where sp."organization_id" = v_row."organization_id" and v_row."domain" = any (sp."domains")) then
     raise exception 'An SSO provider uses this domain; remove it first' using errcode = '23503', hint = 'SSO_DOMAIN_IN_USE';
   end if;
-  delete from "better_supabase"."organization_domains" x where x."id" = v_row."id";
+  delete from "better_supabase"."sso_domains" x where x."id" = v_row."id";
   perform "better_supabase".emit_event('sso_domain.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'sso_domain.deleted',
@@ -425,22 +425,22 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."organization_domains";
+  v_row "better_supabase"."sso_domains";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role verifies domains' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."organization_domains" x where x."id" = verify_organization_domain.id for update;
+  select * into v_row from "better_supabase"."sso_domains" x where x."id" = verify_organization_domain.id for update;
   if v_row."id" is null or not (verify_organization_domain.actor is null or coalesce(better_supabase.can_user(verify_organization_domain.actor, 'tenant', v_row."organization_id", 'sso.manage'), false)) then
     raise exception 'No domain you manage has this id' using errcode = 'P0002', hint = 'SSO_DOMAIN_NOT_FOUND';
   end if;
   if v_row."verified_at" is not null then
     return to_jsonb(v_row) - 'verification_token' || jsonb_build_object('record', jsonb_build_object('type', 'TXT', 'name', '_better-supabase.' || v_row."domain", 'value', 'better-supabase-domain-verification=' || v_row."verification_token"));
   end if;
-  if exists (select 1 from "better_supabase"."organization_domains" x where x."domain" = v_row."domain" and x."verified_at" is not null) then
+  if exists (select 1 from "better_supabase"."sso_domains" x where x."domain" = v_row."domain" and x."verified_at" is not null) then
     raise exception 'Another organization has verified %', v_row."domain" using errcode = '23505', hint = 'SSO_DOMAIN_TAKEN';
   end if;
-  update "better_supabase"."organization_domains" x set "verified_at" = now() where x."id" = v_row."id" returning * into v_row;
+  update "better_supabase"."sso_domains" x set "verified_at" = now() where x."id" = v_row."id" returning * into v_row;
   perform "better_supabase".emit_event('sso_domain.verified', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', verify_organization_domain.actor), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'sso_domain.verified',
@@ -475,7 +475,7 @@ begin
   if cardinality(check_sso_provider.domains) = 0 or exists (
     select 1 from unnest(check_sso_provider.domains) as w(domain)
     where not exists (
-      select 1 from "better_supabase"."organization_domains" x where x."organization_id" = check_sso_provider.tenant and x."domain" = lower(w.domain) and x."verified_at" is not null
+      select 1 from "better_supabase"."sso_domains" x where x."organization_id" = check_sso_provider.tenant and x."domain" = lower(w.domain) and x."verified_at" is not null
     )
   ) then
     raise exception 'Every SSO domain must be a verified domain of the organization' using errcode = '22023', hint = 'SSO_DOMAIN_NOT_VERIFIED';
@@ -492,10 +492,10 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."organization_sso_providers";
+  v_row "better_supabase"."sso_providers";
 begin
   perform "better_supabase"."check_sso_provider"(register_sso_provider.tenant, register_sso_provider.domains, register_sso_provider.actor);
-  insert into "better_supabase"."organization_sso_providers" as x ("id", "organization_id", "metadata_url", "domains")
+  insert into "better_supabase"."sso_providers" as x ("id", "organization_id", "metadata_url", "domains")
   values (register_sso_provider.provider, register_sso_provider.tenant, register_sso_provider.metadata_url,
     (select array_agg(distinct lower(w.domain) order by lower(w.domain)) from unnest(register_sso_provider.domains) as w(domain)))
   on conflict ("id") do update set "metadata_url" = excluded."metadata_url", "domains" = excluded."domains"
@@ -528,12 +528,12 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."organization_sso_providers";
+  v_row "better_supabase"."sso_providers";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role registers SSO providers' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."organization_sso_providers" x where x."id" = sso_provider.provider;
+  select * into v_row from "better_supabase"."sso_providers" x where x."id" = sso_provider.provider;
   if v_row."id" is null then
     return null;
   end if;
@@ -552,19 +552,19 @@ security invoker
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."organization_sso_providers";
+  v_row "better_supabase"."sso_providers";
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role registers SSO providers' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."organization_sso_providers" x where x."id" = unregister_sso_provider.provider;
+  select * into v_row from "better_supabase"."sso_providers" x where x."id" = unregister_sso_provider.provider;
   if v_row."id" is null then
     return null;
   end if;
   if not (unregister_sso_provider.actor is null or coalesce(better_supabase.can_user(unregister_sso_provider.actor, 'tenant', v_row."organization_id", 'sso.manage'), false)) then
     raise exception 'You may not manage this organization''s SSO' using errcode = '42501', hint = 'SSO_FORBIDDEN';
   end if;
-  delete from "better_supabase"."organization_sso_providers" x where x."id" = v_row."id";
+  delete from "better_supabase"."sso_providers" x where x."id" = v_row."id";
   perform "better_supabase".emit_event('sso_provider.unregistered', jsonb_build_object('organizationId', v_row."organization_id"::text, 'providerId', v_row."id", 'domains', to_jsonb(v_row."domains"), 'userId', unregister_sso_provider.actor), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
     event_type => 'sso_provider.unregistered',
@@ -592,7 +592,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(to_jsonb(x.*) order by x."created_at"), '[]'::jsonb)
-    from "better_supabase"."organization_sso_providers" x where x."organization_id" = list_sso_providers.tenant
+    from "better_supabase"."sso_providers" x where x."organization_id" = list_sso_providers.tenant
   );
 end;
 $$;
@@ -612,8 +612,8 @@ as $$
     'providerId', sp."id",
     'enforceSso', x."enforce_sso"
   )
-  from "better_supabase"."organization_domains" x
-  join "better_supabase"."organization_sso_providers" sp on sp."organization_id" = x."organization_id" and x."domain" = any (sp."domains")
+  from "better_supabase"."sso_domains" x
+  join "better_supabase"."sso_providers" sp on sp."organization_id" = x."organization_id" and x."domain" = any (sp."domains")
   where x."verified_at" is not null
     and x."domain" = lower(split_part(sso_domain_for.email, '@', 2))
   limit 1
@@ -636,7 +636,7 @@ declare
 begin
   select au.email into v_email from auth.users au where au.id = (sso_access_token_check.event ->> 'user_id')::uuid;
   if v_email is null or not exists (
-    select 1 from "better_supabase"."organization_domains" x
+    select 1 from "better_supabase"."sso_domains" x
     where x."verified_at" is not null and x."enforce_sso" and x."domain" = lower(split_part(v_email, '@', 2))
   ) then
     return sso_access_token_check.event;
@@ -680,14 +680,14 @@ begin
     for v_scim in
       update "better_supabase"."scim_users" x set "user_id" = new.id
       where x."user_id" is null and x."email" = lower(new.email)
-        and exists (select 1 from "better_supabase"."organization_domains" vd where vd."organization_id" = x."organization_id" and vd."verified_at" is not null and vd."domain" = lower(split_part(new.email, '@', 2)))
+        and exists (select 1 from "better_supabase"."sso_domains" vd where vd."organization_id" = x."organization_id" and vd."verified_at" is not null and vd."domain" = lower(split_part(new.email, '@', 2)))
         and not exists (select 1 from "better_supabase"."scim_users" y where y."organization_id" = x."organization_id" and y."user_id" = new.id)
       returning x."id" as id
     loop
       perform "better_supabase"."scim_sync_member"(v_scim.id);
     end loop;
     for v_join in
-      select x."organization_id" as tenant, x."auto_join_role" as role from "better_supabase"."organization_domains" x
+      select x."organization_id" as tenant, x."auto_join_role" as role from "better_supabase"."sso_domains" x
       where x."verified_at" is not null and x."auto_join_role" is not null
         and x."domain" = lower(split_part(new.email, '@', 2))
         and not exists (select 1 from "better_supabase"."scim_users" y where y."organization_id" = x."organization_id" and y."user_id" = new.id)
@@ -819,7 +819,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  if v_row."user_id" is null and v_email is not null and exists (select 1 from "better_supabase"."organization_domains" vd where vd."organization_id" = scim_save_user.tenant and vd."verified_at" is not null and vd."domain" = lower(split_part(v_email, '@', 2))) then
+  if v_row."user_id" is null and v_email is not null and exists (select 1 from "better_supabase"."sso_domains" vd where vd."organization_id" = scim_save_user.tenant and vd."verified_at" is not null and vd."domain" = lower(split_part(v_email, '@', 2))) then
     select au.id into v_user from auth.users au
     where lower(au.email) = v_email and au.email_confirmed_at is not null
       and not exists (select 1 from "better_supabase"."scim_users" y where y."organization_id" = scim_save_user.tenant and y."user_id" = au.id)

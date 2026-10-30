@@ -16,7 +16,7 @@ describe("tasks module", () => {
   it("binds work items to pipelines per team with Linear's categories", () => {
     const pipelines = body("pipelines", {}, ["tasks"]);
     expect(pipelines).toContain(
-      'create trigger bsb_pipeline_task before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"',
+      'create trigger bsb_pipeline_task before insert or update of "stage_id", "pipeline_id" on "better_supabase"."tasks"',
     );
     expect(pipelines).toContain('new."team_id"::text');
     expect(pipelines).toContain("('in_review', 'In review', 'started', 'open'");

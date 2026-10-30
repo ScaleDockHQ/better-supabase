@@ -9,8 +9,10 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { afterSaleFunctions } from "./orders-after-sale.ts";
 import { cartFunctions, shippingRateFunctions } from "./orders-carts.ts";
 import { checkoutFunctions } from "./orders-checkout.ts";
@@ -82,6 +84,7 @@ const EVENTS: BlockSqlEvents<OrdersEvents> = {
 const tenantExport = { tenant: "tenant", export: true } as const;
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("orders", 3),
   entities: {
     order: {
       table: "orders",
@@ -143,7 +146,7 @@ const NAMES: BlockSqlNames = {
       },
     },
     shippingRates: {
-      name: "shipping_rates",
+      name: "order_shipping_rates",
       app: {},
       lifecycle: tenantExport,
       columns: {
@@ -262,7 +265,7 @@ const NAMES: BlockSqlNames = {
       typed: ["status"],
     },
     fulfillments: {
-      name: "fulfillments",
+      name: "order_fulfillments",
       app: {},
       lifecycle: tenantExport,
       columns: {
@@ -282,7 +285,7 @@ const NAMES: BlockSqlNames = {
       typed: ["status"],
     },
     fulfillmentLines: {
-      name: "fulfillment_lines",
+      name: "order_fulfillment_lines",
       app: {},
       lifecycle: tenantExport,
       columns: {
@@ -423,7 +426,7 @@ create table if not exists ${t("shippingRates")} (
   ${sr("createdAt")} timestamptz not null default now(),
   ${sr("updatedAt")} timestamptz not null default now()
 );
-create index if not exists shipping_rates_tenant_idx on ${t("shippingRates")} (${sr("tenant")}, ${sr("currency")});
+create index if not exists ${sqlIdent(`${ctx.tableName("shippingRates").name}_tenant_idx`)} on ${t("shippingRates")} (${sr("tenant")}, ${sr("currency")});
 ${lockModuleTable(ctx, "shippingRates", { read: true })}
 ${policy("shippingRates", tenantRead("shippingRates"))}
 
@@ -563,7 +566,7 @@ create table if not exists ${t("fulfillments")} (
   ${f("shippedAt")} timestamptz,
   ${f("deliveredAt")} timestamptz
 );
-create index if not exists ${ctx.naming.rename("fulfillments_order_idx")} on ${t("fulfillments")} (${f("order")});
+create index if not exists ${sqlIdent(`${ctx.tableName("fulfillments").name}_${ctx.naming.rename("order_idx")}`)} on ${t("fulfillments")} (${f("order")});
 ${lockModuleTable(ctx, "fulfillments", { read: true })}
 ${policy("fulfillments", ofOrder("fulfillments"))}
 
@@ -574,7 +577,7 @@ create table if not exists ${t("fulfillmentLines")} (
   ${fl("quantity")} integer not null check (${fl("quantity")} > 0),${optionalColumn("fulfillmentLines", "detail", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}
   primary key (${fl("fulfillment")}, ${fl("line")})
 );${appUniqueIndex(ctx, "fulfillmentLines", ["fulfillment", "line"])}
-create index if not exists fulfillment_lines_line_idx on ${t("fulfillmentLines")} (${fl("line")});
+create index if not exists ${sqlIdent(`${ctx.tableName("fulfillmentLines").name}_${ctx.naming.rename("line_idx")}`)} on ${t("fulfillmentLines")} (${fl("line")});
 ${lockModuleTable(ctx, "fulfillmentLines", { read: true })}
 ${policy("fulfillmentLines", tenantRead("fulfillmentLines"))}
 
@@ -790,7 +793,7 @@ export const ORDERS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,

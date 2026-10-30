@@ -106,15 +106,15 @@ describe("orders module, kitchen", () => {
   it("adds nothing by default", () => {
     const sql = sqlOf(["catalog", "orders"]);
     expect(sql).not.toContain("order_line_preparations");
-    expect(sql).not.toContain("kitchen_stations");
+    expect(sql).not.toContain("order_kitchen_stations");
   });
 
   it("adds stations, routes and line states with indexed keys", () => {
     const sql = sqlOf(["catalog", "orders"], KITCHEN);
 
     for (const table of [
-      "kitchen_stations",
-      "kitchen_routes",
+      "order_kitchen_stations",
+      "order_kitchen_routes",
       "order_line_preparations",
     ]) {
       expect(sql).toContain(
@@ -122,8 +122,11 @@ describe("orders module, kitchen", () => {
       );
     }
 
+    expect(sql).toContain(
+      `create index if not exists "order_kitchen_routes_station_idx"`,
+    );
+
     for (const index of [
-      "kitchen_routes_station_idx",
       "order_line_preparations_order_idx",
       "order_line_preparations_station_idx",
     ]) {

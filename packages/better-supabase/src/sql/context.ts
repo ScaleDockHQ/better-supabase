@@ -36,6 +36,7 @@ import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 import { logsSubjectReads } from "./subject-registry.ts";
+import { tableBase } from "./table-renames.ts";
 import { blockColumnName } from "./tenant-column.ts";
 import { checkedValueMaps, valueMethods } from "./value-maps.ts";
 
@@ -206,6 +207,11 @@ export interface BlockSqlNameMigration {
   readonly table: string;
   /** The table's default name before the move, when the move renamed it. */
   readonly was?: string;
+  /**
+   * Also renames the indexes, policies and triggers named after `was`
+   * (`<was>_read`) to start with the table's new name.
+   */
+  readonly objects?: boolean;
   /** Logical column to its default name before the move. */
   readonly columns?: Readonly<Record<string, string>>;
 }
@@ -838,7 +844,11 @@ export function createModuleContext(
     }
 
     const parts = splitTable(
-      mapped ?? scoped(naming.rename(table.name), table.name),
+      mapped ??
+        scoped(
+          naming.rename(tableBase(resolved, logical, table.name)),
+          table.name,
+        ),
       config.schema,
     );
 

@@ -26,4 +26,4 @@ Block entity keys equal the entity's singular, and the subject types, hint codes
 - `ENTITY_KEY_RENAMES`, `SUBJECT_TYPE_RENAMES`, `HINT_RENAMES` and `legacyHintOf` are exported for code that maps stored names.
 - `upgrade` renders a data step in the tasks, activities and compliance modules that moves stored subject types to the new ones in every installed subject type column. The subject functions accept the old types until 0.48.
 - A `@bsb subject` tag that declares a type an installed block registers now fails with an error naming the table, instead of being skipped. An app whose own table is the `task` subject keeps the block on `names: { task: "work_item" }`.
-- Tables keep their names on an install that doesn't rename the entity: the tasks block still writes `work_items`. Its events are `task.*` (see the event type changeset).
+- The tasks block's events are `task.*` (see the event type changeset), and its tables are `tasks`, `task_assignees` and `task_checklist_items` (see the module table changeset). An install that renames the entity keeps its own names.

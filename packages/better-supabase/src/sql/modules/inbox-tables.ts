@@ -233,9 +233,9 @@ create table if not exists ${T.events} (
   ${ev("type")} text not null check (${ev("type")} ~ '^[a-z][a-z0-9_]{0,40}$'),${line(q, "events", "actor", () => "uuid references auth.users (id) on delete set null")}${line(q, "events", "data", () => "jsonb not null default '{}'::jsonb")}
   ${ev("createdAt")} timestamptz not null default clock_timestamp()
 );
-create index if not exists conversation_events_conversation_idx on ${T.events} (${ev("conversation")}, ${ev("id")});
-${q.has("events", "actor") ? `create index if not exists conversation_events_actor_idx on ${T.events} (${ev("actor")});\n` : ""}${lockTable(T.events, { read: true })}
-${policy(T.events, q.ctx.naming.rename("conversation_events_staff_read"), q.staff(ev("tenant")))}
+create index if not exists ${sqlIdent(`${q.ctx.tableName("events").name}_${q.ctx.naming.rename("conversation_idx")}`)} on ${T.events} (${ev("conversation")}, ${ev("id")});
+${q.has("events", "actor") ? `create index if not exists ${sqlIdent(`${q.ctx.tableName("events").name}_actor_idx`)} on ${T.events} (${ev("actor")});\n` : ""}${lockTable(T.events, { read: true })}
+${policy(T.events, sqlIdent(`${q.ctx.tableName("events").name}_staff_read`), q.staff(ev("tenant")))}
 
 ${inboxDetailsDdl(q)}
 ${lockTable(T.details, { read: true })}
@@ -253,10 +253,10 @@ create table if not exists ${T.deliveries} (
   ${dl("createdAt")} timestamptz not null default now(),
   unique (${dl("message")}, ${dl("channel")})
 );${unique(q, "deliveries", "channel", ["message", "channel"])}
-create index if not exists message_deliveries_external_idx on ${T.deliveries} (${dl("channel")}, ${dl("externalId")}) where ${dl("externalId")} is not null;
+create index if not exists ${sqlIdent(`${q.ctx.tableName("deliveries").name}_external_idx`)} on ${T.deliveries} (${dl("channel")}, ${dl("externalId")}) where ${dl("externalId")} is not null;
 ${updatedAt(T.deliveries, dl("updatedAt"))}
 ${lockTable(T.deliveries, { read: true })}
-${policy(T.deliveries, q.ctx.naming.rename("message_deliveries_staff_read"), q.staff(dl("tenant")))}
+${policy(T.deliveries, sqlIdent(`${q.ctx.tableName("deliveries").name}_staff_read`), q.staff(dl("tenant")))}
 
 -- Webhook deliveries from the channels, stored before the ack so a slow or
 -- failed handler loses nothing. external_id dedupes a platform's retries.
@@ -272,9 +272,9 @@ create table if not exists ${T.inbound} (
   ${ie("attempts")} integer not null default 0,
   ${ie("receivedAt")} timestamptz not null default now()${tail(q, "inbound", "processedAt", () => "timestamptz")}
 );
-create unique index if not exists inbound_events_external_idx on ${T.inbound} (${ie("adapter")}, ${ie("externalId")}) where ${ie("externalId")} is not null;
-create index if not exists inbound_events_status_idx on ${T.inbound} (${ie("status")}, ${ie("receivedAt")});
-create index if not exists ${q.ctx.naming.rename("inbound_events_inbox_idx")} on ${T.inbound} (${ie("inbox")});
+create unique index if not exists ${sqlIdent(`${q.ctx.tableName("inbound").name}_external_idx`)} on ${T.inbound} (${ie("adapter")}, ${ie("externalId")}) where ${ie("externalId")} is not null;
+create index if not exists ${sqlIdent(`${q.ctx.tableName("inbound").name}_status_idx`)} on ${T.inbound} (${ie("status")}, ${ie("receivedAt")});
+create index if not exists ${sqlIdent(`${q.ctx.tableName("inbound").name}_${q.ctx.naming.rename("inbox_idx")}`)} on ${T.inbound} (${ie("inbox")});
 ${lockTable(T.inbound)}
 
 -- Approved templates for channels that need one outside a reply window
@@ -290,10 +290,10 @@ create table if not exists ${T.templates} (
   ${tp("createdAt")} timestamptz not null default now(),
   unique (${tp("tenant")}, ${tp("channel")}, ${tp("name")}, ${tp("language")})
 );${unique(q, "templates", "name", ["tenant", "channel", "name", "language"])}
-create index if not exists ${q.ctx.naming.rename("message_templates_inbox_idx")} on ${T.templates} (${tp("inbox")});
+create index if not exists ${sqlIdent(`${q.ctx.tableName("templates").name}_${q.ctx.naming.rename("inbox_idx")}`)} on ${T.templates} (${tp("inbox")});
 ${updatedAt(T.templates, tp("updatedAt"))}
 ${lockTable(T.templates, { read: true })}
-${policy(T.templates, q.ctx.naming.rename("message_templates_staff_read"), q.staff(tp("tenant")))}
+${policy(T.templates, sqlIdent(`${q.ctx.tableName("templates").name}_staff_read`), q.staff(tp("tenant")))}
 
 -- Staff replies to send later. publish_due_inbox_messages sends each one
 -- through the normal reply path once scheduled_for passes; until then only
@@ -492,8 +492,8 @@ begin
 end;
 $$;
 revoke execute on function ${q.fn("inbox_delivery_broadcast")}() from public, anon, authenticated;
-drop trigger if exists message_deliveries_broadcast on ${q.t("deliveries")};
-create trigger message_deliveries_broadcast after insert or update of ${dl("status")} on ${q.t("deliveries")}
+drop trigger if exists ${sqlIdent(`${q.ctx.tableName("deliveries").name}_broadcast`)} on ${q.t("deliveries")};
+create trigger ${sqlIdent(`${q.ctx.tableName("deliveries").name}_broadcast`)} after insert or update of ${dl("status")} on ${q.t("deliveries")}
   for each row execute function ${q.fn("inbox_delivery_broadcast")}();
 
 -- Staff join ${q.topic}:org:<tenant>. A conversation's own topic, with typing

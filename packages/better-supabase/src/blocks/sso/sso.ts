@@ -105,7 +105,7 @@ export interface Sso {
 }
 
 function recordOfDomain(value: unknown): DomainRecord {
-  const row = recordOf(value, "organization_domains.record");
+  const row = recordOf(value, "sso_domains.record");
 
   return {
     type: "TXT",
@@ -115,7 +115,7 @@ function recordOfDomain(value: unknown): DomainRecord {
 }
 
 function domainOf(value: unknown): OrganizationDomain {
-  const row = recordOf(value, "organization_domains");
+  const row = recordOf(value, "sso_domains");
 
   return {
     id: textOf(row["id"]),
@@ -131,7 +131,7 @@ function domainOf(value: unknown): OrganizationDomain {
 }
 
 function providerOf(value: unknown): SsoProvider {
-  const row = recordOf(value, "organization_sso_providers");
+  const row = recordOf(value, "sso_providers");
 
   return {
     id: textOf(row["id"]),

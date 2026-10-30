@@ -1105,6 +1105,42 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
   });
 
+  it("moves a module's tables to their 0.47 names with renames, not drops", async () => {
+    const config: ResolveInput = { blocks: ["goals"] };
+    await sql(["sync"], config);
+
+    const file = renderBlocks(
+      ["goals"],
+      moduleLayout(resolveConfig(config, root)),
+    ).find((module) => module.module === "goals" && module.kind === "schema");
+
+    const path = join(root, file!.path);
+    const text = await readFile(path, "utf-8");
+    await writeFile(
+      path,
+      text.replace("-- @bsb-block goals@2", "-- @bsb-block goals@1"),
+    );
+
+    const done = await sql(["upgrade"], config);
+    expect(done.code).toBe(0);
+    expect(done.output).toContain("goals: version 1 to 2");
+    expect(done.output).toContain("The targets table is goals (ADR 0130).");
+
+    const upgrade = (await readdir(join(root, "supabase/migrations"))).find(
+      (name) => name.endsWith("_better_supabase_block_upgrade.sql"),
+    );
+
+    const migration = await readFile(
+      join(root, "supabase/migrations", upgrade!),
+      "utf-8",
+    );
+
+    expect(migration).toContain(
+      'alter table "better_supabase"."targets" rename to "goals"',
+    );
+    expect(migration).not.toMatch(/\bdrop\b/i);
+  });
+
   it("renames an installed block's tables when blocks.<name>.entities changes", async () => {
     await sql(["sync"], { blocks: ["tasks"] });
 
@@ -1128,7 +1164,9 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 
     expect(
       await readFile(join(root, "supabase/migrations", upgrade!), "utf-8"),
-    ).toContain('alter table "better_supabase"."work_items" rename to "tasks"');
+    ).toContain(
+      'alter table "better_supabase"."task_assignees" rename column "work_item_id" to "task_id"',
+    );
     expect((await sql(["upgrade", "--check"], config)).code).toBe(0);
   });
 

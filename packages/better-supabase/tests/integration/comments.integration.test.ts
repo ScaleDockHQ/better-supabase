@@ -1040,7 +1040,7 @@ describe.skipIf(!live)("comments", () => {
       await s.service();
       expect(
         await s.rows(
-          "select title, body from better_supabase.work_items where id = $1",
+          "select title, body from better_supabase.tasks where id = $1",
           [task],
         ),
       ).toEqual([

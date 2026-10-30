@@ -1,7 +1,7 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { WorkItemNames } from "./tasks-functions.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlString, sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { columnsObject, fail, serviceGrant, userGrant } from "../shared.ts";
@@ -69,7 +69,7 @@ export function checklistTable(ctx: BlockSqlContext, n: WorkItemNames): string {
   const recurs = ctx.has("items", "recursFrom")
     ? `
 alter table ${t("items")} add column if not exists ${w("recursFrom")} uuid references ${t("items")} (${w("id")}) on delete set null;
-create unique index if not exists ${ctx.naming.rename("work_items_recurs_from_idx")} on ${t("items")} (${w("recursFrom")});`
+create unique index if not exists ${sqlIdent(`${ctx.tableName("items").name}_recurs_from_idx`)} on ${t("items")} (${w("recursFrom")});`
     : "";
 
   if (!ctx.hasTable("checklist")) {
@@ -90,7 +90,7 @@ create table if not exists ${t("checklist")} (
   ${k("rank")} text collate "C" not null check (${k("rank")} ~ ${RANK_KEY_PATTERN}),${column("createdBy", (name) => `${name} uuid`)}
   ${k("createdAt")} timestamptz not null default now()
 );
-create index if not exists ${ctx.naming.rename("work_item_checklist_item_idx")} on ${t("checklist")} (${k("item")}, ${k("rank")});
+create index if not exists ${sqlIdent(ctx.tableName("checklist").name.replace(/items$/, "item_idx"))} on ${t("checklist")} (${k("item")}, ${k("rank")});
 ${lockModuleTable(ctx, "checklist", { read: true })}
 ${renderPolicy(makePolicy({ table: t("checklist"), name: `${name}_read`, command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), n.read) }), { drop: true, target: t("checklist") })}
 `;

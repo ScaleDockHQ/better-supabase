@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:e20b0ee51531eba02e806eafcc91f2f5c2024727ed3cffe6197135b1c5ea8da1
+-- @bsb-hash sha256:443e3f5a7543df183adef25b9cecaa3499532915bdf15745c8b63091ab412c03
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -253,7 +253,7 @@ begin
   end if;
   if v_scope <> 'order' and cardinality(v_targets) <> (case v_scope
     when 'products' then (select count(*) from "better_supabase"."products" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
-    when 'categories' then (select count(*) from "better_supabase"."categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
+    when 'categories' then (select count(*) from "better_supabase"."catalog_categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     when 'collections' then (select count(*) from "better_supabase"."product_collections" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     else 0 end) then
     raise exception 'every target is a product, category or collection of this organization' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -677,7 +677,7 @@ begin
       with recursive d (id) as (
         select unnest(v_promo.targets)
         union
-        select x."id" from "better_supabase"."categories" x join d on x."parent_id" = d.id
+        select x."id" from "better_supabase"."catalog_categories" x join d on x."parent_id" = d.id
       )
       select 1 from "better_supabase"."product_categories" y where y."product_id" = (e ->> 'productId')::uuid and y."category_id" in (select id from d)
     ))
@@ -976,7 +976,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:499d0d8ceaaa5b971626ed0679092b9995451f52c62832d9b3219613a9189db2
+-- @bsb-hash sha256:6748b5d32a90cfe64061ada731b14c2e746928c984f2a414337abbbe8e550410
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1228,7 +1228,7 @@ begin
   end if;
   if v_scope <> 'order' and cardinality(v_targets) <> (case v_scope
     when 'products' then (select count(*) from "better_supabase"."products" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
-    when 'categories' then (select count(*) from "better_supabase"."categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
+    when 'categories' then (select count(*) from "better_supabase"."catalog_categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     when 'collections' then (select count(*) from "better_supabase"."product_collections" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     else 0 end) then
     raise exception 'every target is a product, category or collection of this organization' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -1652,7 +1652,7 @@ begin
       with recursive d (id) as (
         select unnest(v_promo.targets)
         union
-        select x."id" from "better_supabase"."categories" x join d on x."parent_id" = d.id
+        select x."id" from "better_supabase"."catalog_categories" x join d on x."parent_id" = d.id
       )
       select 1 from "better_supabase"."product_categories" y where y."product_id" = (e ->> 'productId')::uuid and y."category_id" in (select id from d)
     ))
@@ -1951,7 +1951,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:9cc4f749680487b3a316dd8e90a107e411eb96ea595430847ed9e2fb46609a57
+-- @bsb-hash sha256:ff9ba3d5ec0fec6b9657934413843c282747fefe78e0607aef52c545d0d5fcc9
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2208,7 +2208,7 @@ begin
   end if;
   if v_scope <> 'order' and cardinality(v_targets) <> (case v_scope
     when 'products' then (select count(*) from "better_supabase"."products" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
-    when 'categories' then (select count(*) from "better_supabase"."categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
+    when 'categories' then (select count(*) from "better_supabase"."catalog_categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     when 'collections' then (select count(*) from "better_supabase"."product_collections" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     else 0 end) then
     raise exception 'every target is a product, category or collection of this organization' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -2632,7 +2632,7 @@ begin
       with recursive d (id) as (
         select unnest(v_promo.targets)
         union
-        select x."id" from "better_supabase"."categories" x join d on x."parent_id" = d.id
+        select x."id" from "better_supabase"."catalog_categories" x join d on x."parent_id" = d.id
       )
       select 1 from "better_supabase"."product_categories" y where y."product_id" = (e ->> 'productId')::uuid and y."category_id" in (select id from d)
     ))
@@ -2931,7 +2931,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:4ca88c60075567f75359bdef6c7c1f7bc6f9e1e0d9b288c5567e5c9ff5280d4f
+-- @bsb-hash sha256:a7170e16bcf23886ce6cb511fb2dcde5e1e0e31d9e603c9f30dc6f59349e1818
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3183,7 +3183,7 @@ begin
   end if;
   if v_scope <> 'order' and cardinality(v_targets) <> (case v_scope
     when 'products' then (select count(*) from "better_supabase"."products" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
-    when 'categories' then (select count(*) from "better_supabase"."categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
+    when 'categories' then (select count(*) from "better_supabase"."catalog_categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     when 'collections' then (select count(*) from "better_supabase"."product_collections" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     else 0 end) then
     raise exception 'every target is a product, category or collection of this organization' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -3607,7 +3607,7 @@ begin
       with recursive d (id) as (
         select unnest(v_promo.targets)
         union
-        select x."id" from "better_supabase"."categories" x join d on x."parent_id" = d.id
+        select x."id" from "better_supabase"."catalog_categories" x join d on x."parent_id" = d.id
       )
       select 1 from "better_supabase"."product_categories" y where y."product_id" = (e ->> 'productId')::uuid and y."category_id" in (select id from d)
     ))
@@ -3993,7 +3993,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:8e16eee8d4f2c93b93c74d5df24a38e4e4e227c109d692268679d053d201ae4f
+-- @bsb-hash sha256:22f17fca70abc13f88dc343aea3b036e8cfe7fedf5cd8f810188cc115b8af102
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4249,7 +4249,7 @@ begin
   end if;
   if v_scope <> 'order' and cardinality(v_targets) <> (case v_scope
     when 'products' then (select count(*) from "better_supabase"."products" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
-    when 'categories' then (select count(*) from "better_supabase"."categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
+    when 'categories' then (select count(*) from "better_supabase"."catalog_categories" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     when 'collections' then (select count(*) from "better_supabase"."product_collections" x where x."id" = any (v_targets) and x."tenant_id" = v_tenant)
     else 0 end) then
     raise exception 'every target is a product, category or collection of this organization' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -4673,7 +4673,7 @@ begin
       with recursive d (id) as (
         select unnest(v_promo.targets)
         union
-        select x."id" from "better_supabase"."categories" x join d on x."parent_id" = d.id
+        select x."id" from "better_supabase"."catalog_categories" x join d on x."parent_id" = d.id
       )
       select 1 from "better_supabase"."product_categories" y where y."product_id" = (e ->> 'productId')::uuid and y."category_id" in (select id from d)
     ))
@@ -4972,7 +4972,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:8d7d96f463db789f0180d3d5edf5e385f7558ca9a83ba5205d2f700ec7f2c9e8
+-- @bsb-hash sha256:92999cce15a67b2ff8034c2a049f59cbc009b1250ec444a1c28f772fd6dd0f9d
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5224,7 +5224,7 @@ begin
   end if;
   if v_scope <> 'order' and cardinality(v_targets) <> (case v_scope
     when 'products' then (select count(*) from "better_supabase"."products" x where x."id" = any (v_targets) and x."org_id" = v_tenant)
-    when 'categories' then (select count(*) from "better_supabase"."categories" x where x."id" = any (v_targets) and x."org_id" = v_tenant)
+    when 'categories' then (select count(*) from "better_supabase"."catalog_categories" x where x."id" = any (v_targets) and x."org_id" = v_tenant)
     when 'collections' then (select count(*) from "better_supabase"."product_collections" x where x."id" = any (v_targets) and x."org_id" = v_tenant)
     else 0 end) then
     raise exception 'every target is a product, category or collection of this organization' using errcode = '22023', hint = 'PROMOTIONS_INVALID';
@@ -5648,7 +5648,7 @@ begin
       with recursive d (id) as (
         select unnest(v_promo.targets)
         union
-        select x."id" from "better_supabase"."categories" x join d on x."parent_id" = d.id
+        select x."id" from "better_supabase"."catalog_categories" x join d on x."parent_id" = d.id
       )
       select 1 from "better_supabase"."product_categories" y where y."product_id" = (e ->> 'productId')::uuid and y."category_id" in (select id from d)
     ))

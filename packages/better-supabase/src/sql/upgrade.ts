@@ -18,6 +18,7 @@ import {
   checkModules,
 } from "./registry.ts";
 import { nameMigrationSql } from "./rename-sql.ts";
+import { freesTableName } from "./table-renames.ts";
 
 /**
  * The compatibility wrappers of a module's deprecated symbols that are not
@@ -66,7 +67,8 @@ export interface BlockSqlUpgradePlan {
 /**
  * The upgrade steps for modules installed at an older version. A version
  * without a step needs none: the module file upgrades in place. Modules in
- * custom mode belong to the app and are skipped.
+ * custom mode belong to the app and are skipped. A module whose table move
+ * frees a name another module's move takes comes first.
  */
 export function upgradePlan(
   installed: readonly InstalledBlock[],
@@ -82,7 +84,13 @@ export function upgradePlan(
 
   const defaults = withProviderDefaults(layout);
 
-  return installed.flatMap((entry): BlockSqlUpgradePlan[] => {
+  const ordered = installed.toSorted(
+    (a, b) =>
+      Number(freesTableName(b.block ?? b.module)) -
+      Number(freesTableName(a.block ?? a.module)),
+  );
+
+  return ordered.flatMap((entry): BlockSqlUpgradePlan[] => {
     const block = entry.block ?? entry.module;
     const module = modules[block];
 
@@ -96,7 +104,7 @@ export function upgradePlan(
       return [];
     }
 
-    const ctx = createModuleContext(block, (name) => modules[name]?.names, {
+    const options = {
       ...(defaults ? { modules: defaults } : {}),
       ...(layout.claims ? { claims: layout.claims } : {}),
       ...(layout.instances ? { instances: layout.instances } : {}),
@@ -106,13 +114,48 @@ export function upgradePlan(
       ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
       ...providerIdType(layout),
       ...providerGuests(layout),
-    });
+    };
+
+    const ctx = createModuleContext(
+      block,
+      (name) => modules[name]?.names,
+      options,
+    );
 
     if (ctx.mode === "custom") {
       return [];
     }
 
-    const moves = (module.names?.migrations ?? []).map((migration) => ({
+    const migrations = module.names?.migrations ?? [];
+
+    // A step that runs before a table move reads the table by its old name.
+    const contextAt = (from: number): BlockSqlContext => {
+      const pending = migrations.filter((move) => move.from > from);
+
+      if (pending.length === 0 || !module.names) {
+        return ctx;
+      }
+
+      const tables = { ...module.names.tables };
+
+      for (const move of pending) {
+        const table = tables[move.table];
+
+        if (table && move.was) {
+          tables[move.table] = { ...table, name: move.was };
+        }
+      }
+
+      const before = { ...module.names, tables };
+
+      return createModuleContext(
+        block,
+        (name) => (name === block ? before : modules[name]?.names),
+        options,
+      );
+    };
+
+    const moves = migrations.map((migration) => ({
       from: migration.from,
       description: migration.description,
       sql: (each: BlockSqlContext) => nameMigrationSql(each, migration),
@@ -124,7 +167,7 @@ export function upgradePlan(
       .map((step) => ({
         from: step.from,
         description: step.description,
-        sql: step.sql(ctx).trim(),
+        sql: step.sql(moves.includes(step) ? ctx : contextAt(step.from)).trim(),
       }));
 
     return [{ module: entry.module, from: entry.version, to, steps }];

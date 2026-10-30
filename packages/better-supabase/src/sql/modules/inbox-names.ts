@@ -13,6 +13,7 @@ import {
 } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { messagingSql } from "./messaging-names.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -239,7 +240,7 @@ export const INBOX_NAMES: BlockSqlNames = {
       },
     },
     events: {
-      name: "conversation_events",
+      name: "inbox_conversation_events",
       app: {},
       optional: ["actor", "data"],
       lifecycle: { tenant: "tenant" },
@@ -272,7 +273,7 @@ export const INBOX_NAMES: BlockSqlNames = {
       },
     },
     deliveries: {
-      name: "message_deliveries",
+      name: "inbox_message_deliveries",
       app: {},
       optional: ["error", "attempts"],
       typed: ["status"],
@@ -291,7 +292,7 @@ export const INBOX_NAMES: BlockSqlNames = {
       },
     },
     inbound: {
-      name: "inbound_events",
+      name: "inbox_inbound_events",
       app: {},
       optional: ["error", "processedAt"],
       typed: ["status"],
@@ -312,7 +313,7 @@ export const INBOX_NAMES: BlockSqlNames = {
       },
     },
     templates: {
-      name: "message_templates",
+      name: "inbox_message_templates",
       app: {},
       optional: ["variables", "externalId"],
       lifecycle: { tenant: "tenant" },
@@ -373,6 +374,7 @@ export const INBOX_NAMES: BlockSqlNames = {
       table: "conversations",
       was: "conversations",
     },
+    ...tableMoves("inbox", 6),
   ],
 };
 

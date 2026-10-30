@@ -192,7 +192,7 @@ Each takes `clients`, which returns the block clients for one organization, such
 
 ## Default automations
 
-A block that feeds another ships default automations: rows its SQL module writes to `rule_defaults`, which every organization gets its own copy of the first time its rules run or are listed. The organization turns them off or edits them like any rule. `resetDefault(id)` puts the shipped version back, and removing one fails with the hint `AUTOMATION_DEFAULT`.
+A block that feeds another ships default automations: rows its SQL module writes to `automation_defaults`, which every organization gets its own copy of the first time its rules run or are listed. The organization turns them off or edits them like any rule. `resetDefault(id)` puts the shipped version back, and removing one fails with the hint `AUTOMATION_DEFAULT`.
 
 | Default                                | Block    | Trigger                     | Action                       | Ships when               |
 | -------------------------------------- | -------- | --------------------------- | ---------------------------- | ------------------------ |

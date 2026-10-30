@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
--- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:ceb8b739dd69deed1f76606c15f31f0363964738dc2618d9b44d564c638ee465
+-- @bsb-block idempotency@2 managed
+-- @bsb-hash sha256:451070a12bb14c9f773a2ead20844201da75aea2e4824ac46b4325856d42f11e
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -148,16 +148,16 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists "better_supabase"."leases" (
+create table if not exists "better_supabase"."idempotency_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
-alter table "better_supabase"."leases" enable row level security;
-revoke all on "better_supabase"."leases" from public, anon, authenticated;
-grant all on "better_supabase"."leases" to service_role;
+alter table "better_supabase"."idempotency_leases" enable row level security;
+revoke all on "better_supabase"."idempotency_leases" from public, anon, authenticated;
+grant all on "better_supabase"."idempotency_leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
@@ -169,7 +169,7 @@ declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into "better_supabase"."leases" as l ("scope", "key", "holder", "expires_at")
+  insert into "better_supabase"."idempotency_leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
@@ -186,7 +186,7 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update "better_supabase"."leases" l
+    update "better_supabase"."idempotency_leases" l
     set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
     where l."scope" = extend_lease.scope and l."key" = extend_lease.key
       and l."holder" = extend_lease.holder and l."expires_at" > now()
@@ -201,7 +201,7 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from "better_supabase"."leases" l
+    delete from "better_supabase"."idempotency_leases" l
     where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
@@ -252,21 +252,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
--- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
+-- @bsb-hash sha256:7aebd6173b219eef0e7b719c6ed48638fbbc2f920de216f47cbb794ae1a42d8f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('idempotency', 1, 'managed')
+values ('idempotency', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
--- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:ceb8b739dd69deed1f76606c15f31f0363964738dc2618d9b44d564c638ee465
+-- @bsb-block idempotency@2 managed
+-- @bsb-hash sha256:451070a12bb14c9f773a2ead20844201da75aea2e4824ac46b4325856d42f11e
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -413,16 +413,16 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists "better_supabase"."leases" (
+create table if not exists "better_supabase"."idempotency_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
-alter table "better_supabase"."leases" enable row level security;
-revoke all on "better_supabase"."leases" from public, anon, authenticated;
-grant all on "better_supabase"."leases" to service_role;
+alter table "better_supabase"."idempotency_leases" enable row level security;
+revoke all on "better_supabase"."idempotency_leases" from public, anon, authenticated;
+grant all on "better_supabase"."idempotency_leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
@@ -434,7 +434,7 @@ declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into "better_supabase"."leases" as l ("scope", "key", "holder", "expires_at")
+  insert into "better_supabase"."idempotency_leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
@@ -451,7 +451,7 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update "better_supabase"."leases" l
+    update "better_supabase"."idempotency_leases" l
     set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
     where l."scope" = extend_lease.scope and l."key" = extend_lease.key
       and l."holder" = extend_lease.holder and l."expires_at" > now()
@@ -466,7 +466,7 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from "better_supabase"."leases" l
+    delete from "better_supabase"."idempotency_leases" l
     where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
@@ -517,21 +517,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
--- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
+-- @bsb-hash sha256:7aebd6173b219eef0e7b719c6ed48638fbbc2f920de216f47cbb794ae1a42d8f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('idempotency', 1, 'managed')
+values ('idempotency', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
--- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:8667ad1e2c655b3db06e1601034716b17ba3493ee6d5bee3da2a9f2afcd16e93
+-- @bsb-block idempotency@2 managed
+-- @bsb-hash sha256:c190ba6affa222b28cc69241f42758fca6dea013d6cb8044aec54ef18748c643
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -683,16 +683,16 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists "app_private"."leases" (
+create table if not exists "app_private"."idempotency_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
-alter table "app_private"."leases" enable row level security;
-revoke all on "app_private"."leases" from public, anon, authenticated;
-grant all on "app_private"."leases" to service_role;
+alter table "app_private"."idempotency_leases" enable row level security;
+revoke all on "app_private"."idempotency_leases" from public, anon, authenticated;
+grant all on "app_private"."idempotency_leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
@@ -704,7 +704,7 @@ declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into "app_private"."leases" as l ("scope", "key", "holder", "expires_at")
+  insert into "app_private"."idempotency_leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
@@ -721,7 +721,7 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update "app_private"."leases" l
+    update "app_private"."idempotency_leases" l
     set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
     where l."scope" = extend_lease.scope and l."key" = extend_lease.key
       and l."holder" = extend_lease.holder and l."expires_at" > now()
@@ -736,7 +736,7 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from "app_private"."leases" l
+    delete from "app_private"."idempotency_leases" l
     where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
@@ -787,21 +787,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
--- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
+-- @bsb-hash sha256:7aebd6173b219eef0e7b719c6ed48638fbbc2f920de216f47cbb794ae1a42d8f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('idempotency', 1, 'managed')
+values ('idempotency', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
--- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:86c7c96feaca0b736558d653d30312fd63cd6a4744f498bab56c642bb856e611
+-- @bsb-block idempotency@2 managed
+-- @bsb-hash sha256:686a2b807d9a919f1448ed2ab0381ff4bb4610960fcaa9975ec35a6f8aa08d9c
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -948,16 +948,16 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
-create table if not exists "better_supabase"."leases" (
+create table if not exists "better_supabase"."idempotency_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
-alter table "better_supabase"."leases" enable row level security;
-revoke all on "better_supabase"."leases" from public, anon, authenticated;
-grant all on "better_supabase"."leases" to service_role;
+alter table "better_supabase"."idempotency_leases" enable row level security;
+revoke all on "better_supabase"."idempotency_leases" from public, anon, authenticated;
+grant all on "better_supabase"."idempotency_leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
@@ -969,7 +969,7 @@ declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into "better_supabase"."leases" as l ("scope", "key", "holder", "expires_at")
+  insert into "better_supabase"."idempotency_leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
@@ -986,7 +986,7 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update "better_supabase"."leases" l
+    update "better_supabase"."idempotency_leases" l
     set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
     where l."scope" = extend_lease.scope and l."key" = extend_lease.key
       and l."holder" = extend_lease.holder and l."expires_at" > now()
@@ -1001,7 +1001,7 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from "better_supabase"."leases" l
+    delete from "better_supabase"."idempotency_leases" l
     where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
@@ -1132,21 +1132,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
--- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
+-- @bsb-hash sha256:7aebd6173b219eef0e7b719c6ed48638fbbc2f920de216f47cbb794ae1a42d8f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('idempotency', 1, 'managed')
+values ('idempotency', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
--- @bsb-block idempotency@1 managed
--- @bsb-hash sha256:fa400b073397c370fe64d3efae09f9135b43b722773a55b815307213ef6605c4
+-- @bsb-block idempotency@2 managed
+-- @bsb-hash sha256:2285942a8f80462812015a310111f892cdeae408908b10c7e9daeeb59423fe01
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1306,14 +1306,14 @@ $$;
 -- Leases: one holder per (scope, key) until it expires, for work that must
 -- not run twice at once (one automation per conversation). acquire_lease
 -- returns the holder token, or null while someone else holds the lease.
--- better_supabase.leases is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."leases" add column if not exists "scope" text not null default '';
-alter table "better_supabase"."leases" add column if not exists "key" text;
-alter table "better_supabase"."leases" add column if not exists "holder" uuid;
-alter table "better_supabase"."leases" add column if not exists "expires_at" timestamptz;
-create unique index if not exists "bsb_leases_scope_key_key" on "better_supabase"."leases" ("scope", "key");
-alter table "better_supabase"."leases" enable row level security;
-grant all on "better_supabase"."leases" to service_role;
+-- better_supabase.idempotency_leases is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."idempotency_leases" add column if not exists "scope" text not null default '';
+alter table "better_supabase"."idempotency_leases" add column if not exists "key" text;
+alter table "better_supabase"."idempotency_leases" add column if not exists "holder" uuid;
+alter table "better_supabase"."idempotency_leases" add column if not exists "expires_at" timestamptz;
+create unique index if not exists "bsb_idempotency_leases_scope_key_key" on "better_supabase"."idempotency_leases" ("scope", "key");
+alter table "better_supabase"."idempotency_leases" enable row level security;
+grant all on "better_supabase"."idempotency_leases" to service_role;
 
 create or replace function better_supabase.acquire_lease(key text, seconds integer default 60, scope text default '')
 returns uuid
@@ -1325,7 +1325,7 @@ declare
   token uuid := gen_random_uuid();
   taken uuid;
 begin
-  insert into "better_supabase"."leases" as l ("scope", "key", "holder", "expires_at")
+  insert into "better_supabase"."idempotency_leases" as l ("scope", "key", "holder", "expires_at")
   values (scope, key, token, now() + make_interval(secs => greatest(seconds, 1)))
   on conflict ("scope", "key") do update
     set "holder" = excluded."holder", "expires_at" = excluded."expires_at"
@@ -1342,7 +1342,7 @@ language sql
 set search_path = ''
 as $$
   with extended as (
-    update "better_supabase"."leases" l
+    update "better_supabase"."idempotency_leases" l
     set "expires_at" = now() + make_interval(secs => greatest(extend_lease.seconds, 1))
     where l."scope" = extend_lease.scope and l."key" = extend_lease.key
       and l."holder" = extend_lease.holder and l."expires_at" > now()
@@ -1357,7 +1357,7 @@ language sql
 set search_path = ''
 as $$
   with released as (
-    delete from "better_supabase"."leases" l
+    delete from "better_supabase"."idempotency_leases" l
     where l."scope" = release_lease.scope and l."key" = release_lease.key and l."holder" = release_lease.holder
     returning 1
   )
@@ -1408,13 +1408,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block-data idempotency
--- @bsb-hash sha256:dd2b92e6a32d15a531f6a3f5e388811d4bc4b3f95dcc36e53182ce1b39cfb932
+-- @bsb-hash sha256:7aebd6173b219eef0e7b719c6ed48638fbbc2f920de216f47cbb794ae1a42d8f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('idempotency', 1, 'managed')
+values ('idempotency', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

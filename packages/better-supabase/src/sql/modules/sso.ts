@@ -304,8 +304,8 @@ create table if not exists ${d} (
 ${line("domains", "createdBy", "uuid references auth.users (id) on delete set null default auth.uid()")}${line("domains", "createdAt", "timestamptz not null default now()")}  unique (${cd("tenant")}, ${cd("domain")}),
   check (not ${cd("enforceSso")} or ${cd("verifiedAt")} is not null)
 );
-create unique index if not exists ${ctx.naming.rename("organization_domains_verified_idx")} on ${d} (${cd("domain")}) where ${cd("verifiedAt")} is not null;
-${has("domains", "createdBy") ? `create index if not exists ${ctx.naming.rename("organization_domains_created_by_idx")} on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;\n` : ""}${lockTable(d)}${ownKey("domains", "bsb_organization_domains_tenant_domain_key", `${cd("tenant")}, ${cd("domain")}`)}
+create unique index if not exists ${sqlIdent(`${ctx.tableName("domains").name}_verified_idx`)} on ${d} (${cd("domain")}) where ${cd("verifiedAt")} is not null;
+${has("domains", "createdBy") ? `create index if not exists ${sqlIdent(`${ctx.tableName("domains").name}_created_by_idx`)} on ${d} (${cd("createdBy")}) where ${cd("createdBy")} is not null;\n` : ""}${lockTable(d)}${ownKey("domains", "bsb_organization_domains_tenant_domain_key", `${cd("tenant")}, ${cd("domain")}`)}
 
 -- SAML identity providers registered with Supabase Auth for an organization.
 create table if not exists ${p} (
@@ -315,7 +315,7 @@ create table if not exists ${p} (
 ${line("providers", "metadataUrl", "text")}  ${cp("domains")} text[] not null default '{}',
   ${cp("createdAt")} timestamptz not null default now()
 );
-create index if not exists ${ctx.naming.rename("organization_sso_providers_tenant_idx")} on ${p} (${cp("tenant")});
+create index if not exists ${sqlIdent(`${ctx.tableName("providers").name}_tenant_idx`)} on ${p} (${cp("tenant")});
 ${lockTable(p)}${ownKey("providers", "bsb_organization_sso_providers_id_key", cp("id"))}
 
 -- SCIM 2.0 users and groups per organization, written by the SCIM handler.
@@ -921,7 +921,7 @@ export const SSO: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

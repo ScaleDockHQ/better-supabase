@@ -1,8 +1,8 @@
 /**
  * The names the naming convention changed (ADR 0130), old to new: permission
- * keys in 0.46; entity keys, subject types, hints and event types in 0.47. The
- * shims, the stored-name migrations, the codemods and doctor read these maps,
- * so each rename is written once.
+ * keys in 0.46; entity keys, subject types, hints, event types and module
+ * tables in 0.47. The shims, the stored-name migrations, the codemods and
+ * doctor read these maps, so each rename is written once.
  */
 
 /**
@@ -383,6 +383,86 @@ export const ENTITY_KEY_RENAMES: Readonly<
   waitlist: frozen({ entry: "waitlist_entry" }),
   "webhooks-out": frozen({ endpoint: "webhook_endpoint" }),
   "workflow-editor": frozen({ definition: "workflow_definition" }),
+});
+
+/** One module table's default name before and after 0.47. */
+export interface TableRename {
+  readonly from: string;
+  readonly to: string;
+}
+
+const tables = (
+  entries: Readonly<Record<string, readonly [string, string]>>,
+): Readonly<Record<string, TableRename>> =>
+  Object.freeze(
+    Object.fromEntries(
+      Object.entries(entries).map(([logical, [from, to]]) => [
+        logical,
+        Object.freeze({ from, to }),
+      ]),
+    ),
+  );
+
+/**
+ * Module tables whose default name follows the convention since 0.47 (a table
+ * is its entity's plural, or starts with its entity's singular), by module and
+ * logical table. `upgrade` renames installed tables; tables the app maps
+ * through `blocks.<name>.tables`, and tables of an install that names the
+ * entity, keep their names.
+ */
+export const TABLE_RENAMES: Readonly<
+  Record<string, Readonly<Record<string, TableRename>>>
+> = Object.freeze({
+  activities: tables({ engagements: ["engagements", "activities"] }),
+  automations: tables({
+    defaults: ["rule_defaults", "automation_defaults"],
+    evaluations: ["rule_evaluations", "automation_evaluations"],
+    fields: ["rule_fields", "automation_fields"],
+    rules: ["rules", "automations"],
+    versions: ["rule_versions", "automation_versions"],
+  }),
+  catalog: tables({
+    categories: ["categories", "catalog_categories"],
+    priceLists: ["price_lists", "catalog_price_lists"],
+    storefronts: ["storefronts", "catalog_storefronts"],
+  }),
+  collections: tables({ favorites: ["favorites", "collection_favorites"] }),
+  compliance: tables({ policies: ["policies", "compliance_policies"] }),
+  domains: tables({ hostnames: ["organization_hostnames", "hostnames"] }),
+  goals: tables({ targets: ["targets", "goals"] }),
+  idempotency: tables({ leases: ["leases", "idempotency_leases"] }),
+  inbox: tables({
+    deliveries: ["message_deliveries", "inbox_message_deliveries"],
+    events: ["conversation_events", "inbox_conversation_events"],
+    inbound: ["inbound_events", "inbox_inbound_events"],
+    templates: ["message_templates", "inbox_message_templates"],
+  }),
+  incidents: tables({
+    components: ["status_components", "incident_status_components"],
+    history: ["status_component_history", "incident_status_component_history"],
+    pages: ["status_pages", "incident_status_pages"],
+  }),
+  leases: tables({ leases: ["lease_agreements", "leases"] }),
+  memory: tables({
+    messageEmbeddings: ["ai_message_embeddings", "memory_message_embeddings"],
+  }),
+  orders: tables({
+    fulfillmentLines: ["fulfillment_lines", "order_fulfillment_lines"],
+    fulfillments: ["fulfillments", "order_fulfillments"],
+    kitchenRoutes: ["kitchen_routes", "order_kitchen_routes"],
+    kitchenStations: ["kitchen_stations", "order_kitchen_stations"],
+    shippingRates: ["shipping_rates", "order_shipping_rates"],
+  }),
+  sso: tables({
+    domains: ["organization_domains", "sso_domains"],
+    providers: ["organization_sso_providers", "sso_providers"],
+  }),
+  tasks: tables({
+    assignees: ["work_item_assignees", "task_assignees"],
+    checklist: ["work_item_checklist_items", "task_checklist_items"],
+    items: ["work_items", "tasks"],
+  }),
+  timeline: tables({ activity: ["activity_entries", "timeline_entries"] }),
 });
 
 /** `value`'s new name in `map`, or `value` when it was not renamed. */

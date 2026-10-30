@@ -461,7 +461,7 @@ export const INBOX: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 6,
+  version: 7,
   upgrades: [
     {
       from: 1,

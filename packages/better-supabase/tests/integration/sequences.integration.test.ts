@@ -298,7 +298,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
     await session.service();
 
     const tasks = await session.rows<{ title: string }>(
-      "select title from better_supabase.work_items where tenant_id = $1",
+      "select title from better_supabase.tasks where tenant_id = $1",
       [tenant],
     );
 

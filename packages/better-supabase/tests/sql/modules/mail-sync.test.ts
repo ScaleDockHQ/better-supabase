@@ -39,7 +39,7 @@ describe("mail-sync module", () => {
     const sql = sqlOf({}, ["activities"]);
     expect(sql).toContain('function "better_supabase"."log_mail_thread"(');
     expect(sql).toContain("'type', 'email'");
-    expect(sql).toMatch(/engagement_id" uuid references .*engagements/);
+    expect(sql).toMatch(/engagement_id" uuid references .*activities/);
     expect(sqlOf({ engagementType: "mail" }, ["activities"])).toContain(
       "'type', 'mail'",
     );

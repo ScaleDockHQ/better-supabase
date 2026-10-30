@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:03ff6dd59c03cc7c9b70c32c498e278a7a49f61bbaa6983ae12e118772b594d6
+-- @bsb-hash sha256:59bde67436cf10c8794382cd21026d8d6f0ca1889e6d0450c9b4f8db6c93e2d2
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -180,7 +180,7 @@ begin
     when 'post' then
       return (select s."title"::text from "better_supabase"."posts" s where s."id" = (subject_title.subject_id)::uuid);
     when 'activity', 'engagement' then
-      return (select s."title"::text from "better_supabase"."engagements" s where s."id" = (subject_title.subject_id)::uuid);
+      return (select s."title"::text from "better_supabase"."activities" s where s."id" = (subject_title.subject_id)::uuid);
     when 'quote' then
       return (select s."title"::text from "better_supabase"."quotes" s where s."id" = (subject_title.subject_id)::uuid);
     when 'work_item' then
@@ -206,7 +206,7 @@ begin
     when 'asset_location' then
       return (select s."name"::text from "better_supabase"."asset_locations" s where s."id" = (subject_title.subject_id)::uuid);
     when 'lease' then
-      return (select s."title"::text from "better_supabase"."lease_agreements" s where s."id" = (subject_title.subject_id)::uuid);
+      return (select s."title"::text from "better_supabase"."leases" s where s."id" = (subject_title.subject_id)::uuid);
     when 'expense_report' then
       return (select s."title"::text from "better_supabase"."expense_reports" s where s."id" = (subject_title.subject_id)::uuid);
     when 'expense_line' then
@@ -222,7 +222,7 @@ begin
     when 'control' then
       return (select s."title"::text from "better_supabase"."controls" s where s."id" = (subject_title.subject_id)::uuid);
     when 'compliance_policy', 'policy' then
-      return (select s."title"::text from "better_supabase"."policies" s where s."id" = (subject_title.subject_id)::uuid);
+      return (select s."title"::text from "better_supabase"."compliance_policies" s where s."id" = (subject_title.subject_id)::uuid);
     when 'qualification_type' then
       return (select s."name"::text from "better_supabase"."qualification_types" s where s."id" = (subject_title.subject_id)::uuid);
     when 'risk' then
@@ -377,7 +377,7 @@ begin
     select jsonb_agg(jsonb_build_object(
       'type', 'activity', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."engagements" s
+    from "better_supabase"."activities" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'activity')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -455,7 +455,7 @@ begin
     select jsonb_agg(jsonb_build_object(
       'type', 'lease', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."lease_agreements" s
+    from "better_supabase"."leases" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'lease')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -503,7 +503,7 @@ begin
     select jsonb_agg(jsonb_build_object(
       'type', 'compliance_policy', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."policies" s
+    from "better_supabase"."compliance_policies" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'compliance_policy')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
@@ -714,7 +714,7 @@ begin
       );
     when 'activity', 'engagement' then
       return exists (
-        select 1 from "better_supabase"."engagements" s
+        select 1 from "better_supabase"."activities" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'activities.read'), false)
@@ -844,7 +844,7 @@ begin
       );
     when 'lease' then
       return exists (
-        select 1 from "better_supabase"."lease_agreements" s
+        select 1 from "better_supabase"."leases" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'leases.read'), false)
@@ -925,7 +925,7 @@ begin
       );
     when 'compliance_policy', 'policy' then
       return exists (
-        select 1 from "better_supabase"."policies" s
+        select 1 from "better_supabase"."compliance_policies" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'compliance.read'), false)
@@ -1267,7 +1267,7 @@ begin
       );
     when 'activity', 'engagement' then
       return exists (
-        select 1 from "better_supabase"."engagements" s
+        select 1 from "better_supabase"."activities" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'activities.read'), false)
@@ -1397,7 +1397,7 @@ begin
       );
     when 'lease' then
       return exists (
-        select 1 from "better_supabase"."lease_agreements" s
+        select 1 from "better_supabase"."leases" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'leases.read'), false)
@@ -1478,7 +1478,7 @@ begin
       );
     when 'compliance_policy', 'policy' then
       return exists (
-        select 1 from "better_supabase"."policies" s
+        select 1 from "better_supabase"."compliance_policies" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.read'), false)

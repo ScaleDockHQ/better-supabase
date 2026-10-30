@@ -423,14 +423,13 @@ blocks: {
 singular noun; an object takes it as `name`, plus `plural` when the English
 plural is wrong, `url` for the page of one row and `subject: false` to keep
 the entity out of the subject registry. A bare string for `entities` renames
-the block's primary entity. `work_item: "task"` turns the `work_items` table
-into `tasks`, `work_item_id` into `task_id`, `create_work_item` into
-`create_task`, `task.created` into `task.created` and the
-`tasks.read` permission into `tasks.read`:
+the block's primary entity. `task: "ticket"` turns the `tasks` table into
+`tickets`, `task_assignees` into `ticket_assignees`, `create_task` into
+`create_ticket` and the subject type `task` into `ticket`:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
-  "tasks": { entities: { work_item: { name: "task", url: "/tasks/{id}" } } },
+  tasks: { entities: { task: { name: "ticket", url: "/tickets/{id}" } } },
   contacts: { entities: { company: "account" } },
 },
 ```

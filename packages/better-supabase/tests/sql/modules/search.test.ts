@@ -54,7 +54,7 @@ describe("search module", () => {
       subjects: {
         ...subjects,
         work_item: {
-          table: "better_supabase.work_items",
+          table: "better_supabase.tasks",
           title: "title",
           search: {},
         },

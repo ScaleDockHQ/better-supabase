@@ -719,7 +719,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:d2d49a7345b71d5f0719d3ef50866f53ffe4e625a098424a3f3536a482deea1b
+-- @bsb-hash sha256:6c24d7d8ac51381381ae4723300ee3f666a384bd1115ec6a20792f63a22b0c59
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -868,7 +868,7 @@ set search_path = ''
 as $$
 begin
   if current_acknowledgement_version.subject_type = 'compliance_policy' then
-    return (select s."current_version_id"::uuid from "better_supabase"."policies" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
+    return (select s."current_version_id"::uuid from "better_supabase"."compliance_policies" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
   end if;
   return (
     select x."id" from "better_supabase"."versions" x

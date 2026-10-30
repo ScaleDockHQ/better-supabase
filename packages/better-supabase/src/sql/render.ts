@@ -55,6 +55,7 @@ import {
   SQL_MODULES,
 } from "./registry.ts";
 import { withSubjectMergeFunction } from "./subject-merge-sql.ts";
+import { tableBase } from "./table-renames.ts";
 import { applyTenantScope } from "./tenant-scope.ts";
 import { deprecationWrappers } from "./upgrade.ts";
 import { assertViewColumns } from "./view-columns.ts";
@@ -556,7 +557,10 @@ function checkEntityTables(
             logical,
             schema,
             name,
-            renamed: ctx.resolved.entityNaming.rename(spec.name) !== spec.name,
+            renamed:
+              ctx.resolved.entityNaming.rename(
+                tableBase(ctx.resolved, logical, spec.name),
+              ) !== spec.name,
             mapped: ctx.config.tables[logical] !== undefined,
           };
         });

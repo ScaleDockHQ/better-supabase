@@ -30,7 +30,7 @@ insert into better_supabase.bookings (id, tenant_id, resource_id, service_id, du
    tstzrange('2026-11-02 10:00+00', '2026-11-02 10:30+00'), tstzrange('2026-11-02 10:00+00', '2026-11-02 10:30+00'), 'hold', now() + interval '10 minutes', 'Peter', 'Peter@Initech.test', 'Bring the TPS reports');
 
 select is(
-  (select count(*)::int from better_supabase.engagements where external_ref = 'booking:' || (select id from ids where name = 'booking')),
+  (select count(*)::int from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'booking')),
   0,
   'a held booking logs no engagement'
 );
@@ -39,13 +39,13 @@ update better_supabase.bookings set status = 'confirmed', hold_expires_at = null
 
 select results_eq(
   $$select type, title, body, owner_user_id, due_at, duration_seconds, done_at is null
-    from better_supabase.engagements where external_ref = 'booking:' || (select id from ids where name = 'booking')$$,
+    from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'booking')$$,
   $$values ('meeting'::text, 'Intro call with Peter'::text, 'Bring the TPS reports'::text, '00000000-0000-4000-8000-0000000000a1'::uuid, '2026-11-02 10:00+00'::timestamptz, 1800, true)$$,
   'confirming logs an open meeting owned by the person''s owner'
 );
 select results_eq(
   $$select s.subject_type, s.subject_id, s.position from better_supabase.engagement_subjects s
-    join better_supabase.engagements e on e.id = s.engagement_id
+    join better_supabase.activities e on e.id = s.engagement_id
     where e.external_ref = 'booking:' || (select id from ids where name = 'booking') order by s.position$$,
   $$values ('person'::text, (select id::text from ids where name = 'person'), 1), ('company'::text, (select id::text from ids where name = 'company'), 2)$$,
   'the meeting links the booker (matched by email, any case) and their company'
@@ -67,12 +67,12 @@ update better_supabase.bookings
 set during = tstzrange('2026-11-03 09:00+00', '2026-11-03 10:00+00'), blocked = tstzrange('2026-11-03 09:00+00', '2026-11-03 10:00+00')
 where id = (select id from ids where name = 'booking');
 select results_eq(
-  $$select due_at, duration_seconds from better_supabase.engagements where external_ref = 'booking:' || (select id from ids where name = 'booking')$$,
+  $$select due_at, duration_seconds from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'booking')$$,
   $$values ('2026-11-03 09:00+00'::timestamptz, 3600)$$,
   'rescheduling moves the meeting'
 );
 select is(
-  (select count(*)::int from better_supabase.engagements where external_ref = 'booking:' || (select id from ids where name = 'booking')),
+  (select count(*)::int from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'booking')),
   1,
   'rescheduling keeps one engagement'
 );
@@ -82,7 +82,7 @@ select is(
   'rescheduling records activity.updated'
 );
 select is(
-  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.engagements e on e.id = s.engagement_id
+  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.activities e on e.id = s.engagement_id
    where e.external_ref = 'booking:' || (select id from ids where name = 'booking')),
   2,
   'rescheduling does not duplicate the links'
@@ -93,7 +93,7 @@ update better_supabase.bookings
 set status = 'cancelled', cancelled_at = '2026-11-01 08:00+00', cancel_reason = '  Out sick '
 where id = (select id from ids where name = 'booking');
 select results_eq(
-  $$select done_at, outcome from better_supabase.engagements where external_ref = 'booking:' || (select id from ids where name = 'booking')$$,
+  $$select done_at, outcome from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'booking')$$,
   $$values ('2026-11-01 08:00+00'::timestamptz, 'cancelled: Out sick'::text)$$,
   'cancelling completes the meeting with the reason'
 );
@@ -108,12 +108,12 @@ insert into better_supabase.bookings (id, tenant_id, resource_id, service_id, du
   ((select id from ids where name = 'stranger'), '00000000-0000-4000-8000-000000000001', (select id from ids where name = 'resource'), (select id from ids where name = 'service'),
    tstzrange('2026-11-04 10:00+00', '2026-11-04 10:30+00'), tstzrange('2026-11-04 10:00+00', '2026-11-04 10:30+00'), 'confirmed', 'nobody@elsewhere.test', '00000000-0000-4000-8000-0000000000a1');
 select results_eq(
-  $$select title, body, owner_user_id from better_supabase.engagements where external_ref = 'booking:' || (select id from ids where name = 'stranger')$$,
+  $$select title, body, owner_user_id from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'stranger')$$,
   $$values ('Intro call'::text, null::text, '00000000-0000-4000-8000-0000000000a1'::uuid)$$,
   'an unknown booker gets a meeting owned by the booking''s author'
 );
 select is(
-  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.engagements e on e.id = s.engagement_id
+  (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.activities e on e.id = s.engagement_id
    where e.external_ref = 'booking:' || (select id from ids where name = 'stranger')),
   0,
   'an unknown booker links no subject'

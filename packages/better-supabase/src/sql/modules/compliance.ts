@@ -21,6 +21,7 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { acknowledgementTables } from "./acknowledgements.ts";
 import { complianceFunctions } from "./compliance-functions.ts";
 import { POLICY_ROLE, policyFunctions } from "./compliance-policies.ts";
@@ -62,6 +63,7 @@ const EVENTS: BlockSqlEvents<ComplianceEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("compliance", 2),
   entities: {
     control: {
       table: "controls",
@@ -169,7 +171,7 @@ const NAMES: BlockSqlNames = {
       optional: ["assignee", "lastCollectedAt", "createdAt", "updatedAt"],
     },
     policies: {
-      name: "policies",
+      name: "compliance_policies",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -489,11 +491,18 @@ const TO_ACKNOWLEDGEMENTS: BlockSqlUpgrade = {
     return `-- The acknowledgements tables, so the policy acknowledgements can move before the module files run.
 ${acknowledgementTables(acknowledgements)}
 
-insert into ${assignments} (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")})
-select x.${p("tenant")}, ${type}, x.${p("id")}::text, 'role', ${sqlString(POLICY_ROLE)}
-from ${ctx.table("policies")} x
-where x.${p("requiresAck")} and x.${p("archivedAt")} is null
-on conflict (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")}) do nothing;
+do $$
+begin
+  if to_regclass(${sqlString(ctx.table("policies"))}) is null then
+    return;
+  end if;
+  insert into ${assignments} (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")})
+  select x.${p("tenant")}, ${type}, x.${p("id")}::text, 'role', ${sqlString(POLICY_ROLE)}
+  from ${ctx.table("policies")} x
+  where x.${p("requiresAck")} and x.${p("archivedAt")} is null
+  on conflict (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")}) do nothing;
+end;
+$$;
 
 do $$
 begin
@@ -548,7 +557,7 @@ export const COMPLIANCE: BlockSqlDefinition = {
   integrates: ["attachments", "notifications", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [TO_ACKNOWLEDGEMENTS],
   deprecated: DEPRECATED,
   names: NAMES,

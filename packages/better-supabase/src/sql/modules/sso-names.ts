@@ -1,6 +1,8 @@
 import type { SsoEvents } from "../../blocks/sso/events.ts";
 import type { BlockSqlEvents, BlockSqlNames } from "../context.ts";
 
+import { tableMoves } from "../table-renames.ts";
+
 const EVENTS: BlockSqlEvents<SsoEvents> = {
   "organization.member_removed": {
     subject: "organizations",
@@ -66,12 +68,13 @@ const EVENTS: BlockSqlEvents<SsoEvents> = {
 
 /** The sso module's events and tables. */
 export const NAMES: BlockSqlNames = {
+  migrations: tableMoves("sso", 1),
   events: EVENTS,
   options: ["txtPrefix", "defaultRole", "roleOrder", "groupRoles", "syncLog"],
   hooks: [],
   tables: {
     domains: {
-      name: "organization_domains",
+      name: "sso_domains",
       lifecycle: { tenant: "tenant" },
       app: {},
       optional: ["createdBy", "createdAt"],
@@ -89,7 +92,7 @@ export const NAMES: BlockSqlNames = {
       },
     },
     providers: {
-      name: "organization_sso_providers",
+      name: "sso_providers",
       lifecycle: { tenant: "tenant" },
       app: {},
       optional: ["metadataUrl"],

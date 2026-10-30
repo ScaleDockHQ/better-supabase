@@ -152,4 +152,19 @@ const keep = await compliance.policies(org);
 
     expect(sql.review.map((line) => line.line)).toEqual([1]);
   });
+
+  it("lists queries on a renamed module table", () => {
+    const source = `select * from better_supabase.work_items;
+select * from "better_supabase"."rules";
+select * from better_supabase.tasks;
+`;
+
+    const result = applyCodemod(v047, source, "supabase/schemas/report.sql");
+
+    expect(result.text).toBe(source);
+    expect(result.review).toEqual([
+      { line: 1, message: expect.stringContaining("`work_items` is `tasks`") },
+      { line: 2, message: expect.stringContaining("`rules` is `automations`") },
+    ]);
+  });
 });
