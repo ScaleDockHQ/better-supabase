@@ -193,6 +193,7 @@ export const permissions = {
     read: "activities.read",
     write: "activities.write",
     manage: "activities.manage",
+    readRestricted: "activities.read_restricted",
   },
   "api-keys": {
     manage: "api_keys.manage",
@@ -300,7 +301,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activities.manage" | "activities.read" | "activities.write" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "scores.compute" | "scores.manage" | "scores.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
+export type PermissionKey = "activities.manage" | "activities.read" | "activities.read_restricted" | "activities.write" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "scores.compute" | "scores.manage" | "scores.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -332,8 +333,10 @@ export const blockEvents: Events<BlockEvents> = {
     "company.person_linked",
     "company.person_unlinked",
     "company.updated",
+    "engagement.amended",
     "engagement.completed",
     "engagement.deleted",
+    "engagement.error_marked",
     "engagement.logged",
     "engagement.recorded",
     "engagement.summarized",
@@ -429,8 +432,10 @@ export const blockEventSchemas = {
   "company.person_linked": true,
   "company.person_unlinked": true,
   "company.updated": true,
+  "engagement.amended": true,
   "engagement.completed": true,
   "engagement.deleted": true,
+  "engagement.error_marked": true,
   "engagement.logged": true,
   "engagement.recorded": true,
   "engagement.summarized": true,

@@ -59,7 +59,7 @@ select throws_ok(
   'an unknown category is refused'
 );
 
--- Acme member, on no team and without engagements.read_restricted.
+-- Acme member, on no team and without activities.read_restricted.
 reset role;
 select set_config(
   'request.jwt.claims',
