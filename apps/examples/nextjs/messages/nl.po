@@ -108,9 +108,9 @@ msgid "Compliance"
 msgstr "Compliance"
 
 #: src/app/[locale]/(app)/compliance/page.tsx
-msgctxt "compliance.My7cmz"
-msgid "What you are asked to read, how each framework's controls stand, the evidence that is due, and the contracts coming up for renewal."
-msgstr "Wat je moet lezen, hoe de controls van elk framework ervoor staan, welk bewijs verschuldigd is en welke contracten binnenkort verlengd moeten worden."
+msgctxt "compliance.4zT1k6"
+msgid "What you are asked to read, how each framework's controls stand, the evidence that is due, the contracts coming up for renewal and what the organization asks consent for."
+msgstr "Wat je moet lezen, hoe de controls van elk framework ervoor staan, welk bewijs verschuldigd is, welke contracten binnenkort verlengd moeten worden en waarvoor de organisatie toestemming vraagt."
 
 #: src/app/[locale]/(app)/courses/[courseId]/page.tsx
 #: src/features/courses/components/course-outline.tsx
@@ -3293,6 +3293,131 @@ msgctxt "community.eKv7yX"
 msgid "Post"
 msgstr "Plaatsen"
 
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.GlRxTV"
+msgid "Consent"
+msgstr "Toestemming"
+
+#: src/features/compliance/components/consent-register.tsx
+#: src/features/compliance/components/contract-renewals.tsx
+msgctxt "compliance.nV7Cv-"
+msgid "Contract"
+msgstr "Contract"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.h6ul6p"
+msgid "Legal obligation"
+msgstr "Wettelijke verplichting"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.twSEKP"
+msgid "Vital interest"
+msgstr "Vitaal belang"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.KmrVUu"
+msgid "Public task"
+msgstr "Publieke taak"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.Rikdr_"
+msgid "Legitimate interest"
+msgstr "Gerechtvaardigd belang"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.uxIWly"
+msgid "Consent register"
+msgstr "Toestemmingsregister"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.OQcKSh"
+msgid "What the organization asks consent for. A new version of a purpose asks every record again."
+msgstr "Waarvoor de organisatie toestemming vraagt. Een nieuwe versie van een doel vraagt het elk record opnieuw."
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.89ahZP"
+msgid "The consent purposes didn't load"
+msgstr "De toestemmingsdoelen zijn niet geladen"
+
+#: src/features/compliance/components/consent-register.tsx
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/compliance/components/consent-register.tsx
+#: src/features/compliance/components/contract-renewals.tsx
+#: src/features/compliance/components/control-posture.tsx
+msgctxt "compliance.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.H5kXT6"
+msgid "No consent purposes"
+msgstr "Geen toestemmingsdoelen"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.druR_k"
+msgid "Save a purpose, such as marketing email, before recording consent on a record."
+msgstr "Sla een doel op, zoals marketingmail, voordat je toestemming bij een record vastlegt."
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.mUhMhw"
+msgid "Read the consents guide"
+msgstr "Lees de handleiding over toestemming"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.m0RdHL"
+msgid "Purpose"
+msgstr "Doel"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.LrUGQ4"
+msgid "Lawful basis"
+msgstr "Grondslag"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.I3b4hn"
+msgid "Version"
+msgstr "Versie"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.GckA3H"
+msgid "Lasts"
+msgstr "Geldig"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.6g7-6N"
+msgid "Evidence"
+msgstr "Bewijs"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.qOWuca"
+msgid "Until withdrawn"
+msgstr "Tot intrekking"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.oTX0mL"
+msgid "{months, number} months"
+msgstr "{months, number} maanden"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.nQkv1D"
+msgid "Signature"
+msgstr "Handtekening"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.ToO3_h"
+msgid "Any"
+msgstr "Elk"
+
+#: src/features/compliance/components/consent-register.tsx
+msgctxt "compliance.-CwN9C"
+msgid "System"
+msgstr "Systeem"
+
 #: src/features/compliance/components/contract-renewals.tsx
 msgctxt "compliance.CrEhnK"
 msgid "No end date"
@@ -3339,18 +3464,6 @@ msgid "The contracts didn't load"
 msgstr "De contracten zijn niet geladen"
 
 #: src/features/compliance/components/contract-renewals.tsx
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.162kF7"
-msgid "Try again in a moment."
-msgstr "Probeer het zo opnieuw."
-
-#: src/features/compliance/components/contract-renewals.tsx
-#: src/features/compliance/components/control-posture.tsx
-msgctxt "compliance.62nsdy"
-msgid "Retry"
-msgstr "Opnieuw proberen"
-
-#: src/features/compliance/components/contract-renewals.tsx
 msgctxt "compliance.PmqZKj"
 msgid "No active contracts"
 msgstr "Geen actieve contracten"
@@ -3364,11 +3477,6 @@ msgstr "Een contract wordt actief zodra iedere ondertekenaar heeft getekend. Ste
 msgctxt "compliance.GmW-DP"
 msgid "Open customers"
 msgstr "Klanten openen"
-
-#: src/features/compliance/components/contract-renewals.tsx
-msgctxt "compliance.nV7Cv-"
-msgid "Contract"
-msgstr "Contract"
 
 #: src/features/compliance/components/contract-renewals.tsx
 msgctxt "compliance.GufXy5"

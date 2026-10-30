@@ -7465,6 +7465,91 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "consents",
+      "title": "Consents",
+      "category": "admin",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "contacts",
+        "relations",
+        "guests",
+        "signatures",
+        "forms",
+        "attachments",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "consents",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "consent": {
+            "table": "consents",
+            "singular": "consent",
+            "primary": true
+          },
+          "consent_purpose": {
+            "table": "purposes",
+            "singular": "consent_purpose"
+          }
+        },
+        "tables": {
+          "consents": {
+            "name": "consents",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "purpose": "purpose_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "givenBy": "given_by",
+              "givenByContact": "given_by_contact_id",
+              "givenByUser": "given_by_user_id",
+              "status": "status",
+              "scope": "scope",
+              "grantedAt": "granted_at",
+              "validUntil": "valid_until",
+              "withdrawnAt": "withdrawn_at",
+              "withdrawnReason": "withdrawn_reason",
+              "signature": "signature_id",
+              "submission": "submission_id",
+              "attachment": "attachment_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          },
+          "purposes": {
+            "name": "consent_purposes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "title": "title",
+              "description": "description",
+              "legalBasis": "legal_basis",
+              "version": "version",
+              "requiresSignature": "requires_signature",
+              "validMonths": "valid_months",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "consents.read",
+          "record": "consents.record",
+          "manage": "consents.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -16314,6 +16399,191 @@ export const PRESET_CATALOG: PresetCatalog = {
           "shift_swap.decided"
         ]
       }
+    },
+    {
+      "name": "consents",
+      "sql": [
+        "consents"
+      ],
+      "category": "admin",
+      "client": {
+        "export": "consentsBlock",
+        "subpath": "better-supabase/blocks/consents"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Consent"
+        },
+        {
+          "name": "ConsentEventData"
+        },
+        {
+          "name": "ConsentEvidence"
+        },
+        {
+          "name": "ConsentGivenBy"
+        },
+        {
+          "name": "ConsentPurpose"
+        },
+        {
+          "name": "ConsentPurposeEventData"
+        },
+        {
+          "name": "ConsentPurposeInput"
+        },
+        {
+          "name": "Consents"
+        },
+        {
+          "name": "ConsentsEvents"
+        },
+        {
+          "name": "ConsentsOptions"
+        },
+        {
+          "name": "ConsentStatus"
+        },
+        {
+          "name": "RecordConsentInput"
+        }
+      ],
+      "entitySchemas": {
+        "consent_purpose": {
+          "input": {
+            "title": "ConsentPurposeInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63,
+                "description": "Lowercase letters, digits, `_`, `-` and `.`, such as `marketing.email`."
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "version": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 40,
+                "description": "Default `1`. A new version asks every record again."
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 4000
+              },
+              "legalBasis": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "consent",
+                  "contract",
+                  "legal_obligation",
+                  "vital_interest",
+                  "public_task",
+                  "legitimate_interest"
+                ]
+              },
+              "requiresSignature": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "validMonths": {
+                "kind": "integer",
+                "optional": true,
+                "minimum": 1,
+                "maximum": 1200
+              },
+              "system": {
+                "kind": "boolean",
+                "optional": true,
+                "description": "A system purpose every organization uses; service role only."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ConsentPurposeInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63,
+                  "description": "Lowercase letters, digits, `_`, `-` and `.`, such as `marketing.email`."
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "version": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 40,
+                  "description": "Default `1`. A new version asks every record again."
+                },
+                "description": {
+                  "type": "string",
+                  "maxLength": 4000
+                },
+                "legalBasis": {
+                  "type": "string",
+                  "enum": [
+                    "consent",
+                    "contract",
+                    "legal_obligation",
+                    "vital_interest",
+                    "public_task",
+                    "legitimate_interest"
+                  ]
+                },
+                "requiresSignature": {
+                  "type": "boolean"
+                },
+                "validMonths": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 1200
+                },
+                "system": {
+                  "type": "boolean",
+                  "description": "A system purpose every organization uses; service role only."
+                }
+              },
+              "required": [
+                "key",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ConsentsEvents",
+        "types": [
+          "consent.granted",
+          "consent.refused",
+          "consent.withdrawn",
+          "consent.expired",
+          "consent_purpose.created",
+          "consent_purpose.updated"
+        ]
+      },
+      "schedules": [
+        {
+          "name": "expire",
+          "cron": "0 3 * * *",
+          "runs": "expire()",
+          "description": "Marks the grants past their valid-until date expired."
+        }
+      ]
     },
     {
       "name": "drive",
