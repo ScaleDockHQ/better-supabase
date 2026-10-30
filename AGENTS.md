@@ -259,6 +259,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0143: A `tax` block owns tax codes, rate history, `compute_document_tax` (margin, credit restriction), invoice tax lines, returns and the EU sales list (breaking).
 - 0144: `accounting` grows into a general ledger (levels, locks, opening balances, open items, payment batches); `better-supabase/audit-files` exchanges SAF-T and XAF.
 - 0145: Document templates read a typed variable contract, look up per legal entity and language, and use tenant-editable text blocks.
+- 0146: Controlled document types can set a `numberFormat` and count from their own numbering entity.
 
 ## Pre-release pins
 

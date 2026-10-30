@@ -497,7 +497,10 @@ export default defineConfig({
     drive: {
       options: {
         uploadRole: "contributor",
-        control: { types: ["sop", "policy", "form"], reviewMonths: 12 },
+        control: {
+          types: [{ name: "sop", numberFormat: "SOP-{n:4}" }, "policy", "form"],
+          reviewMonths: 12,
+        },
       },
     },
     versions: { on: { customer: { columns: ["name", "kvk"] } } },

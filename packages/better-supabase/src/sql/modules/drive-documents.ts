@@ -30,6 +30,8 @@ const RELEASE = "'release'";
 /** `blocks.drive.options.control`, checked. */
 export interface DriveControl {
   readonly types: readonly string[];
+  /** The number format of the types that set `numberFormat`, by type. */
+  readonly numberFormats: Readonly<Record<string, string>>;
   readonly reviewMonths: number;
   /** The role that obsoletes a document; the share role by default. */
   readonly releaseRole: string | undefined;
@@ -58,17 +60,46 @@ export function driveControl(
     );
   }
 
-  const types = raw["types"];
+  const entries: unknown = raw["types"];
+
+  const typeNames = Array.isArray(entries)
+    ? entries.map((entry: unknown) => (isRecord(entry) ? entry["name"] : entry))
+    : [];
 
   if (
-    !Array.isArray(types) ||
-    types.length === 0 ||
-    !types.every((type) => typeof type === "string" && TYPE.test(type)) ||
-    new Set(types).size !== types.length
+    !Array.isArray(entries) ||
+    entries.length === 0 ||
+    !typeNames.every((type) => typeof type === "string" && TYPE.test(type)) ||
+    new Set(typeNames).size !== typeNames.length
   ) {
     throw new TypeError(
-      `${where}.types must list distinct document types in lowercase, such as sop`,
+      `${where}.types must list distinct document types in lowercase, such as sop, or { name, numberFormat }`,
     );
+  }
+
+  const types = typeNames.map(String);
+  const numberFormats: Record<string, string> = {};
+
+  // SAFETY: the check above proved `entries` is an array.
+  for (const entry of entries as readonly unknown[]) {
+    if (!isRecord(entry) || entry["numberFormat"] === undefined) {
+      continue;
+    }
+
+    const format = entry["numberFormat"];
+
+    if (
+      typeof format !== "string" ||
+      format.length === 0 ||
+      format.length > 80 ||
+      !/\{n(?::[0-9]+)?\}/.test(format)
+    ) {
+      throw new TypeError(
+        `${where}.types[${String(entry["name"])}].numberFormat must be a short template with {n}, such as SOP-{n:4}`,
+      );
+    }
+
+    numberFormats[String(entry["name"])] = format;
   }
 
   const reviewMonths = raw["reviewMonths"] ?? DEFAULT_REVIEW_MONTHS;
@@ -110,7 +141,7 @@ export function driveControl(
     );
   }
 
-  return { types: types.map(String), reviewMonths, releaseRole };
+  return { types, numberFormats, reviewMonths, releaseRole };
 }
 
 /** The functions `options.control` adds to the drive-files contract. */
@@ -140,17 +171,31 @@ export const DOCUMENT_FUNCTIONS: readonly BlockSqlContractFunction[] = [
 const documentEntity = (own: BlockSqlContext): string =>
   own.resolved.entityNaming.rename("drive_document");
 
+/**
+ * The numbering entity of a document type: its own counter when the type sets a
+ * `numberFormat`, the shared one otherwise.
+ */
+const typeEntity = (own: BlockSqlContext, type: string): string =>
+  `${documentEntity(own)}_${type}`;
+
 /** The defaults the other blocks get for controlled documents. */
 export const DOCUMENT_CONTRIBUTES: BlockContributes = {
-  numbering: (own) =>
-    driveControl(own.of("drive")) === undefined
+  numbering: (own) => {
+    const control = driveControl(own.of("drive"));
+
+    return control === undefined
       ? []
       : [
           {
             entity: documentEntity(own),
             entry: { period: "none", format: "DOC-{n:5}" },
           },
-        ],
+          ...Object.entries(control.numberFormats).map(([type, format]) => ({
+            entity: typeEntity(own, type),
+            entry: { period: "none", format },
+          })),
+        ];
+  },
   relations: (own) => {
     const drive = own.of("drive");
     const type = driveSubjectType(drive);
@@ -372,13 +417,39 @@ function saveSql(kit: DriveKit, control: DriveControl): string {
   const { own, T, n, fn, canWrite, forbidden, withRole, touch, record } = kit;
   const { tenant, m } = kit;
   const entity = documentEntity(own);
-  const format = sequenceFormatOf(own, entity, `v_node.${n("tenant")}`)?.format;
+  const tenantSql = `v_node.${n("tenant")}`;
 
-  if (format === undefined) {
-    throw new TypeError(
-      `blocks.numbering.options.entities.${entity} needs a format for document numbers`,
-    );
-  }
+  const formatOf = (name: string): string => {
+    const format = sequenceFormatOf(own, name, tenantSql)?.format;
+
+    if (format === undefined) {
+      throw new TypeError(
+        `blocks.numbering.options.entities.${name} needs a format for document numbers`,
+      );
+    }
+
+    return format;
+  };
+
+  const typed = Object.keys(control.numberFormats);
+
+  const chosen =
+    typed.length === 0
+      ? `v_entity := ${sqlString(entity)};
+    v_format := ${formatOf(entity)};`
+      : `case drive_document_save.document_type
+${typed
+  .map(
+    (type) =>
+      `      when ${sqlString(type)} then
+        v_entity := ${sqlString(typeEntity(own, type))};
+        v_format := ${formatOf(typeEntity(own, type))};`,
+  )
+  .join("\n")}
+      else
+        v_entity := ${sqlString(entity)};
+        v_format := ${formatOf(entity)};
+    end case;`;
 
   const types = `array[${control.types.map(sqlString).join(", ")}]::text[]`;
 
@@ -396,6 +467,8 @@ declare
   v_node ${T}%rowtype;
   v_seq bigint;
   v_number text;
+  v_entity text;
+  v_format text;
 begin
   ${READ_ONLY_GUARD}
   ${loadNode(kit, "drive_document_save", "a controlled document")}
@@ -417,8 +490,9 @@ begin
   end if;
   v_number := v_node.${n("documentNumber")};
   if v_number is null then
-    v_seq := ${own.of("numbering").fn("next_number")}(v_node.${n("tenant")}, ${sqlString(entity)}, now());
-    v_number := better_supabase.format_assigned_number(${format}, v_seq, now());
+    ${chosen}
+    v_seq := ${own.of("numbering").fn("next_number")}(v_node.${n("tenant")}, v_entity, now());
+    v_number := better_supabase.format_assigned_number(v_format, v_seq, now());
   end if;
   update ${T} x set ${n("documentNumber")} = v_number,
     ${n("documentType")} = drive_document_save.document_type,
