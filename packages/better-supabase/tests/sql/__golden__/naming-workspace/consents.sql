@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_146_consents.sql
+-- ==== schema supabase/schemas/900_better_supabase_147_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@1 managed
 -- @bsb-hash sha256:3a0505b2178b977bed6b9348e6ba1708dd3da2e0d3f9da2a91c25105153e8d00
@@ -684,7 +684,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_146_consents.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_147_consents.sql
 -- better-supabase module: consents
 -- @bsb-block-data consents
 -- @bsb-hash sha256:847489b2aac958461d00305ddc46b04b6f03efe6f788452507bf88a805895ea4
