@@ -103,10 +103,20 @@ function EvaluationGrid({
   const t = useExtracted("care-plans");
 
   const columns: ColumnDef<DataGridFeatures, CarePlanEvaluationRow>[] = [
-    { accessorKey: "evaluatedAt", header: t("Date"), cell: DateCell, size: 130 },
+    {
+      accessorKey: "evaluatedAt",
+      header: t("Date"),
+      cell: DateCell,
+      size: 130,
+    },
     { accessorKey: "goal", header: t("Goal"), cell: GoalCell, size: 240 },
     { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 140 },
-    { accessorKey: "outcome", header: t("Outcome"), cell: OutcomeCell, size: 320 },
+    {
+      accessorKey: "outcome",
+      header: t("Outcome"),
+      cell: OutcomeCell,
+      size: 320,
+    },
   ];
 
   const table = useTable({
