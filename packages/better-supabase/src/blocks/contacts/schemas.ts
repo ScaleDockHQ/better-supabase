@@ -5,7 +5,8 @@ import type {
   PersonInput,
 } from "./contacts.ts";
 
-import { entitySchema } from "../entity-schema.ts";
+import { entitySchema, moneyField } from "../entity-schema.ts";
+import { SUPPLIER_STATUSES } from "./roles.ts";
 
 const NAME = {
   kind: "string",
@@ -28,6 +29,14 @@ export const companyInputSchema: EntitySchema<CompanyInput> =
       lifecycle: { kind: "string", optional: true },
       ownerId: { kind: "uuid", optional: true, nullable: true },
       address: { kind: "json", optional: true, nullable: true },
+      paymentTermsDays: {
+        kind: "integer",
+        optional: true,
+        nullable: true,
+        minimum: 0,
+        maximum: 3650,
+      },
+      creditLimit: { ...moneyField, optional: true, nullable: true },
       fields: {
         kind: "json",
         optional: true,
@@ -49,6 +58,14 @@ export const personInputSchema: EntitySchema<PersonInput> =
       lifecycle: { kind: "string", optional: true },
       ownerId: { kind: "uuid", optional: true, nullable: true },
       userId: { kind: "uuid", optional: true, nullable: true },
+      paymentTermsDays: {
+        kind: "integer",
+        optional: true,
+        nullable: true,
+        minimum: 0,
+        maximum: 3650,
+      },
+      creditLimit: { ...moneyField, optional: true, nullable: true },
       fields: {
         kind: "json",
         optional: true,
@@ -65,6 +82,12 @@ export const partyListFilterSchema: EntitySchema<PartyListOptions> =
       search: { kind: "string", optional: true },
       lifecycle: { kind: "string", optional: true },
       ownerId: { kind: "uuid", optional: true },
+      role: { kind: "string", optional: true },
+      supplierStatus: {
+        kind: "enum",
+        values: SUPPLIER_STATUSES,
+        optional: true,
+      },
       limit: { kind: "integer", optional: true, minimum: 1 },
       cursor: {
         kind: "json",

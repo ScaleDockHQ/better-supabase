@@ -1,11 +1,11 @@
 ---
 title: Contacts
-description: Companies and people an organization works with, with lifecycle stages, owners, who works where with a role and a primary contact, dedupe by domain and email, merges and keyset-paged search.
+description: Companies and people an organization works with, with lifecycle stages, owners, roles such as customer or supplier, payment terms, credit limits, a supplier status, who works where with a role and a primary contact, dedupe by domain and email, merges and keyset-paged search.
 ---
 
 `contacts` keeps the companies and people an organization sells to, supports or hires: the counterparty that deals, quotes, invoices, tickets and applications point at. A company has a name, a domain, a website, a VAT id, an address, an owner and a lifecycle stage. A person has a name, an email, a phone, a title, an avatar, an owner, a lifecycle stage, optionally the user they sign in as, and identities: their addresses on channels. `company_people` records who works where, with a role and one primary contact per company.
 
-Reading needs `contacts.read`, creating, changing, linking and archiving needs `contacts.write`, and merging needs `contacts.manage`. Admins get every permission, and members get `contacts.read` and `contacts.write`.
+Reading needs `contacts.read`, creating, changing, linking and archiving needs `contacts.write`, merging needs `contacts.manage`, and setting a supplier status needs `contacts.approve_supplier`. Admins get every permission, and members get `contacts.read` and `contacts.write`.
 
 ```bash
 better-supabase add contacts
@@ -59,6 +59,61 @@ const rows = useContacts({ limit: 50 });
 A lifecycle stage is one of `options.companyLifecycles` (default `lead`, `prospect`, `customer`, `churned`) or `options.personLifecycles` (default `lead`, `mql`, `sql`, `opportunity`, `customer`); a new record starts at the first (`PARTY_LIFECYCLE_INVALID` for another value). `archiveCompany(id)` and `archivePerson(id)` hide a record from the lists, and `archived: false` restores it.
 
 `linkPerson(companyId, personId, { role, primary })` links a person to a company or changes the link; a primary link replaces the company's previous primary contact. `peopleOf(companyId)` returns the company's people, primary contact first, and `unlinkPerson` removes a link.
+
+## Roles
+
+A company or person can hold several roles at once, such as a customer that is also a supplier. The roles come from `options.roles` (default `customer`, `supplier`, `funder`, `partner`), each a lowercase name. `setRoles(partyId, roles)` replaces a record's roles, sorted and without duplicates, and needs `contacts.write` (`PARTY_ROLES_INVALID` for a role the options don't list). It returns `{ type: "company", company }` or `{ type: "person", person }`.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  contacts: { options: { roles: ["customer", "supplier", "reseller"] } },
+},
+```
+
+```ts
+import { money } from "better-supabase/commerce";
+
+await db.contacts.setRoles(acme.id, ["customer", "supplier"]).orThrow();
+await db.contacts
+  .saveCompany(organizationId, {
+    id: acme.id,
+    paymentTermsDays: 30,
+    creditLimit: money(500_000n, "EUR"),
+  })
+  .orThrow();
+const suppliers = await db.contacts
+  .listCompanies(organizationId, { role: "supplier" })
+  .orThrow();
+```
+
+`saveCompany` and `savePerson` also take the commercial terms: `paymentTermsDays`, 0 to 3650 days, and `creditLimit`, an amount in minor units with its currency (`PARTY_TERMS_INVALID` otherwise). `null` clears either. A returned record carries `roles`, `paymentTermsDays`, `creditLimit` and `supplierStatus`. `listCompanies` and `listPeople` filter on one `role` and on a `supplierStatus`.
+
+## Suppliers
+
+`setSupplierStatus(partyId, status, reason)` records where a supplier stands: `approved`, `conditional` or `blocked`, or `null` for not assessed. It needs `contacts.approve_supplier`, which admins hold, so a buyer who edits the record can't approve the supplier. A change writes `company.supplier_status_changed` or `person.supplier_status_changed` with the previous status and the reason, and an audit entry. Together with the `supplierStatus` list filter, this keeps the approved supplier list that ISO 9001 clause 8.4 asks for.
+
+```ts
+await db.contacts
+  .setSupplierStatus(acme.id, "conditional", "Certificate renewal pending")
+  .orThrow();
+const approved = await db.contacts
+  .listCompanies(organizationId, {
+    role: "supplier",
+    supplierStatus: "approved",
+  })
+  .orThrow();
+```
+
+With [qualifications](/docs/blocks/qualifications) installed and `company` among its `holderTypes`, `supplierStatusFromQualifications(companyId)` returns `approved` when the company's gap report lists no missing or expired qualification, and `conditional` otherwise. It only reads; pass the result to `setSupplierStatus` to apply it, for example from a nightly job:
+
+```ts
+const status = await db.contacts
+  .supplierStatusFromQualifications(acme.id)
+  .orThrow();
+await db.contacts
+  .setSupplierStatus(acme.id, status, "From qualifications")
+  .orThrow();
+```
 
 ## Search and pages
 
@@ -181,13 +236,17 @@ People take app fields through [custom fields](/docs/blocks/custom-fields) with 
 
 ## Events
 
-| Event                                                    | Data                                              |
-| -------------------------------------------------------- | ------------------------------------------------- |
-| `company.created`, `company.updated`, `company.archived` | `organizationId`, `companyId`, `name`             |
-| `company.merged`                                         | `organizationId`, `companyId`, `name`, `mergedId` |
-| `company.person_linked`, `company.person_unlinked`       | `organizationId`, `companyId`, `personId`, `role` |
-| `person.created`, `person.updated`, `person.archived`    | `organizationId`, `personId`, `name`              |
-| `person.merged`                                          | `organizationId`, `personId`, `name`, `mergedId`  |
+| Event                                                    | Data                                                                        |
+| -------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `company.created`, `company.updated`, `company.archived` | `organizationId`, `companyId`, `name`                                       |
+| `company.merged`                                         | `organizationId`, `companyId`, `name`, `mergedId`                           |
+| `company.person_linked`, `company.person_unlinked`       | `organizationId`, `companyId`, `personId`, `role`                           |
+| `company.supplier_status_changed`                        | `organizationId`, `companyId`, `name`, `status`, `previousStatus`, `reason` |
+| `person.created`, `person.updated`, `person.archived`    | `organizationId`, `personId`, `name`                                        |
+| `person.merged`                                          | `organizationId`, `personId`, `name`, `mergedId`                            |
+| `person.supplier_status_changed`                         | `organizationId`, `personId`, `name`, `status`, `previousStatus`, `reason`  |
+
+`setRoles` writes `company.updated` or `person.updated`.
 
 ## Hooks
 
@@ -199,18 +258,22 @@ The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filter
 
 ## Errors
 
-| Hint                      | Cause                                                               |
-| ------------------------- | ------------------------------------------------------------------- |
-| `PARTY_FORBIDDEN`         | the caller lacks `contacts.write`, or `contacts.manage` for a merge |
-| `PARTY_ATTRS_INVALID`     | the attributes aren't an object                                     |
-| `PARTY_NAME_REQUIRED`     | a new record has no name                                            |
-| `PARTY_LIFECYCLE_INVALID` | not a configured lifecycle stage                                    |
-| `PARTY_DOMAIN_TAKEN`      | another active company has the domain                               |
-| `PARTY_EMAIL_TAKEN`       | another active person has the email                                 |
-| `PARTY_NOT_FOUND`         | no such record                                                      |
-| `PARTY_MERGE_INVALID`     | the records can't be merged                                         |
-| `PARTY_IDENTITY_INVALID`  | an identity has no channel or no address                            |
-| `PARTY_IDENTITY_TAKEN`    | another person of the organization has the address                  |
+| Hint                            | Cause                                                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `PARTY_FORBIDDEN`               | the caller lacks `contacts.write`, or `contacts.manage` for a merge, or `contacts.approve_supplier` for a supplier status |
+| `PARTY_ATTRS_INVALID`           | the attributes aren't an object                                                                                           |
+| `PARTY_NAME_REQUIRED`           | a new record has no name                                                                                                  |
+| `PARTY_LIFECYCLE_INVALID`       | not a configured lifecycle stage                                                                                          |
+| `PARTY_DOMAIN_TAKEN`            | another active company has the domain                                                                                     |
+| `PARTY_EMAIL_TAKEN`             | another active person has the email                                                                                       |
+| `PARTY_NOT_FOUND`               | no such record                                                                                                            |
+| `PARTY_MERGE_INVALID`           | the records can't be merged                                                                                               |
+| `PARTY_IDENTITY_INVALID`        | an identity has no channel or no address                                                                                  |
+| `PARTY_IDENTITY_TAKEN`          | another person of the organization has the address                                                                        |
+| `PARTY_ROLES_INVALID`           | a role isn't in `options.roles`                                                                                           |
+| `PARTY_SUPPLIER_STATUS_INVALID` | not `approved`, `conditional` or `blocked`, or a reason over 2000 characters                                              |
+| `PARTY_TERMS_INVALID`           | payment terms outside 0 to 3650 days, or a credit limit without whole minor units and a currency                          |
+| `PARTY_FIELD_UNSUPPORTED`       | an adopted table has no column for the key                                                                                |
 
 ## Without the client
 
@@ -238,3 +301,5 @@ await parties
   .linkPerson(acme.id, ada.id, { role: "Champion", primary: true })
   .orThrow();
 ```
+
+In SQL the same calls are `better_supabase.set_party_roles(party, roles)`, `better_supabase.set_supplier_status(party, status, reason)` and `better_supabase.supplier_status_from_qualifications(party)`, each checking the caller's permission.

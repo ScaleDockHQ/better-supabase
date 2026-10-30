@@ -4524,6 +4524,21 @@ msgid "Add the companies you sell to and the people you talk to."
 msgstr "Add the companies you sell to and the people you talk to."
 
 #: src/features/crm/components/contact-list.tsx
+msgctxt "crm.6XFO_C"
+msgid "Approved"
+msgstr "Approved"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.2s7KhN"
+msgid "Conditional"
+msgstr "Conditional"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.qUJTsT"
+msgid "Blocked"
+msgstr "Blocked"
+
+#: src/features/crm/components/contact-list.tsx
 msgctxt "crm.KkpdQS"
 msgid "{count, plural, one {# contact} other {# contacts}}"
 msgstr "{count, plural, one {# contact} other {# contacts}}"
@@ -4552,6 +4567,11 @@ msgstr "Email or domain"
 msgctxt "crm.TGAGHp"
 msgid "Lifecycle"
 msgstr "Lifecycle"
+
+#: src/features/crm/components/contact-list.tsx
+msgctxt "crm.5Ya43Y"
+msgid "Supplier"
+msgstr "Supplier"
 
 #: src/features/crm/components/create-contact-dialog.tsx
 msgctxt "crm.ckQ_gN"

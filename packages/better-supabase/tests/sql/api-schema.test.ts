@@ -22,11 +22,13 @@ const MODULE_OPTIONS: Readonly<Record<string, Record<string, unknown>>> = {
   approvals: { options: { tenantPolicies: true } },
 };
 
-// Record access requests exist only next to a subject with a team, and
-// project costs only next to tasks.
+// Record access requests exist only next to a subject with a team, project
+// costs only next to tasks, and supplier statuses from qualifications only next
+// to qualifications.
 const MODULE_BLOCKS: Readonly<Record<string, readonly string[]>> = {
   "access-requests": ["subjects"],
   "billable-time": ["tasks"],
+  contacts: ["qualifications"],
 };
 
 const TEAM_SUBJECT = {

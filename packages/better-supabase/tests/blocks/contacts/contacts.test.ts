@@ -75,6 +75,7 @@ describe("parties block", () => {
       name: "Acme",
       lifecycle: "lead",
       archived: false,
+      roles: [],
       ownerId: "u1",
       domain: "acme.com",
       address: { city: "Utrecht" },
@@ -105,6 +106,8 @@ describe("parties block", () => {
       after_name: null,
       after_id: null,
       page_size: 2,
+      role: null,
+      supplier_status: null,
     });
     const [person] = await parties.peopleOf("c1").orThrow();
     expect(person).toMatchObject({
@@ -151,6 +154,112 @@ describe("parties block", () => {
       ["remove_company_person", { company: "c1", person: "p1" }],
       ["archive_person", { id: "p1", archived: true }],
     ]);
+  });
+});
+
+describe("parties block, roles and suppliers", () => {
+  const SUPPLIER = {
+    ...COMPANY,
+    roles: ["customer", "supplier"],
+    payment_terms_days: 30,
+    credit_limit: "500000",
+    credit_currency: "EUR",
+    supplier_status: "approved",
+  };
+
+  it("reads the roles, terms, credit limit and supplier status", async () => {
+    const t = transport({ list_companies: () => [SUPPLIER] });
+
+    const page = await createContacts({ transport: t })
+      .listCompanies("o", { role: "supplier", supplierStatus: "approved" })
+      .orThrow();
+
+    expect(t.calls[0]?.[1]).toMatchObject({
+      role: "supplier",
+      supplier_status: "approved",
+    });
+    expect(page.items[0]).toMatchObject({
+      roles: ["customer", "supplier"],
+      paymentTermsDays: 30,
+      creditLimit: { amount: 500_000n, currency: "EUR" },
+      supplierStatus: "approved",
+      fields: { segment: "smb" },
+    });
+  });
+
+  it("sends a credit limit as minor units and its currency", async () => {
+    const t = transport({ save_person: () => PERSON });
+    const parties = createContacts({ transport: t });
+
+    await parties
+      .savePerson("o", {
+        id: "p1",
+        paymentTermsDays: 14,
+        creditLimit: { amount: 2500n, currency: "USD" },
+      })
+      .orThrow();
+    await parties.savePerson("o", { id: "p1", creditLimit: null }).orThrow();
+
+    expect(t.calls.map(([, args]) => args["attrs"])).toEqual([
+      { paymentTermsDays: 14, creditLimit: "2500", creditCurrency: "USD" },
+      { creditLimit: null, creditCurrency: null },
+    ]);
+  });
+
+  it("sets roles and a supplier status on a company or a person", async () => {
+    const t = transport({
+      set_party_roles: () => ({ type: "company", party: SUPPLIER }),
+      set_supplier_status: () => ({
+        type: "person",
+        party: { ...PERSON, roles: ["supplier"], supplier_status: "blocked" },
+      }),
+      supplier_status_from_qualifications: () => "conditional",
+    });
+
+    const parties = createContacts({ transport: t });
+
+    const set = await parties
+      .setRoles("c1", ["supplier", "customer"])
+      .orThrow();
+
+    const blocked = await parties
+      .setSupplierStatus("p1", "blocked", "Late deliveries")
+      .orThrow();
+
+    await parties.setSupplierStatus("p1", null).orThrow();
+
+    expect(set.type === "company" && set.company.roles).toEqual([
+      "customer",
+      "supplier",
+    ]);
+    expect(blocked.type === "person" && blocked.person.supplierStatus).toBe(
+      "blocked",
+    );
+    expect(await parties.supplierStatusFromQualifications("c1").orThrow()).toBe(
+      "conditional",
+    );
+    expect(t.calls).toEqual([
+      ["set_party_roles", { party: "c1", roles: ["supplier", "customer"] }],
+      [
+        "set_supplier_status",
+        { party: "p1", status: "blocked", reason: "Late deliveries" },
+      ],
+      ["set_supplier_status", { party: "p1", status: null, reason: null }],
+      ["supplier_status_from_qualifications", { party: "c1" }],
+    ]);
+  });
+
+  it("refuses a supplier status it doesn't know", async () => {
+    const t = transport({
+      set_party_roles: () => ({
+        type: "company",
+        party: { ...COMPANY, supplier_status: "pending" },
+      }),
+    });
+
+    const result = await createContacts({ transport: t }).setRoles("c1", []);
+
+    expect(result.ok).toBe(false);
   });
 });
 

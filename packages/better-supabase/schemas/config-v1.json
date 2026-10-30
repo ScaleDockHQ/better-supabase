@@ -4641,6 +4641,12 @@
             "properties": {
               "companyLifecycles": {},
               "personLifecycles": {},
+              "roles": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {

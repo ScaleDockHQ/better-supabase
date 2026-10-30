@@ -12,7 +12,7 @@ import type { PartyNames } from "./contacts-functions.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
-import { partyFunctions } from "./contacts-functions.ts";
+import { partyFunctions, partyJson } from "./contacts-functions.ts";
 import {
   identitiesTable,
   identityFunctions,
@@ -23,6 +23,15 @@ import {
   representativeFunctions,
   representsKind,
 } from "./contacts-representatives.ts";
+import {
+  PARTY_ROLES,
+  ROLE_COLUMNS,
+  ROLE_OPTIONAL,
+  ratesSuppliers,
+  roleColumns,
+  roleFunctions,
+  roleIndexes,
+} from "./contacts-roles.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -41,6 +50,7 @@ const PERSON_LIFECYCLES = [
 const COMPANY = ["organizationId", "companyId", "name"] as const;
 const PERSON = ["organizationId", "personId", "name"] as const;
 const LINK = ["organizationId", "companyId", "personId", "role"] as const;
+const SUPPLIER_STATUS = ["status", "previousStatus", "reason"] as const;
 
 const EVENTS: BlockSqlEvents<ContactsEvents> = {
   "company.created": { subject: "companies", payload: [...COMPANY] },
@@ -53,6 +63,14 @@ const EVENTS: BlockSqlEvents<ContactsEvents> = {
   "person.updated": { subject: "persons", payload: [...PERSON] },
   "person.archived": { subject: "persons", payload: [...PERSON] },
   "person.merged": { subject: "persons", payload: [...PERSON, "mergedId"] },
+  "company.supplier_status_changed": {
+    subject: "companies",
+    payload: [...COMPANY, ...SUPPLIER_STATUS],
+  },
+  "person.supplier_status_changed": {
+    subject: "persons",
+    payload: [...PERSON, ...SUPPLIER_STATUS],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -85,7 +103,7 @@ const NAMES: BlockSqlNames = {
     "before_person_save",
     "after_person_save",
   ],
-  options: ["companyLifecycles", "personLifecycles", "extraColumns"],
+  options: ["companyLifecycles", "personLifecycles", "roles", "extraColumns"],
   tables: {
     companies: {
       name: "companies",
@@ -101,13 +119,14 @@ const NAMES: BlockSqlNames = {
         lifecycle: "lifecycle",
         owner: "owner_user_id",
         address: "address",
+        ...ROLE_COLUMNS,
         mergedInto: "merged_into",
         archivedAt: "archived_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["vatId", "owner", "address", "createdBy"],
+      optional: ["vatId", "owner", "address", "createdBy", ...ROLE_OPTIONAL],
       typed: ["lifecycle"],
     },
     people: {
@@ -126,13 +145,14 @@ const NAMES: BlockSqlNames = {
         user: "user_id",
         avatarUrl: "avatar_url",
         metadata: "metadata",
+        ...ROLE_COLUMNS,
         mergedInto: "merged_into",
         archivedAt: "archived_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["avatarUrl", "metadata", "createdBy"],
+      optional: ["avatarUrl", "metadata", "createdBy", ...ROLE_OPTIONAL],
       typed: ["lifecycle"],
     },
     links: {
@@ -179,6 +199,19 @@ function lifecycles(
   if (list.length === 0 || list.some((item) => !STAGE.test(item))) {
     throw new TypeError(
       `blocks.contacts.options.${name} must be a non-empty list of lowercase names`,
+    );
+  }
+
+  return list;
+}
+
+/** `options.roles`: the roles a company or person can have. */
+function partyRoles(ctx: BlockSqlContext): readonly string[] {
+  const list = ctx.list("roles", PARTY_ROLES);
+
+  if (list.length === 0 || list.some((item) => !STAGE.test(item))) {
+    throw new TypeError(
+      "blocks.contacts.options.roles must be a non-empty list of lowercase names",
     );
   }
 
@@ -237,7 +270,7 @@ create table if not exists ${t("companies")} (
   ${co("name")} text not null check (length(${co("name")}) between 1 and 300),
   ${co("domain")} text check (${co("domain")} = lower(${co("domain")}) and ${co("domain")} ~ '^[a-z0-9.-]+\\.[a-z]{2,}$'),
   ${co("website")} text,${column("companies", "vatId", (name) => `${name} text`)}
-  ${co("lifecycle")} text not null,${column("companies", "owner", (name) => `${name} uuid`)}${column("companies", "address", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}
+  ${co("lifecycle")} text not null,${column("companies", "owner", (name) => `${name} uuid`)}${column("companies", "address", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}${roleColumns(ctx, "companies")}
   ${co("mergedInto")} uuid references ${t("companies")} (${co("id")}),
   ${co("archivedAt")} timestamptz,${column("companies", "createdBy", (name) => `${name} uuid`)}
   ${co("createdAt")} timestamptz not null default now(),
@@ -246,7 +279,7 @@ create table if not exists ${t("companies")} (
 create index if not exists ${ctx.naming.rename("companies_tenant_name_idx")} on ${t("companies")} (${co("tenant")}, lower(${co("name")}), ${co("id")});
 create unique index if not exists ${ctx.naming.rename("companies_domain_idx")} on ${t("companies")} (${co("tenant")}, ${co("domain")})
   where ${co("domain")} is not null and ${co("archivedAt")} is null;${ctx.has("companies", "owner") ? `\ncreate index if not exists ${ctx.naming.rename("companies_owner_idx")} on ${t("companies")} (${co("owner")});` : ""}
-create index if not exists ${ctx.naming.rename("companies_merged_into_idx")} on ${t("companies")} (${co("mergedInto")});${addExtraColumns(t("companies"), ctx.extraColumns("companies"))}
+create index if not exists ${ctx.naming.rename("companies_merged_into_idx")} on ${t("companies")} (${co("mergedInto")});${roleIndexes(ctx, "companies")}${addExtraColumns(t("companies"), ctx.extraColumns("companies"))}
 ${lockModuleTable(ctx, "companies", { read: true })}
 ${read("companies")}
 
@@ -259,7 +292,7 @@ create table if not exists ${t("people")} (
   ${pe("title")} text,
   ${pe("lifecycle")} text not null,
   ${pe("owner")} uuid,
-  ${pe("user")} uuid,${column("people", "avatarUrl", (name) => `${name} text`)}${column("people", "metadata", (name) => `${name} jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}
+  ${pe("user")} uuid,${column("people", "avatarUrl", (name) => `${name} text`)}${column("people", "metadata", (name) => `${name} jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${roleColumns(ctx, "people")}
   ${pe("mergedInto")} uuid references ${t("people")} (${pe("id")}),
   ${pe("archivedAt")} timestamptz,${column("people", "createdBy", (name) => `${name} uuid`)}
   ${pe("createdAt")} timestamptz not null default now(),
@@ -270,7 +303,7 @@ create unique index if not exists ${ctx.naming.rename("people_email_idx")} on ${
   where ${pe("email")} is not null and ${pe("archivedAt")} is null;
 create index if not exists ${ctx.naming.rename("people_owner_idx")} on ${t("people")} (${pe("owner")});
 create index if not exists ${ctx.naming.rename("people_user_idx")} on ${t("people")} (${pe("user")});
-create index if not exists ${ctx.naming.rename("people_merged_into_idx")} on ${t("people")} (${pe("mergedInto")});
+create index if not exists ${ctx.naming.rename("people_merged_into_idx")} on ${t("people")} (${pe("mergedInto")});${roleIndexes(ctx, "people")}
 ${lockModuleTable(ctx, "people", { read: true })}
 ${read("people")}
 
@@ -306,6 +339,8 @@ function partyNames(ctx: BlockSqlContext): PartyNames {
     personStages: textArray(
       lifecycles(ctx, "personLifecycles", PERSON_LIFECYCLES),
     ),
+    roles: textArray(partyRoles(ctx)),
+    approveSupplier: ctx.permission("approveSupplier", keys.approveSupplier),
   };
 }
 
@@ -334,12 +369,28 @@ function build(ctx: BlockSqlContext): string {
 
   return `${schemaPreamble(ctx)}
 -- Companies and people an organization works with, and who works where.
-${tables(ctx, names)}${identitiesTable(ctx, names)}${partyFunctions(ctx, names)}${identityFunctions(ctx, names)}${personReferences(ctx, names)}${representativeFunctions(ctx, names)}`;
+${tables(ctx, names)}${identitiesTable(ctx, names)}${partyFunctions(ctx, names)}${roleFunctions(ctx, names, (kind, alias) => partyJson(ctx, kind, alias))}${identityFunctions(ctx, names)}${personReferences(ctx, names)}${representativeFunctions(ctx, names)}`;
 }
 
 const CONTRIBUTES: BlockContributes = {
   relations: (own) => [representsKind(own)],
 };
+
+const LIST_ARGS = [
+  "{id}",
+  "text",
+  "text",
+  "uuid",
+  "text",
+  "uuid",
+  "integer",
+  "text",
+  "text",
+];
+
+/** Whether companies or people have the role column `logical`. */
+const hasRole = (ctx: BlockSqlContext, logical: string): boolean =>
+  ctx.has("companies", logical) || ctx.has("people", logical);
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
@@ -359,16 +410,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "archive_person", args: ["uuid", "boolean"], returns: "boolean" },
     { name: "merge_companies", args: ["uuid", "uuid"], returns: "jsonb" },
     { name: "merge_people", args: ["uuid", "uuid"], returns: "jsonb" },
-    {
-      name: "list_companies",
-      args: ["{id}", "text", "text", "uuid", "text", "uuid", "integer"],
-      returns: "jsonb",
-    },
-    {
-      name: "list_people",
-      args: ["{id}", "text", "text", "uuid", "text", "uuid", "integer"],
-      returns: "jsonb",
-    },
+    { name: "list_companies", args: LIST_ARGS, returns: "jsonb" },
+    { name: "list_people", args: LIST_ARGS, returns: "jsonb" },
     { name: "company_people_of", args: ["uuid"], returns: "jsonb" },
     { name: "list_person_identities", args: ["uuid"], returns: "jsonb" },
     {
@@ -382,6 +425,33 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text"],
       returns: "jsonb",
     },
+    ...(hasRole(ctx, "roles")
+      ? [
+          {
+            name: "set_party_roles",
+            args: ["uuid", "text[]"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
+    ...(hasRole(ctx, "supplierStatus")
+      ? [
+          {
+            name: "set_supplier_status",
+            args: ["uuid", "text", "text"],
+            returns: "jsonb",
+          },
+        ]
+      : []),
+    ...(ratesSuppliers(ctx)
+      ? [
+          {
+            name: "supplier_status_from_qualifications",
+            args: ["uuid"],
+            returns: "text",
+          },
+        ]
+      : []),
     ...(ctx.installed("relations")
       ? [
           {
@@ -401,7 +471,7 @@ export const PARTIES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Parties",
   description:
-    "Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.",
+    "Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms, credit limits and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.",
   requires: ["memberships", "permissions"],
   integrates: [
     "outbox",
@@ -410,6 +480,7 @@ export const PARTIES: BlockSqlDefinition = {
     "inbox",
     "identities",
     "relations",
+    "qualifications",
   ],
   target: "schema",
   modes: ["managed", "custom"],

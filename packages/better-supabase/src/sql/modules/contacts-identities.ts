@@ -3,6 +3,7 @@ import type { PartyNames } from "./contacts-functions.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, userGrant } from "../shared.ts";
+import { roleJson } from "./contacts-roles.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 
 /** What a person's email must look like, as the people table checks it. */
@@ -301,7 +302,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(p) from ${t("identities")} i
+  select to_jsonb(p)${roleJson(ctx, "people", "p")} from ${t("identities")} i
   join ${t("people")} p on p.${pe("id")} = i.${ic("person")}
   where i.${ic("tenant")} = find_person_by_identity.tenant
     and i.${ic("channel")} = trim(find_person_by_identity.channel)

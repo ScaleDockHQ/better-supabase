@@ -1,3 +1,4 @@
+import type { Money } from "../../commerce/money.ts";
 import type {
   BlockFields,
   FieldsOf,
@@ -7,13 +8,13 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
-import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import type {
   RepresentativeAuthority,
   RepresentativeRole,
 } from "./representatives.ts";
+import type { SupplierStatus } from "./roles.ts";
 
 import {
   blockFields,
@@ -22,7 +23,9 @@ import {
   writeFields,
 } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
+import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
+import { amountText, optionalMoneyOf } from "../money-codec.ts";
 import {
   applyTemporal,
   blockCall,
@@ -39,6 +42,7 @@ import {
   REPRESENTATIVE_AUTHORITIES,
   REPRESENTATIVE_ROLES,
 } from "./representatives.ts";
+import { SUPPLIER_STATUSES } from "./roles.ts";
 
 /** Where a page of a list stops: the last row's name and id. */
 export interface PartyCursor {
@@ -61,8 +65,27 @@ interface PartyRecord {
   /** Set when this record was merged into another and archived. */
   readonly mergedInto?: string;
   readonly archived: boolean;
+  /** Customer, supplier, funder, partner: `options.roles`, sorted. */
+  readonly roles: readonly string[];
+  readonly paymentTermsDays?: number;
+  readonly creditLimit?: Money;
+  /** Where the record stands as a supplier; unset when not assessed. */
+  readonly supplierStatus?: SupplierStatus;
   /** The app's extra columns (`options.extraColumns`), by column name. */
   readonly fields: Readonly<Record<string, unknown>>;
+}
+
+/** A company or a person, as `setRoles` and `setSupplierStatus` return it. */
+export type Party<F extends object = Record<never, never>> =
+  | { readonly type: "company"; readonly company: Company<F> }
+  | { readonly type: "person"; readonly person: Person };
+
+/** The commercial terms a company or a person takes in a write. */
+interface TermsInput {
+  /** Days until an invoice is due, 0 to 3650. */
+  readonly paymentTermsDays?: number | null;
+  /** The credit the organization extends, in minor units with its currency. */
+  readonly creditLimit?: Money | null;
 }
 
 /** A company. `F` types the extra columns the `fields` schema describes. */
@@ -146,7 +169,9 @@ export interface RepresentedRecord extends Representation {
  * The fields of a write. Left out keeps the stored value; `null` clears it (a
  * name and a lifecycle can't be cleared).
  */
-export interface CompanyInput<F extends object = Record<never, never>> {
+export interface CompanyInput<
+  F extends object = Record<never, never>,
+> extends TermsInput {
   /** Leave out to create a company; `name` is then required. */
   readonly id?: string;
   readonly name?: string;
@@ -163,7 +188,7 @@ export interface CompanyInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
-export interface PersonInput {
+export interface PersonInput extends TermsInput {
   /** Leave out to create a person; `name` is then required. */
   readonly id?: string;
   readonly name?: string;
@@ -181,6 +206,9 @@ export interface PartyListOptions extends CursorPageOptions<PartyCursor> {
   readonly search?: string;
   readonly lifecycle?: string;
   readonly ownerId?: string;
+  /** Keeps the ones with this role. */
+  readonly role?: string;
+  readonly supplierStatus?: SupplierStatus;
 }
 
 export interface Contacts<F extends object = Record<never, never>> {
@@ -214,6 +242,30 @@ export interface Contacts<F extends object = Record<never, never>> {
     organizationId: string,
     options?: PartyListOptions,
   ): AsyncResult<PartyPage<Person>>;
+  /**
+   * Sets a company's or person's roles from `options.roles`, sorted and without
+   * duplicates. Needs `contacts.write`.
+   */
+  setRoles(partyId: string, roles: readonly string[]): AsyncResult<Party<F>>;
+  /**
+   * Sets where a company or person stands as a supplier, or clears it with
+   * `null`. Needs `contacts.approve_supplier`; records
+   * `company.supplier_status_changed` or `person.supplier_status_changed` with
+   * the reason.
+   */
+  setSupplierStatus(
+    partyId: string,
+    status: SupplierStatus | null,
+    reason?: string,
+  ): AsyncResult<Party<F>>;
+  /**
+   * The status a company's qualifications give it: `approved` when the gap
+   * report lists nothing missing or expired, `conditional` otherwise. Needs the
+   * qualifications block.
+   */
+  supplierStatusFromQualifications(
+    companyId: string,
+  ): AsyncResult<SupplierStatus>;
   /** A company's people with their role, primary contact first. */
   peopleOf(companyId: string): AsyncResult<CompanyPerson[]>;
   /** A person's addresses on channels, by channel and address. */
@@ -277,6 +329,11 @@ const COMMON = [
   "lifecycle",
   "owner_user_id",
   "merged_into",
+  "roles",
+  "payment_terms_days",
+  "credit_limit",
+  "credit_currency",
+  "supplier_status",
   "archived_at",
   "created_by",
   "created_at",
@@ -316,6 +373,16 @@ function base(
   const fields = row["fields"];
   const ownerId = optionalText(row["owner_user_id"]);
   const mergedInto = optionalText(row["merged_into"]);
+  const roles = row["roles"];
+  const terms = row["payment_terms_days"];
+
+  const creditLimit = optionalMoneyOf(
+    row["credit_limit"],
+    row["credit_currency"],
+    "credit_limit",
+  );
+
+  const status = optionalText(row["supplier_status"]);
 
   return {
     id: textOf(row["id"]),
@@ -323,9 +390,21 @@ function base(
     name: textOf(row["name"]),
     lifecycle: textOf(row["lifecycle"]),
     archived: row["archived_at"] !== null && row["archived_at"] !== undefined,
+    roles: Array.isArray(roles) ? roles.map((role) => textOf(role)) : [],
     fields: isRecord(fields) ? fields : fieldsOf(row, known),
     ...(ownerId === undefined ? {} : { ownerId }),
     ...(mergedInto === undefined ? {} : { mergedInto }),
+    ...(typeof terms === "number" ? { paymentTermsDays: terms } : {}),
+    ...(creditLimit === undefined ? {} : { creditLimit }),
+    ...(status === undefined
+      ? {}
+      : {
+          supplierStatus: enumOrThrow(
+            status,
+            SUPPLIER_STATUSES,
+            "supplier status",
+          ),
+        }),
   };
 }
 
@@ -447,9 +526,26 @@ function representedOf(value: unknown): RepresentedRecord {
  * fields.
  */
 function attrsOf(input: CompanyInput | PersonInput): Record<string, unknown> {
-  const { id: _id, fields, ...rest } = input;
+  const { id: _id, fields, creditLimit, ...rest } = input;
 
-  return { ...rest, ...fields };
+  return {
+    ...rest,
+    ...(creditLimit === undefined
+      ? {}
+      : {
+          creditLimit: creditLimit === null ? null : amountText(creditLimit),
+          creditCurrency: creditLimit?.currency ?? null,
+        }),
+    ...fields,
+  };
+}
+
+function partyOf(value: unknown): Party {
+  const row = recordOf(value, "party");
+
+  return row["type"] === "person"
+    ? { type: "person", person: personOf(row["party"]) }
+    : { type: "company", company: companyOf(row["party"]) };
 }
 
 function pageFrom<T extends { readonly id: string; readonly name: string }>(
@@ -481,6 +577,16 @@ export function createContacts<
   const company = (result: AsyncResult<Company>): AsyncResult<Company<F>> =>
     result.andThen((row) => readFields(fields, row));
 
+  const party = (result: AsyncResult<Party>): AsyncResult<Party<F>> =>
+    result.andThen((found) =>
+      found.type === "person"
+        ? AsyncResult.ok<Party<F>>(found)
+        : readFields(fields, found.company).map((read): Party<F> => ({
+            type: "company",
+            company: read,
+          })),
+    );
+
   const list = <T extends { readonly id: string; readonly name: string }>(
     fn: string,
     organizationId: string,
@@ -499,6 +605,8 @@ export function createContacts<
         after_name: cursor?.name ?? null,
         after_id: cursor?.id ?? null,
         page_size: limit ?? null,
+        role: listOptions.role ?? null,
+        supplier_status: listOptions.supplierStatus ?? null,
       },
       (value) => pageFrom(recordsOf(value, fn).map(map), limit),
     );
@@ -592,6 +700,22 @@ export function createContacts<
         "find_person_by_identity",
         { tenant: organizationId, channel, address },
         (value) => (value === null ? undefined : personOf(value)),
+      ),
+    setRoles: (partyId, roles) =>
+      party(call("set_party_roles", { party: partyId, roles }, partyOf)),
+    setSupplierStatus: (partyId, status, reason) =>
+      party(
+        call(
+          "set_supplier_status",
+          { party: partyId, status, reason: reason ?? null },
+          partyOf,
+        ),
+      ),
+    supplierStatusFromQualifications: (companyId) =>
+      call(
+        "supplier_status_from_qualifications",
+        { party: companyId },
+        (value) => enumOrThrow(value, SUPPLIER_STATUSES, "supplier status"),
       ),
     peopleOf: (companyId) =>
       call("company_people_of", { company: companyId }, (value) =>

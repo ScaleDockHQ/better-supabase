@@ -553,17 +553,17 @@ export interface BlockNameRegistry {
   };
   readonly "contacts": {
     readonly tables: {
-      readonly "companies": "id" | "tenant" | "name" | "domain" | "website" | "vatId" | "lifecycle" | "owner" | "address" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "people": "id" | "tenant" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner" | "user" | "avatarUrl" | "metadata" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "companies": "id" | "tenant" | "name" | "domain" | "website" | "vatId" | "lifecycle" | "owner" | "address" | "roles" | "paymentTermsDays" | "creditLimit" | "creditCurrency" | "supplierStatus" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "people": "id" | "tenant" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner" | "user" | "avatarUrl" | "metadata" | "roles" | "paymentTermsDays" | "creditLimit" | "creditCurrency" | "supplierStatus" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "links": "tenant" | "company" | "person" | "role" | "isPrimary" | "createdAt";
       readonly "identities": "id" | "tenant" | "person" | "channel" | "address" | "verifiedAt" | "createdAt";
     };
-    readonly functions: "add_person_identity" | "archive_company" | "archive_person" | "company_people_of" | "find_person_by_identity" | "list_companies" | "list_people" | "list_person_identities" | "merge_companies" | "merge_people" | "remove_company_person" | "remove_person_identity" | "resolve_person" | "save_company" | "save_person" | "set_company_person";
-    readonly actions: "read" | "write" | "manage";
+    readonly functions: "add_person_identity" | "archive_company" | "archive_person" | "company_people_of" | "find_person_by_identity" | "list_companies" | "list_people" | "list_person_identities" | "merge_companies" | "merge_people" | "remove_company_person" | "remove_person_identity" | "resolve_person" | "save_company" | "save_person" | "set_company_person" | "set_party_roles" | "set_supplier_status";
+    readonly actions: "read" | "write" | "manage" | "approveSupplier";
     readonly hooks: "before_company_save" | "after_company_save" | "before_person_save" | "after_person_save";
     readonly entities: {
-      readonly "company": "id" | "tenant_id" | "name" | "domain" | "website" | "vat_id" | "lifecycle" | "owner_user_id" | "address" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
-      readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "avatar_url" | "metadata" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "company": "id" | "tenant_id" | "name" | "domain" | "website" | "vat_id" | "lifecycle" | "owner_user_id" | "address" | "roles" | "payment_terms_days" | "credit_limit" | "credit_currency" | "supplier_status" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "avatar_url" | "metadata" | "roles" | "payment_terms_days" | "credit_limit" | "credit_currency" | "supplier_status" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: never;
     readonly formerKeys: never;

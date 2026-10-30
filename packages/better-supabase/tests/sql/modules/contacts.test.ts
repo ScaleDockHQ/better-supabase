@@ -102,3 +102,70 @@ describe("parties module with the inbox", () => {
     expect(sql).not.toContain("person_inbox_contacts");
   });
 });
+
+describe("parties module roles and suppliers", () => {
+  it("adds the role and terms columns to companies and people", () => {
+    const sql = sqlOf();
+    expect(
+      sql.match(/"roles" text\[\] not null default '\{\}'::text\[\],/g),
+    ).toHaveLength(2);
+
+    for (const table of ["companies", "people"]) {
+      expect(sql).not.toContain(
+        `alter table "better_supabase"."${table}" add column if not exists "roles"`,
+      );
+      expect(sql).toContain(
+        `create index if not exists ${table}_roles_idx on "better_supabase"."${table}" using gin ("roles");`,
+      );
+      expect(sql).toContain(
+        `create index if not exists ${table}_supplier_status_idx`,
+      );
+    }
+
+    expect(sql).toContain(
+      `"supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked'))`,
+    );
+    expect(sql).toContain(
+      `"credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1)`,
+    );
+    expect(sql).toContain("'credit_limit', x.\"credit_limit\"::text");
+    expect(sql).toContain("hint = 'PARTY_TERMS_INVALID'");
+  });
+
+  it("sets roles from options.roles and the status behind its own permission", () => {
+    const sql = sqlOf({ roles: ["supplier", "carrier"] });
+    expect(sql).toContain(
+      '"better_supabase"."set_party_roles"(party uuid, roles text[])',
+    );
+    expect(sql).toContain("v_roles <@ '{supplier,carrier}'::text[]");
+    expect(sql).toContain("'contacts.approve_supplier'");
+    expect(sql).toContain("hint = 'PARTY_SUPPLIER_STATUS_INVALID'");
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."list_companies"(uuid, text, text, uuid, text, uuid, integer);',
+    );
+    expect(sql).toContain('list_people.role = any (x."roles")');
+  });
+
+  it("refuses roles that aren't lowercase names", () => {
+    expect(() => sqlOf({ roles: [] })).toThrow(/options\.roles/);
+    expect(() => sqlOf({ roles: ["Supplier"] })).toThrow(/options\.roles/);
+  });
+
+  it("records the status change when the outbox is installed", () => {
+    const sql = sqlOf({}, ["outbox", "audit"]);
+
+    for (const kind of ["company", "person"]) {
+      expect(sql).toContain(`emit_event('${kind}.supplier_status_changed'`);
+      expect(sql).toContain(`event_type => '${kind}.supplier_status_changed'`);
+    }
+  });
+
+  it("derives a status from qualifications only when they are installed", () => {
+    expect(sqlOf()).not.toContain("supplier_status_from_qualifications");
+    const sql = sqlOf({}, ["qualifications"]);
+    expect(sql).toContain(
+      `"better_supabase"."qualification_gaps"(v_tenant, 'company', jsonb_build_object('holderId', supplier_status_from_qualifications.party::text))`,
+    );
+    expect(sql).toContain("in ('missing', 'expired')");
+  });
+});
