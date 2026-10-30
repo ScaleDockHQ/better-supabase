@@ -5,11 +5,8 @@ import type { OperationModule } from "./permissions-model.ts";
 import { operationPermission } from "../../core/operations.ts";
 import { sqlString } from "../../core/template.ts";
 import { moduleContext } from "../module-context.ts";
-import {
-  MODULE_PERMISSION_SCOPES,
-  moduleOperations,
-  modulePermissionKey,
-} from "./permissions-model.ts";
+import { moduleOperations, modulePermissionKey } from "./permissions-model.ts";
+import { MODULE_PERMISSION_SCOPES } from "./permissions-scopes.ts";
 
 const isOperationModule = (name: string): name is OperationModule =>
   Object.hasOwn(MODULE_PERMISSION_SCOPES, name);
