@@ -4797,7 +4797,12 @@
                 "additionalProperties": {
                   "type": "string"
                 }
-              }
+              },
+              "maxTextBytes": {
+                "type": "number",
+                "default": 1048576
+              },
+              "quota": {}
             }
           }
         }

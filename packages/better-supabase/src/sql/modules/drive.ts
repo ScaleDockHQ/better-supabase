@@ -204,7 +204,7 @@ export const DRIVE: BlockSqlDefinition = {
   integrates: [...INTEGRATES],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build: (ctx) =>
@@ -217,16 +217,23 @@ export const DRIVE_FILES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Drive files",
   description:
-    "The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.",
+    "The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.",
   requires: ["attachments"],
   dependencies: (layout) =>
     layout.modules?.["drive"]?.columns?.["nodes"]?.["attachment"] === null
       ? []
       : ["attachments"],
-  integrates: ["drive", ...INTEGRATES, "tags", "approvals", "rate-limit"],
+  integrates: [
+    "drive",
+    ...INTEGRATES,
+    "tags",
+    "approvals",
+    "rate-limit",
+    "usage",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: { tables: {}, events: FILE_EVENTS },
   contract: fileContract,
   build: (ctx) => {

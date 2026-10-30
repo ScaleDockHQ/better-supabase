@@ -1,4 +1,3 @@
-import type { SubjectConfig } from "../../config/types/subjects.ts";
 import type { BlockFields, FieldsOf } from "../../core/block-fields.ts";
 import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
@@ -21,7 +20,6 @@ import type {
 } from "./requests.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
-import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
@@ -1201,40 +1199,4 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
     options.hooks,
     { block: "drive", ...(options.logger ? { logger: options.logger } : {}) },
   );
-}
-
-/**
- * The `subjects.drive_node` entry for the managed tables, so comments,
- * attachments, versions, trash and search can name drive nodes. The permission
- * keys are the tenant-wide floor; grants decide per node, through
- * `drive_node_readable` for reads, `drive_can_comment` for comments and
- * `drive_node_writable` for custom field writes, and custom field values follow
- * the node's read grants.
- */
-export function driveSubject(
-  options: {
-    readonly schema?: string;
-    /** `blocks.drive.tables.nodes`. Default `drive_nodes`. */
-    readonly table?: string;
-    /** `blocks.drive.columns.nodes.tenant`. Default `tenant_id`. */
-    readonly tenant?: string;
-  } = {},
-): SubjectConfig {
-  const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
-
-  return {
-    table: `${schema}.${options.table ?? "drive_nodes"}`,
-    idType: "uuid",
-    tenant: options.tenant ?? "tenant_id",
-    title: "name",
-    deletedAt: "deleted_at",
-    permissions: {
-      read: { key: "drive.read", check: `${schema}.drive_node_readable` },
-      write: "drive.manage",
-      comment: { check: `${schema}.drive_can_comment` },
-      fields: { check: `${schema}.drive_node_writable` },
-    },
-    readAccess: "record",
-    search: { title: "name" },
-  };
 }

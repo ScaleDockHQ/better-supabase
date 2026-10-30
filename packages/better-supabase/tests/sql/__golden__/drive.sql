@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
--- @bsb-block drive@1 managed
--- @bsb-hash sha256:5210d398c567370f16b0fef00b5c2e995a61aba91586c1782826e04b6c9361d4
+-- @bsb-block drive@2 managed
+-- @bsb-hash sha256:3bf40081ba74519b96ffc38dda1508e36efa0ffe099c0512254b3792e6f236af
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -58,6 +58,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1330,6 +1338,33 @@ $$;
 revoke execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
+-- The text drive_set_text stored for each file's current content.
+create table if not exists "better_supabase"."drive_node_texts" (
+  "node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "attachment_id" uuid not null,
+  "extractor" text,
+  "content" text not null,
+  "extracted_at" timestamptz not null default now()
+);
+create index if not exists "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
+alter table "better_supabase"."drive_node_texts" enable row level security;
+revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_texts" to authenticated;
+grant all on "better_supabase"."drive_node_texts" to service_role;
+drop policy if exists drive_node_texts_read on "better_supabase"."drive_node_texts";
+create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
+  for select to authenticated
+  using ("better_supabase"."drive_can"("node_id", 'viewer'));
+
+-- Each node's name and the start of its text, for the drive_node search subject.
+create or replace view "better_supabase"."drive_node_search" with (security_invoker = true) as
+  select s."id" as id, s."name" as name, left(t."content", 100000) as content
+  from "better_supabase"."drive_nodes" s
+  left join "better_supabase"."drive_node_texts" t on t."node_id" = s."id";
+revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_search" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1366,6 +1401,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes"
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_node_texts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."drive_can"("node_id", 'viewer'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_node_texts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_node_texts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -1383,21 +1439,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:da363416284271105f5b8aca2cba8f5f804764f6211202b435b16becfca2d334
+-- @bsb-hash sha256:456861a8de132fa0ec1a416d10fa30a61c07cbd9e9db22f20aecfdab2ba94bab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive', 1, 'managed')
+values ('drive', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
--- @bsb-block drive@1 managed
--- @bsb-hash sha256:a0c29e0f318df3dd2b058c49449134638eeb34b4ca11a661816b45c8a4faddd3
+-- @bsb-block drive@2 managed
+-- @bsb-hash sha256:ded7f7aec0abb0231ba0bb321fe569d79cd147d436c1d01e2ab378902318a599
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1454,6 +1510,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2826,6 +2890,33 @@ $$;
 revoke execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
+-- The text drive_set_text stored for each file's current content.
+create table if not exists "better_supabase"."drive_node_texts" (
+  "node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "attachment_id" uuid not null,
+  "extractor" text,
+  "content" text not null,
+  "extracted_at" timestamptz not null default now()
+);
+create index if not exists "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
+alter table "better_supabase"."drive_node_texts" enable row level security;
+revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_texts" to authenticated;
+grant all on "better_supabase"."drive_node_texts" to service_role;
+drop policy if exists drive_node_texts_read on "better_supabase"."drive_node_texts";
+create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
+  for select to authenticated
+  using ("better_supabase"."drive_can"("node_id", 'viewer'));
+
+-- Each node's name and the start of its text, for the drive_node search subject.
+create or replace view "better_supabase"."drive_node_search" with (security_invoker = true) as
+  select s."id" as id, s."name" as name, left(t."content", 100000) as content
+  from "better_supabase"."drive_nodes" s
+  left join "better_supabase"."drive_node_texts" t on t."node_id" = s."id";
+revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_search" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2862,6 +2953,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes"
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_node_texts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."drive_can"("node_id", 'viewer'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_node_texts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_node_texts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2879,21 +2991,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:da363416284271105f5b8aca2cba8f5f804764f6211202b435b16becfca2d334
+-- @bsb-hash sha256:456861a8de132fa0ec1a416d10fa30a61c07cbd9e9db22f20aecfdab2ba94bab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive', 1, 'managed')
+values ('drive', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
--- @bsb-block drive@1 managed
--- @bsb-hash sha256:1e105a376f8487a25c83789fbc8a8aea58eb0215cd477000590dbe85f757c9f8
+-- @bsb-block drive@2 managed
+-- @bsb-hash sha256:b62bcf092eae5aa8a33b37c3ad10cf69957241f0900e4a3dd05f216f9d2ad862
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2950,6 +3062,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_grants";
     drop policy if exists bsb_tenant_scope_update on "app_private"."drive_grants";
     drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_node_texts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4227,6 +4347,33 @@ $$;
 revoke execute on function "app_private"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
 grant execute on function "app_private"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
+-- The text drive_set_text stored for each file's current content.
+create table if not exists "app_private"."drive_node_texts" (
+  "node_id" uuid primary key references "app_private"."drive_nodes" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "attachment_id" uuid not null,
+  "extractor" text,
+  "content" text not null,
+  "extracted_at" timestamptz not null default now()
+);
+create index if not exists "drive_node_texts_tenant_idx" on "app_private"."drive_node_texts" ("tenant_id");
+alter table "app_private"."drive_node_texts" enable row level security;
+revoke all on "app_private"."drive_node_texts" from public, anon, authenticated;
+grant select on "app_private"."drive_node_texts" to authenticated;
+grant all on "app_private"."drive_node_texts" to service_role;
+drop policy if exists drive_node_texts_read on "app_private"."drive_node_texts";
+create policy drive_node_texts_read on "app_private"."drive_node_texts"
+  for select to authenticated
+  using ("app_private"."drive_can"("node_id", 'viewer'));
+
+-- Each node's name and the start of its text, for the drive_node search subject.
+create or replace view "app_private"."drive_node_search" with (security_invoker = true) as
+  select s."id" as id, s."name" as name, left(t."content", 100000) as content
+  from "app_private"."drive_nodes" s
+  left join "app_private"."drive_node_texts" t on t."node_id" = s."id";
+revoke all on "app_private"."drive_node_search" from public, anon, authenticated;
+grant select on "app_private"."drive_node_search" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4263,6 +4410,27 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_nodes";
 create policy bsb_tenant_scope_delete on "app_private"."drive_nodes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."drive_node_texts";
+drop policy if exists bsb_tenant_scope_select on "app_private"."drive_node_texts";
+create policy bsb_tenant_scope_select on "app_private"."drive_node_texts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("app_private"."drive_can"("node_id", 'viewer'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."drive_node_texts";
+create policy bsb_tenant_scope_insert on "app_private"."drive_node_texts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."drive_node_texts";
+create policy bsb_tenant_scope_update on "app_private"."drive_node_texts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."drive_node_texts";
+create policy bsb_tenant_scope_delete on "app_private"."drive_node_texts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4280,21 +4448,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:da363416284271105f5b8aca2cba8f5f804764f6211202b435b16becfca2d334
+-- @bsb-hash sha256:456861a8de132fa0ec1a416d10fa30a61c07cbd9e9db22f20aecfdab2ba94bab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive', 1, 'managed')
+values ('drive', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
--- @bsb-block drive@1 managed
--- @bsb-hash sha256:6ce1ddc33d4d77851592085023ec940800285ab0f2e77b33f5add65ba60bfe57
+-- @bsb-block drive@2 managed
+-- @bsb-hash sha256:f4214ececfc1312b2077afa6619713adba1c9d0e9a57b6d34d7a159a388ce735
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4351,6 +4519,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5623,6 +5799,33 @@ $$;
 revoke execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
+-- The text drive_set_text stored for each file's current content.
+create table if not exists "better_supabase"."drive_node_texts" (
+  "node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade,
+  "tenant_id" uuid not null,
+  "attachment_id" uuid not null,
+  "extractor" text,
+  "content" text not null,
+  "extracted_at" timestamptz not null default now()
+);
+create index if not exists "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("tenant_id");
+alter table "better_supabase"."drive_node_texts" enable row level security;
+revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_texts" to authenticated;
+grant all on "better_supabase"."drive_node_texts" to service_role;
+drop policy if exists drive_node_texts_read on "better_supabase"."drive_node_texts";
+create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
+  for select to authenticated
+  using ("better_supabase"."drive_can"("node_id", 'viewer'));
+
+-- Each node's name and the start of its text, for the drive_node search subject.
+create or replace view "better_supabase"."drive_node_search" with (security_invoker = true) as
+  select s."id" as id, s."name" as name, left(t."content", 100000) as content
+  from "better_supabase"."drive_nodes" s
+  left join "better_supabase"."drive_node_texts" t on t."node_id" = s."id";
+revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_search" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -5657,6 +5860,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."drive_nodes" as rest
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes";
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_node_texts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."drive_can"("node_id", 'viewer'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_node_texts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_node_texts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -5941,21 +6165,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:da363416284271105f5b8aca2cba8f5f804764f6211202b435b16becfca2d334
+-- @bsb-hash sha256:456861a8de132fa0ec1a416d10fa30a61c07cbd9e9db22f20aecfdab2ba94bab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive', 1, 'managed')
+values ('drive', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
--- @bsb-block drive@1 managed
--- @bsb-hash sha256:a271afea8f74cd8263bf7928291ad2b8f3027647319281fdfda96b39f06c9a72
+-- @bsb-block drive@2 managed
+-- @bsb-hash sha256:3c049ac99e736b1450abd6b8dd7b0c6aabf801c80784f0d4212e9332953a36b6
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6028,6 +6252,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -7224,6 +7456,15 @@ $$;
 revoke execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
+
+-- Each node's name and the start of its text, for the drive_node search subject.
+create or replace view "better_supabase"."drive_node_search" with (security_invoker = true) as
+  select s."id" as id, s."name" as name, left(t."content", 100000) as content
+  from "better_supabase"."drive_nodes" s
+  left join "better_supabase"."drive_node_texts" t on t."node_id" = s."id";
+revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_search" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -7277,21 +7518,21 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:da363416284271105f5b8aca2cba8f5f804764f6211202b435b16becfca2d334
+-- @bsb-hash sha256:456861a8de132fa0ec1a416d10fa30a61c07cbd9e9db22f20aecfdab2ba94bab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive', 1, 'managed')
+values ('drive', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
--- @bsb-block drive@1 managed
--- @bsb-hash sha256:7bc437857e860ec6bd0576a0570354a48ddcd61f02cd6e6b68ebb8b4ccd6a8b8
+-- @bsb-block drive@2 managed
+-- @bsb-hash sha256:9455c8de31fed18c9bd123af471a2f5be49cdf39b1bc7736b291f8b9666a754a
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7348,6 +7589,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_grants";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -8620,6 +8869,33 @@ $$;
 revoke execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
+-- The text drive_set_text stored for each file's current content.
+create table if not exists "better_supabase"."drive_node_texts" (
+  "node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade,
+  "org_id" uuid not null,
+  "attachment_id" uuid not null,
+  "extractor" text,
+  "content" text not null,
+  "extracted_at" timestamptz not null default now()
+);
+create index if not exists "drive_node_texts_tenant_idx" on "better_supabase"."drive_node_texts" ("org_id");
+alter table "better_supabase"."drive_node_texts" enable row level security;
+revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_texts" to authenticated;
+grant all on "better_supabase"."drive_node_texts" to service_role;
+drop policy if exists drive_node_texts_read on "better_supabase"."drive_node_texts";
+create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
+  for select to authenticated
+  using ("better_supabase"."drive_can"("node_id", 'viewer'));
+
+-- Each node's name and the start of its text, for the drive_node search subject.
+create or replace view "better_supabase"."drive_node_search" with (security_invoker = true) as
+  select s."id" as id, s."name" as name, left(t."content", 100000) as content
+  from "better_supabase"."drive_nodes" s
+  left join "better_supabase"."drive_node_texts" t on t."node_id" = s."id";
+revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
+grant select on "better_supabase"."drive_node_search" to service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -8656,6 +8932,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_nodes"
 create policy bsb_tenant_scope_delete on "better_supabase"."drive_nodes" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."drive_node_texts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_select on "better_supabase"."drive_node_texts" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."drive_can"("node_id", 'viewer'))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_insert on "better_supabase"."drive_node_texts" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_update on "better_supabase"."drive_node_texts" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."drive_node_texts";
+create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -8673,13 +8970,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:da363416284271105f5b8aca2cba8f5f804764f6211202b435b16becfca2d334
+-- @bsb-hash sha256:456861a8de132fa0ec1a416d10fa30a61c07cbd9e9db22f20aecfdab2ba94bab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive', 1, 'managed')
+values ('drive', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

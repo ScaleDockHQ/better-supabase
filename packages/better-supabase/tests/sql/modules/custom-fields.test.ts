@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { driveSubject } from "../../../src/blocks/drive/drive.ts";
+import { driveSubject } from "../../../src/blocks/drive/subject.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";

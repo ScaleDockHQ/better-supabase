@@ -16,6 +16,7 @@ import { connection } from "next/server";
 import * as v from "valibot";
 
 import { env } from "@/env";
+import { driveTextOf } from "@/features/drive/drive-client";
 import { blockConfig } from "@/lib/supabase/blocks.generated";
 import { bsb } from "@/lib/supabase/server";
 
@@ -53,8 +54,9 @@ const setTaskField: RuleFieldSetter = async (write) => {
  * events the `tasks` app table writes to the outbox, and the automations the
  * blocks ship on their own events, such as the inbox's "Open a task for each
  * new conversation". The `approvals` consumer resumes the graph runs waiting on
- * a decided request. Call it every minute from a cron (Vercel Cron sends
- * `Authorization: Bearer $CRON_SECRET`).
+ * a decided request, and `driveText` stores the text of each clean drive file.
+ * Call it every minute from a cron (Vercel Cron sends `Authorization: Bearer
+ * $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
   // Without a request-time API, Next.js runs this handler at build time.
@@ -125,6 +127,7 @@ export async function GET(request: Request): Promise<Response> {
     secret: env.CRON_SECRET,
     consumers: {
       rules: sink,
+      driveText: driveTextOf(admin).sink(),
       approvals: async (events) => {
         for (const event of events) {
           await wakeOnApproval(event);

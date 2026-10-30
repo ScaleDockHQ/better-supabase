@@ -8,6 +8,7 @@ import type {
   AiTaskRun,
   AiTaskRunner,
 } from "../blocks/ai-schedules/ai-schedules.ts";
+import type { DriveTextFile, TextExtractor } from "../blocks/drive/extract.ts";
 import type { Embedder } from "../blocks/knowledge/knowledge.ts";
 import type { WorkflowGraph } from "../blocks/workflow-editor/graph.ts";
 import type {
@@ -438,6 +439,73 @@ export function testNoteTaker(
             noteTaker.summarize(input, { signal: AbortSignal.abort() }),
           ),
           "summarize must reject when its signal is aborted",
+        );
+      },
+    ],
+  ]);
+}
+
+export interface TestTextExtractorOptions {
+  /** A file the extractor reads, with its metadata. Defaults to plain text. */
+  readonly file?: Blob;
+  readonly meta?: DriveTextFile;
+}
+
+const FAKE_TEXT = "The quarterly report is due on Friday.";
+
+const FAKE_FILE: DriveTextFile = {
+  nodeId: "node",
+  organizationId: "organization",
+  name: "report.txt",
+  attachmentId: "attachment",
+  mimeType: "text/plain",
+  size: FAKE_TEXT.length,
+};
+
+/**
+ * Proves a `TextExtractor` for the drive block has a lowercase name, returns a
+ * string or undefined for a file, and answers a type it can't read without a
+ * throw. Pass a real file in `file` and `meta` for the type it reads.
+ */
+export function testTextExtractor(
+  extractor: TextExtractor,
+  options: TestTextExtractorOptions = {},
+): Promise<ConformanceReport> {
+  const file = options.file ?? new Blob([FAKE_TEXT], { type: "text/plain" });
+  const meta = options.meta ?? FAKE_FILE;
+
+  return conform(`TextExtractor "${extractor.name}"`, [
+    hasApiVersion(extractor),
+    [
+      "names itself",
+      () => {
+        expect(
+          /^[a-z][a-z0-9_.-]{0,62}$/u.test(extractor.name),
+          "name must be lowercase letters, digits, dots, dashes or underscores",
+        );
+      },
+    ],
+    [
+      "returns the file's text or nothing",
+      async () => {
+        const text = await extractor.extract(file, meta);
+        expect(
+          text === undefined || typeof text === "string",
+          `extract returned ${typeof text}`,
+        );
+      },
+    ],
+    [
+      "answers an unknown type without a throw",
+      async () => {
+        const text = await extractor.extract(
+          new Blob([new Uint8Array([0, 1, 2, 3])]),
+          { ...meta, name: "unknown.bin", mimeType: "application/x-bsb-test" },
+        );
+
+        expect(
+          text === undefined || typeof text === "string",
+          "an unknown type must return undefined or its text",
         );
       },
     ],

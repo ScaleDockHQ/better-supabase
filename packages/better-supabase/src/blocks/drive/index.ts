@@ -24,11 +24,12 @@ export {
   type DriveRevision,
   type DriveStoredObject,
   type DriveUpload,
-  driveSubject,
   type NewDrive,
   type NewDriveFile,
   type NewDriveFolder,
 } from "./drive.ts";
+
+export { driveSubject } from "./subject.ts";
 
 export type {
   DriveContribution,
@@ -46,6 +47,19 @@ export {
   type PreviewRenderer,
   previewRendererOf,
 } from "./preview.ts";
+
+export {
+  createDriveText,
+  type DriveText,
+  type DriveTextFile,
+  type DriveTextJob,
+  type DriveTextKnowledge,
+  type DriveTextOptions,
+  type DriveTextOutcome,
+  plainTextExtractor,
+  type TextExtractor,
+  textExtractorOf,
+} from "./extract.ts";
 
 export {
   DRIVE_ROOT,

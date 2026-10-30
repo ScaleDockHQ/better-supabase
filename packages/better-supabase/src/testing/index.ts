@@ -201,6 +201,7 @@ export {
   testEveDocumentBackend,
   testGraphCompiler,
   testNoteTaker,
+  testTextExtractor,
   testTranscriber,
 } from "./injectables.ts";
 
@@ -211,6 +212,7 @@ export type {
   TestEveDocumentBackendOptions,
   TestGraphCompilerOptions,
   TestNoteTakerOptions,
+  TestTextExtractorOptions,
   TestTranscriberOptions,
 } from "./injectables.ts";
 
