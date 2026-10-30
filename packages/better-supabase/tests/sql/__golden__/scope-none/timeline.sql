@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:4d08cba88b70d444c95b5a3a6074f0f8b0d66bf38ff3c7ed24fb1c0a3125e304
+-- @bsb-hash sha256:c351728e10079d129d5c5a98bff4593b19f2a11e39ec1b05d0dd0dfbe5392872
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,7 +50,7 @@ declare
   inserted integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'Only the service role records activity' using errcode = '42501', hint = 'ACTIVITY_FORBIDDEN';
+    raise exception 'Only the service role records activity' using errcode = '42501', hint = 'TIMELINE_ENTRY_FORBIDDEN';
   end if;
   insert into "better_supabase"."activity_entries" ("event_id", "organization_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
   select e ->> 'event_id', (e ->> 'organization_id')::uuid, e ->> 'type', nullif(e ->> 'actor_id', '')::uuid,

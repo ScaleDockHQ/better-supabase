@@ -13,6 +13,7 @@ import type {
 import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { fillTemplate } from "../../core/access-sql.ts";
+import { SUBJECT_TYPE_RENAMES } from "../../core/renames.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -285,12 +286,24 @@ function cases(
   subjects: readonly RegisteredSubject[],
   branch: (subject: RegisteredSubject) => string | undefined,
 ): string {
+  const registered = new Set(subjects.map((subject) => subject.type));
+
   const whens = subjects.flatMap((subject) => {
     const body = branch(subject);
 
+    // Until 0.48 a type renamed in 0.47 still resolves, unless another
+    // subject took the old name.
+    const types = [
+      subject.type,
+      ...Object.keys(SUBJECT_TYPE_RENAMES).filter(
+        (old) =>
+          SUBJECT_TYPE_RENAMES[old] === subject.type && !registered.has(old),
+      ),
+    ];
+
     return body === undefined
       ? []
-      : [`    when ${sqlString(subject.type)} then\n      ${body}`];
+      : [`    when ${types.map(sqlString).join(", ")} then\n      ${body}`];
   });
 
   return whens.length === 0 ? "    when '' then null;" : whens.join("\n");

@@ -92,7 +92,7 @@ and `doctor` and `upgrade` follow each instance's version on its own.
 
 On the TypeScript side, `blocks.generated.ts` has an entry for each instance
 and a renamed client for a second one (`ticketsBlock` for `tickets: { block:
-"tasks", entities: { work_item: "ticket" } }`), which calls the instance's
+"tasks", entities: { task: "ticket" } }`), which calls the instance's
 functions. Pass it under the instance key:
 
 ```ts title="lib/blocks.ts"
@@ -509,7 +509,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `field-encryption`   | none                                                                                         | none                                                                                                                                                                                                                      |
 | `content`            | `memberships`, `permissions`, `subjects`                                                     | `approvals`, `versions`, `attachments`, `outbox`, `audit`                                                                                                                                                                 |
 | `qualifications`     | `memberships`, `permissions`, `subjects`                                                     | `courses`, `employees`, `teams`, `contacts`, `assets`, `segments`, `attachments`, `notifications`, `outbox`, `audit`                                                                                                      |
-| `risks`              | `memberships`, `permissions`, `subjects`, `versions`                                         | `compliance`, `relations`, `numbering`, `notifications`, `outbox`, `audit`                                                                                                                                                |
+| `risks`              | `memberships`, `permissions`, `subjects`, `versions`                                         | `compliance`, `tasks`, `relations`, `numbering`, `notifications`, `outbox`, `audit`                                                                                                                                       |
 | `shifts`             | `memberships`, `permissions`, `teams`                                                        | `employees`, `leave`, `qualifications`, `time-tracking`, `assets`, `approvals`, `notifications`, `outbox`, `audit`                                                                                                        |
 | `accounting`         | `memberships`, `permissions`                                                                 | `outbox`, `audit`, `data-lifecycle`                                                                                                                                                                                       |
 | `acknowledgements`   | `memberships`, `permissions`, `versions`                                                     | `subjects`, `teams`, `signatures`, `notifications`, `outbox`, `audit`                                                                                                                                                     |

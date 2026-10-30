@@ -52,7 +52,7 @@ function enclosingObject(code: string, index: number): number | undefined {
 }
 
 /** The block an entry installs: its `block` string, or the key it sits under. */
-function blockOf(
+export function blockOf(
   source: string,
   open: number,
   props: readonly Property[],

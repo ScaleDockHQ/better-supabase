@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:25e29725bb008be4d3a60bad662f68d600b5acae177602e8e4b28263f0bcd94f
+-- @bsb-hash sha256:275199de51a2c341c1bf31d39e5b12abb72c4ec5fcb0892e76a8c9853db85854
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -237,7 +237,7 @@ begin
   if save_job.job is not null then
     select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
     if v_job."id" is null then
-      raise exception 'job not found' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
+      raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
@@ -262,7 +262,7 @@ begin
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
-    raise exception 'a job needs a title and a status of draft, open or closed' using errcode = '22023', hint = 'HIRING_JOB_INVALID';
+    raise exception 'a job needs a title and a status of draft, open or closed' using errcode = '22023', hint = 'JOB_OPENING_INVALID';
   end;
   if v_job."status" is distinct from v_was then
     if v_job."status" = 'open' then
@@ -298,10 +298,10 @@ begin
   end if;
   select * into v_job from "better_supabase"."job_openings" x where x."id" = apply_to_job.job;
   if v_job."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_job."tenant_id", 'hiring.write'), false)) then
-    raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
+    raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
   end if;
   if v_job."status" <> 'open' then
-    raise exception 'the job isn''t open' using errcode = '55000', hint = 'HIRING_JOB_NOT_OPEN';
+    raise exception 'the job isn''t open' using errcode = '55000', hint = 'JOB_OPENING_NOT_OPEN';
   end if;
   if v_id is null or not false then
     raise exception 'the candidate is unknown or not readable in this organization' using errcode = '42501', hint = 'HIRING_CANDIDATE_FORBIDDEN';

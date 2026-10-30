@@ -265,11 +265,11 @@ function statusOf(value: unknown, fn: string): AcknowledgementStatus {
  *   });
  *   await acks.assign(
  *     orgId,
- *     { type: "policy", id },
+ *     { type: "compliance_policy", id },
  *     { type: "role", id: "member" },
  *     { dueInDays: 14 },
  *   );
- *   await acks.acknowledge({ type: "policy", id });
+ *   await acks.acknowledge({ type: "compliance_policy", id });
  *   ```;
  */
 export function createAcknowledgements(

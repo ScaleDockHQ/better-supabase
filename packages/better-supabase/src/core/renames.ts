@@ -1,11 +1,18 @@
 /**
- * The names the 0.46 naming convention changed (ADR 0130), old to new. The
- * shims, the stored-name migrations, the codemod and doctor read these maps, so
- * each rename is written once.
+ * The names the naming convention changed (ADR 0130), old to new: permission
+ * keys in 0.46, entity keys, subject types and hints in 0.47. The shims, the
+ * stored-name migrations, the codemods and doctor read these maps, so each
+ * rename is written once.
  */
 
-/** The `better-supabase codemod` version that applies these maps. */
+/**
+ * The `better-supabase codemod` version that applies the permission key
+ * renames.
+ */
 export const RENAMES_CODEMOD = "0.46";
+
+/** The codemod that applies the 0.47 entity, subject type and hint renames. */
+export const ENTITY_RENAMES_CODEMOD = "0.47";
 
 export { HINT_RENAMES, legacyHintOf } from "./hint-renames.ts";
 
@@ -134,8 +141,8 @@ export const EVENT_TYPE_RENAMES: Readonly<Record<string, string>> = frozen({});
 
 /**
  * Subject types stored in `subject_type` columns, old to new: the subject
- * entities whose singular changed. `bsb_rename_subject_type` moves stored rows,
- * and the subjects functions read an old type as its new one for one minor.
+ * entities whose singular changed. `rename_subject_type` moves stored rows, and
+ * the subjects functions read an old type as its new one for one minor.
  */
 export const SUBJECT_TYPE_RENAMES: Readonly<Record<string, string>> = frozen({
   engagement: "activity",

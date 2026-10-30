@@ -4,9 +4,9 @@ import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
 
 describe("withBlockSubjects", () => {
-  it("registers a work item as a ranked, searchable subject", () => {
+  it("registers a task as a ranked, searchable subject", () => {
     expect(withBlockSubjects({}, ["tasks"], {})).toEqual({
-      work_item: {
+      task: {
         table: "better_supabase.work_items",
         idType: "uuid",
         tenant: "tenant_id",
@@ -75,7 +75,7 @@ describe("withBlockSubjects", () => {
       tasks: { columns: { items: { body: null } } },
     });
 
-    expect(subjects["work_item"]?.search).toEqual({
+    expect(subjects["task"]?.search).toEqual({
       title: "title",
       body: ["identifier"],
     });
@@ -92,7 +92,7 @@ describe("withBlockSubjects", () => {
   it("leaves out an entity with subject: false and a block in custom mode", () => {
     expect(
       withBlockSubjects({}, ["tasks", "employees"], {
-        tasks: { entities: { work_item: { name: "task", subject: false } } },
+        tasks: { entities: { task: { subject: false } } },
         employees: { mode: "custom" },
       }),
     ).toEqual({});
@@ -117,7 +117,7 @@ describe("resolveConfig subjects", () => {
 
     expect(Object.keys(resolved.subjects).toSorted()).toEqual([
       "invoice",
-      "work_item",
+      "task",
     ]);
   });
 

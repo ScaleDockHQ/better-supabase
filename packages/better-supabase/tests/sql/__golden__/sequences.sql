@@ -976,7 +976,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:82c79e6add7ce2418d0b268dfe9b3bef14288edd2af27151f2da714eefed35f2
+-- @bsb-hash sha256:daf4122bffab630e6805cc62c917a51e23925484eccc29ea731eee4b81915b67
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1875,7 +1875,7 @@ begin
         exit;
       end if;
       if v_step ->> 'kind' = 'task' then
-        perform "better_supabase"."create_work_item"(v_member."tenant_id", jsonb_build_object(
+        perform "better_supabase"."create_task"(v_member."tenant_id", jsonb_build_object(
           'title', trim(v_step ->> 'title'),
           'body', v_step ->> 'body',
           'dueAt', case when v_step ? 'dueInMinutes' then now() + make_interval(mins => (v_step ->> 'dueInMinutes')::integer) end),

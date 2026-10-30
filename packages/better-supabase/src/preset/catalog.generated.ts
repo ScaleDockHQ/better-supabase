@@ -7038,6 +7038,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "compliance",
+        "tasks",
         "relations",
         "numbering",
         "notifications",

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:a4e510b2f2558a78bbd60a12b4f2b4adaa9469eb5613553a96ecd23e28aca076
+-- @bsb-hash sha256:1ce5710363990166530169a4c49a4e2de3876e17d50df02463d86ba5486ebe63
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -677,7 +677,7 @@ grant execute on function "better_supabase"."list_incidents"(uuid, text, text, u
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
 -- resolution and actionItems ([{ title, ownerId, done }]); a key left out
 -- keeps its value.
-create or replace function "better_supabase"."save_postmortem"(incident_id uuid, attrs jsonb)
+create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -691,40 +691,40 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."incidents" x where x."id" = save_postmortem.incident_id;
+  select * into v_row from "better_supabase"."incidents" x where x."id" = save_incident_postmortem.incident_id;
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.write'), false)) then
     raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  if jsonb_typeof(save_postmortem.attrs) is distinct from 'object' then
+  if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_postmortem.attrs -> 'actionItems') is distinct from 'array' then
+  if save_incident_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_incident_postmortem.attrs -> 'actionItems') is distinct from 'array' then
     raise exception 'actionItems must be an array' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_postmortems" ("tenant_id", "incident_id", "author_id")
   values (v_row."tenant_id", v_row."id", auth.uid())
   on conflict ("incident_id") do nothing;
   update "better_supabase"."incident_postmortems" x set
-    "summary" = case when save_postmortem.attrs ? 'summary' then save_postmortem.attrs ->> 'summary' else x."summary" end,
-    "impact" = case when save_postmortem.attrs ? 'impact' then save_postmortem.attrs ->> 'impact' else x."impact" end,
-    "root_cause" = case when save_postmortem.attrs ? 'rootCause' then save_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
-    "resolution" = case when save_postmortem.attrs ? 'resolution' then save_postmortem.attrs ->> 'resolution' else x."resolution" end,
-    "action_items" = case when save_postmortem.attrs ? 'actionItems' then save_postmortem.attrs -> 'actionItems' else x."action_items" end,
+    "summary" = case when save_incident_postmortem.attrs ? 'summary' then save_incident_postmortem.attrs ->> 'summary' else x."summary" end,
+    "impact" = case when save_incident_postmortem.attrs ? 'impact' then save_incident_postmortem.attrs ->> 'impact' else x."impact" end,
+    "root_cause" = case when save_incident_postmortem.attrs ? 'rootCause' then save_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
+    "resolution" = case when save_incident_postmortem.attrs ? 'resolution' then save_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
+    "action_items" = case when save_incident_postmortem.attrs ? 'actionItems' then save_incident_postmortem.attrs -> 'actionItems' else x."action_items" end,
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."save_postmortem"(uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_postmortem"(uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) to authenticated, service_role;
 
 -- Publishes a resolved incident's postmortem. A public incident's status page
 -- then shows its summary.
-create or replace function "better_supabase"."publish_postmortem"(incident_id uuid)
+create or replace function "better_supabase"."publish_incident_postmortem"(incident_id uuid)
 returns jsonb
 language plpgsql
 security definer
@@ -737,7 +737,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."incidents" x where x."id" = publish_postmortem.incident_id;
+  select * into v_row from "better_supabase"."incidents" x where x."id" = publish_incident_postmortem.incident_id;
   if not found then
     raise exception 'incident not found' using errcode = 'P0002', hint = 'INCIDENT_NOT_FOUND';
   end if;
@@ -751,14 +751,14 @@ begin
     where x."incident_id" = v_row."id"
     returning * into v_post;
   if not found then
-    raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'POSTMORTEM_NOT_FOUND';
+    raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
   null;
   return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
-revoke execute on function "better_supabase"."publish_postmortem"(uuid) from public, anon;
-grant execute on function "better_supabase"."publish_postmortem"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."publish_incident_postmortem"(uuid) from public, anon;
+grant execute on function "better_supabase"."publish_incident_postmortem"(uuid) to authenticated, service_role;
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.

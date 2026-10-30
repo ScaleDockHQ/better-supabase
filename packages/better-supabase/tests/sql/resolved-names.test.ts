@@ -80,7 +80,7 @@ describe("resolveNames", () => {
     expect(entityType(resolved, "task")).toBe("ticket");
   });
 
-  it("reads an entity key from before 0.46 as the new key", () => {
+  it("reads an entity key from before 0.47 as the new key", () => {
     const resolved = resolve("tasks", {
       tasks: { entities: { work_item: "ticket" } },
     });

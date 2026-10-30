@@ -74,7 +74,7 @@ export function blockEntityRenames(
 
 /**
  * The SQL name of each client function of `module` that the entity renames
- * write under the noun it had before 0.46: with `tasks: { names: { task:
+ * write under the noun it had before 0.47: with `tasks: { names: { task:
  * "ticket" } }`, `create_task` is still `create_ticket`, as it was from
  * `create_work_item`. Empty when no renamed entity changed its singular.
  */

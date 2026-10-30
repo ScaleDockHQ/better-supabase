@@ -668,6 +668,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
+      {
+        name: "0.47",
+        description:
+          "Changes from 0.46 to 0.47: entity keys equal the entity's singular, hint codes start with the entity's new name, and the work_item, engagement and policy subject types become task, activity and compliance_policy",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
     ],
   },
 ];

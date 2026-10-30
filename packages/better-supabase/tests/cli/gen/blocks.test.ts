@@ -173,15 +173,11 @@ describe("blocks.generated.ts", () => {
         delete_task_checklist_item: "delete_ticket_checklist_item",
         get_task: "get_ticket",
         list_task_checklist: "list_ticket_checklist",
-        list_task_watchers: "list_ticket_watchers",
         list_tasks: "list_tickets",
-        repeat_task: "repeat_ticket",
         save_task_checklist_item: "save_ticket_checklist_item",
         set_task_assignees: "set_ticket_assignees",
-        set_task_recurrence: "set_ticket_recurrence",
         task_tree: "ticket_tree",
         update_tasks: "update_tickets",
-        watch_task: "watch_ticket",
       },
       entities: [
         {

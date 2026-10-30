@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:21589cb8c75bf3466055efa00c9ebcd7b0f4462f72b22ce08ff2232006cba787
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:66de9a02ea4b9c1461bda59a795af73d641c2e9f90213658d081ec8a34077307
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -112,35 +112,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."is_subject_member"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_subject_member"(text, text) to authenticated, service_role;
-
--- Whether the caller is on the record's team today in one of roles, for a
--- read rule that only some roles pass. The caller only, like
--- is_subject_member.
-create or replace function "better_supabase"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
-    return false;
-  end if;
-  return exists (
-    select 1 from "better_supabase"."subject_members" m
-    where m."subject_type" = has_subject_role.subject_type
-      and m."subject_id" = has_subject_role.subject_id
-      and m."role" = any (has_subject_role.roles)
-      and (m."user_id" = auth.uid())
-        and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)
-        and (m."ends_at" is null or m."ends_at" > now())
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
@@ -778,8 +749,8 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:d44372be7a34271c2d67cb972135a1a8f55b65829ca07c490af50ae7de732b53
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:1d56b31931e87b6813c86490a3859a7106567b9de85d4f538ae2cc36f4ebaf07
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -889,35 +860,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."is_subject_member"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_subject_member"(text, text) to authenticated, service_role;
-
--- Whether the caller is on the record's team today in one of roles, for a
--- read rule that only some roles pass. The caller only, like
--- is_subject_member.
-create or replace function "better_supabase"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
-    return false;
-  end if;
-  return exists (
-    select 1 from "better_supabase"."subject_members" m
-    where m."subject_type" = has_subject_role.subject_type
-      and m."subject_id" = has_subject_role.subject_id
-      and m."role" = any (has_subject_role.roles)
-      and (m."user_id" = auth.uid() or (m."team_id" is not null and m."team_id" in (select "better_supabase"."team_ids_of"(auth.uid()))))
-        and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)
-        and (m."ends_at" is null or m."ends_at" > now())
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
@@ -1562,7 +1504,7 @@ begin
       and (my_work.tenant is null or r."tenant_id" = my_work.tenant)
       and "better_supabase"."approval_eligible"(r."id")
     union all
-    select 'assigned'::text, 'work_item'::text, i."id"::text, i."id"::text, i."title"::text,
+    select 'assigned'::text, 'task'::text, i."id"::text, i."id"::text, i."title"::text,
       coalesce(i."due_at", a."created_at")
     from "better_supabase"."work_item_assignees" a
     join "better_supabase"."work_items" i on i."id" = a."work_item_id"
@@ -1574,7 +1516,7 @@ begin
     select 'sla'::text, k."subject_type"::text, k."subject_id"::text, k."id"::text, null::text,
       k."due_at"
     from "better_supabase"."sla_clocks" k
-    where k."subject_type" = 'work_item'
+    where k."subject_type" = 'task'
       and k."warned_at" is not null
       and k."met_at" is null
       and (my_work.tenant is null or k."tenant_id" = my_work.tenant)
@@ -1704,8 +1646,8 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:5a586ce5fac1ac1c76c438d0d2f4980a84db6d52b4593eb3ddf197eff49e00ff
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:225cd27ecee77f347a792e7b8698b7846d98b822bfc75705eaeaab8867256439
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1820,35 +1762,6 @@ end;
 $$;
 revoke execute on function "app_private"."is_subject_member"(text, text) from public, anon;
 grant execute on function "app_private"."is_subject_member"(text, text) to authenticated, service_role;
-
--- Whether the caller is on the record's team today in one of roles, for a
--- read rule that only some roles pass. The caller only, like
--- is_subject_member.
-create or replace function "app_private"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
-    return false;
-  end if;
-  return exists (
-    select 1 from "app_private"."subject_members" m
-    where m."subject_type" = has_subject_role.subject_type
-      and m."subject_id" = has_subject_role.subject_id
-      and m."role" = any (has_subject_role.roles)
-      and (m."user_id" = auth.uid())
-        and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)
-        and (m."ends_at" is null or m."ends_at" > now())
-  );
-end;
-$$;
-revoke execute on function "app_private"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "app_private"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
@@ -2486,8 +2399,8 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:4611cbaf26d88d68fc65ce312cf3aec3ad24c899253cded8639e72b6cdfd34e9
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:47889cbd37542a86f045817a12d768dd77d12581720d214b656b6980c9f5ad82
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2597,35 +2510,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."is_subject_member"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_subject_member"(text, text) to authenticated, service_role;
-
--- Whether the caller is on the record's team today in one of roles, for a
--- read rule that only some roles pass. The caller only, like
--- is_subject_member.
-create or replace function "better_supabase"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
-    return false;
-  end if;
-  return exists (
-    select 1 from "better_supabase"."subject_members" m
-    where m."subject_type" = has_subject_role.subject_type
-      and m."subject_id" = has_subject_role.subject_id
-      and m."role" = any (has_subject_role.roles)
-      and (m."user_id" = auth.uid())
-        and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)
-        and (m."ends_at" is null or m."ends_at" > now())
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
@@ -3264,15 +3148,6 @@ as $$ select "better_supabase"."is_subject_member"($1, $2) $$;
 revoke execute on function "api"."is_subject_member"(text, text) from public, anon;
 grant execute on function "api"."is_subject_member"(text, text) to authenticated, service_role;
 
-create or replace function "api"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."has_subject_role"($1, $2, $3) $$;
-revoke execute on function "api"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "api"."has_subject_role"(text, text, text[]) to authenticated, service_role;
-
 create or replace function "api"."subject_types"()
 returns text[]
 language sql
@@ -3420,8 +3295,8 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:e7a96c332751ffddc1e15b106ec7c0daba45e825332f965ff37907998cf5cdcc
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:ffde848b0d6c258c500745200ee93ee5351aa3dc8d1c930c99b3f85b57678343
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3527,35 +3402,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."is_subject_member"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_subject_member"(text, text) to authenticated, service_role;
-
--- Whether the caller is on the record's team today in one of roles, for a
--- read rule that only some roles pass. The caller only, like
--- is_subject_member.
-create or replace function "better_supabase"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
-    return false;
-  end if;
-  return exists (
-    select 1 from "better_supabase"."subject_members" m
-    where m."subject_type" = has_subject_role.subject_type
-      and m."subject_id" = has_subject_role.subject_id
-      and m."role" = any (has_subject_role.roles)
-      and (m."user_id" = auth.uid())
-        and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)
-        and (m."ends_at" is null or m."ends_at" > now())
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
@@ -4193,8 +4039,8 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:76b6d26da0819e3517d25ee6b3930198cf7828852f73106f8224b2dc230e3aa1
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:46ed33faa908d0b18e25d96d19bbcee1183a8ee27e49119f3ee87624aa6ea2f8
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -4304,35 +4150,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."is_subject_member"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_subject_member"(text, text) to authenticated, service_role;
-
--- Whether the caller is on the record's team today in one of roles, for a
--- read rule that only some roles pass. The caller only, like
--- is_subject_member.
-create or replace function "better_supabase"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
-    return false;
-  end if;
-  return exists (
-    select 1 from "better_supabase"."subject_members" m
-    where m."subject_type" = has_subject_role.subject_type
-      and m."subject_id" = has_subject_role.subject_id
-      and m."role" = any (has_subject_role.roles)
-      and (m."user_id" = auth.uid())
-        and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)
-        and (m."ends_at" is null or m."ends_at" > now())
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.

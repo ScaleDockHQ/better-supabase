@@ -23,6 +23,7 @@ import {
   FRAMEWORK_KINDS,
 } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { subjectTypeRenames } from "./subject-type-renames.ts";
 
 const EVENTS: BlockSqlEvents<ComplianceEvents> = {
   "control.saved": {
@@ -477,4 +478,5 @@ export const COMPLIANCE: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data: subjectTypeRenames,
 };

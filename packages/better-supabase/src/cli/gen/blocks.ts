@@ -8,10 +8,10 @@ import type {
 } from "../../config/index.ts";
 
 import { entityNames } from "../../blocks/index.ts";
-import { blockFormerFunctions } from "../../config/block-subjects.ts";
 import {
   blockEntities,
   blockEntityRenames,
+  blockFormerFunctions,
   tenantNameOf,
 } from "../../config/index.ts";
 import { PRESET_CATALOG } from "../../preset/index.ts";

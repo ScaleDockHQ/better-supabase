@@ -527,7 +527,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:3ee4c0df39b50f361176c10ee62336fe6f1be4ae3092de51dda8ee209f39908b
+-- @bsb-hash sha256:2da8cdecc13c164978b59f4dfdb66f8562355039040088b6ec41984e25bba1fb
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -667,7 +667,7 @@ begin
   if v_kind = 'represents' and not (v_source_type in ('person')) then
     raise exception 'this kind of link doesn''t accept these record types' using errcode = '22023', hint = 'RELATION_TYPE_NOT_ALLOWED';
   end if;
-  if v_kind = 'mitigated_by' and not (v_source_type in ('risk') and v_target_type in ('control', 'work_item', 'drive_node')) then
+  if v_kind = 'mitigated_by' and not (v_source_type in ('risk') and v_target_type in ('control', 'task', 'drive_node')) then
     raise exception 'this kind of link doesn''t accept these record types' using errcode = '22023', hint = 'RELATION_TYPE_NOT_ALLOWED';
   end if;
   if v_kind = 'materialized_as' and not (v_source_type in ('risk') and v_target_type in ('case')) then

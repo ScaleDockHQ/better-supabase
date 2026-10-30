@@ -1887,6 +1887,18 @@ rename them, then check the keys it lists for review, such as the `ai.*` keys
 that split into one area per AI block. The
 [0.45 to 0.46 guide](/docs/migration/0.45-to-0.46) has the full table.
 
+### BS423
+
+**Warning: config or code uses a renamed entity key or hint code.** Since 0.47
+a key in `blocks.<name>.entities` is the entity's singular (`task`, not
+`work_item`), and a hint code starts with the entity's new name
+(`TASK_NOT_FOUND`, not `WORK_ITEM_NOT_FOUND`). Doctor reports an old entity key
+in the config and an old hint code in a quoted string in the app sources in
+`doctor.sources`. Old entity keys keep working until the next minor, with a
+warning; `error.hint` carries only the new code, and `error.legacyHint` the old
+one until 0.48. Run `better-supabase codemod 0.47` to rename both. The
+[0.46 to 0.47 guide](/docs/migration/0.46-to-0.47) has the full tables.
+
 ## Env files
 
 ### BS501

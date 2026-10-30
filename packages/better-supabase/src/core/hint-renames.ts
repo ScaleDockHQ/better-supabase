@@ -1,5 +1,5 @@
 /**
- * The hint codes the 0.46 naming convention changed. They live apart from
+ * The hint codes the 0.47 entity renames changed. They live apart from
  * `renames.ts` because every client maps errors through `legacyHintOf`.
  */
 
@@ -72,6 +72,6 @@ const HINTS_BEFORE: ReadonlyMap<string, string> = new Map(
   Object.entries(HINT_RENAMES).map(([from, to]) => [to, from]),
 );
 
-/** The code `hint` had before 0.46, or undefined when it kept its code. */
+/** The code `hint` had before 0.47, or undefined when it kept its code. */
 export const legacyHintOf = (hint: string): string | undefined =>
   HINTS_BEFORE.get(hint);

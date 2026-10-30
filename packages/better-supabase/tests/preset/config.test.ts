@@ -172,13 +172,13 @@ describe("preset instances", () => {
     const maintenance = resolved.instances["maintenance"];
     expect(maintenance?.block).toBe("tasks");
     expect(maintenance?.config.entities).toEqual({
-      work_item: "maintenance_request",
+      task: "maintenance_request",
     });
     expect(resolved.instances["tasks"]).toBeUndefined();
 
     const helpdesk = resolveConfig({ preset: "helpdesk" }, "/app");
     expect(helpdesk.instances["tasks"]?.config.entities).toEqual({
-      work_item: "ticket",
+      task: "ticket",
       project: "issue",
     });
   });

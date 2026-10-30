@@ -391,7 +391,7 @@ const CONTRIBUTES: BlockContributes = {
       inverse: "mitigates",
       types: {
         source: [own.naming.rename("risk")],
-        // Controls, work items and drive files are a risk's barriers.
+        // Controls, tasks and drive files are a risk's barriers.
         target: [
           typeOf(own, "compliance", "control"),
           typeOf(own, "tasks", "task"),
@@ -417,6 +417,7 @@ export const RISKS: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "subjects", "versions"],
   integrates: [
     "compliance",
+    "tasks",
     "relations",
     "numbering",
     "notifications",

@@ -11,14 +11,15 @@ import { NAMING_RULES } from "../../../src/cli/doctor/naming.ts";
 function check(
   blocks: Record<string, unknown>,
   sources: TextFile[] = [],
+  code = "BS422",
 ): readonly FindingInput[] {
-  const [rule] = NAMING_RULES;
-  // SAFETY: BS422 reads only `config.blocks` and `sources`.
+  const rule = NAMING_RULES.find((each) => each.code === code);
+  // SAFETY: the naming rules read only `config.blocks` and `sources`.
   const context = { config: { blocks }, sources } as unknown as DoctorContext;
   const findings = rule?.check(context);
 
   if (!Array.isArray(findings)) {
-    throw new TypeError("BS422 runs synchronously");
+    throw new TypeError(`${code} runs synchronously`);
   }
 
   return findings;
@@ -71,5 +72,47 @@ describe("BS422", () => {
         permissions: { roles: { admin: ["members.invite", "organization.*"] } },
       }),
     ).toEqual([]);
+  });
+});
+
+describe("BS423", () => {
+  it("reports old entity keys, by the block an entry installs", () => {
+    const findings = check(
+      {
+        tasks: { entities: { work_item: "ticket", project: "initiative" } },
+        support: { block: "tasks", entities: { work_item: "case" } },
+        goals: { entities: { goal: "objective" } },
+        contacts: {},
+      },
+      [],
+      "BS423",
+    );
+
+    expect(findings.map((each) => each.target)).toEqual([
+      "blocks.tasks.entities:work_item",
+      "blocks.support.entities:work_item",
+    ]);
+    expect(findings[0]?.message).toContain("now `task`");
+  });
+
+  it("reports quoted old hint codes and leaves the ambiguous one", () => {
+    const findings = check(
+      {},
+      [
+        {
+          path: "src/tasks.ts",
+          text: `if (e.hint === "TASK_LOCKED") a();\nif (e.hint === "WORK_ITEM_LOCKED") b();\nif (e.hint === "ACTIVITY_FORBIDDEN") c();`,
+        },
+      ],
+      "BS423",
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        target: "src/tasks.ts:WORK_ITEM_LOCKED",
+        location: { file: "src/tasks.ts", line: 2 },
+      }),
+    ]);
+    expect(findings[0]?.message).toContain("now `TASK_LOCKED`");
   });
 });

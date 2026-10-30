@@ -90,10 +90,10 @@ interface DbErrorBase<K extends DbErrorKind> {
   /** Postgres `HINT`. `raised` errors use it as an app-level error code. */
   readonly hint?: string;
   /**
-   * The code `hint` had before 0.46 (`WORK_ITEM_NOT_FOUND` for
+   * The code `hint` had before 0.47 (`WORK_ITEM_NOT_FOUND` for
    * `TASK_NOT_FOUND`), for clients that still match the old code.
    *
-   * @deprecated Match `hint`. Removed in 0.47.
+   * @deprecated Match `hint`. Removed in 0.48.
    */
   readonly legacyHint?: string;
   /** App-cased table key the operation ran against. */

@@ -22,7 +22,7 @@ import {
   entityNoun,
   tenantRename,
 } from "../core/entity-naming.ts";
-import { ENTITY_KEY_RENAMES, RENAMES_CODEMOD } from "../core/renames.ts";
+import { ENTITY_KEY_RENAMES, ENTITY_RENAMES_CODEMOD } from "../core/renames.ts";
 
 /** One of a module's entities with the name the config gives it. */
 export interface ResolvedEntity {
@@ -32,7 +32,7 @@ export interface ResolvedEntity {
   readonly from: EntityNoun;
   readonly to: EntityNoun;
   /**
-   * The entity's singular before 0.46 (`spec.formerly`) and its current one.
+   * The entity's singular before 0.47 (`spec.formerly`) and its current one.
    * The tables, columns and events still carry the old noun; function, hook and
    * trigger names carry the new one.
    */
@@ -68,12 +68,12 @@ export interface ResolvedNames {
   readonly entityNaming: EntityNames;
   /**
    * Applied to function, hook and trigger names before `naming`. A renamed
-   * entity whose singular changed in 0.46 maps the new default (`create_task`)
+   * entity whose singular changed in 0.47 maps the new default (`create_task`)
    * back to the old noun the config's rename starts from, so a renamed install
    * keeps its names.
    */
   readonly functionNouns: EntityNames;
-  /** `name` as it was before 0.46 (`create_task` to `create_work_item`). */
+  /** `name` as it was before 0.47 (`create_task` to `create_work_item`). */
   readonly formerName: (name: string) => string;
 }
 
@@ -96,7 +96,7 @@ function primaryOf(
 
 const warnedKeys = new Set<string>();
 
-/** The current key of `key`, an entity key from before 0.46, or undefined. */
+/** The current key of `key`, an entity key from before 0.47, or undefined. */
 function currentKey(
   where: string,
   key: string,
@@ -109,7 +109,7 @@ function currentKey(
   if (next !== undefined && !warnedKeys.has(`${where}.${key}`)) {
     warnedKeys.add(`${where}.${key}`);
     console.warn(
-      `better-supabase: ${where}.${key} is now ${where}.${next}. Old keys work until the next minor; run \`better-supabase codemod ${RENAMES_CODEMOD}\` to rename them.`,
+      `better-supabase: ${where}.${key} is now ${where}.${next}. Old keys work until the next minor; run \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\` to rename them.`,
     );
   }
 

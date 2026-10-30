@@ -147,7 +147,7 @@ describe("generator model blocks", () => {
         blocks: {
           memberships: {},
           permissions: {},
-          tasks: { names: { work_item: { name: "task", url: "/tasks/{id}" } } },
+          tasks: { names: { task: { url: "/tasks/{id}" } } },
         },
       },
       fixtures,
@@ -164,14 +164,12 @@ describe("generator model blocks", () => {
       export: "tasksBlock",
       subpath: "better-supabase/blocks/tasks",
     });
-    expect(
-      block?.entities.find((entity) => entity.key === "work_item"),
-    ).toEqual({
-      key: "work_item",
-      from: { singular: "work_item", plural: "work_items" },
+    expect(block?.entities.find((entity) => entity.key === "task")).toEqual({
+      key: "task",
+      from: { singular: "task", plural: "tasks" },
       to: { singular: "task", plural: "tasks" },
       primary: true,
-      table: "tasks",
+      table: "work_items",
       url: "/tasks/{id}",
       schemas: {
         input: expect.objectContaining({ title: "WorkItemInput" }),

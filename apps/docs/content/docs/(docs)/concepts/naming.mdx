@@ -102,10 +102,11 @@ Every block names its entities, tables, permission keys, events, hint codes
 and functions by one convention, so you can guess a name from the block and
 the noun.
 [ADR 0130](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0130-one-naming-convention-for-blocks.md)
-records the decision. Some names from before it still break the rules
-(`compliance.*` keys on the `compliance` block, `work_item.*` events on
-`tasks`); one breaking minor renames them, with a codemod and one minor in
-which the old names keep working.
+records the decision. 0.46 renamed the permission keys and 0.47 the entity
+keys, subject types, hint codes and functions, each with a codemod and one
+minor in which the old names keep working. Event types and the tables of an
+entity whose singular changed (`work_item.*` events and `work_items` on
+`tasks`) keep their names until a later minor.
 
 1. Block names are kebab-case. Existing block names do not change.
 2. An entity key equals its `singular`. Entity keys are unique across all
@@ -165,6 +166,22 @@ functions, events and permission keys follow the new singular; see
 [Typed blocks](/docs/blocks/typed-blocks).
 
 ## Renames
+
+In 0.47 the key of every entity in `blocks.<name>.entities` is the entity's
+singular, and the subject types, hint codes and function names follow it.
+[`better-supabase codemod 0.47`](/docs/cli/codemod) renames the keys and hint
+codes and lists the subject types for review; the
+[0.46 to 0.47 guide](/docs/migration/0.46-to-0.47) has every key.
+
+| Before (0.46)                           | After (0.47)                             |
+| --------------------------------------- | ---------------------------------------- |
+| `blocks.tasks.entities.work_item`       | `blocks.tasks.entities.task`             |
+| `blocks.automations.entities.rule`      | `blocks.automations.entities.automation` |
+| subject types `work_item`, `engagement` | `task`, `activity`                       |
+| subject type `policy` (compliance)      | `compliance_policy`                      |
+| `WORK_ITEM_NOT_FOUND`, `RULE_CONFLICT`  | `TASK_NOT_FOUND`, `AUTOMATION_CONFLICT`  |
+| `create_work_item`, `log_engagement`    | `create_task`, `log_activity`            |
+| `workItemChecklistBinding`              | `taskChecklistBinding`                   |
 
 In 0.36 the refresh options name what they check, the session provider
 prop takes a session or a promise, and the server's client for an auth state
