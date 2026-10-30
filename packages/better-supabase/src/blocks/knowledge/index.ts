@@ -13,6 +13,7 @@ export {
   type KnowledgeScope,
   type KnowledgeSearchOptions,
   type KnowledgeStatus,
+  type KnowledgeSubject,
   type NewKnowledgeDocument,
 } from "./knowledge.ts";
 

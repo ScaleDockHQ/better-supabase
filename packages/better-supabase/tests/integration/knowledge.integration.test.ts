@@ -3,6 +3,7 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import type { Embedder } from "../../src/blocks/knowledge/index.ts";
 
+import { driveSubject } from "../../src/blocks/drive/index.ts";
 import {
   createKnowledge,
   sqlTransport,
@@ -170,6 +171,100 @@ describe.skipIf(!live)("knowledge module", () => {
         [doc.id, shared.id].toSorted(),
       );
       expect(await knowledge.documents.remove(doc.id).orThrow()).toBe(true);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("shows a drive node's knowledge only to members who can read the node", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(
+        [
+          "organizations",
+          "outbox",
+          "teams",
+          "share-links",
+          "versions",
+          "trash",
+          "drive",
+          "subjects",
+          "knowledge",
+        ],
+        { subjects: { drive_node: driveSubject() } },
+      );
+      const owner = await s.user("owner");
+      const member = await s.user("member");
+      const tenant = await s.organization(owner, { member });
+
+      const knowledge = createKnowledge({
+        transport: sqlTransport(s.sql),
+        embedder: wordEmbedder(),
+      });
+
+      await s.asRole(owner);
+
+      const folder = await s.value<{ id: string }>(
+        "better_supabase.drive_create_folder($1, null, 'Contracts')",
+        [tenant],
+      );
+
+      const subject = { type: "drive_node", id: folder.id };
+
+      const doc = await knowledge.ingest
+        .text(tenant, {
+          title: "Lease",
+          text: "The lease renews every March.",
+          scope: "subject",
+          subject,
+        })
+        .orThrow();
+
+      expect(doc).toMatchObject({ scope: "subject", subject });
+
+      const missing = await knowledge.documents.create(tenant, {
+        title: "x",
+        scope: "subject",
+      });
+
+      expect(missing.ok ? undefined : missing.error.hint).toBe(
+        "KNOWLEDGE_DOCUMENT_INVALID",
+      );
+
+      const search = () => knowledge.search(tenant, "lease").orThrow();
+
+      expect((await search()).map((hit) => hit.documentId)).toEqual([doc.id]);
+
+      await s.asRole(member);
+      expect(await search()).toEqual([]);
+      expect(
+        await knowledge.documents.list(tenant, { subject }).orThrow(),
+      ).toEqual([]);
+
+      const hidden = await knowledge.documents.get(doc.id);
+
+      expect(hidden.ok ? undefined : hidden.error.hint).toBe(
+        "KNOWLEDGE_NOT_FOUND",
+      );
+
+      const foreign = await knowledge.documents.create(tenant, {
+        title: "x",
+        scope: "subject",
+        subject,
+      });
+
+      expect(foreign.ok ? undefined : foreign.error.hint).toBe(
+        "KNOWLEDGE_DOCUMENT_SUBJECT_NOT_FOUND",
+      );
+
+      await s.asRole(owner);
+      await s.value("better_supabase.drive_share($1, 'user', $2, 'viewer')", [
+        folder.id,
+        member.id,
+      ]);
+      await s.asRole(member);
+      expect((await search()).map((hit) => hit.documentId)).toEqual([doc.id]);
     } finally {
       await s.close();
     }

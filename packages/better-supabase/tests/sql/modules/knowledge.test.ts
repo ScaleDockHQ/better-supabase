@@ -172,6 +172,56 @@ describe("knowledge module", () => {
     expect(sql).toContain('"priority"');
   });
 
+  it("scopes knowledge to a record that the reader can read with subjects", () => {
+    expect(body()).not.toContain("knowledge_subject_readable");
+    expect(body()).toContain("knowledge_documents_subject_check");
+    expect(body()).toContain("then false else (");
+
+    const sql = rendered(["subjects"], { subjects: {} });
+
+    const subjectsConfig = renderBlocks(["subjects", "knowledge"], {
+      modules: { subjects: {} },
+      subjects: {
+        ticket: {
+          table: "public.tickets",
+          idType: "uuid",
+          permissions: { read: "tickets.read" },
+        },
+      },
+    })
+      .filter((file) => file.module === "knowledge")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).not.toContain("knowledge_subject_readable");
+    expect(subjectsConfig).toContain(
+      'create or replace function "better_supabase"."knowledge_subject_readable"(subject_type text, subject_id text)',
+    );
+    expect(subjectsConfig).toContain(
+      `"better_supabase"."can_subject"(knowledge_subject_readable.subject_type, knowledge_subject_readable.subject_id, 'read')`,
+    );
+    expect(subjectsConfig).toContain(
+      `case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else (`,
+    );
+    expect(subjectsConfig).toContain("'user', 'subject')");
+    expect(subjectsConfig).toContain("hint = 'KNOWLEDGE_DOCUMENT_INVALID'");
+    expect(subjectsConfig).toContain(
+      "hint = 'KNOWLEDGE_DOCUMENT_SUBJECT_NOT_FOUND'",
+    );
+    expect(subjectsConfig).toContain(`from "public"."tickets" s where`);
+    expect(subjectsConfig).toContain(
+      "subject_type text default null,\n  subject_id text default null\n)",
+    );
+  });
+
+  it("adds the record columns when upgrading from version 3", () => {
+    const [plan] = upgradePlan([{ module: "knowledge", version: 3 }]);
+
+    expect(plan?.steps.map((step) => step.description).join("\n")).toContain(
+      "Subject knowledge",
+    );
+  });
+
   it("drops the tenant not null when upgrading from version 2", () => {
     const [plan] = upgradePlan([{ module: "knowledge", version: 2 }]);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";

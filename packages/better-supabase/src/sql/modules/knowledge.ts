@@ -11,6 +11,7 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
+import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { vectorSchemaOf } from "../vector-schema.ts";
 import {
   COLLECTION_GRANTS,
@@ -38,6 +39,8 @@ const DOCUMENTS = {
   chunkCount: "chunk_count",
   model: "embedding_model",
   collection: "collection_id",
+  subjectType: "subject_type",
+  subjectId: "subject_id",
   createdAt: "created_at",
   updatedAt: "updated_at",
 } as const;
@@ -74,6 +77,8 @@ const NAMES: BlockSqlNames = {
         "chunkCount",
         "model",
         "collection",
+        "subjectType",
+        "subjectId",
         "createdAt",
       ],
       typed: ["scope", "status"],
@@ -200,6 +205,19 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const collected = doc("collection");
 
+  const subjects = ctx.installed("subjects") ? ctx.of("subjects") : undefined;
+
+  const subjectColumns = doc("subjectType") && doc("subjectId");
+
+  const recordTypes = subjects
+    ? subjectsOption(ctx, [], { registryOnly: true })
+    : [];
+
+  const subjectScoped = recordTypes.length > 0 && subjectColumns;
+
+  const isSubject = (row: string): string =>
+    `${asText(ctx, "documents", `${row}${d.scope}`)} = 'subject'`;
+
   const line = (present: boolean, definition: string): string =>
     present ? `\n  ${definition},` : "";
 
@@ -302,6 +320,12 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     ...(doc("metadata")
       ? [[d.metadata, "coalesce(create_knowledge_document.metadata, '{}')"]]
       : []),
+    ...(subjectColumns
+      ? [
+          [d.subjectType, "create_knowledge_document.subject_type"],
+          [d.subjectId, "create_knowledge_document.subject_id"],
+        ]
+      : []),
   ];
 
   const chunkInsert = [
@@ -349,12 +373,61 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   // organization, chat knowledge with readers of the chat, user and project
   // knowledge stays with its owner. Admins see everything in their tenant.
   // A system document (no tenant) is shared with everyone. A document in a
-  // collection also needs the collection to be readable.
+  // collection also needs the collection to be readable. Subject knowledge is
+  // read only by those who can read its record, owners and admins included.
   const inCollection = collected
     ? ` and (${d.collection} is null or ${collectionReadable(ctx, d.collection)})`
     : "";
 
-  const readable = `(${d.tenant} is null or ${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)}))${inCollection}`;
+  const scoped = `${d.owner} = (select auth.uid()) or (${d.scope} in ('organization', 'agent') and ${ctx.scope.check(d.tenant, read)}) or ${ctx.scope.check(d.tenant, manage)} or (${d.scope} = 'chat' and ${chatReadable(d.scopeId)})`;
+
+  const readable = `(${d.tenant} is null or ${
+    subjectColumns
+      ? `case when ${isSubject("")} then ${subjectScoped ? `${fn("knowledge_subject_readable")}(${d.subjectType}, ${d.subjectId})` : "false"} else (${scoped}) end`
+      : scoped
+  })${inCollection}`;
+
+  const { name: documentsName } = ctx.tableName("documents");
+
+  const constraint = (suffix: string): string =>
+    sqlIdent(`${documentsName}_${suffix}`);
+
+  // The record knowledge is about, with the checks that keep scope 'subject'
+  // and the record columns together. An adopted table keeps its own checks.
+  const subjectDdl = ctx.owns("documents")
+    ? `
+alter table ${documents} add column if not exists ${d.subjectType} text check (length(${d.subjectType}) between 1 and 100);
+alter table ${documents} add column if not exists ${d.subjectId} text check (length(${d.subjectId}) between 1 and 200);
+alter table ${documents} drop constraint if exists ${constraint(`${ctx.colName("documents", "scope")}_check`)};
+alter table ${documents} add constraint ${constraint(`${ctx.colName("documents", "scope")}_check`)} check (${d.scope} in ('organization', 'agent', 'project', 'chat', 'user', 'subject'));
+alter table ${documents} drop constraint if exists ${constraint("check")};
+alter table ${documents} add constraint ${constraint("check")} check ((${d.scope} in ('organization', 'subject')) = (${d.scopeId} is null));
+alter table ${documents} drop constraint if exists ${ctx.naming.rename("knowledge_documents_subject_check")};
+alter table ${documents} add constraint ${ctx.naming.rename("knowledge_documents_subject_check")} check ((${d.scope} = 'subject') = (${d.subjectType} is not null and ${d.subjectId} is not null));
+create index if not exists ${ctx.naming.rename("knowledge_documents_subject_idx")} on ${documents} (${d.subjectType}, ${d.subjectId}) where ${d.subjectType} is not null;`
+    : "";
+
+  // Runs as the caller, so can_subject sees the record through its policies.
+  // plpgsql binds the subjects function at call time, so the policy can name
+  // this function before the subjects module is installed.
+  const subjectReadableFn =
+    subjects && subjectScoped
+      ? `
+-- True when the caller can read the record subject knowledge is about.
+create or replace function ${fn("knowledge_subject_readable")}(subject_type text, subject_id text)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return coalesce(${subjects.fn("can_subject")}(knowledge_subject_readable.subject_type, knowledge_subject_readable.subject_id, 'read'), false);
+end;
+$$;
+${userGrant(`${fn("knowledge_subject_readable")}(text, text)`)}
+`
+      : "";
 
   const ownDocument = (row: string): string =>
     `(${SERVICE_CALLER} or coalesce(${row}.${d.owner} = auth.uid(), false) or ${ctx.scope.can(`${row}.${d.tenant}`, manage)})`;
@@ -387,14 +460,14 @@ create table if not exists ${documents} (
       ? `
 alter table ${documents} add column if not exists ${d.collection} uuid references ${ctx.table("collections")} (${ctx.col("collections", "id")}) on delete set null;`
       : ""
-  }
+  }${subjectDdl}
 create index if not exists ${ctx.naming.rename("knowledge_documents_tenant_idx")} on ${documents} (${d.tenant}, ${d.scope}, ${d.scopeId});
 create index if not exists ${ctx.naming.rename("knowledge_documents_owner_idx")} on ${documents} (${d.owner}) where ${d.owner} is not null;
 ${collected ? `create index if not exists ${ctx.naming.rename("knowledge_documents_collection_idx")} on ${documents} (${d.collection}) where ${d.collection} is not null;\n` : ""}${doc("file") ? `create index if not exists ${ctx.naming.rename("knowledge_documents_file_idx")} on ${documents} (${d.file}) where ${d.file} is not null;\n` : ""}create index if not exists ${ctx.naming.rename("knowledge_documents_pending_idx")} on ${documents} (${d.updatedAt}) where ${d.status} = 'pending';
 alter table ${documents} enable row level security;
 ${revokeTable(documents)}
 grant select on ${documents} to authenticated;
-grant all on ${documents} to service_role;
+grant all on ${documents} to service_role;${subjectReadableFn}
 ${renderPolicy(makePolicy({ table: documents, name: ctx.naming.rename("knowledge_documents_read"), command: "select", roles: ["authenticated"], using: readable }), { drop: true, target: documents })}
 
 -- A chunk is visible when its document is, so search inherits the scopes.
@@ -417,7 +490,10 @@ ${renderPolicy(makePolicy({ table: chunks, name: "knowledge_chunks_read", comman
 -- Organization and agent knowledge needs the manage permission. Only the
 -- service role creates a system document (tenant null, organization scope).
 -- A document joins a collection of its tenant, or a system collection.
+-- Subject knowledge names a record (subject_type, subject_id) of the tenant
+-- that the caller can read, and is read only by those who can read it.
 drop function if exists ${fn("create_knowledge_document")}(${id}, text, text, uuid, uuid, text, jsonb, uuid);
+drop function if exists ${fn("create_knowledge_document")}(${id}, text, text, uuid, uuid, text, jsonb, uuid, uuid);
 create or replace function ${fn("create_knowledge_document")}(
   tenant ${id},
   title text,
@@ -427,7 +503,9 @@ create or replace function ${fn("create_knowledge_document")}(
   source text default null,
   metadata jsonb default '{}',
   owner uuid default null,
-  collection_id uuid default null
+  collection_id uuid default null,
+  subject_type text default null,
+  subject_id text default null
 )
 returns jsonb
 language plpgsql
@@ -463,10 +541,29 @@ begin
     end if;
   end if;
   if create_knowledge_document.scope is null
-    or create_knowledge_document.scope not in ('organization', 'agent', 'project', 'chat', 'user')
-    or (create_knowledge_document.scope = 'organization') <> (v_scope_id is null) then
-    ${raise("% knowledge needs %", "22023", "KNOWLEDGE_SCOPE", "create_knowledge_document.scope", "case when create_knowledge_document.scope = 'organization' then 'no scope_id' else 'a scope_id' end")}
+    or create_knowledge_document.scope not in ('organization', 'agent', 'project', 'chat', 'user'${subjectScoped ? ", 'subject'" : ""})
+    or (create_knowledge_document.scope in ('organization', 'subject')) <> (v_scope_id is null) then
+    ${raise("% knowledge needs %", "22023", "KNOWLEDGE_SCOPE", "create_knowledge_document.scope", "case when create_knowledge_document.scope in ('organization', 'subject') then 'no scope_id' else 'a scope_id' end")}
   end if;
+  if (create_knowledge_document.scope = 'subject') <> (create_knowledge_document.subject_type is not null and create_knowledge_document.subject_id is not null)
+    or (create_knowledge_document.scope <> 'subject' and (create_knowledge_document.subject_type is not null or create_knowledge_document.subject_id is not null)) then
+    ${raise("subject knowledge needs subject_type and subject_id, and other scopes neither", "22023", "KNOWLEDGE_DOCUMENT_INVALID")}
+  end if;${
+    subjectScoped
+      ? `
+  if create_knowledge_document.scope = 'subject' and not (${SERVICE_CALLER} or ${subjectReadable(
+    ctx,
+    recordTypes,
+    {
+      type: "create_knowledge_document.subject_type",
+      id: "create_knowledge_document.subject_id",
+      tenant: "create_knowledge_document.tenant",
+    },
+  )}) then
+    ${raise("record %:% not found", "P0002", "KNOWLEDGE_DOCUMENT_SUBJECT_NOT_FOUND", "create_knowledge_document.subject_type", "create_knowledge_document.subject_id")}
+  end if;`
+      : ""
+  }
   if create_knowledge_document.scope = 'chat' and not (${SERVICE_CALLER} or ${chatReadable("v_scope_id")}) then
     ${raise("chat % not found", "P0002", "AI_CHAT_NOT_FOUND", "v_scope_id")}
   end if;${fileCheck}
@@ -476,7 +573,7 @@ begin
   return ${documentJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("create_knowledge_document")}(${id}, text, text, uuid, uuid, text, jsonb, uuid, uuid)`)}
+${userGrant(`${fn("create_knowledge_document")}(${id}, text, text, uuid, uuid, text, jsonb, uuid, uuid, text, text)`)}
 
 -- Replaces a document's chunks. A chunk whose text is unchanged keeps its
 -- embedding unless the model changed; the rest wait for the embed job.
@@ -532,14 +629,18 @@ $$;
 ${userGrant(`${fn("get_knowledge_document")}(uuid)`)}
 
 -- The documents the caller can read in a tenant, newest first. With a
--- collection, its documents, system ones included.
+-- collection, its documents, system ones included. With a record, the
+-- subject knowledge about it.
 drop function if exists ${fn("list_knowledge_documents")}(${id}, text, uuid, integer);
+drop function if exists ${fn("list_knowledge_documents")}(${id}, text, uuid, integer, uuid);
 create or replace function ${fn("list_knowledge_documents")}(
   tenant ${id},
   scope text default null,
   scope_id uuid default null,
   max_rows integer default 100,
-  collection_id uuid default null
+  collection_id uuid default null,
+  subject_type text default null,
+  subject_id text default null
 )
 returns jsonb
 language sql
@@ -558,12 +659,19 @@ as $$
       and list_knowledge_documents.collection_id is null`
     }
       and (list_knowledge_documents.scope is null or ${asText(ctx, "documents", `y.${d.scope}`)} = list_knowledge_documents.scope)
-      and (list_knowledge_documents.scope_id is null or y.${d.scopeId} = list_knowledge_documents.scope_id)
+      and (list_knowledge_documents.scope_id is null or y.${d.scopeId} = list_knowledge_documents.scope_id)${
+        subjectColumns
+          ? `
+      and (list_knowledge_documents.subject_type is null or y.${d.subjectType} = list_knowledge_documents.subject_type)
+      and (list_knowledge_documents.subject_id is null or y.${d.subjectId} = list_knowledge_documents.subject_id)`
+          : `
+      and list_knowledge_documents.subject_type is null and list_knowledge_documents.subject_id is null`
+      }
     order by ${createdAt("y")} desc
     limit least(greatest(list_knowledge_documents.max_rows, 1), 1000)
   ) x
 $$;
-${userGrant(`${fn("list_knowledge_documents")}(${id}, text, uuid, integer, uuid)`)}
+${userGrant(`${fn("list_knowledge_documents")}(${id}, text, uuid, integer, uuid, text, text)`)}
 
 create or replace function ${fn("delete_knowledge_document")}(document_id uuid)
 returns boolean
@@ -587,8 +695,8 @@ ${userGrant(`${fn("delete_knowledge_document")}(uuid)`)}
 -- Hybrid search over the chunks the caller can read: the vector and the
 -- full-text rankings fused with reciprocal rank fusion (k = 60). Iterative
 -- index scans keep looking until enough visible chunks turn up. scopes is a
--- list of {"scope", "id"} objects, or {"items": list}; null searches every
--- scope. collections limits it to those collections. System documents count
+-- list of {"scope", "id"} objects ({"scope": "subject", "type", "id"} for a
+-- record), or {"items": list}; null searches every scope. collections limits it to those collections. System documents count
 -- in every tenant, disabled collections in none, and a collection with a
 -- higher priority ranks its chunks first. Returns a JSON array of
 -- {document_id, idx, content, metadata, title, score}.
@@ -627,8 +735,14 @@ begin
     }
       and (v_scopes is null or exists (
         select 1 from jsonb_array_elements(v_scopes) s
-        where s.value ->> 'scope' = ${asText(ctx, "documents", `x.${d.scope}`)}
-          and (s.value ->> 'id' is null or (s.value ->> 'id')::uuid = x.${d.scopeId})
+        where s.value ->> 'scope' = ${asText(ctx, "documents", `x.${d.scope}`)}${
+          subjectColumns
+            ? `
+          and (s.value ->> 'scope' = 'subject' or s.value ->> 'id' is null or (s.value ->> 'id')::uuid = x.${d.scopeId})
+          and (s.value ->> 'scope' <> 'subject' or ((s.value ->> 'type' is null or s.value ->> 'type' = x.${d.subjectType}) and (s.value ->> 'id' is null or s.value ->> 'id' = x.${d.subjectId})))`
+            : `
+          and (s.value ->> 'id' is null or (s.value ->> 'id')::uuid = x.${d.scopeId})`
+        }
       ))
       and (knowledge_search.filter is null${doc("metadata") ? ` or x.${d.metadata} @> knowledge_search.filter` : ""})
   ),
@@ -823,11 +937,11 @@ export const KNOWLEDGE: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Knowledge",
   description:
-    "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat or user and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.",
+    "Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.",
   requires: ["memberships", "permissions", "vector-search"],
-  integrates: ["ai-chat", "ai-files", "queue", "teams"],
+  integrates: ["ai-chat", "ai-files", "queue", "subjects", "teams"],
   target: "schema",
-  version: 3,
+  version: 4,
   upgrades: [
     {
       from: 1,
@@ -843,6 +957,12 @@ export const KNOWLEDGE: BlockSqlDefinition = {
         ctx.owns("documents")
           ? `alter table ${ctx.table("documents")} alter column ${ctx.col("documents", "tenant")} drop not null;`
           : "",
+    },
+    {
+      from: 3,
+      description:
+        "Subject knowledge: scope 'subject' with subject_type and subject_id names a record, and only those who can read the record (can_subject) read the document, with the subjects block.",
+      sql: () => "",
     },
   ],
   names: NAMES,

@@ -958,7 +958,7 @@ export interface BlockNameRegistry {
   };
   readonly "knowledge": {
     readonly tables: {
-      readonly "documents": "id" | "tenant" | "owner" | "scope" | "scopeId" | "file" | "title" | "source" | "metadata" | "status" | "error" | "chunkCount" | "model" | "collection" | "createdAt" | "updatedAt";
+      readonly "documents": "id" | "tenant" | "owner" | "scope" | "scopeId" | "file" | "title" | "source" | "metadata" | "status" | "error" | "chunkCount" | "model" | "collection" | "subjectType" | "subjectId" | "createdAt" | "updatedAt";
       readonly "collections": "id" | "tenant" | "name" | "description" | "visibility" | "priority" | "createdBy" | "createdAt" | "updatedAt";
       readonly "collectionGrants": "collection" | "user" | "team" | "createdAt";
       readonly "chunks": "document" | "index" | "content" | "tokens" | "embedding" | "hash" | "metadata" | "tsv";
@@ -967,7 +967,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "document": "id" | "organization_id" | "owner_id" | "scope" | "scope_id" | "file_id" | "title" | "source" | "metadata" | "status" | "error" | "chunk_count" | "embedding_model" | "collection_id" | "created_at" | "updated_at";
+      readonly "document": "id" | "organization_id" | "owner_id" | "scope" | "scope_id" | "file_id" | "title" | "source" | "metadata" | "status" | "error" | "chunk_count" | "embedding_model" | "collection_id" | "subject_type" | "subject_id" | "created_at" | "updated_at";
     };
     readonly primary: "document";
   };

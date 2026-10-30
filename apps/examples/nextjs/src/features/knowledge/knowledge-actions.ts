@@ -11,25 +11,32 @@ import { knowledge } from "./knowledge-server";
 
 /**
  * Stores pasted text as one of the caller's documents and embeds it after the
- * response; a queue (`knowledge.embedJob()`) does the same in an app.
+ * response; a queue (`knowledge.embedJob()`) does the same in an app. With a
+ * `folderId` the document belongs to that drive folder, and only members who
+ * can read the folder find it.
  */
 export const addDocument = bsb.action(
   {
     input: v.object({
       title: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
       text: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100_000)),
+      folderId: v.optional(v.pipe(v.string(), v.uuid())),
     }),
     requireTenant: true,
     permission: "ai.create",
   },
-  async ({ title, text }, { tenant, supabase }) => {
+  async ({ title, text, folderId }, { tenant, supabase }) => {
     const base = knowledge(supabase);
 
-    const created = await base.ingest.text(tenant, {
-      title,
-      text,
-      source: "pasted",
-    });
+    const document = { title, text, source: "pasted" };
+
+    const created = await (folderId
+      ? base.ingest.text(tenant, {
+          ...document,
+          scope: "subject",
+          subject: { type: "drive_node", id: folderId },
+        })
+      : base.ingest.text(tenant, document));
 
     if (!created.ok) {
       return created;
