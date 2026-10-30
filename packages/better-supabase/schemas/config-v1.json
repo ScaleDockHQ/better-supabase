@@ -5505,6 +5505,9 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "receiptInspection": {
+                "type": "string"
               }
             }
           }
@@ -5639,7 +5642,16 @@
                 "type": "string"
               },
               "depositLine": {},
-              "quoteLineValues": {}
+              "quoteLineValues": {},
+              "purchasePrefix": {
+                "type": "string",
+                "default": "BILL-"
+              },
+              "purchaseCreditPrefix": {
+                "type": "string",
+                "default": "BCN-"
+              },
+              "matchTolerance": {}
             }
           }
         }
@@ -5822,6 +5834,10 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "purchaseSuggestions": {
+                "type": "string",
+                "default": "order"
               }
             }
           }

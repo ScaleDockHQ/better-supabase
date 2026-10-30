@@ -21389,6 +21389,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PurchaseOrderStatus"
+        },
+        {
+          "name": "PurchaseRequisition"
         }
       ],
       "events": {
@@ -21441,8 +21444,20 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "InvoiceCharge"
         },
         {
+          "name": "InvoiceDirection"
+        },
+        {
           "name": "InvoiceInput",
           "fields": true
+        },
+        {
+          "name": "InvoiceMatch"
+        },
+        {
+          "name": "InvoiceMatchLine"
+        },
+        {
+          "name": "InvoiceMatchStatus"
         },
         {
           "name": "InvoicePatch",

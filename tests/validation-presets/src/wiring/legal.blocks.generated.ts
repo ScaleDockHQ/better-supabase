@@ -258,6 +258,8 @@ export const permissions = {
     read: "invoices.read",
     write: "invoices.write",
     manage: "invoices.manage",
+    purchase: "invoices.purchase",
+    overrideMatch: "invoices.override_match",
   },
   ledger: {
     read: "ledger.read",
@@ -325,7 +327,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billable_time.invoice" | "billable_time.manage" | "billable_time.read" | "billing.manage" | "billing.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
@@ -394,6 +396,7 @@ export const blockEvents: Events<BlockEvents> = {
     "invoice.credited",
     "invoice.deleted",
     "invoice.issued",
+    "invoice.match_checked",
     "invoice.paid",
     "invoice.payment_recorded",
     "invoice.payment_reversed",
@@ -526,6 +529,7 @@ export const blockEventSchemas = {
   "invoice.credited": true,
   "invoice.deleted": true,
   "invoice.issued": true,
+  "invoice.match_checked": true,
   "invoice.paid": true,
   "invoice.payment_recorded": true,
   "invoice.payment_reversed": true,

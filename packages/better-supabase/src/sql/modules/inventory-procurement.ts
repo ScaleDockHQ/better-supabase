@@ -107,20 +107,20 @@ const hasOrders = (ctx: BlockSqlContext): boolean =>
   ctx.hasTable("purchaseOrders") && ctx.hasTable("purchaseOrderLines");
 
 /** Whether the block keeps requisitions. */
-export const hasRequisitions = (ctx: BlockSqlContext): boolean =>
+const hasRequisitions = (ctx: BlockSqlContext): boolean =>
   hasOrders(ctx) &&
   ctx.hasTable("requisitions") &&
   ctx.hasTable("requisitionLines");
 
 /** Whether receiving a purchase order writes a receipt. */
-export const hasReceipts = (ctx: BlockSqlContext): boolean =>
+const hasReceipts = (ctx: BlockSqlContext): boolean =>
   hasOrders(ctx) && ctx.hasTable("receipts") && ctx.hasTable("receiptLines");
 
 /**
  * `options.receiptInspection`: the inspection kind a receipt opens, checked
  * against the kinds inspections allows. Undefined when unset.
  */
-export function receiptInspection(ctx: BlockSqlContext): string | undefined {
+function receiptInspection(ctx: BlockSqlContext): string | undefined {
   const kind = ctx.option("receiptInspection");
 
   if (kind === undefined) {

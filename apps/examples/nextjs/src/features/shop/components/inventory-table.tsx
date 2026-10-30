@@ -42,6 +42,7 @@ import { Link } from "@/i18n/navigation";
 import { getStockLevels } from "../shop-queries";
 import { AdjustStockDialog } from "./adjust-stock-dialog";
 import { CreateLocationButton } from "./create-location-button";
+import { RequestPurchaseButton } from "./request-purchase-button";
 
 // #region recipe:inventory-table
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
@@ -155,6 +156,18 @@ export async function InventoryTable() {
             <TableBody>
               {stock.data.levels.map((level) => {
                 const location = locationName.get(level.locationId) ?? "";
+                const label = `${level.productTitle} (${level.sku}), ${location}`;
+
+                const low =
+                  level.available <= 0 ||
+                  (level.reorderPoint !== null &&
+                    level.available <= level.reorderPoint);
+
+                // Enough to reach twice the reorder point, or 10 units without one.
+                const shortfall = Math.max(
+                  (level.reorderPoint ?? 5) * 2 - level.available,
+                  1,
+                );
 
                 return (
                   <TableRow key={`${level.variantId}:${level.locationId}`}>
@@ -189,12 +202,22 @@ export async function InventoryTable() {
                       )}
                     </TableCell>
                     {canManage ? (
-                      <TableCell className="text-right">
-                        <AdjustStockDialog
-                          variantId={level.variantId}
-                          locationId={level.locationId}
-                          label={`${level.productTitle} (${level.sku}), ${location}`}
-                        />
+                      <TableCell>
+                        <div className="flex justify-end gap-2">
+                          {low ? (
+                            <RequestPurchaseButton
+                              variantId={level.variantId}
+                              locationId={level.locationId}
+                              quantity={shortfall}
+                              label={label}
+                            />
+                          ) : null}
+                          <AdjustStockDialog
+                            variantId={level.variantId}
+                            locationId={level.locationId}
+                            label={label}
+                          />
+                        </div>
                       </TableCell>
                     ) : null}
                   </TableRow>
