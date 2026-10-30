@@ -498,6 +498,9 @@ CREATE OR REPLACE FUNCTION better_supabase.data_lifecycle_tables()
     ('organization', 'better_supabase.template_applications', '"better_supabase"."template_applications"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.template_schedules', '"better_supabase"."template_schedules"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.template_schedule_runs', '"better_supabase"."template_schedule_runs"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.case_kinds', '"better_supabase"."case_kinds"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.cases', '"better_supabase"."cases"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.case_actions', '"better_supabase"."case_actions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.deals', '"better_supabase"."deals"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.deal_contacts', '"better_supabase"."deal_contacts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.deal_members', '"better_supabase"."deal_members"', 'tenant_id', true, '{}'::text[], true),
@@ -804,6 +807,11 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'care-plans.publish' then 'care_plans.publish'
     when 'care-plans.read' then 'care_plans.read'
     when 'care-plans.write' then 'care_plans.write'
+    when 'cases.close' then 'cases.close'
+    when 'cases.create' then 'cases.create'
+    when 'cases.manage' then 'cases.manage'
+    when 'cases.read' then 'cases.read'
+    when 'cases.write' then 'cases.write'
     when 'catalog.manage' then 'catalog.manage'
     when 'catalog.read' then 'catalog.read'
     when 'channels.create' then 'channels.create'
