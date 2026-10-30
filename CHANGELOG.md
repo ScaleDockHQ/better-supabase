@@ -1,5 +1,130 @@
 # Changelog
 
+## 0.46.0 (2026-10-30)
+
+- Fixes from an app built on better-supabase: quote lines with checks across columns, answer keys, invoices from quotes and platform approval policies.
+
+  - Line items: `setLines` on quotes, deals and invoices, and the quote restore on acceptance, write each line's own columns and its `lineExtraColumns` in one statement, so a check across both holds (such as `check (pricing_mode <> 'fixed' or quantity = 1)`). A key a line's `fields` leaves out takes the column's default on a new line and keeps the stored value on an existing one.
+  - Extra columns: an insert that writes `extraColumns` without a key falls back to the column's default at run time when the configured type names none, so an app column `not null default false` works with the type `"boolean"`.
+  - Quotes: `permissions.accept`, `permissions.reject` and `permissions.requestChanges` give each answer of `decide` its own key, each falling back to `decide`.
+  - Quotes: `decide` with an `actor` on a quote past its valid-until date returns the expired quote instead of `{ status: "expired" }`, which the client could not read.
+  - Invoices: `fromQuote` keeps a line's product when the quote's line table has only a product id column, takes each issued deposit off per tax rate of its lines, and leaves out a copied line value the invoice column can't take. `options.depositLine` (`description` with `{identifier}`, `fields`) and `options.quoteLineValues` configure them, and `fromQuote(id, { depositDescription })` translates the description per call.
+  - Line items: `setLines` and the quote restore on acceptance also work when the app's line table keeps `position` as `numeric`.
+  - Invoices: `fromQuote` deducts a deposit on the final invoice's tax basis when the two differ in `pricesIncludeTax`, and leaves out deposits that credit notes fully credited.
+  - Invoices: `fromQuote` makes a new final invoice when the previous one was fully credited or archived. The opt-in `columns.invoices.archivedAt` names the app's archive column; archived deposits are not deducted either.
+  - Server: `bootstrap()` in a support session ("view as user") runs the bootstrap wrapper as the target and reports the session active, keyed on the support session; an ended support session no longer evicts the target's sessions.
+  - Tasks: `assign` records `work_item.assigned` only when the call adds someone, with the new `addedIds` next to `assigneeIds`, so a call with the same assignees no longer runs the assignment automations again.
+  - Approvals: `permissions.platform` is the platform key for reading and editing platform policies; an organization's managers and platform staff without it are refused.
+
+  SQL signature: `invoice_from_quote(uuid, integer, bigint)` becomes `invoice_from_quote(uuid, integer, bigint, text default null)`; the old overload is dropped. Callers with the old arguments are unaffected.
+- Fixes from an app built on better-supabase: tenant scope exemptions, PowerSync streams on edition 3, multi-limit rate limits, formatter-stable generated code, and block controllers that share a data engine. The [0.45 to 0.46 guide](https://bettersupabase.com/docs/migration/0.45-to-0.46) lists what to check.
+
+  Import paths, old to new:
+
+  | Before                                                | Now                                                 |
+  | ----------------------------------------------------- | --------------------------------------------------- |
+  | `createRateLimit` from `better-supabase/blocks/queue` | `createRateLimit` from `better-supabase/rate-limit` |
+  | `rateLimited` from `better-supabase/blocks/queue`     | `rateLimited` from `better-supabase/rate-limit`     |
+
+  The old exports stay as deprecated aliases.
+
+  - Tenant scope: `database.sql.tenantScope.exemptRoles` lets roles such as `supabase_auth_admin` through the restrictive `bsb_tenant_scope` policies. Doctor reports a `security invoker` access token hook behind the scope as BS421.
+  - Roles: with the provider or custom access model, `membership_roles` takes roles outside `blocks.permissions.roles`, `on_accept.roles` checks only `can_assign`, and a direct write of `memberships.role` swaps the previous primary role and keeps the others.
+  - PowerSync: `better-supabase powersync streams` writes Sync Streams edition 3, skips disabled memberships, syncs every team in the user's organizations and adds a `membership_roles` stream with `roles.many`. The publication migration starts with `create publication ... for table` and later adds only new tables.
+  - Attachments: `object_path` is a plain column a trigger fills, so logical replication sends it. A `topic` option (default `attachments`) broadcasts `changed` to `<topic>:<tenant>`; `attachmentsTopic()` names it and `createAttachmentListController` lists a record's files again when they change. Run `better-supabase upgrade` and generate a migration.
+  - Notifications: preferences sync and change offline through `notificationPreferencesRoute`, `send()` returns `eventId`, and `list()` items carry `recipientId`. `AUTHZ_EVENT` and `authzUserTopic` are exported from the client entries.
+  - Rate limits: oRPC and Hono `rateLimit` take several `hits`, and oRPC throws a declared `TOO_MANY_REQUESTS`. `createMcpAuth` reads context from a `Request` or `Headers` and takes a `clientId`.
+  - CLI: `add` renders new modules with `sql.schema` and `sql.api`, so doctor reports no BS304 right after it. `db seed` no longer loads the chat SDK. Provider function names can contain `{resource}`.
+  - Gen: `records/` and `hooks.ts` come out the way oxfmt prints them. `createdAt` and `updatedAt` are optional on `Insert` for tables the updated-at extension stamps. `gen.hooks.select` wraps every generated select in the app's own function.
+  - Testing: `TestUser`, `asUser`, `withRollback` and the seed helpers keep the definition's block map, so `db.$blocks` is typed.
+  - Block controllers: `createBlockQuery`, `createBlockMutation` and the framework hooks take `{ engine, instance }`, and `blockControllerEngine(queryClient)` from `better-supabase/query` shares cache entries with `blockQueries`.
+  - Errors: `BlockHint<B>`, `isBlockHint` and `blockHint` from `better-supabase/blocks` type each block's hint codes.
+- The drive has an upload-only role and file requests. Set the new `uploadRole` option (for example `"contributor"`) and grant it on a folder: the holder adds files with `drive.contribute(organizationId, { parentId, name, mimeType, size })` and confirms them with `commitContribution(id, attachmentId)`, but can't list, open or download the folder or anything in it, their own files included. A contribution takes a free name and returns the new file's id and its upload, not the node. The contributor may upload a revision of a file they added, and nothing else. `drive_can_upload(folder)` is the SQL check. The role needs the node table's `createdBy` column, works on node grants only, and granting it on a file fails with `DRIVE_ROLE_UNKNOWN`.
+
+  `drive.createFileRequest(folderId, { expiresAt, maxUses, password })` creates an upload share link on a folder; it needs the share role, and the token comes back once. `uploadToRequest(token, file, { name, mimeType, password })`, on a client made with the service transport and storage, sends a file through the link: it creates the file under a free name, uploads it and commits it, and returns `{ passwordRequired: true }` when the password is missing or wrong. Each file counts one use of the link, and with `rate-limit` installed a link takes 20 files an hour (scope `drive_link_upload`, `DRIVE_LINK_RATE_LIMITED`). Request files have the new `source` `request` and no creator, and `drive.node_created` now carries `source`. Over your own tables, add `request` and the upload role to enum `source` and `role` columns to use them. Run `better-supabase upgrade` and generate a migration to pick up the functions and the widened checks.
+- The drive checks files out, blocks downloads and serves rendered previews. `drive.lock(id, { until, note })` checks a file out for the caller (8 hours by default, at most 30 days) and `unlock(id, { force })` ends it; while a lock applies, nobody else may upload, commit, restore a revision, rename, move, trash or delete the file, or trash or delete a folder above it (`DRIVE_LOCKED`, code `55P03`). The share role breaks someone else's lock with `force`, and the service role ignores locks. Nodes carry `lockedBy`, `lockedUntil` and `lockNote`.
+
+  `drive.blockDownloads(id)` keeps the original of a node and everything under it from callers below the write role, and `blockDriveDownloads(driveId)` does the same for a drive. Blocked callers still open the node and read its previews; `download` fails with `DRIVE_DOWNLOAD_BLOCKED`, and the storage policy refuses the original. Nodes carry `downloadBlocked` and `downloadable`, and `drive_can_download(node)` is the SQL check.
+
+  `createDrivePreviews({ transport, storage, renderer })` renders a file's pages through a versioned `PreviewRenderer` (`apiVersion: 1`) and stores them under the new `previewPrefix` option (default `_previews`), which readers may open even when downloads are blocked. Its `sink()` renders on `attachment.uploaded` and `attachment.scanned`, and its `job` runs from a queue. `drive.previews(id)` and `previewUrls(id)` read the pages.
+
+  A `commenter` role in `roles` becomes the new `commentRole`, checked by `drive_can_comment(node)`, which `driveSubject()` now uses for the `comment` action, so a node's record discussion in messaging follows the node's grants: whoever holds the comment role may post there without the tenant-wide `messages.send` key. Drive share links take the `view`, `download` and `upload` roles; creating one now needs the drive's share role on the node, an `upload` link must name a folder, and `drive.link(token)` honors the link's `downloadAllowed` and any download block, refuses upload links with `DRIVE_LINK_ROLE_INVALID` and returns the node's `previews`.
+
+  The drive records `drive.node_locked`, `drive.node_unlocked`, `drive.node_download_blocked_changed` and `drive.download_blocked_changed`. The node table gains `locked_by`, `locked_until`, `lock_note`, `download_blocked` and `preview_pages`, and with `drives` on the drive table gains `download_blocked`. Over your own tables, map these columns or set them to `null` to leave the feature out. Run `better-supabase upgrade` and generate a migration to pick up the columns and functions.
+- Knowledge documents can belong to a record. With the `subjects` block installed, `ingest.text(org, { ..., scope: "subject", subject: { type, id } })` and `documents.create` store the record in the new optional `subject_type` and `subject_id` columns, and a member reads, lists and searches the document only while `can_subject(subject_type, subject_id, 'read')` is true, so a drive folder's knowledge follows the folder's grants. The owner and the manage permission get no exception, the document's collection must still be readable, and system documents stay readable by every organization.
+
+  - `create_knowledge_document` and `list_knowledge_documents` take `subject_type text default null, subject_id text default null` at the end. Scope `subject` without both, or a type or id with another scope, fails with `KNOWLEDGE_DOCUMENT_INVALID`; a record the caller can't read fails with `KNOWLEDGE_DOCUMENT_SUBJECT_NOT_FOUND`.
+  - `documents.list` takes `subject`, a search scope `{ scope: "subject", type, id }` matches one record, and `KnowledgeDocument.subject` returns it. `KnowledgeSubject` is exported from `better-supabase/blocks/knowledge`.
+  - The knowledge module is version 4. Run `better-supabase upgrade` and generate a migration to add the columns and constraints.
+- Permission keys now follow one convention: `<area>.<verb>`, where the area is the block name in snake_case and the verb is `read`, `write`, `delete`, `manage` or a verb of the domain. A block installed as a named instance checks its own area (`tickets.read` for a `tickets` instance of `tasks`). Run `better-supabase codemod 0.46` to rename the keys in your code, config and SQL; it also renames `createOAuthServer` and the oauth-server block's `OAuth` types.
+
+  | Old                                 | New                                                |
+  | ----------------------------------- | -------------------------------------------------- |
+  | `parties.*`                         | `contacts.*`                                       |
+  | `engagements.*`                     | `activities.*`                                     |
+  | `rules.read`, `rules.edit`          | `automations.read`, `automations.write`            |
+  | `rules.publish`, `rules.admin`      | `automations.publish`, `automations.manage`        |
+  | `controls.*`                        | `compliance.*`                                     |
+  | `support.start`, `.read`, `.revoke` | `impersonation.start`, `.read`, `.revoke`          |
+  | `work_items.*`                      | `tasks.*`                                          |
+  | `targets.*`                         | `goals.*`                                          |
+  | `views.*`                           | `saved_views.*`                                    |
+  | `history.read`                      | `field_history.read`                               |
+  | `mail.*`                            | `mail_sync.*`                                      |
+  | `number_sequences.assign`           | `numbering.assign`                                 |
+  | `service_principals.*`              | `service_accounts.*`                               |
+  | `activity.read`                     | `timeline.read`                                    |
+  | `segments.edit`                     | `segments.write`                                   |
+  | `ai_chat.admin`                     | `ai_chat.manage`                                   |
+  | `custom_fields.sensitive.read`      | `custom_fields.read_sensitive`                     |
+  | `employees.view_sensitive`          | `employees.read_sensitive`                         |
+  | `workflow.edit`, `workflow.publish` | `workflow_editor.write`, `workflow_editor.publish` |
+  | `workflow.read`, `.run`, `.admin`   | `workflows.*` and `workflow_editor.*`              |
+  | `ai.*`, `ai.read`, `ai.create`, ... | one area per AI block (`agents`, `knowledge`, ...) |
+  | `organization.export`               | `data_lifecycle.export`                            |
+  | `members.invite` for waitlist codes | `waitlist.invite`                                  |
+
+  Old keys keep working until the next minor: roles that list one get the new keys, `permissionMatches` accepts both with a warning, and doctor reports them (BS422). With the catalog access model, `upgrade` renders a data step that renames the stored permission rows and copies their role and override links. `PERMISSION_KEY_RENAMES` and `PERMISSION_KEY_SPLITS` (`better-supabase/blocks/permissions`) and `EVENT_TYPE_RENAMES`, `HINT_RENAMES`, `SUBJECT_TYPE_RENAMES` and `renamed` (`better-supabase`) export the maps.
+- Add the `qualifications` block (`better-supabase/blocks/qualifications`) for certifications, licences and skills that members, companies and assets hold:
+
+  - Qualification types with a validity in months and optional evidence, and requirements that name who must hold them: a role, a team, a job title, an asset kind, a segment or one holder.
+  - Holdings that expire, granted by hand or from a course certificate when the type names the course. Revoking keeps the holding with its reason.
+  - `gaps(organizationId, { holderType, holderId, teamId, typeKey, status })` lists the required qualifications holders lack, have let lapse or are about to lose (`better_supabase.qualification_gaps`). A member may read their own gaps without `qualifications.read`.
+  - `qualifiedHolders(organizationId, typeKey, { holderType, on })` returns the holders with a valid holding on a day (`better_supabase.qualified_holders`).
+  - `notifyExpiring()` reports each holding once when it enters the renewal window (`qualification.expiry_warned`) and once when it expires (`qualification.expired`).
+  - The `qualification-matrix` and `my-qualifications` UI recipes.
+
+  Admins get `qualifications.read`, `qualifications.grant` and `qualifications.manage`. Add `qualifications: {}` to `blocks`, run `better-supabase upgrade` and generate a migration. A permission catalog lists each key per role, so add the three keys to the roles that should hold them.
+- Records can have a team. Add `team: { actions: ["read", "write"] }` to a type in `config.subjects`, and `can_subject` and `can_subject_for` grant those actions to the users and teams on that record whose dates include today, next to the permission keys. The `subjects` block installs `subject_members` (a user or a team from the `teams` block, a role, `starts_on` and `ends_on`) with `add_subject_member`, `end_subject_member`, `list_subject_members` and `my_subjects`, and emits `subject_member.added` and `subject_member.ended`. Adding and ending a membership needs the new `subjects.manage` key (the `admin` role gets `subjects.*`) or `manage` on the record. Roles default to `lead` and `member`; `blocks.subjects.options.recordTeam.roles` changes them.
+
+  The client gets `subjects.members.add`, `end`, `list` and `mine`. When a type declares a team, the `represents` relation kind accepts only targets of such a type. With an authorization provider, list `subjects.manage` among its permissions or point `blocks.subjects.permissions.manage` at a key it has, or `upgrade` stops. Run `better-supabase upgrade` and generate a migration to pick up the table and functions.
+- New `risks` block (`better-supabase/blocks/risks`): a risk register per organization.
+
+  - Risks are numbered (`RSK-0001`), belong to a category from `options.categories` and are scored on a likelihood by impact matrix. Each organization gets a 5 by 5 default matrix with low, medium, high and critical bands; `saveMatrix` adds your own, and `options.defaultMatrix` replaces the default.
+  - `assess` scores a risk before and after controls (inherent and residual) and keeps every assessment, each frozen as a version.
+  - `setTreatment` records mitigate, transfer, accept (needs `risks.manage`) or avoid, `review` moves the next review date ahead by the risk's interval, and `close` closes it with a reason.
+  - `heatmap` counts the open risks per matrix cell. `get` returns the barriers, the controls and other records linked with the `mitigated_by` relation kind.
+  - The daily `review-due` schedule runs `notifyDueReviews`, which notifies the owner once when a review date comes and emits `risk.review_date_reached`.
+  - The permission keys are `risks.read`, `risks.write`, `risks.assess` and `risks.manage`; the default member role reads the register.
+
+  Add `risks: {}` to `blocks`, run `better-supabase add risks` and generate a migration.
+- Share links take a password and a download flag. `shareLinks.create(subject, { password, downloadAllowed })` stores a bcrypt hash of the password (at least 8 characters, `SHARE_LINK_PASSWORD_INVALID` otherwise) in the new `share_links.password_hash` column and the flag in `download_allowed` (default `true`). `shareLinks.resolve(token, { password })` fails with `SHARE_LINK_PASSWORD_REQUIRED` (code `28P01`) until the password matches, and `resolve` and `list` return `downloadAllowed` and `passwordRequired`. With the rate-limit block installed, 10 wrong passwords per link in 15 minutes lock it with `SHARE_LINK_RATE_LIMITED`; the `share_link_password` rule changes the limit.
+
+  `resolve_share_link` now takes `(token text, password text default null)`, and `create_share_link` takes `password` and `download_allowed` before the extra fields argument. The functions other blocks serve links through (calendar feeds, booking pages, public forms, drive links, shared AI chats and leave feeds) don't open a link that has a password.
+
+  A block's share link contribution lists the roles its links may carry (`roles`, `["view"]` unless set), and `create_share_link` refuses any other with `SHARE_LINK_ROLE_INVALID`. Public form links take `respond`. Types from `config.subjects` and `blocks["share-links"].on` keep taking any role. Run `better-supabase upgrade` and generate a migration to pick up the columns and signatures.
+- Add the `shifts` block (`better-supabase/blocks/shifts`). Shift templates generate draft shifts on weekdays, planners publish them per team and location, and every assignment is checked for overlapping shifts, approved leave (leave block), required qualifications (qualifications block) and the minimum rest between shifts. Members ask for open shifts, offer a shift to a colleague and set their availability. `roster`, `myShifts` and `hours` read the plan, and `toTimeEntries` turns worked shifts into time entries (time-tracking block). The example app adds a `roster-board` recipe.
+- Data lifecycle: export one record with `requestSubjectExport(subjectType, subjectId, { format })`, which calls the new `request_subject_export` function. It collects the record and every installed block's rows attached to it, decrypts encrypted columns and custom field values through the reveal functions as the caller (so `auditReads` tables audit the read), and writes the files through the same exporter. The caller needs `organization.export` or the record's `manage` action. Run `better-supabase upgrade` and generate a migration.
+
+  - `data_exports` gains `subject_type`, `subject_id` and `format`, and `subject` accepts `record`. `DataExport` has `subjectType`, `subjectId` and `format`.
+  - `data_export.requested`, `data_export.completed` and `data_export.failed` carry `subjectType` and `subjectId` (null for user and organization exports).
+  - A record export's own format wins over the exporter's `format` option.
+- A subject permission entry takes `check`, the schema-qualified name of a SQL function `(subject_id <idType>) returns boolean` that decides the action for the caller. Alone it decides the action; next to `key`, `rows` or `owner` it must return true as well. `can_subject` and the blocks that check record reads (tags, attachments, relations and the others that take `on`) call it, and `can_subject_for` returns false for such an action, because it can't run the function for another user.
+
+  A subject type also takes `readAccess: "record"`: `custom-fields` then shows that type's values only to members who can read the record, in every layout, while the other types keep `custom_fields.read`.
+
+  `driveSubject()` uses both. Its `read` action asks `drive.read` and the new `drive_node_readable(node)`, its `fields` action asks `drive_node_writable(node)`, and it sets `readAccess: "record"`. A member with `drive.read` but no grant on a node can no longer tag it, attach to it or read its custom field values. Run `better-supabase upgrade` and generate a migration to pick up the new SQL.
+
 ## 0.45.0 (2026-10-29)
 
 - Adopter gaps, round 45: quotes over an app table with a fixed customer column and no list or discount totals, product ids of the column's own type, reasons on quote and payment status changes, a switch for the quote owner notification, and a text or inet IP column in an app's state machine history.
