@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:42ee0a8c3661c1881c3adebdc81923a2885eff57e98e3c1ea2050ce4ad8e6500
+-- @bsb-hash sha256:e6906e1bc55e853eb114e5237b246c6a184a1033eb50dbc0d809ea3be64f8a86
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -300,6 +300,9 @@ begin
   end if;
   if drive_share_link_allowed.role = 'upload' and v_node."kind" <> 'folder' then
     raise exception 'an upload link names a folder' using errcode = '22023', hint = 'DRIVE_LINK_ROLE_INVALID';
+  end if;
+  if "better_supabase"."drive_sharing"(v_node."organization_id") ->> 'links' = 'none' then
+    raise exception 'this organization has turned off share links' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
   end if;
   return true;
 end;
@@ -1024,6 +1027,80 @@ create or replace view "better_supabase"."file_node_search" with (security_invok
   from "centrakit"."file_node" s;
 revoke all on "better_supabase"."file_node_search" from public, anon, authenticated;
 grant select on "better_supabase"."file_node_search" to service_role;
+
+
+-- Hands every item one member holds at editor in an organization to
+-- another member: their editor grants on nodes and drives, and the drives they
+-- own. The new holder keeps one grant per item. Needs drive.manage.
+create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_grant "centrakit"."file_node_grant"%rowtype;
+  v_node "centrakit"."file_node"%rowtype;
+  v_drive_ids uuid[] := '{}';
+  v_nodes integer := 0;
+  v_drives integer := 0;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
+    raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
+    or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
+    raise exception 'name two different users to transfer between' using errcode = '22023', hint = 'DRIVE_TRANSFER_INVALID';
+  end if;
+  if not exists (
+    select 1 from "centrakit"."organization_users" mu
+    where mu."organization_id" = drive_transfer_ownership.tenant and mu."user_id" = drive_transfer_ownership.to_user
+  ) then
+    raise exception 'the new owner is not an active member of this organization' using errcode = 'P0002', hint = 'DRIVE_PRINCIPAL_NOT_FOUND';
+  end if;
+  for v_grant in
+    select gr.* from "centrakit"."file_node_grant" gr
+    where gr."organization_id" = drive_transfer_ownership.tenant and gr."role"::text = 'editor'
+      and gr."user_id" = drive_transfer_ownership.from_user
+  loop
+    delete from "centrakit"."file_node_grant" gr where gr."file_node_id" = v_grant."file_node_id" and gr."user_id" = drive_transfer_ownership.to_user;
+    update "centrakit"."file_node_grant" set "user_id" = drive_transfer_ownership.to_user where "id" = v_grant."id";
+    select * into v_node from "centrakit"."file_node" x where x."id" = v_grant."file_node_id";
+    v_nodes := v_nodes + 1;
+    perform "better_supabase".emit_event('drive.node_ownership_transferred', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'fromUserId', drive_transfer_ownership.from_user::text, 'toUserId', drive_transfer_ownership.to_user::text), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_ownership_transferred',
+    category => 'access',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'ownership transferred',
+    tenant => (v_node."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'fromUserId', drive_transfer_ownership.from_user::text, 'toUserId', drive_transfer_ownership.to_user::text)
+  );
+  end loop;
+  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) to authenticated, service_role;
+
+-- The organization's drive.sharing setting over the defaults
+-- '{"guests": true, "links": "anyone"}'::jsonb.
+create or replace function "better_supabase"."drive_sharing"(tenant uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select '{"guests": true, "links": "anyone"}'::jsonb || coalesce("better_supabase"."organization_setting"(drive_sharing.tenant, 'drive.sharing'), '{}'::jsonb)
+$$;
+revoke execute on function "better_supabase"."drive_sharing"(uuid) from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
