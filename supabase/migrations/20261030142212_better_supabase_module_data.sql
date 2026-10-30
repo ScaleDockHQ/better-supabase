@@ -381,14 +381,14 @@ on conflict (name) do update
 
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:7603b340f2c43f18cd3ebca2f3276bbd6c81c1be008d984405803ab0df3f6385
+-- @bsb-hash sha256:486063f44e46ac376b92702fb399294c552924e1c16c678fdb4e52577c7346f0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('webhooks-out', 5, 'managed')
+values ('webhooks-out', 6, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -487,14 +487,14 @@ on conflict (name) do update
 
 -- better-supabase module: comments
 -- @bsb-block-data comments
--- @bsb-hash sha256:ec18ec62c750f44de5b8ad60fc2d424cf37bb2d537ae17e99e99adceb72a60af
+-- @bsb-hash sha256:b88720e1f8db856027df7f4a32cd82bc30bc62603e455805ccbce770f292744d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('comments', 8, 'managed')
+values ('comments', 9, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -728,27 +728,27 @@ on conflict (name) do update
 
 -- better-supabase module: knowledge
 -- @bsb-block-data knowledge
--- @bsb-hash sha256:535874c27c055766fe06617afb5a2f85ccebe4e97cf387a62af5855691c08cbd
+-- @bsb-hash sha256:58dae03b410f817eaaaf517fe03bf25200266c96a4479809706fc0a07facf474
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('knowledge', 4, 'managed')
+values ('knowledge', 5, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- better-supabase module: memory
 -- @bsb-block-data memory
--- @bsb-hash sha256:b0bdc3f00c0418d72471d70f14614e57a8c709e309d13f515eff3a4731c4cded
+-- @bsb-hash sha256:72113eafbd322f1ddb4356fb6bdb8a172da173f627879bdf142866af33aade94
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('memory', 3, 'managed')
+values ('memory', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 

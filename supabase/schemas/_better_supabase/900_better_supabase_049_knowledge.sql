@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
--- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:95244373a30d986c76f2456e2e475cc6c2a2b53543b0233d0e8dacbca8932944
+-- @bsb-block knowledge@5 managed
+-- @bsb-hash sha256:b7c5586dbcad0c53c132a0359a2d8ffaa702a1eb2fa1f5610b91bc1a470ac667
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,6 +59,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collections";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."knowledge_collection_grants";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."knowledge_collection_grants";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -86,13 +94,16 @@ grant all on "better_supabase"."knowledge_collections" to service_role;
 
 create table if not exists "better_supabase"."knowledge_collection_grants" (
   "collection_id" uuid not null references "better_supabase"."knowledge_collections" ("id") on delete cascade,
+  "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "team_id" text,
+  "team_id" uuid,
   "created_at" timestamptz not null default now(),
   check (("user_id" is null) <> ("team_id" is null))
 );
+alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;
 create unique index if not exists knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
 create index if not exists knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
+create index if not exists knowledge_collection_grants_tenant_idx on "better_supabase"."knowledge_collection_grants" ("organization_id") where "organization_id" is not null;
 alter table "better_supabase"."knowledge_collection_grants" enable row level security;
 revoke all on "better_supabase"."knowledge_collection_grants" from public, anon, authenticated;
 grant all on "better_supabase"."knowledge_collection_grants" to service_role;
@@ -114,7 +125,7 @@ as $$
         or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (c."organization_id" is not null and coalesce(better_supabase.can('tenant', c."organization_id", 'knowledge.manage'), false)))
         or exists (
           select 1 from "better_supabase"."knowledge_collection_grants" x
-          where x."collection_id" = c."id" and (x."user_id" = auth.uid() or (x."team_id" is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = x."team_id" and tm."user_id" = auth.uid())))
+          where x."collection_id" = c."id" and (x."user_id" = auth.uid() or (x."team_id" is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id" = x."team_id" and tm."user_id" = auth.uid())))
         ))
   )
 $$;
@@ -238,8 +249,9 @@ revoke execute on function "better_supabase"."list_knowledge_collections"(uuid) 
 grant execute on function "better_supabase"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
 -- Grants a user or a team a restricted collection, or revokes it. Returns
--- whether anything changed.
-create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
+-- whether anything changed. The grant keeps the collection's tenant.
+drop function if exists "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean);
+create or replace function "better_supabase"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id uuid default null, granted boolean default true)
 returns boolean
 language plpgsql
 security definer
@@ -261,8 +273,8 @@ begin
     raise exception 'name a user or a team' using errcode = '22023', hint = 'KNOWLEDGE_GRANT';
   end if;
   if set_knowledge_collection_grant.granted then
-    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id")
-    values (v_row."id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
+    insert into "better_supabase"."knowledge_collection_grants" ("collection_id", "organization_id", "user_id", "team_id")
+    values (v_row."id", v_row."organization_id", set_knowledge_collection_grant.user_id, set_knowledge_collection_grant.team_id)
     on conflict do nothing;
   else
     delete from "better_supabase"."knowledge_collection_grants" x
@@ -274,8 +286,8 @@ begin
   return v_count > 0;
 end;
 $$;
-revoke execute on function "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean) from public, anon;
-grant execute on function "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, uuid, boolean) to authenticated, service_role;
 
 -- The grants of a collection, for its admins.
 create or replace function "better_supabase"."list_knowledge_collection_grants"(collection_id uuid)
@@ -945,6 +957,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."knowledge_collection
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."set_knowledge_collection_grant"(uuid, uuid, text, boolean);
 drop function if exists "api"."create_knowledge_document"(uuid, text, text, uuid, uuid, text, jsonb, uuid);
 drop function if exists "api"."create_knowledge_document"(uuid, text, text, uuid, uuid, text, jsonb, uuid, uuid);
 drop function if exists "api"."list_knowledge_documents"(uuid, text, uuid, integer);
@@ -1014,14 +1027,14 @@ as $$ select "better_supabase"."list_knowledge_collections"($1) $$;
 revoke execute on function "api"."list_knowledge_collections"(uuid) from public, anon;
 grant execute on function "api"."list_knowledge_collections"(uuid) to authenticated, service_role;
 
-create or replace function "api"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id text default null, granted boolean default true)
+create or replace function "api"."set_knowledge_collection_grant"(collection_id uuid, user_id uuid default null, team_id uuid default null, granted boolean default true)
 returns boolean
 language sql
 security invoker
 set search_path = ''
 as $$ select "better_supabase"."set_knowledge_collection_grant"($1, $2, $3, $4) $$;
-revoke execute on function "api"."set_knowledge_collection_grant"(uuid, uuid, text, boolean) from public, anon;
-grant execute on function "api"."set_knowledge_collection_grant"(uuid, uuid, text, boolean) to authenticated, service_role;
+revoke execute on function "api"."set_knowledge_collection_grant"(uuid, uuid, uuid, boolean) from public, anon;
+grant execute on function "api"."set_knowledge_collection_grant"(uuid, uuid, uuid, boolean) to authenticated, service_role;
 
 create or replace function "api"."list_knowledge_collection_grants"(collection_id uuid)
 returns jsonb
