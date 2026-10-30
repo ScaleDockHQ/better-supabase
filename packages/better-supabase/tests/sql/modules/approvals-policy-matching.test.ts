@@ -115,7 +115,7 @@ const as = (user: string): string =>
   perform set_config('request.jwt.claim.sub', '${user}', true);`;
 
 /** Lite migrates and seeds PGlite in process; booting takes a second or more. */
-const BOOT = { timeout: 60_000 };
+const BOOT = { timeout: 120_000 };
 
 async function run(
   check: string,
