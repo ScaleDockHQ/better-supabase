@@ -78,6 +78,27 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "document-register",
+    title: "Document register",
+    blocks: ["drive"],
+    kind: "component",
+    description:
+      "The organization's controlled documents in a data grid with their number, status, effective version and next review date, flagged when the review is due.",
+    web: {
+      file: `${WEB_APP}/src/features/drive/components/document-register.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "empty",
+        "skeleton",
+        "@reui/data-grid",
+        "@reui/frame",
+      ],
+      glue: [],
+    },
+  },
+  {
     slug: "reactions-bar",
     title: "Reactions bar",
     blocks: ["reactions"],

@@ -34,6 +34,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
+import { documentOf } from "./documents.ts";
 
 export const KINDS: readonly DriveNodeKind[] = ["folder", "file"];
 
@@ -107,6 +108,9 @@ export function nodeOf(value: unknown, fn: string): DriveNode {
       : undefined,
     approval: isRecord(row["approval"])
       ? approvalStateOf(row["approval"])
+      : undefined,
+    document: isRecord(row["document"])
+      ? documentOf(row["document"])
       : undefined,
   };
 }
@@ -380,6 +384,12 @@ const NODE_METHODS = [
   "link",
   "label",
   "labeled",
+  "saveDocument",
+  "submitDocument",
+  "releaseDocument",
+  "obsoleteDocument",
+  "reviewDocument",
+  "documents",
 ] as const satisfies readonly (keyof Drive)[];
 
 const isNode = (value: Readonly<Record<string, unknown>>): boolean =>

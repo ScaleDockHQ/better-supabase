@@ -438,16 +438,20 @@ ${item.workflow === undefined ? "" : WORKFLOW_DECLARE}`
 
   const insert =
     item.workflow === undefined
-      ? `if new.${sqlIdent(item.column)} is null then
+      ? `${
+          item.optional
+            ? ""
+            : `if new.${sqlIdent(item.column)} is null then
       new.${sqlIdent(item.column)} := ${sqlString(item.initial)};
-    end if;
+    end if;`
+        }
     ${stageWrite(ctx, item, "open")}
     ${lifecycleInsert(ctx, item)}`
       : workflowInsert(ctx, item, stageWrite(ctx, item, "open"));
 
   const check =
     item.workflow === undefined
-      ? `if not (case old.${sqlIdent(item.column)}::text ${allowed} else false end) then
+      ? `if ${item.optional ? `new.${sqlIdent(item.column)} is null or not (old.${sqlIdent(item.column)} is null and new.${sqlIdent(item.column)}::text = ${sqlString(item.initial)}) and ` : ""}not (case old.${sqlIdent(item.column)}::text ${allowed} else false end) then
     ${fail("STATE_TRANSITION_INVALID", "that status change is not allowed", "22023")}
   end if;`
       : workflowCheck(ctx, item);

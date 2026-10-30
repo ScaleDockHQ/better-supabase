@@ -3,6 +3,11 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { driveCoreSql } from "./drive-core.ts";
+import {
+  DOCUMENT_CONTRIBUTES,
+  DOCUMENT_FUNCTIONS,
+  driveControl,
+} from "./drive-documents.ts";
 import { driveFilesSql } from "./drive-files.ts";
 import { driveKit, driveSubjectType, labelTags } from "./drive-kit.ts";
 import { FILE_EVENTS, NAMES } from "./drive-names.ts";
@@ -158,6 +163,9 @@ function fileContract(
           { name: "drive_approvals", args: ["uuid"], returns: "jsonb" },
         ]
       : []),
+    ...(driveControl(ctx.of("drive"), ctx) === undefined
+      ? []
+      : DOCUMENT_FUNCTIONS),
   ];
 }
 
@@ -213,6 +221,7 @@ export const DRIVE: BlockSqlDefinition = {
 
 /** Installed with `drive`: its files, revisions, bin, stars and links. */
 export const DRIVE_FILES: BlockSqlDefinition = {
+  contributes: DOCUMENT_CONTRIBUTES,
   name: "drive-files",
   scopes: ["tenant"],
   title: "Drive files",
@@ -230,6 +239,11 @@ export const DRIVE_FILES: BlockSqlDefinition = {
     "approvals",
     "rate-limit",
     "usage",
+    "numbering",
+    "state-machine",
+    "relations",
+    "acknowledgements",
+    "notifications",
   ],
   target: "schema",
   modes: ["managed", "custom"],

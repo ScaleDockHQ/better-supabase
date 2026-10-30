@@ -1,6 +1,6 @@
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:ec43e70a9788d61b4773114c9094a107c6e73165d97eff530ac6bc6e06b447e1
+-- @bsb-hash sha256:8660bba398350009f580c7d2c4d83486fdf1d0be4b8f36f8e8f89ec4e5f73a51
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -151,6 +151,9 @@ begin
   if current_acknowledgement_version.subject_type = 'policy' then
     return (select s."current_version_id"::uuid from "better_supabase"."policies" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
   end if;
+  if current_acknowledgement_version.subject_type = 'drive_node' then
+    return (select s."effective_version_id"::uuid from "better_supabase"."drive_nodes" s where s."id" = (current_acknowledgement_version.subject_id)::uuid and s."tenant_id" = current_acknowledgement_version.tenant);
+  end if;
   return (
     select x."id" from "better_supabase"."versions" x
     where x."tenant_id" = current_acknowledgement_version.tenant
@@ -183,11 +186,12 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', assign_acknowledgement.tenant, 'acknowledgements.manage'), false) and case assign_acknowledgement.subject_type
     when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (assign_acknowledgement.subject_id)::uuid and s."tenant_id" = assign_acknowledgement.tenant) and coalesce(better_supabase.can('tenant', assign_acknowledgement.tenant, 'compliance.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (assign_acknowledgement.subject_id)::uuid and s."tenant_id" = assign_acknowledgement.tenant and (coalesce(better_supabase.can('tenant', assign_acknowledgement.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
     raise exception 'not allowed to assign acknowledgements on this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_FORBIDDEN';
   end if;
-  if assign_acknowledgement.subject_type not in ('policy') then
+  if assign_acknowledgement.subject_type not in ('policy', 'drive_node') then
     raise exception 'blocks.acknowledgements.on does not allow this record type' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_SUBJECT_UNSUPPORTED';
   end if;
   if assign_acknowledgement.due_in_days is not null and (assign_acknowledgement.due_in_days < 1 or assign_acknowledgement.due_in_days > 365) then
@@ -282,6 +286,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'acknowledgements.manage'), false) and case v_row."subject_type"
     when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id" and (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
     raise exception 'not allowed to remove acknowledgement assignments on this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_FORBIDDEN';
@@ -322,6 +327,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'acknowledgements.read'), false) and case list_acknowledgement_assignments.subject_type
     when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (list_acknowledgement_assignments.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (list_acknowledgement_assignments.subject_id)::uuid and s."tenant_id" = v_tenant and (coalesce(better_supabase.can('tenant', v_tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
     raise exception 'not allowed to read acknowledgement assignments on this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_FORBIDDEN';
@@ -378,6 +384,7 @@ begin
   end if;
   if not (coalesce(better_supabase.can('tenant', v_tenant, 'acknowledgements.acknowledge'), false) and case acknowledge.subject_type
     when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledge.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (acknowledge.subject_id)::uuid and s."tenant_id" = v_tenant and (coalesce(better_supabase.can('tenant', v_tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end) then
     raise exception 'not allowed to acknowledge this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_FORBIDDEN';
@@ -495,6 +502,7 @@ begin
         ) q
         where case q.subject_type
     when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (q.subject_id)::uuid and s."tenant_id" = list_my_acknowledgements.tenant) and coalesce(better_supabase.can('tenant', list_my_acknowledgements.tenant, 'compliance.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (q.subject_id)::uuid and s."tenant_id" = list_my_acknowledgements.tenant and (coalesce(better_supabase.can('tenant', list_my_acknowledgements.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end
       ) y
@@ -532,6 +540,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'acknowledgements.read'), false) and case acknowledgement_status.subject_type
     when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledgement_status.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (acknowledgement_status.subject_id)::uuid and s."tenant_id" = v_tenant and (coalesce(better_supabase.can('tenant', v_tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
     raise exception 'not allowed to read acknowledgements of this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_FORBIDDEN';
@@ -592,6 +601,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'acknowledgements.read'), false) and case acknowledgements_of.subject_type
     when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (acknowledgements_of.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
+    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (acknowledgements_of.subject_id)::uuid and s."tenant_id" = v_tenant and (coalesce(better_supabase.can('tenant', v_tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     else false
   end)) then
     raise exception 'not allowed to read acknowledgements of this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_FORBIDDEN';

@@ -4,6 +4,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN } from "../rank-sql.ts";
 import { addExtraColumns, ensureCheck, fail, lockTable } from "../shared.ts";
+import { documentColumnsSql } from "./drive-documents.ts";
 
 /** The drive tables and the triggers that keep paths and drives in step. */
 export function driveTablesSql(kit: DriveKit): string {
@@ -162,6 +163,7 @@ ${lockTable(DG, { read: true })}
     sourceColumn
       ? `alter table ${T} drop constraint if exists ${sqlIdent(`${ctx.tableName("nodes").name}_source_check`)};\n${ensureCheck(T, "bsb_drive_nodes_source", `${n("source")} = any (${nodeSourcesArray})`)}\n`
       : "",
+    documentColumnsSql(kit),
   ].join("");
 
   const nodeTable = ctx.owns("nodes")

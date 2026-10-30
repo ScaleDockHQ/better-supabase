@@ -13,6 +13,7 @@ import type {
   AttachmentStorage,
 } from "../attachments/attachments.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { DriveDocument, DriveDocuments } from "./documents.ts";
 import type {
   DriveContribution,
   DriveFileRequest,
@@ -34,6 +35,7 @@ import {
   textOf,
 } from "../shared.ts";
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
+import { driveDocuments } from "./documents.ts";
 import {
   KINDS,
   approvalOf,
@@ -183,6 +185,8 @@ export interface DriveNode<F extends object = Record<never, never>> {
    * approvals block installed; `undefined` when there is none.
    */
   readonly approval: DriveApprovalState | undefined;
+  /** The file's document control, with `options.control`. */
+  readonly document: DriveDocument | undefined;
 }
 
 /** A tag on a node. */
@@ -407,7 +411,9 @@ export interface DrivePage {
 }
 
 /** `F` types the nodes' extra columns, from the `fields` schema. */
-export interface Drive<F extends object = Record<never, never>> {
+export interface Drive<
+  F extends object = Record<never, never>,
+> extends DriveDocuments<DriveNode<F>> {
   createFolder(
     organizationId: string,
     folder: NewDriveFolder<F>,
@@ -715,6 +721,7 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
     call(fn, args, (value) => nodesOf(value, fn));
 
   const client: Drive = {
+    ...driveDocuments(call, nodeOf, nodesOf),
     createFolder: (organizationId, folder) =>
       call(
         "drive_create_folder",
@@ -1084,7 +1091,12 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           );
         }
 
-        return attachments.download(node.attachmentId, download);
+        return attachments.download(
+          node.document?.effectiveOnly === true
+            ? (node.document.effectiveAttachmentId ?? node.attachmentId)
+            : node.attachmentId,
+          download,
+        );
       });
     },
     revisions: (id) =>

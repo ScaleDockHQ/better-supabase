@@ -214,7 +214,13 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     (each) => each.subject,
   );
 
-  const own = contributed.filter((each) => each.access === "declared");
+  const drive = driveSubjectGuard(ctx);
+
+  const own = contributed.filter(
+    (each) =>
+      each.access === "declared" && sqlString(each.subject) !== drive?.type,
+  );
+
   const linked = contributed.filter((each) => each.access === "linked");
 
   const ownSubjects = own.map((each) => sqlString(each.subject)).join(", ");
@@ -223,8 +229,6 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     linked.length === 0
       ? "false"
       : `${column} in (${linked.map((each) => sqlString(each.subject)).join(", ")})`;
-
-  const drive = driveSubjectGuard(ctx);
 
   const subjectAccess = (
     args: {
@@ -420,6 +424,7 @@ ${indent}end if;`;
       when(
         each.subject,
         each.approve({
+          id: `v_req.${c("id")}`,
           subjectId: subjectId(""),
           comment: lastComment,
           approver: lastApprover,
@@ -437,6 +442,7 @@ ${indent}end if;`;
             when(
               each.subject,
               each.reject({
+                id: `v_req.${c("id")}`,
                 subjectId: subjectId(""),
                 comment: "decide_approval.comment",
                 approver: "v_actor",
@@ -454,7 +460,7 @@ ${indent}end if;`;
         : [
             when(
               each.subject,
-              `return ${each.approvable({ subjectId: subjectId(""), comment: lastComment, approver: "v_me" })};`,
+              `return ${each.approvable({ id: `v_req.${c("id")}`, subjectId: subjectId(""), comment: lastComment, approver: "v_me" })};`,
               "  ",
             ),
           ],

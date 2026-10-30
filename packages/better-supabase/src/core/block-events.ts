@@ -651,6 +651,29 @@ export interface DriveEventData extends SubjectEventData {
     readonly bucket: string;
     readonly path: string;
   }[];
+  /** For the controlled document events: the document's number. */
+  readonly documentNumber?: string;
+  /** For `drive.node_document_saved`. */
+  readonly documentType?: string;
+  /** For `drive.node_document_saved` and `drive.node_review_requested`. */
+  readonly ownerId?: string | null;
+  /**
+   * For `drive.node_submitted` and `drive.node_released`: the attachment sent
+   * for release, or released.
+   */
+  readonly attachmentId?: string;
+  /** For `drive.node_submitted`: the approval request. */
+  readonly requestId?: string;
+  /** For `drive.node_released`: the version that is now effective. */
+  readonly versionId?: string;
+  /** For `drive.node_obsoleted`. */
+  readonly reason?: string | null;
+  /** For `drive.node_reviewed`: `unchanged` or `revise`. */
+  readonly outcome?: "unchanged" | "revise";
+  /** For `drive.node_reviewed`. */
+  readonly note?: string | null;
+  /** For `drive.node_reviewed` and `drive.node_review_requested`. */
+  readonly nextReviewOn?: string;
 }
 
 /** `form.created` and `form_version.published` from the forms module. */

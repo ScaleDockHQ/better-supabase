@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:4fe3286cc62af3545108171597e2a266c06f7c1828ee4fb2881cbb56e66ad1cb
+-- @bsb-hash sha256:bd404303dc262a2ce0d9ff40fdb2e00e3d57c318c0d067cc0d69be23ed5c50b9
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,6 +44,26 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 alter table "better_supabase"."drive_nodes" drop constraint if exists bsb_drive_nodes_attachment;
 alter table "better_supabase"."drive_nodes" add constraint bsb_drive_nodes_attachment foreign key ("attachment_id") references "better_supabase"."attachments" ("id") on delete set null;
+alter table "better_supabase"."drive_nodes" drop constraint if exists bsb_drive_nodes_effective_version;
+alter table "better_supabase"."drive_nodes" add constraint bsb_drive_nodes_effective_version foreign key ("effective_version_id") references "better_supabase"."versions" ("id") on delete set null;
+
+-- Whether the caller reaches attachment, stored bytes of node: always for a
+-- file outside document control and for the write role; otherwise only the
+-- effective version's.
+create or replace function "better_supabase"."drive_document_readable"(node uuid, attachment uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select x."document_status" is null or "better_supabase"."drive_can"(x."id", 'editor')
+      or coalesce(drive_document_readable.attachment = (select (r."content" ->> 'attachmentId')::uuid from "better_supabase"."versions" r where r."id" = x."effective_version_id"), false)
+    from "better_supabase"."drive_nodes" x where x."id" = drive_document_readable.node
+  ), true)
+$$;
+revoke execute on function "better_supabase"."drive_document_readable"(uuid, uuid) from public, anon, authenticated;
 
 create or replace function "better_supabase"."drive_node_json"(node "better_supabase"."drive_nodes")
 returns jsonb
@@ -58,7 +78,7 @@ as $$
       from "better_supabase"."approval_requests" lr
       where lr."subject_type" = 'drive_node' and lr."subject_id" = ($1)."id"::text and lr."action" = 'approve'
         and lr."payload" ->> 'attachmentId' = ($1)."attachment_id"::text
-      order by lr."created_at" desc, lr."id" limit 1))
+      order by lr."created_at" desc, lr."id" limit 1), 'document', case when ($1)."document_status" is null then null else jsonb_build_object('number', ($1)."document_number", 'type', ($1)."document_type", 'status', ($1)."document_status", 'ownerId', ($1)."document_owner_id", 'effectiveVersionId', ($1)."effective_version_id", 'effectiveVersion', (select r."number" from "better_supabase"."versions" r where r."id" = ($1)."effective_version_id"), 'effectiveAttachmentId', (select (r."content" ->> 'attachmentId')::uuid from "better_supabase"."versions" r where r."id" = ($1)."effective_version_id"), 'effectiveFrom', ($1)."effective_from", 'reviewIntervalMonths', ($1)."review_interval_months", 'nextReviewOn', ($1)."next_review_on", 'reviewDue', coalesce(($1)."document_status" = 'effective' and ($1)."next_review_on" <= current_date, false), 'effectiveOnly', not "better_supabase"."drive_can"(($1)."id", 'editor')) end)
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
@@ -268,12 +288,12 @@ as $$
   select case when drive_object_allowed.path like '_previews/%' then
     drive_object_allowed.action = 'select'
       and split_part(drive_object_allowed.path, '/', 3) ~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-      and "better_supabase"."drive_can"(split_part(drive_object_allowed.path, '/', 3)::uuid, 'viewer')
+      and "better_supabase"."drive_can"(split_part(drive_object_allowed.path, '/', 3)::uuid, 'viewer') and "better_supabase"."drive_document_readable"(split_part(drive_object_allowed.path, '/', 3)::uuid, (select pn."attachment_id" from "better_supabase"."drive_nodes" pn where pn."id"::text = split_part(drive_object_allowed.path, '/', 3)))
   else coalesce((
     select case
       when f."subject_type" is distinct from 'drive_node' then true
       when f."subject_id" !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then false
-      when drive_object_allowed.action = 'select' then "better_supabase"."drive_can_download"(f."subject_id"::uuid)
+      when drive_object_allowed.action = 'select' then "better_supabase"."drive_can_download"(f."subject_id"::uuid) and "better_supabase"."drive_document_readable"(f."subject_id"::uuid, f."id")
       else "better_supabase"."drive_node_writable"(f."subject_id"::uuid) or "better_supabase"."drive_uploaded_own"(f."subject_id"::uuid)
     end
     from "better_supabase"."attachments" f
@@ -1096,6 +1116,446 @@ $$;
 revoke execute on function "better_supabase"."drive_approvals"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_approvals"(uuid) to authenticated, service_role;
 
+-- Puts a file under document control, or changes its type, owner or review
+-- interval: a new document gets the next number and starts as a draft.
+create or replace function "better_supabase"."drive_document_save"(node uuid, document_type text, owner_id uuid default null, review_interval_months integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_seq bigint;
+  v_number text;
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_document_save.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'only a file can be a controlled document' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
+    raise exception 'not allowed to control this document' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  end if;
+  if drive_document_save.document_type is null or not (drive_document_save.document_type = any (array['sop', 'policy', 'form']::text[])) then
+    raise exception 'that document type is not in options.control.types' using errcode = '22023', hint = 'DRIVE_DOCUMENT_TYPE_UNKNOWN';
+  end if;
+  if v_node."document_status" = 'obsolete' then
+    raise exception 'an obsolete document can''t change' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
+  end if;
+  if drive_document_save.owner_id is not null and not exists (
+    select 1 from "public"."memberships" mu
+    where mu."organization_id" = v_node."tenant_id" and mu."user_id" = drive_document_save.owner_id
+  ) then
+    raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'DRIVE_DOCUMENT_OWNER_INVALID';
+  end if;
+  v_number := v_node."document_number";
+  if v_number is null then
+    v_seq := "better_supabase"."next_number"(v_node."tenant_id", 'drive_document', now());
+    v_number := better_supabase.format_assigned_number('DOC-{n:5}', v_seq, now());
+  end if;
+  update "better_supabase"."drive_nodes" x set "document_number" = v_number,
+    "document_type" = drive_document_save.document_type,
+    "document_owner_id" = coalesce(drive_document_save.owner_id, x."document_owner_id", auth.uid()),
+    "review_interval_months" = coalesce(drive_document_save.review_interval_months, x."review_interval_months"), "updated_at" = now()
+  where x."id" = v_node."id"
+  returning * into v_node;
+  if v_node."document_status" is null then
+    perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'draft', null);
+    select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
+  end if;
+  perform "better_supabase".emit_event('drive.node_document_saved', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'documentType', v_node."document_type", 'ownerId', v_node."document_owner_id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_document_saved',
+    category => 'data',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'document saved',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'documentType', v_node."document_type", 'ownerId', v_node."document_owner_id")
+  );
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_document_save"(uuid, text, uuid, integer) from public, anon;
+grant execute on function "better_supabase"."drive_document_save"(uuid, text, uuid, integer) to authenticated, service_role;
+
+-- Sends a draft or an effective document's attachment (the current one by
+-- default) for release through an approval request with action release. A
+-- draft moves to in_review; an effective document stays effective, so its
+-- readers keep the released version until the new one is approved.
+create or replace function "better_supabase"."drive_document_submit"(node uuid, attachment uuid default null, reason text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_file "better_supabase"."attachments"%rowtype;
+  v_revision integer;
+  v_request jsonb;
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_document_submit.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'only a file can be released' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'editor')) then
+    raise exception 'not allowed to submit this document' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  end if;
+  if v_node."document_status" is null then
+    raise exception 'save the file as a controlled document first' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
+  end if;
+  if not (v_node."document_status" = 'draft' or (v_node."document_status" in ('in_review', 'effective') and not exists (
+    select 1 from "better_supabase"."approval_requests" q
+    where q."subject_type" = 'drive_node' and q."subject_id" = v_node."id"::text
+      and q."action" = 'release' and q."status" = 'pending'
+  ))) then
+    raise exception 'only a draft, or an effective document without a pending release, can be submitted' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
+  end if;
+  select * into v_file from "better_supabase"."attachments" f
+  where f."id" = coalesce(drive_document_submit.attachment, v_node."attachment_id")
+    and f."subject_type" = 'drive_node' and f."subject_id" = v_node."id"::text
+    and f."uploaded_at" is not null;
+  if not found then
+    raise exception 'that version of the file was not found' using errcode = 'P0002', hint = 'DRIVE_ATTACHMENT_NOT_FOUND';
+  end if;
+  select r."number" into v_revision from "better_supabase"."versions" r
+  where r."subject_type" = 'drive_node' and r."subject_id" = v_node."id"::text
+    and r."content" ->> 'attachmentId' = v_file."id"::text
+  order by r."number" limit 1;
+  if v_node."document_status" = 'draft' then
+    perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'in_review', drive_document_submit.reason);
+  end if;
+  v_request := "better_supabase"."request_approval"(v_node."tenant_id", 'drive_node', v_node."id"::text, 'release',
+    drive_document_submit.reason, jsonb_build_object('attachmentId', v_file."id", 'revision', v_revision, 'name', v_file."name"));
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
+  perform "better_supabase".emit_event('drive.node_submitted', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'attachmentId', v_file."id", 'requestId', v_request ->> 'id'), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_submitted',
+    category => 'data',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'document submitted',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'attachmentId', v_file."id", 'requestId', v_request ->> 'id')
+  );
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_document_submit"(uuid, uuid, text) from public, anon;
+grant execute on function "better_supabase"."drive_document_submit"(uuid, uuid, text) to authenticated, service_role;
+
+-- Makes attachment the document's effective version: its version is frozen
+-- and labelled effective, the previous one is labelled superseded, and the
+-- next review falls review_interval_months later (options.control.reviewMonths
+-- by default). The service role calls it, and so does an approved release
+-- request through drive_document_decided.
+create or replace function "better_supabase"."drive_document_release"(node uuid, attachment uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_file "better_supabase"."attachments"%rowtype;
+  v_version uuid;
+  v_inserted jsonb;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or exists (
+    select 1 from "better_supabase"."approval_requests" q
+    where q."id"::text = nullif(current_setting('better_supabase.approval', true), '')
+      and q."status" = 'approved' and q."action" = 'release'
+      and q."subject_type" = 'drive_node' and q."subject_id" = drive_document_release.node::text
+  )) then
+    raise exception 'only an approved release request releases a document' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_document_release.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'only a file can be released' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  if v_node."document_status" is null or v_node."document_status" not in ('in_review', 'effective') then
+    raise exception 'only a document in review or an effective one can be released' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
+  end if;
+  select * into v_file from "better_supabase"."attachments" f
+  where f."id" = drive_document_release.attachment
+    and f."subject_type" = 'drive_node' and f."subject_id" = v_node."id"::text
+    and f."uploaded_at" is not null;
+  if not found then
+    raise exception 'that version of the file was not found' using errcode = 'P0002', hint = 'DRIVE_ATTACHMENT_NOT_FOUND';
+  end if;
+  select r."id" into v_version from "better_supabase"."versions" r
+  where r."subject_type" = 'drive_node' and r."subject_id" = v_node."id"::text
+    and r."content" ->> 'attachmentId' = v_file."id"::text
+  order by r."number" desc limit 1;
+  if v_version is null then
+    v_inserted := "better_supabase"."version_insert"(v_node."tenant_id", 'drive_node', v_node."id"::text,
+      jsonb_build_object('attachmentId', v_file."id", 'name', v_file."name", 'mimeType', v_file."mime_type", 'size', v_file."size"),
+      v_file."bucket" || '/' || v_file."object_path", 'effective', 'manual', true, auth.uid());
+    v_version := (v_inserted ->> 'id')::uuid;
+  else
+    update "better_supabase"."versions" r set "label" = 'effective', "frozen" = true where r."id" = v_version;
+  end if;
+  update "better_supabase"."versions" r set "label" = 'superseded'
+  where r."id" = v_node."effective_version_id" and r."id" <> v_version;
+  update "better_supabase"."drive_nodes" x set "effective_version_id" = v_version, "effective_from" = now(),
+    "next_review_on" = (current_date + make_interval(months => coalesce(v_node."review_interval_months", 12)))::date, "review_notified_for" = null
+  where x."id" = v_node."id";
+  if v_node."document_status" = 'in_review' then
+    perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'effective', 'released');
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
+  perform "better_supabase".emit_event('drive.node_released', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'versionId', v_version, 'attachmentId', v_file."id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_released',
+    category => 'data',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'document released',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'versionId', v_version, 'attachmentId', v_file."id")
+  );
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_document_release"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_document_release"(uuid, uuid) to service_role;
+
+-- Runs when approvals decides a release request: an approval releases the
+-- attachment it names, a rejection sends a document in review back to draft
+-- and leaves an effective one as it is. Other actions on the file pass.
+create or replace function "better_supabase"."drive_document_decided"(request uuid, approved boolean)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_req "better_supabase"."approval_requests"%rowtype;
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  select * into v_req from "better_supabase"."approval_requests" q where q."id" = drive_document_decided.request;
+  if not found or v_req."action" <> 'release' or v_req."subject_type" <> 'drive_node' then
+    return;
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id"::text = v_req."subject_id" for update;
+  if not found or v_node."document_status" is null or v_node."document_status" not in ('in_review', 'effective') then
+    return;
+  end if;
+  if drive_document_decided.approved then
+    perform set_config('better_supabase.approval', v_req."id"::text, true);
+    perform "better_supabase"."drive_document_release"(v_node."id", coalesce((v_req."payload" ->> 'attachmentId')::uuid, v_node."attachment_id"));
+    perform set_config('better_supabase.approval', '', true);
+  elsif v_node."document_status" = 'in_review' then
+    perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'draft', 'rejected');
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_document_decided"(uuid, boolean) from public, anon, authenticated;
+
+-- Withdraws an effective document: it stays readable as obsolete and can't
+-- be submitted again. Needs options.control.releaseRole on the file.
+create or replace function "better_supabase"."drive_document_obsolete"(node uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_document_obsolete.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'only a file can be obsoleted' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'owner')) then
+    raise exception 'not allowed to withdraw this document' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  end if;
+  if v_node."document_status" is distinct from 'effective' then
+    raise exception 'only an effective document can be made obsolete' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
+  end if;
+  perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'obsolete', drive_document_obsolete.reason);
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
+  perform "better_supabase".emit_event('drive.node_obsoleted', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'reason', drive_document_obsolete.reason), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_obsoleted',
+    category => 'data',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'document made obsolete',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'reason', drive_document_obsolete.reason)
+  );
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_document_obsolete"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."drive_document_obsolete"(uuid, text) to authenticated, service_role;
+
+-- Records a periodic review of an effective document by its owner or a
+-- writer. unchanged moves the next review on by the interval; revise leaves
+-- the document effective until a new version is submitted and released.
+create or replace function "better_supabase"."drive_document_review"(node uuid, outcome text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_document_review.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'only a file can be reviewed' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or v_node."document_owner_id" = auth.uid() or "better_supabase"."drive_can"(v_node."id", 'editor')) then
+    raise exception 'not allowed to review this document' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_document_review.outcome is null or drive_document_review.outcome not in ('unchanged', 'revise') then
+    raise exception 'outcome must be unchanged or revise' using errcode = '22023', hint = 'DRIVE_DOCUMENT_REVIEW_INVALID';
+  end if;
+  if v_node."document_status" is distinct from 'effective' then
+    raise exception 'only an effective document is reviewed' using errcode = '22023', hint = 'DRIVE_DOCUMENT_STATUS_INVALID';
+  end if;
+  if drive_document_review.outcome = 'unchanged' then
+    update "better_supabase"."drive_nodes" x set "next_review_on" = (current_date + make_interval(months => coalesce(v_node."review_interval_months", 12)))::date, "review_notified_for" = null
+    where x."id" = v_node."id"
+    returning * into v_node;
+  end if;
+  perform "better_supabase".emit_event('drive.node_reviewed', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'outcome', drive_document_review.outcome, 'note', drive_document_review.note, 'nextReviewOn', v_node."next_review_on"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_reviewed',
+    category => 'data',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'document reviewed',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'outcome', drive_document_review.outcome, 'note', drive_document_review.note, 'nextReviewOn', v_node."next_review_on")
+  );
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_document_review"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."drive_document_review"(uuid, text, text) to authenticated, service_role;
+
+-- The document register of an organization: its controlled files the caller
+-- reads, by number. filters takes type, status, ownerId, reviewDue (true for
+-- effective documents whose review date has come) and search (number or name).
+create or replace function "better_supabase"."drive_documents"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if jsonb_typeof(coalesce(drive_documents.filters, '{}'::jsonb)) <> 'object' then
+    raise exception 'filters must be an object' using errcode = '22023', hint = 'DRIVE_DOCUMENT_FILTER_INVALID';
+  end if;
+  return coalesce((
+    select jsonb_agg(("better_supabase"."drive_node_json"(x) || jsonb_build_object('role', "better_supabase"."drive_role"((x)."id"), 'readOnly', (coalesce((x)."source"::text, 'internal') not in ('internal', 'request') or false), 'held', "better_supabase"."drive_node_held"((x)."id"), 'downloadable', "better_supabase"."drive_can_download"((x)."id"))) order by x."document_number")
+    from "better_supabase"."drive_nodes" x
+    where x."tenant_id" = drive_documents.tenant and x."document_status" is not null and x."deleted_at" is null
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'viewer'))
+      and (drive_documents.filters ->> 'type' is null or x."document_type" = drive_documents.filters ->> 'type')
+      and (drive_documents.filters ->> 'status' is null or x."document_status" = drive_documents.filters ->> 'status')
+      and (drive_documents.filters ->> 'ownerId' is null or x."document_owner_id"::text = drive_documents.filters ->> 'ownerId')
+      and (coalesce((drive_documents.filters ->> 'reviewDue')::boolean, false) = false
+        or (x."document_status" = 'effective' and x."next_review_on" <= current_date))
+      and (coalesce(drive_documents.filters ->> 'search', '') = ''
+        or x."document_number" ilike '%' || (drive_documents.filters ->> 'search') || '%'
+        or x."name" ilike '%' || (drive_documents.filters ->> 'search') || '%')
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_documents"(uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."drive_documents"(uuid, jsonb) to authenticated, service_role;
+
+-- Reports each effective document whose review date has come once per date:
+-- a drive.node_review_requested event and, with notifications, a notification
+-- to its owner. Run it daily from a job.
+create or replace function "better_supabase"."notify_due_drive_reviews"()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_count integer := 0;
+  v_claims text;
+begin
+  for v_node in
+    select * from "better_supabase"."drive_nodes" x
+    where x."document_status" = 'effective' and x."next_review_on" <= current_date
+      and x."review_notified_for" is distinct from x."next_review_on" and x."deleted_at" is null
+    for update skip locked
+  loop
+    perform "better_supabase".emit_event('drive.node_review_requested', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'ownerId', v_node."document_owner_id", 'nextReviewOn', v_node."next_review_on"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+    if v_node."document_owner_id" is not null then
+      v_claims := current_setting('request.jwt.claims', true);
+      perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+      perform "better_supabase"."notify"(jsonb_build_object(
+        'type', 'drive.document_review_due',
+        'tenant', v_node."tenant_id",
+        'actor', null,
+        'subject_type', 'drive_node',
+        'subject_id', v_node."id"::text,
+        'summary', v_node."document_number" || ' ' || v_node."name",
+        'recipients', to_jsonb(array[v_node."document_owner_id"]),
+        'key', 'drive.document_review_due:' || v_node."id"::text || ':' || v_node."next_review_on"::text,
+        'data', jsonb_build_object('nodeId', v_node."id", 'documentNumber', v_node."document_number", 'nextReviewOn', v_node."next_review_on")
+      ));
+      perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+    end if;
+    update "better_supabase"."drive_nodes" x set "review_notified_for" = v_node."next_review_on" where x."id" = v_node."id";
+    v_count := v_count + 1;
+  end loop;
+  return v_count;
+end;
+$$;
+revoke execute on function "better_supabase"."notify_due_drive_reviews"() from public, anon, authenticated;
+grant execute on function "better_supabase"."notify_due_drive_reviews"() to service_role;
+
 -- blocks.drive-files.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
@@ -1351,6 +1811,69 @@ set search_path = ''
 as $$ select "better_supabase"."drive_approvals"($1) $$;
 revoke execute on function "api"."drive_approvals"(uuid) from public, anon;
 grant execute on function "api"."drive_approvals"(uuid) to authenticated, service_role;
+
+create or replace function "api"."drive_document_save"(node uuid, document_type text, owner_id uuid default null, review_interval_months integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_document_save"($1, $2, $3, $4) $$;
+revoke execute on function "api"."drive_document_save"(uuid, text, uuid, integer) from public, anon;
+grant execute on function "api"."drive_document_save"(uuid, text, uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."drive_document_submit"(node uuid, attachment uuid default null, reason text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_document_submit"($1, $2, $3) $$;
+revoke execute on function "api"."drive_document_submit"(uuid, uuid, text) from public, anon;
+grant execute on function "api"."drive_document_submit"(uuid, uuid, text) to authenticated, service_role;
+
+create or replace function "api"."drive_document_release"(node uuid, attachment uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_document_release"($1, $2) $$;
+revoke execute on function "api"."drive_document_release"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "api"."drive_document_release"(uuid, uuid) to service_role;
+
+create or replace function "api"."drive_document_obsolete"(node uuid, reason text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_document_obsolete"($1, $2) $$;
+revoke execute on function "api"."drive_document_obsolete"(uuid, text) from public, anon;
+grant execute on function "api"."drive_document_obsolete"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."drive_document_review"(node uuid, outcome text, note text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_document_review"($1, $2, $3) $$;
+revoke execute on function "api"."drive_document_review"(uuid, text, text) from public, anon;
+grant execute on function "api"."drive_document_review"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."drive_documents"(tenant uuid, filters jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_documents"($1, $2) $$;
+revoke execute on function "api"."drive_documents"(uuid, jsonb) from public, anon;
+grant execute on function "api"."drive_documents"(uuid, jsonb) to authenticated, service_role;
+
+create or replace function "api"."notify_due_drive_reviews"()
+returns integer
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."notify_due_drive_reviews"() $$;
+revoke execute on function "api"."notify_due_drive_reviews"() from public, anon, authenticated;
+grant execute on function "api"."notify_due_drive_reviews"() to service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

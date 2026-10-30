@@ -4880,7 +4880,8 @@
                 "type": "number",
                 "default": 1048576
               },
-              "quota": {}
+              "quota": {},
+              "control": {}
             }
           }
         }

@@ -301,6 +301,12 @@ export default defineConfig({
               ],
               selfApproval: true,
             },
+            // Two approvers release a controlled document's new version.
+            release: {
+              steps: [
+                { approvers: { permission: "approvals.manage" }, required: 2 },
+              ],
+            },
           },
           // Tool calls of the eve example's agent (`approvalPolicy`), one action
           // per tool; the request's subject is the call id.
@@ -452,6 +458,8 @@ export default defineConfig({
           tenant: "tenant_id",
           versionColumn: "current_version_id",
         },
+        // Controlled documents: members acknowledge each released version.
+        drive_node: {},
       },
     },
     // Consent per customer and purpose, backed by a signature or a form.
@@ -460,7 +468,14 @@ export default defineConfig({
     reminders: {},
     "drive-files": {},
     // Contributors add files to a shared folder without seeing what's in it.
-    drive: { options: { uploadRole: "contributor" } },
+    // Controlled documents get a number, an approved effective version and a
+    // yearly review; readers below the editor role see only that version.
+    drive: {
+      options: {
+        uploadRole: "contributor",
+        control: { types: ["sop", "policy", "form"], reviewMonths: 12 },
+      },
+    },
     versions: { on: { customer: { columns: ["name", "kvk"] } } },
     // Pages and posts with locales and scheduled publish, read by anon.
     content: {},

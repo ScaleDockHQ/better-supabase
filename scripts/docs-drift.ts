@@ -408,10 +408,15 @@ function blockDocs(): BlockDoc[] {
   return docsForBlocks;
 }
 
+/** Pages for one topic of a block, by the block they belong to. */
+const TOPIC_PAGES: ReadonlyMap<string, string> = new Map([
+  ["drive-documents", "drive"],
+]);
+
 /**
  * Every block page sits in the folder for its manifest category, and every
  * block has a page. A page may be named after the block or one of its SQL
- * modules (`webhooks-out`).
+ * modules (`webhooks-out`), or be one of its `TOPIC_PAGES`.
  */
 function blockGroups(): string[] {
   const blocksDir = join(docs, "(blocks)/blocks");
@@ -441,7 +446,7 @@ function blockGroups(): string[] {
       continue;
     }
 
-    const category = categoryOf.get(page);
+    const category = categoryOf.get(TOPIC_PAGES.get(page) ?? page);
     const group = folder.startsWith("(") ? folder.slice(1, -1) : folder;
 
     if (category === undefined) {

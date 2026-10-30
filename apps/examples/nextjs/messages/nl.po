@@ -5982,21 +5982,108 @@ msgctxt "documents.PeEood"
 msgid "Customer updated"
 msgstr "Klant bijgewerkt"
 
-#: src/features/drive/components/drive-explorer.tsx
-msgctxt "drive.zbfhTP"
-msgid "The drive didn't load"
-msgstr "De drive is niet geladen"
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
 
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.plemGH"
+msgid "In review"
+msgstr "In beoordeling"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.0yLcs0"
+msgid "Effective"
+msgstr "Geldig"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.Y-zA1G"
+msgid "Obsolete"
+msgstr "Vervallen"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.nQr4xx"
+msgid "v{version, number}"
+msgstr "v{version, number}"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.EniGjA"
+msgid "Review due"
+msgstr "Herziening nodig"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.wmirkP"
+msgid "Document"
+msgstr "Document"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.-U6ozc"
+msgid "Type"
+msgstr "Type"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.ep8Oy7"
+msgid "Next review"
+msgstr "Volgende herziening"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.nBWxai"
+msgid "Document register"
+msgstr "Documentregister"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.IoNYml"
+msgid "Files under document control. Readers get the effective version; a revision replaces it once its release is approved."
+msgstr "Bestanden onder documentbeheer. Lezers krijgen de geldige versie; een herziening vervangt die zodra de vrijgave is goedgekeurd."
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.T7XTyl"
+msgid "The document register didn't load"
+msgstr "Het documentregister is niet geladen"
+
+#: src/features/drive/components/document-register.tsx
 #: src/features/drive/components/drive-explorer.tsx
 msgctxt "drive.162kF7"
 msgid "Try again in a moment."
 msgstr "Probeer het zo opnieuw."
 
+#: src/features/drive/components/document-register.tsx
 #: src/features/drive/components/drive-explorer.tsx
 #: src/features/drive/components/grants-editor.tsx
 msgctxt "drive.62nsdy"
 msgid "Retry"
 msgstr "Opnieuw proberen"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.gydOSI"
+msgid "No controlled documents yet"
+msgstr "Nog geen beheerde documenten"
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.g0h_Q_"
+msgid "Put a file under document control to give it a number, an owner and a review date."
+msgstr "Zet een bestand onder documentbeheer om het een nummer, een eigenaar en een herzieningsdatum te geven."
+
+#: src/features/drive/components/document-register.tsx
+msgctxt "drive.wW3E8Q"
+msgid "Read the controlled documents guide"
+msgstr "Lees de gids over beheerde documenten"
+
+#: src/features/drive/components/drive-explorer.tsx
+msgctxt "drive.zbfhTP"
+msgid "The drive didn't load"
+msgstr "De drive is niet geladen"
 
 #: src/features/drive/components/drive-explorer.tsx
 msgctxt "drive.uPFUUe"

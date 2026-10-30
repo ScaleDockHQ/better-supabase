@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:b7eeb7607b01507130928a285505bf49cd7f6c4ac711a69eb6cd8e19474cf6a7
+-- @bsb-hash sha256:4ff154eab8342eb7ae22a03ef54cd1c7d544da57b76da3381fd8ce800def376a
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -120,6 +120,31 @@ begin
   end if;
 end;
 $$;
+alter table "better_supabase"."drive_nodes" add column if not exists "document_number" text check (length("document_number") between 1 and 100);
+alter table "better_supabase"."drive_nodes" add column if not exists "document_type" text check (length("document_type") between 1 and 63);
+alter table "better_supabase"."drive_nodes" add column if not exists "document_status" text check ("document_status" in ('draft', 'in_review', 'effective', 'obsolete'));
+alter table "better_supabase"."drive_nodes" add column if not exists "document_owner_id" uuid;
+alter table "better_supabase"."drive_nodes" add column if not exists "effective_version_id" uuid;
+alter table "better_supabase"."drive_nodes" add column if not exists "effective_from" timestamptz;
+alter table "better_supabase"."drive_nodes" add column if not exists "review_interval_months" integer check ("review_interval_months" between 1 and 120);
+alter table "better_supabase"."drive_nodes" add column if not exists "next_review_on" date;
+alter table "better_supabase"."drive_nodes" add column if not exists "review_notified_for" date;
+do $$
+begin
+  if coalesce(obj_description((
+    select c.oid from pg_catalog.pg_constraint c
+    where c.conrelid = '"better_supabase"."drive_nodes"'::regclass and c.conname = 'bsb_drive_nodes_document_file'
+  ), 'pg_constraint'), '') <> 'better-supabase check 3f65769f' then
+    alter table "better_supabase"."drive_nodes" drop constraint if exists "bsb_drive_nodes_document_file";
+    alter table "better_supabase"."drive_nodes" add constraint "bsb_drive_nodes_document_file" check ("document_status" is null or "kind" = 'file');
+    comment on constraint "bsb_drive_nodes_document_file" on "better_supabase"."drive_nodes" is 'better-supabase check 3f65769f';
+  end if;
+end;
+$$;
+create unique index if not exists "drive_nodes_document_number_idx" on "better_supabase"."drive_nodes" ("tenant_id", "document_number") where "document_number" is not null;
+create index if not exists "drive_nodes_document_owner_idx" on "better_supabase"."drive_nodes" ("document_owner_id") where "document_owner_id" is not null;
+create index if not exists "drive_nodes_effective_version_idx" on "better_supabase"."drive_nodes" ("effective_version_id") where "effective_version_id" is not null;
+create index if not exists "drive_nodes_next_review_idx" on "better_supabase"."drive_nodes" ("next_review_on") where "document_status" = 'effective';
 alter table "better_supabase"."drive_nodes" enable row level security;
 revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;

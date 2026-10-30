@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:59638630a70aee60c5a9408b0dab7a8e86cdd0c1731904d03b92772c25971955
+-- @bsb-hash sha256:1aa48e90481552aeeb01bec672c85aef38c77b666a203ee87756e3ad839b0798
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -185,6 +185,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   v_period := case p_entity
+    when 'drive_document' then ''
     when 'donation_receipt' then ''
     when 'risk' then ''
     else null
@@ -241,6 +242,7 @@ declare
   v_format text;
 begin
   v_format := case p_entity
+    when 'drive_document' then 'DOC-{n:5}'
     when 'donation_receipt' then 'R-{n}'
     when 'risk' then 'RSK-{n:4}'
     else null
@@ -288,6 +290,7 @@ begin
   end if;
   v_format := "better_supabase"."number_format"(p_tenant, p_entity);
   v_period := case p_entity
+    when 'drive_document' then ''
     when 'donation_receipt' then ''
     when 'risk' then ''
     else null

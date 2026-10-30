@@ -1,5 +1,6 @@
 import "server-only";
 import type { ApprovalStatus } from "better-supabase/blocks/approvals";
+import type { DriveDocumentStatus } from "better-supabase/blocks/drive";
 
 import { tenantOf } from "better-supabase/next";
 import { notFound, unstable_rethrow } from "next/navigation";
@@ -119,4 +120,71 @@ export async function getDriveFolder(
   return folder === null
     ? { kind: "no-organization" }
     : { kind: "ok", folderId, ...folder };
+}
+
+/** A controlled document as the register shows it, serializable. */
+export interface DocumentRow {
+  readonly id: string;
+  readonly number: string;
+  readonly name: string;
+  readonly type: string;
+  readonly status: DriveDocumentStatus;
+  /** The released revision, or null before the first release. */
+  readonly effectiveVersion: number | null;
+  /** ISO 8601 date. */
+  readonly nextReviewOn: string | null;
+  readonly reviewDue: boolean;
+}
+
+export type DocumentRegisterView =
+  | { readonly kind: "ok"; readonly documents: readonly DocumentRow[] }
+  | { readonly kind: "error" }
+  | { readonly kind: "no-organization" };
+
+async function loadRegister(): Promise<readonly DocumentRow[] | null> {
+  "use cache: private";
+  const { session, db } = await bsb.cached();
+  const tenant = tenantOf(session);
+
+  if (!tenant) {
+    return null;
+  }
+
+  const documents = await driveOf(db).documents(tenant);
+
+  if (!documents.ok) {
+    throw new Error(documents.error.message);
+  }
+
+  return documents.data.flatMap((node): DocumentRow[] =>
+    node.document === undefined
+      ? []
+      : [
+          {
+            id: node.id,
+            number: node.document.number,
+            name: node.name,
+            type: node.document.type,
+            status: node.document.status,
+            effectiveVersion: node.document.effectiveVersion ?? null,
+            nextReviewOn: node.document.nextReviewOn?.toString() ?? null,
+            reviewDue: node.document.reviewDue,
+          },
+        ],
+  );
+}
+
+/** The organization's controlled documents, by number. */
+export async function getDocumentRegister(): Promise<DocumentRegisterView> {
+  try {
+    const documents = await loadRegister();
+
+    return documents === null
+      ? { kind: "no-organization" }
+      : { kind: "ok", documents };
+  } catch (error) {
+    unstable_rethrow(error);
+
+    return { kind: "error" };
+  }
 }

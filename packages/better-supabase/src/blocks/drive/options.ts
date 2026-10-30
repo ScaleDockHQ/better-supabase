@@ -14,6 +14,20 @@ export type DriveRoleHook =
 /** `blocks.drive.options.quota`: the usage meter uploads count against. */
 export type DriveQuota = { readonly meter: string };
 
+/**
+ * `blocks.drive.options.control`: files saved as controlled documents get a
+ * number, a type, an owner, a release workflow through approvals and periodic
+ * reviews. Needs the numbering, versions, approvals and state-machine blocks.
+ */
+export type DriveControl = {
+  /** The document types, such as `sop` or `policy`. */
+  readonly types: readonly string[];
+  /** The months between reviews when a document sets none; 12 by default. */
+  readonly reviewMonths?: number;
+  /** The role that makes a document obsolete; the share role by default. */
+  readonly releaseRole?: string;
+};
+
 export type DriveRoleFunctions = {
   readonly node?: DriveRoleHook;
   readonly drive?: DriveRoleHook;
@@ -38,6 +52,7 @@ export type DriveSqlOptions = {
   readonly extraColumns?: ExtraColumns;
   readonly maxTextBytes?: number;
   readonly quota?: DriveQuota;
+  readonly control?: DriveControl;
 };
 
 export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
@@ -59,4 +74,5 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     extraColumns: option.extraColumns(),
     maxTextBytes: option.number({ default: 1_048_576 }),
     quota: option.unknown<DriveQuota>(),
+    control: option.unknown<DriveControl>(),
   });

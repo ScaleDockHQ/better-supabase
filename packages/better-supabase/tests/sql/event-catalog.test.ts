@@ -36,9 +36,15 @@ const RECORDED = (() => {
     },
   });
 
+  // Rendered apart: the drive's document machine changes which state-machine
+  // events the render above records.
+  const controlled = renderBlocks(Object.keys(SQL_MODULES), {
+    modules: { drive: { options: { control: { types: ["sop"] } } } },
+  }).filter((file) => file.module === "drive-files");
+
   const byModule = new Map<string, Set<string>>();
 
-  for (const file of files) {
+  for (const file of [...files, ...controlled]) {
     // An audit-only event (`ctx.audit`) reaches the audit log, not the outbox.
     for (const match of file.contents.matchAll(
       /(?:emit_event\(|audit_event\(\s*event_type => )'([a-z_.]+)'/g,
