@@ -191,6 +191,13 @@ describe("completion", () => {
     );
   });
 
+  it("asks for a shell when none is named", async () => {
+    const result = await run(["completion"]);
+
+    expect(result.code).toBe(2);
+    expect(result.stderr).toContain("Name a shell: bash, zsh or fish.");
+  });
+
   it("keeps the scripts stable", () => {
     for (const shell of SHELLS) {
       expect(completionScript(shell)).toMatchSnapshot(shell);
