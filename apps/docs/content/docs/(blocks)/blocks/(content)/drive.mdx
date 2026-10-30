@@ -105,25 +105,26 @@ blocks: {
 },
 ```
 
-| Option          | Default                         | What it does                                                                           |
-| --------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
-| `roles`         | `["viewer", "editor", "owner"]` | The roles, lowest first; the first one reads and the last one is the top role          |
-| `writeRole`     | `editor`, else the top role     | The role that may create, rename, move and trash                                       |
-| `shareRole`     | the top role                    | The role that may share and unshare, break locks and block downloads                   |
-| `commentRole`   | `commenter`, else `writeRole`   | The role `drive_can_comment` checks                                                    |
-| `previewPrefix` | `_previews`                     | The storage folder preview pages go to, in the attachment's bucket                     |
-| `memberRole`    | none                            | A role every member of the organization has on every node                              |
-| `uploadRole`    | none                            | A role, outside `roles`, that adds files to a folder without reading it                |
-| `conflict`      | `fail`                          | What a duplicate name in a folder does: `fail`, `rename` (`plan (2).pdf`) or `replace` |
-| `subjectType`   | `drive_node`                    | The subject type of nodes in events, audit entries, attachments, versions and trash    |
-| `drives`        | `false`                         | Several drives per organization, with drive-level grants and connected drives          |
-| `driveKinds`    | `["shared"]`                    | The kinds a drive can have; the first is the default                                   |
-| `sources`       | `["google-drive", "onedrive"]`  | The providers a connection can mirror                                                  |
-| `roleFunctions` | none                            | App functions or provider row grants that give the caller's role                       |
-| `readPolicy`    | `true`                          | The block's read policies; `false` leaves them to the app                              |
-| `extraColumns`  | none                            | Columns on the node table that `fields` reads and writes                               |
-| `quota`         | none                            | `{ meter }`: a usage meter in bytes that uploads must fit, as [Quotas](#quotas) shows  |
-| `maxTextBytes`  | `1048576`                       | The most extracted text kept per file, in bytes                                        |
+| Option          | Default                         | What it does                                                                                 |
+| --------------- | ------------------------------- | -------------------------------------------------------------------------------------------- |
+| `roles`         | `["viewer", "editor", "owner"]` | The roles, lowest first; the first one reads and the last one is the top role                |
+| `writeRole`     | `editor`, else the top role     | The role that may create, rename, move and trash                                             |
+| `shareRole`     | the top role                    | The role that may share and unshare, break locks and block downloads                         |
+| `commentRole`   | `commenter`, else `writeRole`   | The role `drive_can_comment` checks                                                          |
+| `previewPrefix` | `_previews`                     | The storage folder preview pages go to, in the attachment's bucket                           |
+| `memberRole`    | none                            | A role every member of the organization has on every node                                    |
+| `uploadRole`    | none                            | A role, outside `roles`, that adds files to a folder without reading it                      |
+| `conflict`      | `fail`                          | What a duplicate name in a folder does: `fail`, `rename` (`plan (2).pdf`) or `replace`       |
+| `subjectType`   | `drive_node`                    | The subject type of nodes in events, audit entries, attachments, versions and trash          |
+| `drives`        | `false`                         | Several drives per organization, with drive-level grants and connected drives                |
+| `driveKinds`    | `["shared"]`                    | The kinds a drive can have; the first is the default                                         |
+| `sources`       | `["google-drive", "onedrive"]`  | The providers a connection can mirror                                                        |
+| `roleFunctions` | none                            | App functions or provider row grants that give the caller's role                             |
+| `readPolicy`    | `true`                          | The block's read policies; `false` leaves them to the app                                    |
+| `extraColumns`  | none                            | Columns on the node table that `fields` reads and writes                                     |
+| `quota`         | none                            | `{ meter }`: a usage meter in bytes that uploads must fit, as [Quotas](#quotas) shows        |
+| `maxTextBytes`  | `1048576`                       | The most extracted text kept per file, in bytes                                              |
+| `control`       | none                            | `{ types, reviewMonths, releaseRole }`: [controlled documents](/docs/blocks/drive-documents) |
 
 Each call that creates, renames or moves a node can pass its own `conflict`. Names compare case-insensitively within one folder.
 
@@ -368,6 +369,10 @@ approvals: {
 `approvals(id)` lists the file's requests, newest first, each with `attachmentId`, `revision` and `current` (whether that revision is still the file's content). Every node carries `approval`: the latest request for its current content, or `undefined`. Uploading a new revision clears it, and restoring an approved revision brings the approval back. A file has at most one pending request at a time, so a second request fails with `APPROVAL_PENDING`. Requests stay after the node is purged, as the record of what was decided.
 
 Anyone who can read a node sees its labels and its approval state. Tagging, untagging and requesting approval need write access, and the tags and approvals functions check the same drive grants when they are called directly with the `drive_node` subject type.
+
+## Controlled documents
+
+With `options.control`, files become controlled documents: each gets a number, a type, an owner and a review date, a version becomes effective only through an approved release request, and members below the write role read only the effective version. [Controlled documents](/docs/blocks/drive-documents) covers the lifecycle, the register and periodic reviews.
 
 ## Metadata
 

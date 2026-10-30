@@ -86,3 +86,28 @@ that the node columns can't express.
   the drive's share role check applies before the link exists.
 - None of the new functions are in the drive modules' custom contract, so
   an app that implements the drive itself keeps working without them.
+
+## Amendment: controlled documents as built (2026-10-30)
+
+- The state machine is named after the drive's subject type (`drive_node`)
+  and has no initial status, so files outside control have none. Its
+  transitions are `draft` to `in_review`, `in_review` to `draft` or
+  `effective` (the second needs approval), and `effective` to `obsolete`.
+- A release runs through the approvals action `release` on the node
+  subject. `drive_document_release` is service-only, or runs inside an
+  approved release request; the app configures the `drive_node.release`
+  policy. `drive.approvals()` keeps listing only `approve` requests.
+- Revising an effective document doesn't move it back to `in_review`: it
+  stays effective on the released version while the release request is
+  pending, and only a document in review goes back to `draft` on a
+  rejection. Readers never lose the effective version during a revision.
+- Periodic reviews don't use `reminders`. `notify_due_drive_reviews()`
+  records `drive.node_review_requested` (and a notification to the owner)
+  once per review date, and the app schedules it; the register filter is
+  `reviewDue`. An event `drive.node_document_saved` records the type and
+  owner changes.
+- Numbers come from one `DOC-{n:5}` sequence per organization. Per-type
+  formats (`SOP-{n:4}`) need numbering formats keyed by a column and are
+  left for later.
+- Acknowledgements are contributed only when the app lists `drive_node` in
+  `acknowledgements.on`. Unknown register filter keys are ignored.

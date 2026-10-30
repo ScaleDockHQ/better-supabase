@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:9434147278bc879406f4f2f56965118e07cb95e97a0a1f02d7f2b9561ce087d3
+-- @bsb-hash sha256:58261da9cb0bd9067799bdea8e67f9e9f3c4d30649643eb997a83039e8ecdbaa
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -164,6 +164,7 @@ as $$
     when 'customer:refund' then '{"steps":[],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb
     when 'customer:export' then '{"steps":[{"approvers":{"manager":true},"required":1}],"selfApproval":false,"expiresIn":null,"run":null,"mode":"confirm"}'::jsonb
     when 'drive_node:approve' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":true,"expiresIn":null,"run":null}'::jsonb
+    when 'drive_node:release' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":2}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb
     when 'eve_tool_call:add_note' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb
     when 'workflow_run:approve' then '{"steps":[{"approvers":{"permission":"approvals.manage"},"required":1}],"selfApproval":true,"expiresIn":null,"run":null}'::jsonb
     else null::jsonb
@@ -378,6 +379,9 @@ begin
   end if;
   if v_req."subject_type" = 'access_request' then
     perform "better_supabase"."grant_access_request"(v_req."subject_id"::uuid);
+  end if;
+  if v_req."subject_type" = 'drive_node' then
+    perform "better_supabase"."drive_document_decided"(v_req."id", true);
   end if;
   if v_req."subject_type" = 'timesheet' then
     perform "better_supabase"."approve_timesheet"(v_req."subject_id"::uuid);
@@ -620,7 +624,7 @@ begin
   v_action := coalesce(save_approval_policy.policy ->> 'action', v_old."action");
   v_effect := case when save_approval_policy.policy ? 'effect' then nullif(save_approval_policy.policy ->> 'effect', '') else v_old."effect" end;
   if v_type is null or v_action is null or not (exists (
-      select 1 from jsonb_array_elements('[{"subjectType":"*","action":"quote.send","effects":["money-movement"]},{"subjectType":"customer","action":"discount","effects":[]},{"subjectType":"customer","action":"refund","effects":[]},{"subjectType":"customer","action":"export","effects":[]},{"subjectType":"drive_node","action":"approve","effects":[]},{"subjectType":"eve_tool_call","action":"add_note","effects":[]},{"subjectType":"workflow_run","action":"approve","effects":[]}]'::jsonb) f
+      select 1 from jsonb_array_elements('[{"subjectType":"*","action":"quote.send","effects":["money-movement"]},{"subjectType":"customer","action":"discount","effects":[]},{"subjectType":"customer","action":"refund","effects":[]},{"subjectType":"customer","action":"export","effects":[]},{"subjectType":"drive_node","action":"approve","effects":[]},{"subjectType":"drive_node","action":"release","effects":[]},{"subjectType":"eve_tool_call","action":"add_note","effects":[]},{"subjectType":"workflow_run","action":"approve","effects":[]}]'::jsonb) f
       where (v_type = '*' or f.value ->> 'subjectType' in (v_type, '*'))
         and (v_action = '*' or f.value ->> 'action' in (v_action, '*'))
         and (v_effect is null or f.value -> 'effects' ? v_effect)
@@ -1180,6 +1184,9 @@ begin
     perform "better_supabase"."approval_notify"(v_req."id", 'rejected');
     if v_req."subject_type" = 'ai_tool_approval' then
       perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", false, decide_approval.comment);
+    end if;
+    if v_req."subject_type" = 'drive_node' then
+      perform "better_supabase"."drive_document_decided"(v_req."id", false);
     end if;
   else
     select count(*) into v_count from "better_supabase"."approval_decisions" x

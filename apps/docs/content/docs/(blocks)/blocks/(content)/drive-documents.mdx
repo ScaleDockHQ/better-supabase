@@ -1,0 +1,112 @@
+---
+title: Controlled documents
+description: Put drive files under document control. Each document gets a number, a type, an owner and a review date, moves from draft through review to effective and obsolete, and is released through an approval, so readers only ever get the released version.
+---
+
+Controlled documents are the drive's document control for procedures, policies and forms. Turn it on with `options.control`, and a file under control gets a number such as `DOC-00012`, a type, an owner and a review interval. Its status moves from `draft` to `in_review` to `effective`, and an approved release request makes a version effective. Members below the drive's write role read only that effective version; the working copy stays with the editors.
+
+## Configure
+
+Control builds on the [numbering](/docs/blocks/numbering), [versions](/docs/blocks/versions), [approvals](/docs/blocks/approvals) and [state machine](/docs/blocks/state-machine) blocks, and the build fails with a message naming the missing one. Install them, then set `control` and an approvals policy for the `release` action on the node subject:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  drive: {
+    options: {
+      control: { types: ["sop", "policy", "form"], reviewMonths: 12 },
+    },
+  },
+  approvals: {
+    options: {
+      policies: {
+        drive_node: {
+          release: { steps: [{ approvers: { permission: "approvals.manage" }, required: 2 }] },
+        },
+      },
+    },
+  },
+},
+```
+
+| Option         | Default                 | What it does                                                              |
+| -------------- | ----------------------- | ------------------------------------------------------------------------- |
+| `types`        | required                | The document types, lowercase, such as `sop` or `policy`                  |
+| `reviewMonths` | `12`                    | The months between reviews of a document that sets no interval of its own |
+| `releaseRole`  | the drive's `shareRole` | The role that makes an effective document obsolete                        |
+
+Numbers come from one `DOC-{n:5}` sequence per organization, whatever the type. The state machine is named after the drive's subject type (`drive_node`), and only files under control are in it: other files have no status.
+
+## The lifecycle
+
+```ts
+const doc = await db.drive.saveDocument(fileId, { type: "sop" }).orThrow();
+// doc.document: { number: "DOC-00001", status: "draft", ... }
+
+await db.drive.submitDocument(fileId).orThrow();
+// draft -> in_review, with a pending approval request (action "release")
+```
+
+`saveDocument(id, { type, ownerId?, reviewIntervalMonths? })` puts a file under control, or changes the type, owner or interval of one that is. The owner is the caller unless you name another member, and the interval runs from 1 to 120 months. It needs the drive's write role.
+
+`submitDocument(id, { attachmentId?, reason? })` sends the current version, or the revision `attachmentId`, for release. It files an approvals request with the action `release`, and a draft moves to `in_review`. When the request is approved, the version is released: a version labelled `effective` is created on it, the previous effective version is labelled `superseded`, the document becomes `effective`, and its next review date moves `reviewMonths` ahead. A rejected request sends a document in review back to `draft`.
+
+Revising an effective document works the same way. Upload the new version and submit it: the document stays `effective` on the released version while the request is pending, so readers keep getting it, and the approval switches them to the new one. A rejection leaves the effective version in place. A document has at most one pending release at a time.
+
+`obsoleteDocument(id, reason)` withdraws an effective document; it needs `releaseRole`. An obsolete document can't be saved or submitted again. `releaseDocument(id, attachmentId)` releases from the service role, for imports and back-office tools.
+
+## Reading the effective version
+
+Every node the client returns carries `document` when the file is under control: `number`, `type`, `status`, `ownerId`, `effectiveVersion`, `effectiveAttachmentId`, `effectiveFrom`, `reviewIntervalMonths`, `nextReviewOn`, `reviewDue` and `effectiveOnly`.
+
+`effectiveOnly` is true for a caller below the drive's write role. For them `download(id)` signs the effective attachment, and the storage policy refuses the working copy and every other version, so a viewer can't read a draft by its path either. Before the first release such a caller sees the document in the register but can't download it.
+
+## The register
+
+`documents(organizationId, filters?)` lists the controlled documents the caller may read, by number. Filter on `type`, `status`, `ownerId`, `reviewDue` (effective documents whose review date has come) and `search` (part of the number or the name). Unknown keys are ignored.
+
+```ts
+const due = await db.drive
+  .documents(organizationId, { reviewDue: true })
+  .orThrow();
+```
+
+The [document register](/docs/registry/ui-recipes/document-register) recipe shows the register in a ReUI data grid.
+
+## Periodic review
+
+`reviewDocument(id, "unchanged", note?)` records a review that changes nothing and moves the next review date on by the document's interval. `reviewDocument(id, "revise", note?)` records that the document needs a revision; it stays effective until the revision is released. Both need the drive's write role.
+
+`notifyDueReviews()` reports, from the service role, every effective document whose review date has come, once per date: it records `drive.node_review_requested` and, with the [notifications block](/docs/blocks/notifications), notifies the owner. It returns how many it reported. The block doesn't schedule it; run it daily, for example with pg_cron:
+
+```sql
+select cron.schedule('drive-reviews', '0 6 * * *', $$select better_supabase.notify_due_drive_reviews()$$);
+```
+
+## Acknowledgements
+
+With the [acknowledgements block](/docs/blocks/acknowledgements) installed and `drive_node` in its `on` map, a release asks the members assigned to a document to acknowledge the new effective version. Assign readers through the acknowledgements client with the `drive_node` subject; each release of a new version opens a new pending acknowledgement for them.
+
+```ts title="better-supabase.config.ts"
+acknowledgements: { options: { on: { drive_node: {} } } },
+```
+
+## Variants
+
+With the [relations block](/docs/blocks/relations) installed, control adds the `variant_of` kind between drive nodes, for a translated or local version of a document that keeps its own number and lifecycle.
+
+## Errors
+
+| Hint                            | When                                                                                   |
+| ------------------------------- | -------------------------------------------------------------------------------------- |
+| `DRIVE_DOCUMENT_TYPE_UNKNOWN`   | The type isn't one of `options.control.types`                                          |
+| `DRIVE_DOCUMENT_OWNER_INVALID`  | The owner isn't a member of the organization                                           |
+| `DRIVE_DOCUMENT_STATUS_INVALID` | The call doesn't fit the status: a second submit, or saving an obsolete document       |
+| `DRIVE_DOCUMENT_REVIEW_INVALID` | The outcome isn't `unchanged` or `revise`                                              |
+| `DRIVE_DOCUMENT_FILTER_INVALID` | The register filters aren't an object                                                  |
+| `DRIVE_NOT_A_FILE`              | The node is a folder                                                                   |
+| `DRIVE_ATTACHMENT_NOT_FOUND`    | The version doesn't belong to the file, or isn't uploaded yet                          |
+| `DRIVE_FORBIDDEN`               | The caller's role doesn't allow the call, or a release has no approved release request |
+
+## Events
+
+Control records `drive.node_document_saved`, `drive.node_submitted`, `drive.node_released`, `drive.node_obsoleted`, `drive.node_reviewed` and `drive.node_review_requested`, each with the `documentNumber`. The [events page](/docs/extending/events) lists their payloads.

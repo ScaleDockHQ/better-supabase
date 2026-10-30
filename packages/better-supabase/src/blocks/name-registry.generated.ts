@@ -667,7 +667,7 @@ export interface BlockNameRegistry {
   };
   readonly "drive": {
     readonly tables: {
-      readonly "nodes": "id" | "tenant" | "drive" | "parent" | "kind" | "name" | "attachment" | "path" | "rank" | "deletedAt" | "source" | "externalId" | "externalMetadata" | "legalHoldUntil" | "lockedBy" | "lockedUntil" | "lockNote" | "downloadBlocked" | "previewPages" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "nodes": "id" | "tenant" | "drive" | "parent" | "kind" | "name" | "attachment" | "path" | "rank" | "deletedAt" | "source" | "externalId" | "externalMetadata" | "legalHoldUntil" | "lockedBy" | "lockedUntil" | "lockNote" | "downloadBlocked" | "previewPages" | "documentNumber" | "documentType" | "documentStatus" | "documentOwner" | "effectiveVersion" | "effectiveFrom" | "reviewIntervalMonths" | "nextReviewOn" | "reviewNotifiedFor" | "createdBy" | "createdAt" | "updatedAt";
       readonly "grants": "id" | "tenant" | "node" | "principalType" | "principalId" | "user" | "team" | "role" | "expiresAt" | "createdBy" | "createdAt";
       readonly "drives": "id" | "tenant" | "name" | "kind" | "owner" | "connection" | "downloadBlocked" | "createdBy" | "createdAt" | "updatedAt";
       readonly "driveGrants": "id" | "tenant" | "drive" | "principalType" | "principalId" | "user" | "team" | "role" | "expiresAt" | "createdBy" | "createdAt";
@@ -678,7 +678,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "create" | "manage";
     readonly hooks: "before_drive_node_create" | "after_drive_node_create" | "before_drive_node_move" | "after_drive_node_move" | "before_drive_node_rename" | "after_drive_node_rename" | "before_drive_node_share" | "after_drive_node_share";
     readonly entities: {
-      readonly "node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "deleted_at" | "source" | "external_id" | "external_metadata" | "legal_hold_until" | "locked_by" | "locked_until" | "lock_note" | "download_blocked" | "preview_pages" | "created_by" | "created_at" | "updated_at";
+      readonly "node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "deleted_at" | "source" | "external_id" | "external_metadata" | "legal_hold_until" | "locked_by" | "locked_until" | "lock_note" | "download_blocked" | "preview_pages" | "document_number" | "document_type" | "document_status" | "document_owner_id" | "effective_version_id" | "effective_from" | "review_interval_months" | "next_review_on" | "review_notified_for" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "node";
   };

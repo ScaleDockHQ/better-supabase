@@ -175,7 +175,7 @@ export const DOCUMENT_CONTRIBUTES: BlockContributes = {
       : [
           {
             subject: driveSubjectType(drive),
-            versionColumn: drive.col("nodes", "effectiveVersion"),
+            versionColumn: drive.colName("nodes", "effectiveVersion"),
           },
         ];
   },
@@ -204,8 +204,7 @@ export const DOCUMENT_CONTRIBUTES: BlockContributes = {
 
     const { schema, name } = drive.tableName("nodes");
 
-    const column = (key: string): string =>
-      drive.col("nodes", key).replaceAll('"', "");
+    const column = (key: string): string => drive.colName("nodes", key);
 
     return [
       {
@@ -221,7 +220,7 @@ export const DOCUMENT_CONTRIBUTES: BlockContributes = {
           transitions: {
             draft: ["in_review"],
             in_review: ["draft", "effective"],
-            effective: ["in_review", "obsolete"],
+            effective: ["obsolete"],
           },
           requiresApproval: { in_review: ["effective"] },
         },
@@ -448,8 +447,9 @@ function submitSql(kit: DriveKit): string {
 
   return `
 -- Sends a draft or an effective document's attachment (the current one by
--- default) for release: the document moves to in_review and an approval
--- request with action release goes to approvals.
+-- default) for release through an approval request with action release. A
+-- draft moves to in_review; an effective document stays effective, so its
+-- readers keep the released version until the new one is approved.
 create or replace function ${fn("drive_document_submit")}(node uuid, attachment uuid default null, reason text default null)
 returns jsonb
 language plpgsql
@@ -472,12 +472,12 @@ begin
   if v_node.${n("documentStatus")} is null then
     ${statusInvalid("save the file as a controlled document first")}
   end if;
-  if not (v_node.${n("documentStatus")} in ('draft', 'effective') or (v_node.${n("documentStatus")} = 'in_review' and not exists (
+  if not (v_node.${n("documentStatus")} = 'draft' or (v_node.${n("documentStatus")} in ('in_review', 'effective') and not exists (
     select 1 from ${approvals.table("requests")} q
     where q.${c("subjectType")} = ${typeLit} and q.${c("subjectId")} = v_node.${n("id")}::text
       and q.${c("action")} = ${RELEASE} and q.${c("status")} = 'pending'
   ))) then
-    ${statusInvalid("only a draft or an effective document can be submitted")}
+    ${statusInvalid("only a draft, or an effective document without a pending release, can be submitted")}
   end if;
   select * into v_file from ${A} f
   where f.${a("id")} = coalesce(drive_document_submit.attachment, v_node.${n("attachment")})
@@ -490,7 +490,7 @@ begin
   where r.${v("subjectType")} = ${typeLit} and r.${v("subjectId")} = v_node.${n("id")}::text
     and r.${v("content")} ->> 'attachmentId' = v_file.${a("id")}::text
   order by r.${v("number")} limit 1;
-  if v_node.${n("documentStatus")} <> 'in_review' then
+  if v_node.${n("documentStatus")} = 'draft' then
     ${transitionTo(kit, "in_review", "drive_document_submit.reason")}
   end if;
   v_request := ${approvals.fn("request_approval")}(v_node.${n("tenant")}, ${typeLit}, v_node.${n("id")}::text, ${RELEASE},
@@ -539,8 +539,8 @@ begin
     ${fail("DRIVE_FORBIDDEN", "only an approved release request releases a document")}
   end if;
   ${loadNode(kit, "drive_document_release", "released")}
-  if v_node.${n("documentStatus")} is distinct from 'in_review' then
-    ${statusInvalid("only a document in review can be released")}
+  if v_node.${n("documentStatus")} is null or v_node.${n("documentStatus")} not in ('in_review', 'effective') then
+    ${statusInvalid("only a document in review or an effective one can be released")}
   end if;
   select * into v_file from ${A} f
   where f.${a("id")} = drive_document_release.attachment
@@ -566,7 +566,9 @@ begin
   update ${T} x set ${n("effectiveVersion")} = v_version, ${n("effectiveFrom")} = now(),
     ${n("nextReviewOn")} = ${nextReview(kit, control)}, ${n("reviewNotifiedFor")} = null
   where x.${n("id")} = v_node.${n("id")};
-  ${transitionTo(kit, "effective", "'released'")}
+  if v_node.${n("documentStatus")} = 'in_review' then
+    ${transitionTo(kit, "effective", "'released'")}
+  end if;
   select * into v_node from ${T} x where x.${n("id")} = v_node.${n("id")};
   ${record("drive.node_released", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'versionId', v_version, 'attachmentId', v_file.${a("id")}`, kit.dataAudit("v_node", "document released"))}
   return ${withRole("v_node")};
@@ -587,8 +589,8 @@ function decidedSql(kit: DriveKit): string {
 
   return `
 -- Runs when approvals decides a release request: an approval releases the
--- attachment it names, a rejection sends the document back to draft. Other
--- actions on the file pass.
+-- attachment it names, a rejection sends a document in review back to draft
+-- and leaves an effective one as it is. Other actions on the file pass.
 create or replace function ${fn("drive_document_decided")}(request uuid, approved boolean)
 returns void
 language plpgsql
@@ -604,14 +606,14 @@ begin
     return;
   end if;
   select * into v_node from ${T} x where x.${n("id")}::text = v_req.${c("subjectId")} for update;
-  if not found or v_node.${n("documentStatus")} is distinct from 'in_review' then
+  if not found or v_node.${n("documentStatus")} is null or v_node.${n("documentStatus")} not in ('in_review', 'effective') then
     return;
   end if;
   if drive_document_decided.approved then
     perform set_config('better_supabase.approval', v_req.${c("id")}::text, true);
     perform ${fn("drive_document_release")}(v_node.${n("id")}, coalesce(${payload}, v_node.${n("attachment")}));
     perform set_config('better_supabase.approval', '', true);
-  else
+  elsif v_node.${n("documentStatus")} = 'in_review' then
     ${transitionTo(kit, "draft", "'rejected'")}
   end if;
 end;
@@ -736,8 +738,8 @@ begin
       and (coalesce((${filter("reviewDue")})::boolean, false) = false
         or (x.${n("documentStatus")} = 'effective' and x.${n("nextReviewOn")} <= current_date))
       and (coalesce(${filter("search")}, '') = ''
-        or x.${n("documentNumber")} ilike '%' || ${filter("search")} || '%'
-        or x.${n("name")} ilike '%' || ${filter("search")} || '%')
+        or x.${n("documentNumber")} ilike '%' || (${filter("search")}) || '%'
+        or x.${n("name")} ilike '%' || (${filter("search")}) || '%')
   ), '[]'::jsonb);
 end;
 $$;
@@ -769,8 +771,8 @@ function dueSql(kit: DriveKit): string {
 
   return `
 -- Reports each effective document whose review date has come once per date:
--- a drive.node_review_due event and, with notifications, a notification to
--- its owner. Run it daily from a job.
+-- a drive.node_review_requested event and, with notifications, a notification
+-- to its owner. Run it daily from a job.
 create or replace function ${fn("notify_due_drive_reviews")}()
 returns integer
 language plpgsql
@@ -779,7 +781,7 @@ set search_path = ''
 as $$
 declare
   v_node ${T}%rowtype;
-  v_count integer := 0;
+  v_count integer := 0;${notify === "" ? "" : "\n  v_claims text;"}
 begin
   for v_node in
     select * from ${T} x
@@ -787,7 +789,7 @@ begin
       and x.${n("reviewNotifiedFor")} is distinct from x.${n("nextReviewOn")}${kit.live("x")}
     for update skip locked
   loop
-    ${record("drive.node_review_due", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'ownerId', v_node.${n("documentOwner")}, 'nextReviewOn', v_node.${n("nextReviewOn")}`, false)}
+    ${record("drive.node_review_requested", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'ownerId', v_node.${n("documentOwner")}, 'nextReviewOn', v_node.${n("nextReviewOn")}`, false)}
     ${notify}
     update ${T} x set ${n("reviewNotifiedFor")} = v_node.${n("nextReviewOn")} where x.${n("id")} = v_node.${n("id")};
     v_count := v_count + 1;

@@ -111,7 +111,7 @@ const SUBJECT_EVENTS = [
   "drive.node_released",
   "drive.node_obsoleted",
   "drive.node_reviewed",
-  "drive.node_review_due",
+  "drive.node_review_requested",
   "drive.node_hold_placed",
   "drive.node_hold_released",
   "drive.node_locked",

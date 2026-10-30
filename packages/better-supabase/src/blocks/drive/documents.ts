@@ -80,14 +80,16 @@ export interface DriveDocuments<N> {
   saveDocument(id: string, document: DriveDocumentInput): AsyncResult<N>;
   /**
    * Sends a draft or an effective document for release: `attachmentId`, or the
-   * current version. The document moves to `in_review` and an approval request
-   * with action `release` goes to approvals; its approval releases.
+   * current version. An approval request with action `release` goes to
+   * approvals, and its approval releases the version. A draft moves to
+   * `in_review`; an effective document stays effective on its released version
+   * until the revision is approved.
    */
   submitDocument(
     id: string,
     options?: { readonly attachmentId?: string; readonly reason?: string },
   ): AsyncResult<N>;
-  /** Service role: releases `attachmentId` of a document in review. */
+  /** Service role: releases `attachmentId` of a document in review or effective. */
   releaseDocument(id: string, attachmentId: string): AsyncResult<N>;
   /** Withdraws an effective document; needs `options.control.releaseRole`. */
   obsoleteDocument(id: string, reason: string): AsyncResult<N>;

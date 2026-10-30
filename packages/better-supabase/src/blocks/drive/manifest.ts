@@ -20,5 +20,10 @@ export const driveBlock: BlockOf<
   consumes: { attachments: "optional" },
   create: createDrive,
   category: "content",
-  recipes: ["grants-editor", "drive-explorer", "file-request-upload"],
+  recipes: [
+    "grants-editor",
+    "drive-explorer",
+    "file-request-upload",
+    "document-register",
+  ],
 });

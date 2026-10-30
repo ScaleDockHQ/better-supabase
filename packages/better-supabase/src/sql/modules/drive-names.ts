@@ -109,7 +109,7 @@ export const FILE_EVENTS: BlockSqlEvents<DriveEvents> = {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "outcome", "note", "nextReviewOn"],
   },
-  "drive.node_review_due": {
+  "drive.node_review_requested": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "ownerId", "nextReviewOn"],
   },
