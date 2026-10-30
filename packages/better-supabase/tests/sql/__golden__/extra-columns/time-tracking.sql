@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:938cba6726999002109771ed3f12d5198e94d92f4442bdd575ff26f8ab8ad21e
+-- @bsb-hash sha256:4452ab2755b23e93b7a5a86be77705a8142387c0012e58b72905b63ff781c18d
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -807,6 +807,8 @@ grant execute on function "better_supabase"."submit_timesheet"(uuid, date, text)
 
 -- Locks the week once the approval is final. Approvals calls it; it isn't
 -- granted to anyone.
+drop function if exists "better_supabase"."approve_timesheet"(uuid, uuid);
+drop function if exists "better_supabase"."reject_timesheet"(uuid, text, uuid);
 create or replace function "better_supabase"."approve_timesheet"(timesheet_id uuid)
 returns void
 language plpgsql

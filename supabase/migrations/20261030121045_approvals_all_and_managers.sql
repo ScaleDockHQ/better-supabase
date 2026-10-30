@@ -156,6 +156,9 @@ begin
     if v_req."subject_type" = 'ai_tool_approval' then
       perform "better_supabase"."apply_ai_tool_approval"(v_req."subject_id", false, decide_approval.comment);
     end if;
+    if v_req."subject_type" = 'drive_node' then
+      perform "better_supabase"."drive_document_decided"(v_req."id", false);
+    end if;
   else
     select count(*) into v_count from "better_supabase"."approval_decisions" x
       where x."request_id" = v_req."id" and x."step" = v_req."step" and x."decision" = 'approved';
@@ -323,7 +326,7 @@ begin
   v_action := coalesce(save_approval_policy.policy ->> 'action', v_old."action");
   v_effect := case when save_approval_policy.policy ? 'effect' then nullif(save_approval_policy.policy ->> 'effect', '') else v_old."effect" end;
   if v_type is null or v_action is null or not (exists (
-      select 1 from jsonb_array_elements('[{"subjectType":"*","action":"quote.send","effects":["money-movement"]},{"subjectType":"customer","action":"discount","effects":[]},{"subjectType":"customer","action":"refund","effects":[]},{"subjectType":"customer","action":"export","effects":[]},{"subjectType":"drive_node","action":"approve","effects":[]},{"subjectType":"eve_tool_call","action":"add_note","effects":[]},{"subjectType":"workflow_run","action":"approve","effects":[]}]'::jsonb) f
+      select 1 from jsonb_array_elements('[{"subjectType":"*","action":"quote.send","effects":["money-movement"]},{"subjectType":"customer","action":"discount","effects":[]},{"subjectType":"customer","action":"refund","effects":[]},{"subjectType":"customer","action":"export","effects":[]},{"subjectType":"drive_node","action":"approve","effects":[]},{"subjectType":"drive_node","action":"release","effects":[]},{"subjectType":"eve_tool_call","action":"add_note","effects":[]},{"subjectType":"workflow_run","action":"approve","effects":[]}]'::jsonb) f
       where (v_type = '*' or f.value ->> 'subjectType' in (v_type, '*'))
         and (v_action = '*' or f.value ->> 'action' in (v_action, '*'))
         and (v_effect is null or f.value -> 'effects' ? v_effect)
@@ -378,7 +381,7 @@ begin
     values (save_approval_policy.tenant, v_type, v_action, btrim(save_approval_policy.policy ->> 'name'), v_conditions, v_effect,
       coalesce(save_approval_policy.policy ->> 'mode', 'authorize'), v_steps,
       coalesce((save_approval_policy.policy ->> 'selfApproval')::boolean, false), (save_approval_policy.policy ->> 'expiresIn')::interval,
-      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true), auth.uid(), (jsonb_populate_record(null::"better_supabase"."approval_policies", jsonb_build_object('description', coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb) -> 'description')))."description")
+      coalesce((save_approval_policy.policy ->> 'enabled')::boolean, true), auth.uid(), case when coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb) ? 'description' then (jsonb_populate_record(null::"better_supabase"."approval_policies", jsonb_build_object('description', coalesce(save_approval_policy.policy -> 'fields', '{}'::jsonb) -> 'description')))."description" else better_supabase.column_default('"better_supabase"."approval_policies"', 'description', (null::"better_supabase"."approval_policies")."description") end)
     returning * into v_row;
   else
     update "better_supabase"."approval_policies" x set
