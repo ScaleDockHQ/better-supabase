@@ -1,6 +1,6 @@
 -- better-supabase module: incidents
--- @bsb-block incidents@1 managed
--- @bsb-hash sha256:a7a1e1922224e80926b91e7462204a6f8dadcfd43dcfdcb268c7b46737c0cf5b
+-- @bsb-block incidents@2 managed
+-- @bsb-hash sha256:31c49124cf19d7c640414404650b072f6443f200b65d42a4df4837db6d5aae81
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,19 +44,19 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_components";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_components";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_components";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_components";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_components";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_component_history";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_component_history";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_component_history";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_component_history";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_component_history";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -100,11 +100,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."status_pages";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_pages";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_pages";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_pages";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_pages";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -116,7 +116,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- The services a status page reports on. status follows the worst impact of
 -- the open incidents on the component; nothing else writes it.
-create table if not exists "better_supabase"."status_components" (
+create table if not exists "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
@@ -130,18 +130,18 @@ create table if not exists "better_supabase"."status_components" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-create index if not exists "status_components_tenant_idx" on "better_supabase"."status_components" ("tenant_id", "position");
-alter table "better_supabase"."status_components" enable row level security;
-revoke all on "better_supabase"."status_components" from public, anon, authenticated;
-grant select on "better_supabase"."status_components" to authenticated;
-grant all on "better_supabase"."status_components" to service_role;
-drop policy if exists status_components_read on "better_supabase"."status_components";
-create policy status_components_read on "better_supabase"."status_components"
+create index if not exists "incident_status_components_tenant_idx" on "better_supabase"."incident_status_components" ("tenant_id", "position");
+alter table "better_supabase"."incident_status_components" enable row level security;
+revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
+grant select on "better_supabase"."incident_status_components" to authenticated;
+grant all on "better_supabase"."incident_status_components" to service_role;
+drop policy if exists incident_status_components_read on "better_supabase"."incident_status_components";
+create policy incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
 -- One row per status a component held, for the uptime history.
-create table if not exists "better_supabase"."status_component_history" (
+create table if not exists "better_supabase"."incident_status_component_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "component_id" uuid not null,
@@ -149,16 +149,16 @@ create table if not exists "better_supabase"."status_component_history" (
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   check ("ended_at" is null or "ended_at" >= "started_at"),
-  foreign key ("tenant_id", "component_id") references "better_supabase"."status_components" ("tenant_id", "id") on delete cascade
+  foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
-create index if not exists "status_component_history_component_idx" on "better_supabase"."status_component_history" ("tenant_id", "component_id", "started_at");
-create unique index if not exists "status_component_history_open_idx" on "better_supabase"."status_component_history" ("component_id") where "ended_at" is null;
-alter table "better_supabase"."status_component_history" enable row level security;
-revoke all on "better_supabase"."status_component_history" from public, anon, authenticated;
-grant select on "better_supabase"."status_component_history" to authenticated;
-grant all on "better_supabase"."status_component_history" to service_role;
-drop policy if exists status_component_history_read on "better_supabase"."status_component_history";
-create policy status_component_history_read on "better_supabase"."status_component_history"
+create index if not exists "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
+create unique index if not exists "incident_status_component_history_open_idx" on "better_supabase"."incident_status_component_history" ("component_id") where "ended_at" is null;
+alter table "better_supabase"."incident_status_component_history" enable row level security;
+revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
+grant select on "better_supabase"."incident_status_component_history" to authenticated;
+grant all on "better_supabase"."incident_status_component_history" to service_role;
+drop policy if exists incident_status_component_history_read on "better_supabase"."incident_status_component_history";
+create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -225,7 +225,7 @@ create table if not exists "better_supabase"."incident_impacts" (
   "impact" text not null check ("impact" in ('maintenance', 'degraded', 'partial_outage', 'major_outage')),
   primary key ("incident_id", "component_id"),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade,
-  foreign key ("tenant_id", "component_id") references "better_supabase"."status_components" ("tenant_id", "id") on delete cascade
+  foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
 create index if not exists "incident_impacts_parent_idx" on "better_supabase"."incident_impacts" ("tenant_id", "incident_id");
 create index if not exists "incident_impacts_component_idx" on "better_supabase"."incident_impacts" ("tenant_id", "component_id");
@@ -288,7 +288,7 @@ create policy incident_postmortem_actions_read on "better_supabase"."incident_po
 
 -- One status page per organization. Anonymous visitors read it only through
 -- public_status_page(slug), never through these tables.
-create table if not exists "better_supabase"."status_pages" (
+create table if not exists "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
   "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
@@ -298,12 +298,12 @@ create table if not exists "better_supabase"."status_pages" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."status_pages" enable row level security;
-revoke all on "better_supabase"."status_pages" from public, anon, authenticated;
-grant select on "better_supabase"."status_pages" to authenticated;
-grant all on "better_supabase"."status_pages" to service_role;
-drop policy if exists status_pages_read on "better_supabase"."status_pages";
-create policy status_pages_read on "better_supabase"."status_pages"
+alter table "better_supabase"."incident_status_pages" enable row level security;
+revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
+grant select on "better_supabase"."incident_status_pages" to authenticated;
+grant all on "better_supabase"."incident_status_pages" to service_role;
+drop policy if exists incident_status_pages_read on "better_supabase"."incident_status_pages";
+create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -334,11 +334,11 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_component "better_supabase"."status_components"%rowtype;
+  v_component "better_supabase"."incident_status_components"%rowtype;
   v_status text;
 begin
   for v_component in
-    select * from "better_supabase"."status_components" x where x."id" = any(incident_refresh_components.component_ids) for update
+    select * from "better_supabase"."incident_status_components" x where x."id" = any(incident_refresh_components.component_ids) for update
   loop
     select coalesce(
       (array['operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage'])[max(array_position(array['operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage'], im."impact"))],
@@ -348,11 +348,11 @@ begin
     join "better_supabase"."incidents" ii on ii."id" = im."incident_id"
     where im."component_id" = v_component."id" and ii."status" <> 'resolved';
     continue when v_status = v_component."status";
-    update "better_supabase"."status_components" x set "status" = v_status, "updated_at" = now()
+    update "better_supabase"."incident_status_components" x set "status" = v_status, "updated_at" = now()
       where x."id" = v_component."id";
-    update "better_supabase"."status_component_history" x set "ended_at" = now()
+    update "better_supabase"."incident_status_component_history" x set "ended_at" = now()
       where x."component_id" = v_component."id" and x."ended_at" is null;
-    insert into "better_supabase"."status_component_history" ("tenant_id", "component_id", "status")
+    insert into "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "status")
     values (v_component."tenant_id", v_component."id", v_status);
     perform "better_supabase".emit_event('status_component.changed', jsonb_build_object('organizationId', v_component."tenant_id", 'statusComponentId', v_component."id", 'status', v_status, 'previousStatus', v_component."status"), 'status-components/' || v_component."id"::text, (v_component."tenant_id")::text, null, 'better-supabase/incidents');
   perform better_supabase.audit_event(
@@ -396,7 +396,7 @@ begin
   loop
     v_component := nullif(v_item ->> 'componentId', '')::uuid;
     if not exists (
-      select 1 from "better_supabase"."status_components" x where x."id" = v_component and x."tenant_id" = v_row."tenant_id"
+      select 1 from "better_supabase"."incident_status_components" x where x."id" = v_component and x."tenant_id" = v_row."tenant_id"
     ) then
       raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
     end if;
@@ -423,7 +423,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."status_components"%rowtype;
+  v_row "better_supabase"."incident_status_components"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -435,14 +435,14 @@ begin
     raise exception 'a component needs a name' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   if save_status_component.component_id is null then
-    insert into "better_supabase"."status_components" ("tenant_id", "name", "description", "group_name", "public", "position")
+    insert into "better_supabase"."incident_status_components" ("tenant_id", "name", "description", "group_name", "public", "position")
     values (save_status_component.tenant, trim(save_status_component.name), save_status_component.description,
       nullif(trim(save_status_component.group_name), ''), coalesce(save_status_component.is_public, true), coalesce(save_status_component.sort_position, 0))
     returning * into v_row;
-    insert into "better_supabase"."status_component_history" ("tenant_id", "component_id", "status")
+    insert into "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "status")
     values (v_row."tenant_id", v_row."id", v_row."status");
   else
-    update "better_supabase"."status_components" x set "name" = trim(save_status_component.name), "description" = save_status_component.description,
+    update "better_supabase"."incident_status_components" x set "name" = trim(save_status_component.name), "description" = save_status_component.description,
       "group_name" = nullif(trim(save_status_component.group_name), ''), "public" = coalesce(save_status_component.is_public, true),
       "position" = coalesce(save_status_component.sort_position, 0), "updated_at" = now()
       where x."id" = save_status_component.component_id and x."tenant_id" = save_status_component.tenant
@@ -464,19 +464,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."status_components"%rowtype;
+  v_row "better_supabase"."incident_status_components"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."status_components" x where x."id" = delete_status_component.component_id;
+  select * into v_row from "better_supabase"."incident_status_components" x where x."id" = delete_status_component.component_id;
   if not found then
     raise exception 'status component not found' using errcode = 'P0002', hint = 'STATUS_COMPONENT_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.manage'), false)) then
     raise exception 'not allowed to manage status components' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
-  delete from "better_supabase"."status_components" x where x."id" = v_row."id";
+  delete from "better_supabase"."incident_status_components" x where x."id" = v_row."id";
   return jsonb_build_object('id', v_row."id", 'deleted', true);
 end;
 $$;
@@ -491,7 +491,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'name', x."name", 'description', x."description", 'group', x."group_name", 'public', x."public", 'status', x."status", 'position', x."position", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."position", x."name"), '[]'::jsonb)
-  from "better_supabase"."status_components" x
+  from "better_supabase"."incident_status_components" x
   where x."tenant_id" = list_status_components.tenant
 $$;
 revoke execute on function "better_supabase"."list_status_components"(uuid) from public, anon;
@@ -566,7 +566,7 @@ begin
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'status', v_row."status", 'public', v_row."public", 'commanderId', v_row."commander_id", 'startedAt', v_row."started_at", 'resolvedAt', v_row."resolved_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'status', v_row."status", 'public', v_row."public", 'commanderId', v_row."commander_id", 'startedAt', v_row."started_at", 'resolvedAt', v_row."resolved_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."incident_status_components" ic on ic."id" = im."component_id" where im."incident_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."open_incident"(uuid, jsonb) from public, anon;
@@ -617,7 +617,7 @@ begin
     "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'status', v_row."status", 'public', v_row."public", 'commanderId', v_row."commander_id", 'startedAt', v_row."started_at", 'resolvedAt', v_row."resolved_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'status', v_row."status", 'public', v_row."public", 'commanderId', v_row."commander_id", 'startedAt', v_row."started_at", 'resolvedAt', v_row."resolved_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."incident_status_components" ic on ic."id" = im."component_id" where im."incident_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."update_incident"(uuid, jsonb) from public, anon;
@@ -717,7 +717,7 @@ begin
     raise exception 'not allowed to change incidents' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
   end if;
   perform "better_supabase"."incident_apply_impacts"(v_row."id", set_incident_impacts.impacts);
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'status', v_row."status", 'public', v_row."public", 'commanderId', v_row."commander_id", 'startedAt', v_row."started_at", 'resolvedAt', v_row."resolved_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = v_row."id"));
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'title', v_row."title", 'description', v_row."description", 'severity', v_row."severity", 'status', v_row."status", 'public', v_row."public", 'commanderId', v_row."commander_id", 'startedAt', v_row."started_at", 'resolvedAt', v_row."resolved_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."incident_status_components" ic on ic."id" = im."component_id" where im."incident_id" = v_row."id"));
 end;
 $$;
 revoke execute on function "better_supabase"."set_incident_impacts"(uuid, jsonb) from public, anon;
@@ -730,7 +730,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) || jsonb_build_object(
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."incident_status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) || jsonb_build_object(
     'updates', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'incidentId', y."incident_id", 'status', y."status", 'body', y."body", 'public', y."public", 'authorId', y."author_id", 'createdAt', y."created_at") order by y."created_at", y."id"), '[]'::jsonb) from "better_supabase"."incident_updates" y where y."incident_id" = x."id"),
     'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'actions', "better_supabase"."incident_postmortem_action_list"(z."id"), 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
   )
@@ -751,7 +751,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(row_json order by started desc, id desc), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) as row_json, x."started_at" as started, x."id" as id
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."incident_status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) as row_json, x."started_at" as started, x."id" as id
     from "better_supabase"."incidents" x
     where x."tenant_id" = list_incidents.tenant
       and (list_incidents.status is null
@@ -940,7 +940,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."status_pages"%rowtype;
+  v_row "better_supabase"."incident_status_pages"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -952,11 +952,11 @@ begin
     raise exception 'the slug takes 2 to 63 lowercase letters, digits and dashes' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   if exists (
-    select 1 from "better_supabase"."status_pages" x where x."slug" = save_status_page.slug and x."tenant_id" <> save_status_page.tenant
+    select 1 from "better_supabase"."incident_status_pages" x where x."slug" = save_status_page.slug and x."tenant_id" <> save_status_page.tenant
   ) then
     raise exception 'another organization uses this slug' using errcode = '23505', hint = 'STATUS_PAGE_SLUG_TAKEN';
   end if;
-  insert into "better_supabase"."status_pages" ("tenant_id", "slug", "title", "description", "published")
+  insert into "better_supabase"."incident_status_pages" ("tenant_id", "slug", "title", "description", "published")
   values (save_status_page.tenant, save_status_page.slug, trim(save_status_page.title), save_status_page.description, coalesce(save_status_page.published, false))
   on conflict ("tenant_id") do update
     set "slug" = excluded."slug", "title" = excluded."title", "description" = excluded."description",
@@ -975,7 +975,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'slug', x."slug", 'title', x."title", 'description', x."description", 'published', x."published", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."status_pages" x where x."tenant_id" = get_status_page.tenant
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'slug', x."slug", 'title', x."title", 'description', x."description", 'published', x."published", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."incident_status_pages" x where x."tenant_id" = get_status_page.tenant
 $$;
 revoke execute on function "better_supabase"."get_status_page"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_status_page"(uuid) to authenticated, service_role;
@@ -993,11 +993,11 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_page "better_supabase"."status_pages"%rowtype;
+  v_page "better_supabase"."incident_status_pages"%rowtype;
   v_days integer := least(greatest(coalesce(public_status_page.days, 90), 1), 90);
   v_from timestamptz;
 begin
-  select * into v_page from "better_supabase"."status_pages" x where x."slug" = public_status_page.slug and x."published";
+  select * into v_page from "better_supabase"."incident_status_pages" x where x."slug" = public_status_page.slug and x."published";
   if not found then
     return null;
   end if;
@@ -1009,7 +1009,7 @@ begin
     'days', v_days,
     'status', (
       select coalesce((array['operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage'])[max(array_position(array['operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage'], sc."status"))], 'operational')
-      from "better_supabase"."status_components" sc
+      from "better_supabase"."incident_status_components" sc
       where sc."tenant_id" = v_page."tenant_id" and sc."public"
     ),
     'components', (
@@ -1023,7 +1023,7 @@ begin
           select round(100 * (1 - coalesce(sum(extract(epoch from (
             least(coalesce(uh."ended_at", now()), now()) - greatest(uh."started_at", v_from)
           ))), 0) / greatest(extract(epoch from (now() - v_from)), 1))::numeric, 3)
-          from "better_supabase"."status_component_history" uh
+          from "better_supabase"."incident_status_component_history" uh
           where uh."component_id" = pc."id"
             and uh."status" in ('partial_outage', 'major_outage')
             and coalesce(uh."ended_at", now()) > v_from
@@ -1037,14 +1037,14 @@ begin
                 least(coalesce(dh."ended_at", now()), (dd.d + 1)::timestamp at time zone 'UTC')
                 - greatest(dh."started_at", dd.d::timestamp at time zone 'UTC')
               ))) filter (where dh."status" in ('partial_outage', 'major_outage')), 0) / 60)::integer as down
-            from "better_supabase"."status_component_history" dh
+            from "better_supabase"."incident_status_component_history" dh
             where dh."component_id" = pc."id"
               and dh."started_at" < (dd.d + 1)::timestamp at time zone 'UTC'
               and coalesce(dh."ended_at", now()) > dd.d::timestamp at time zone 'UTC'
           ) w
         )
       ) order by pc."position", pc."name"), '[]'::jsonb)
-      from "better_supabase"."status_components" pc
+      from "better_supabase"."incident_status_components" pc
       where pc."tenant_id" = v_page."tenant_id" and pc."public"
     ),
     'incidents', (
@@ -1057,7 +1057,7 @@ begin
       'resolvedAt', pi0."resolved_at",
       'components', (
         select coalesce(jsonb_agg(jsonb_build_object('id', pc."id", 'name', pc."name", 'impact', pi."impact") order by pc."position", pc."name"), '[]'::jsonb)
-        from "better_supabase"."incident_impacts" pi join "better_supabase"."status_components" pc on pc."id" = pi."component_id"
+        from "better_supabase"."incident_impacts" pi join "better_supabase"."incident_status_components" pc on pc."id" = pi."component_id"
         where pi."incident_id" = pi0."id" and pc."public"
       ),
       'updates', (
@@ -1096,46 +1096,46 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_components";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_components";
-create policy bsb_tenant_scope_select on "better_supabase"."status_components" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_components";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_components";
+create policy bsb_tenant_scope_select on "better_supabase"."incident_status_components" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_components";
-create policy bsb_tenant_scope_insert on "better_supabase"."status_components" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_components";
+create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_components" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_components";
-create policy bsb_tenant_scope_update on "better_supabase"."status_components" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_components";
+create policy bsb_tenant_scope_update on "better_supabase"."incident_status_components" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_components";
-create policy bsb_tenant_scope_delete on "better_supabase"."status_components" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_components";
+create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_components" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_component_history";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_component_history";
-create policy bsb_tenant_scope_select on "better_supabase"."status_component_history" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_component_history";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_component_history";
+create policy bsb_tenant_scope_select on "better_supabase"."incident_status_component_history" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_component_history";
-create policy bsb_tenant_scope_insert on "better_supabase"."status_component_history" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history";
+create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_component_history" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_component_history";
-create policy bsb_tenant_scope_update on "better_supabase"."status_component_history" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_component_history";
+create policy bsb_tenant_scope_update on "better_supabase"."incident_status_component_history" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_component_history";
-create policy bsb_tenant_scope_delete on "better_supabase"."status_component_history" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history";
+create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_component_history" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."incidents";
@@ -1243,25 +1243,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_pos
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortem_actions" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."status_pages";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_pages";
-create policy bsb_tenant_scope_select on "better_supabase"."status_pages" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."incident_status_pages";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_status_pages";
+create policy bsb_tenant_scope_select on "better_supabase"."incident_status_pages" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."status_pages";
-create policy bsb_tenant_scope_insert on "better_supabase"."status_pages" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_status_pages";
+create policy bsb_tenant_scope_insert on "better_supabase"."incident_status_pages" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."status_pages";
-create policy bsb_tenant_scope_update on "better_supabase"."status_pages" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_status_pages";
+create policy bsb_tenant_scope_update on "better_supabase"."incident_status_pages" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."status_pages";
-create policy bsb_tenant_scope_delete on "better_supabase"."status_pages" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_status_pages";
+create policy bsb_tenant_scope_delete on "better_supabase"."incident_status_pages" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 

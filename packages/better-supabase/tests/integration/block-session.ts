@@ -103,6 +103,24 @@ export class BlockSession {
       }
     }
 
+    // The fixture's postmortem actions reference its work_items table, and
+    // `create table if not exists` would keep that key for a render on tasks.
+    if (names.includes("incidents") && names.includes("tasks")) {
+      await this.client.query(`do $$
+        begin
+          if to_regclass('better_supabase.incident_postmortem_actions') is not null
+            and not exists (
+              select 1 from pg_constraint
+              where conrelid = to_regclass('better_supabase.incident_postmortem_actions')
+                and conname = 'incident_postmortem_actions_task_id_fkey'
+                and confrelid = to_regclass('better_supabase.tasks')
+            ) then
+            drop table better_supabase.incident_postmortem_actions cascade;
+          end if;
+        end
+      $$`);
+    }
+
     for (const file of renderBlocks(names, layout)) {
       if (file.kind !== "test") {
         await this.client.query(file.contents);

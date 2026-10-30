@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
--- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:f081c5cea0b119e42c75d493560d1390b586a8607575c9b0f7eb8aae8ad8b6a1
+-- @bsb-block maintenance@3 managed tasks
+-- @bsb-hash sha256:d7e9e5fb16946b5ec60b20b265afe874f975549efbb9b22c85e7a44743efe1c2
 -- @bsb-names maintenance task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -132,11 +132,11 @@ create table if not exists "better_supabase"."maintenance_requests" (
   unique ("tenant_id", "number"),
   check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
-create index if not exists maintenance_requests_board_idx on "better_supabase"."maintenance_requests" ("pipeline_id", "stage_id", "rank");
-create index if not exists maintenance_requests_parent_idx on "better_supabase"."maintenance_requests" ("parent_id");
-create index if not exists maintenance_requests_project_idx on "better_supabase"."maintenance_requests" ("project_id");
-create index if not exists maintenance_requests_iteration_idx on "better_supabase"."maintenance_requests" ("iteration_id");
-create index if not exists maintenance_requests_due_idx on "better_supabase"."maintenance_requests" ("tenant_id", "due_at") where "closed_at" is null;
+create index if not exists "maintenance_requests_board_idx" on "better_supabase"."maintenance_requests" ("pipeline_id", "stage_id", "rank");
+create index if not exists "maintenance_requests_parent_idx" on "better_supabase"."maintenance_requests" ("parent_id");
+create index if not exists "maintenance_requests_project_idx" on "better_supabase"."maintenance_requests" ("project_id");
+create index if not exists "maintenance_requests_iteration_idx" on "better_supabase"."maintenance_requests" ("iteration_id");
+create index if not exists "maintenance_requests_due_idx" on "better_supabase"."maintenance_requests" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."maintenance_requests" add column if not exists "unit_id" uuid;
 alter table "better_supabase"."maintenance_requests" add column if not exists "lease_id" uuid;
 alter table "better_supabase"."maintenance_requests" enable row level security;
@@ -155,7 +155,7 @@ create table if not exists "better_supabase"."maintenance_request_assignees" (
   "created_at" timestamptz not null default now(),
   primary key ("maintenance_request_id", "user_id")
 );
-create index if not exists maintenance_request_assignees_user_idx on "better_supabase"."maintenance_request_assignees" ("user_id");
+create index if not exists "maintenance_request_assignees_user_idx" on "better_supabase"."maintenance_request_assignees" ("user_id");
 alter table "better_supabase"."maintenance_request_assignees" enable row level security;
 revoke all on "better_supabase"."maintenance_request_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_request_assignees" to authenticated;
@@ -166,7 +166,7 @@ create policy maintenance_request_assignees_read on "better_supabase"."maintenan
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
 alter table "better_supabase"."maintenance_requests" add column if not exists "recurs_from" uuid references "better_supabase"."maintenance_requests" ("id") on delete set null;
-create unique index if not exists maintenance_requests_recurs_from_idx on "better_supabase"."maintenance_requests" ("recurs_from");
+create unique index if not exists "maintenance_requests_recurs_from_idx" on "better_supabase"."maintenance_requests" ("recurs_from");
 
 create table if not exists "better_supabase"."maintenance_request_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
@@ -180,7 +180,7 @@ create table if not exists "better_supabase"."maintenance_request_checklist_item
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists maintenance_request_checklist_item_idx on "better_supabase"."maintenance_request_checklist_items" ("maintenance_request_id", "rank");
+create index if not exists "maintenance_request_checklist_item_idx" on "better_supabase"."maintenance_request_checklist_items" ("maintenance_request_id", "rank");
 alter table "better_supabase"."maintenance_request_checklist_items" enable row level security;
 revoke all on "better_supabase"."maintenance_request_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_request_checklist_items" to authenticated;

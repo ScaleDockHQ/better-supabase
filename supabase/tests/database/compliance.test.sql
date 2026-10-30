@@ -8,7 +8,7 @@ select plan(24);
 select is(
   (select count(*) from pg_catalog.pg_tables
    where schemaname = 'better_supabase'
-     and tablename in ('control_frameworks', 'controls', 'control_evidence', 'evidence_tasks', 'policies')
+     and tablename in ('control_frameworks', 'controls', 'control_evidence', 'evidence_tasks', 'compliance_policies')
      and rowsecurity),
   5::bigint,
   'the controls tables have RLS enabled'
@@ -19,8 +19,8 @@ select hasnt_function('better_supabase', 'acknowledge_compliance_policy',
   'members acknowledge policies through acknowledge');
 select table_privs_are('better_supabase', 'controls', 'anon', '{}'::text[],
   'anon has no privileges on controls');
-select table_privs_are('better_supabase', 'policies', 'anon', '{}'::text[],
-  'anon has no privileges on policies');
+select table_privs_are('better_supabase', 'compliance_policies', 'anon', '{}'::text[],
+  'anon has no privileges on compliance_policies');
 
 select set_config(
   'request.jwt.claims',
@@ -135,7 +135,7 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (select count(*) from better_supabase.controls) + (select count(*) from better_supabase.policies),
+  (select count(*) from better_supabase.controls) + (select count(*) from better_supabase.compliance_policies),
   0::bigint,
   'the Globex owner sees no Acme controls or policies'
 );

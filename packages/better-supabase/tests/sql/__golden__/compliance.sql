@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@2 managed
--- @bsb-hash sha256:9ce29cf1a9e43664fb7635d634701b94d58f76c91dd036469c699070ef999803
+-- @bsb-block compliance@3 managed
+-- @bsb-hash sha256:58002811b3e4164ccc46b1d06d7798bce6a26090862893e11fcf5abdd8085d16
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,11 +77,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -202,7 +202,7 @@ create policy control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "better_supabase"."policies" (
+create table if not exists "better_supabase"."compliance_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -219,13 +219,13 @@ create table if not exists "better_supabase"."policies" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "policies_version_idx" on "better_supabase"."policies" ("current_version_id") where "current_version_id" is not null;
-alter table "better_supabase"."policies" enable row level security;
-revoke all on "better_supabase"."policies" from public, anon, authenticated;
-grant select on "better_supabase"."policies" to authenticated;
-grant all on "better_supabase"."policies" to service_role;
-drop policy if exists policies_read on "better_supabase"."policies";
-create policy policies_read on "better_supabase"."policies"
+create index if not exists "compliance_policies_version_idx" on "better_supabase"."compliance_policies" ("current_version_id") where "current_version_id" is not null;
+alter table "better_supabase"."compliance_policies" enable row level security;
+revoke all on "better_supabase"."compliance_policies" from public, anon, authenticated;
+grant select on "better_supabase"."compliance_policies" to authenticated;
+grant all on "better_supabase"."compliance_policies" to service_role;
+drop policy if exists compliance_policies_read on "better_supabase"."compliance_policies";
+create policy compliance_policies_read on "better_supabase"."compliance_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -653,7 +653,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -667,18 +667,18 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
-  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
     where x."tenant_id" = save_compliance_policy.tenant
       and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
-    insert into "better_supabase"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
+    insert into "better_supabase"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
+    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
       "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
       where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
       returning * into v_row;
@@ -707,13 +707,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = publish_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = publish_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
@@ -730,7 +730,7 @@ begin
     v_row."tenant_id", 'compliance_policy', v_row."id"::text, publish_compliance_policy.content,
     null, coalesce(publish_compliance_policy.label, v_row."title"), 'manual', true, auth.uid()
   );
-  update "better_supabase"."policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
+  update "better_supabase"."compliance_policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
     "version_number" = (v_version ->> 'number')::integer, "published_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -750,19 +750,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = archive_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = archive_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
+  update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
@@ -788,7 +788,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
-    from "better_supabase"."policies" x
+    from "better_supabase"."compliance_policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
   );
@@ -896,25 +896,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."evidence_tas
 create policy bsb_tenant_scope_delete on "better_supabase"."evidence_tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-create policy bsb_tenant_scope_select on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_select on "better_supabase"."compliance_policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_insert on "better_supabase"."compliance_policies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-create policy bsb_tenant_scope_update on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_update on "better_supabase"."compliance_policies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
-create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -934,7 +934,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
+-- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -947,14 +947,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 2, 'managed')
+values ('compliance', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@2 managed
--- @bsb-hash sha256:965d4d97d6d0c3d43c6ad0002fd6d0435177436f1b425dd4b7506c4650b6c40b
+-- @bsb-block compliance@3 managed
+-- @bsb-hash sha256:34081d6b22da56ca66bfe059b5d50c589f06e8279e25e929a7436829f617318b
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1030,11 +1030,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -1155,7 +1155,7 @@ create policy control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "better_supabase"."policies" (
+create table if not exists "better_supabase"."compliance_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -1172,13 +1172,13 @@ create table if not exists "better_supabase"."policies" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "policies_version_idx" on "better_supabase"."policies" ("current_version_id") where "current_version_id" is not null;
-alter table "better_supabase"."policies" enable row level security;
-revoke all on "better_supabase"."policies" from public, anon, authenticated;
-grant select on "better_supabase"."policies" to authenticated;
-grant all on "better_supabase"."policies" to service_role;
-drop policy if exists policies_read on "better_supabase"."policies";
-create policy policies_read on "better_supabase"."policies"
+create index if not exists "compliance_policies_version_idx" on "better_supabase"."compliance_policies" ("current_version_id") where "current_version_id" is not null;
+alter table "better_supabase"."compliance_policies" enable row level security;
+revoke all on "better_supabase"."compliance_policies" from public, anon, authenticated;
+grant select on "better_supabase"."compliance_policies" to authenticated;
+grant all on "better_supabase"."compliance_policies" to service_role;
+drop policy if exists compliance_policies_read on "better_supabase"."compliance_policies";
+create policy compliance_policies_read on "better_supabase"."compliance_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -1661,7 +1661,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1675,18 +1675,18 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
-  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
     where x."tenant_id" = save_compliance_policy.tenant
       and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
-    insert into "better_supabase"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
+    insert into "better_supabase"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
+    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
       "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
       where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
       returning * into v_row;
@@ -1715,13 +1715,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = publish_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = publish_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
@@ -1738,7 +1738,7 @@ begin
     v_row."tenant_id", 'compliance_policy', v_row."id"::text, publish_compliance_policy.content,
     null, coalesce(publish_compliance_policy.label, v_row."title"), 'manual', true, auth.uid()
   );
-  update "better_supabase"."policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
+  update "better_supabase"."compliance_policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
     "version_number" = (v_version ->> 'number')::integer, "published_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -1767,19 +1767,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = archive_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = archive_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
+  update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
@@ -1805,7 +1805,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
-    from "better_supabase"."policies" x
+    from "better_supabase"."compliance_policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
   );
@@ -1913,25 +1913,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."evidence_tas
 create policy bsb_tenant_scope_delete on "better_supabase"."evidence_tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-create policy bsb_tenant_scope_select on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_select on "better_supabase"."compliance_policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_insert on "better_supabase"."compliance_policies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-create policy bsb_tenant_scope_update on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_update on "better_supabase"."compliance_policies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
-create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1951,7 +1951,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:ed58f6e5fc1db7c51c839116ab336cb2c68ff40d5b65a7654d22c0260a2e23c4
+-- @bsb-hash sha256:cfa551d2d6de42335cd18ad491f2817490664e37628f106526016cef54fd27ad
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2005,15 +2005,15 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."sla_clocks"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."sla_clocks" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."subject_collections"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."subject_collections" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."subject_collection_entries"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."subject_collection_entries" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."favorites"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."favorites" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."collection_favorites"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."collection_favorites" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."saved_items"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."saved_items" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."moderation_items"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."moderation_items" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."reviews"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."reviews" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."review_stats"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."review_stats" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."rules"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."rules" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."rule_defaults"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."rule_defaults" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."rule_evaluations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."rule_evaluations" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."rule_fields"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."rule_fields" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."automations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."automations" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."automation_defaults"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."automation_defaults" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."automation_evaluations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."automation_evaluations" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."automation_fields"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."automation_fields" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."score_models"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."score_models" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."scores"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."scores" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."passes"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."passes" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
@@ -2022,7 +2022,7 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."conversations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."conversations" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."message_record_mentions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."message_record_mentions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."channels"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."channels" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."activity_entries"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."activity_entries" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."timeline_entries"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."timeline_entries" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."mail_thread_subjects"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."mail_thread_subjects" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."segments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."segments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."assignment_queues"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."assignment_queues" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
@@ -2039,14 +2039,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 2, 'managed')
+values ('compliance', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@2 managed
--- @bsb-hash sha256:367714a957fda0825aad83e540a7c2d359fde7693b379eed483049cb595846d1
+-- @bsb-block compliance@3 managed
+-- @bsb-hash sha256:b3094d085425f83db75afb847bc3c6bf730025020b0752fbbbaf43ce6d7dcc3d
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2122,11 +2122,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "app_private"."policies";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."policies";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."policies";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."policies";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."policies";
+    drop policy if exists bsb_tenant_scope on "app_private"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."compliance_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -2252,7 +2252,7 @@ create policy control_evidence_read on "app_private"."control_evidence"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "app_private"."policies" (
+create table if not exists "app_private"."compliance_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -2269,13 +2269,13 @@ create table if not exists "app_private"."policies" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "policies_version_idx" on "app_private"."policies" ("current_version_id") where "current_version_id" is not null;
-alter table "app_private"."policies" enable row level security;
-revoke all on "app_private"."policies" from public, anon, authenticated;
-grant select on "app_private"."policies" to authenticated;
-grant all on "app_private"."policies" to service_role;
-drop policy if exists policies_read on "app_private"."policies";
-create policy policies_read on "app_private"."policies"
+create index if not exists "compliance_policies_version_idx" on "app_private"."compliance_policies" ("current_version_id") where "current_version_id" is not null;
+alter table "app_private"."compliance_policies" enable row level security;
+revoke all on "app_private"."compliance_policies" from public, anon, authenticated;
+grant select on "app_private"."compliance_policies" to authenticated;
+grant all on "app_private"."compliance_policies" to service_role;
+drop policy if exists compliance_policies_read on "app_private"."compliance_policies";
+create policy compliance_policies_read on "app_private"."compliance_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -2703,7 +2703,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "app_private"."policies"%rowtype;
+  v_row "app_private"."compliance_policies"%rowtype;
   v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -2717,18 +2717,18 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
-  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "app_private"."policies" x
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "app_private"."compliance_policies" x
     where x."tenant_id" = save_compliance_policy.tenant
       and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
-    insert into "app_private"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
+    insert into "app_private"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "app_private"."policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
+    update "app_private"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
       "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
       where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
       returning * into v_row;
@@ -2757,13 +2757,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."policies"%rowtype;
+  v_row "app_private"."compliance_policies"%rowtype;
   v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."policies" x where x."id" = publish_compliance_policy.policy_id for update;
+  select * into v_row from "app_private"."compliance_policies" x where x."id" = publish_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
@@ -2780,7 +2780,7 @@ begin
     v_row."tenant_id", 'compliance_policy', v_row."id"::text, publish_compliance_policy.content,
     null, coalesce(publish_compliance_policy.label, v_row."title"), 'manual', true, auth.uid()
   );
-  update "app_private"."policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
+  update "app_private"."compliance_policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
     "version_number" = (v_version ->> 'number')::integer, "published_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -2800,19 +2800,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."policies"%rowtype;
+  v_row "app_private"."compliance_policies"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."policies" x where x."id" = archive_compliance_policy.policy_id for update;
+  select * into v_row from "app_private"."compliance_policies" x where x."id" = archive_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  update "app_private"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
+  update "app_private"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
@@ -2838,7 +2838,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
-    from "app_private"."policies" x
+    from "app_private"."compliance_policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
   );
@@ -2946,25 +2946,25 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."evidence_tasks";
 create policy bsb_tenant_scope_delete on "app_private"."evidence_tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."policies";
-drop policy if exists bsb_tenant_scope_select on "app_private"."policies";
-create policy bsb_tenant_scope_select on "app_private"."policies" as restrictive
+drop policy if exists bsb_tenant_scope on "app_private"."compliance_policies";
+drop policy if exists bsb_tenant_scope_select on "app_private"."compliance_policies";
+create policy bsb_tenant_scope_select on "app_private"."compliance_policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."policies";
-create policy bsb_tenant_scope_insert on "app_private"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "app_private"."compliance_policies";
+create policy bsb_tenant_scope_insert on "app_private"."compliance_policies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."policies";
-create policy bsb_tenant_scope_update on "app_private"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_update on "app_private"."compliance_policies";
+create policy bsb_tenant_scope_update on "app_private"."compliance_policies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."policies";
-create policy bsb_tenant_scope_delete on "app_private"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "app_private"."compliance_policies";
+create policy bsb_tenant_scope_delete on "app_private"."compliance_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -2984,7 +2984,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
+-- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2997,14 +2997,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 2, 'managed')
+values ('compliance', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@2 managed
--- @bsb-hash sha256:0854d7f18e28f59070bdc376c59287acdfa3cdb19561ff32e6932cabf2cf389b
+-- @bsb-block compliance@3 managed
+-- @bsb-hash sha256:b72ae68eae8bca583718dcc6138aa3f8d3c30aa1b028865ecc0c35c19d219508
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3080,11 +3080,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -3205,7 +3205,7 @@ create policy control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "better_supabase"."policies" (
+create table if not exists "better_supabase"."compliance_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -3222,13 +3222,13 @@ create table if not exists "better_supabase"."policies" (
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id")
 );
-create index if not exists "policies_version_idx" on "better_supabase"."policies" ("current_version_id") where "current_version_id" is not null;
-alter table "better_supabase"."policies" enable row level security;
-revoke all on "better_supabase"."policies" from public, anon, authenticated;
-grant select on "better_supabase"."policies" to authenticated;
-grant all on "better_supabase"."policies" to service_role;
-drop policy if exists policies_read on "better_supabase"."policies";
-create policy policies_read on "better_supabase"."policies"
+create index if not exists "compliance_policies_version_idx" on "better_supabase"."compliance_policies" ("current_version_id") where "current_version_id" is not null;
+alter table "better_supabase"."compliance_policies" enable row level security;
+revoke all on "better_supabase"."compliance_policies" from public, anon, authenticated;
+grant select on "better_supabase"."compliance_policies" to authenticated;
+grant all on "better_supabase"."compliance_policies" to service_role;
+drop policy if exists compliance_policies_read on "better_supabase"."compliance_policies";
+create policy compliance_policies_read on "better_supabase"."compliance_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -3656,7 +3656,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3670,18 +3670,18 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
-  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
     where x."tenant_id" = save_compliance_policy.tenant
       and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
-    insert into "better_supabase"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
+    insert into "better_supabase"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
+    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
       "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
       where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
       returning * into v_row;
@@ -3710,13 +3710,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = publish_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = publish_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
@@ -3733,7 +3733,7 @@ begin
     v_row."tenant_id", 'compliance_policy', v_row."id"::text, publish_compliance_policy.content,
     null, coalesce(publish_compliance_policy.label, v_row."title"), 'manual', true, auth.uid()
   );
-  update "better_supabase"."policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
+  update "better_supabase"."compliance_policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
     "version_number" = (v_version ->> 'number')::integer, "published_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -3753,19 +3753,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = archive_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = archive_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
+  update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
@@ -3791,7 +3791,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
-    from "better_supabase"."policies" x
+    from "better_supabase"."compliance_policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
   );
@@ -3899,25 +3899,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."evidence_tas
 create policy bsb_tenant_scope_delete on "better_supabase"."evidence_tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-create policy bsb_tenant_scope_select on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_select on "better_supabase"."compliance_policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_insert on "better_supabase"."compliance_policies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-create policy bsb_tenant_scope_update on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_update on "better_supabase"."compliance_policies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
-create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -4099,7 +4099,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
+-- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4112,14 +4112,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 2, 'managed')
+values ('compliance', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@2 managed
--- @bsb-hash sha256:15245d5a2f897fb18a6c4b686cf618b9e917eafda99017ae5606962ec847ef38
+-- @bsb-block compliance@3 managed
+-- @bsb-hash sha256:7fe704692f93ff3c0b00d281f97cb421299ef1c419fad9dc5473033216a136a1
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4195,11 +4195,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -4303,27 +4303,27 @@ create policy bsb_control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
--- better_supabase.policies is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."policies" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."policies" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."policies" add column if not exists "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$');
-alter table "better_supabase"."policies" add column if not exists "title" text check (length("title") between 1 and 200);
-alter table "better_supabase"."policies" add column if not exists "owner_id" uuid;
-alter table "better_supabase"."policies" add column if not exists "requires_acknowledgement" boolean not null default true;
-alter table "better_supabase"."policies" add column if not exists "current_version_id" uuid references "better_supabase"."versions" ("id") on delete restrict;
-alter table "better_supabase"."policies" add column if not exists "version_number" integer;
-alter table "better_supabase"."policies" add column if not exists "published_at" timestamptz;
-alter table "better_supabase"."policies" add column if not exists "archived_at" timestamptz;
-alter table "better_supabase"."policies" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."policies" add column if not exists "updated_at" timestamptz not null default now();
-create unique index if not exists "bsb_policies_tenant_key_key" on "better_supabase"."policies" ("tenant_id", "key");
-create unique index if not exists "bsb_policies_tenant_id_key" on "better_supabase"."policies" ("tenant_id", "id");
-create index if not exists "policies_version_idx" on "better_supabase"."policies" ("current_version_id") where "current_version_id" is not null;
-alter table "better_supabase"."policies" enable row level security;
-grant select on "better_supabase"."policies" to authenticated;
-grant all on "better_supabase"."policies" to service_role;
-drop policy if exists bsb_policies_read on "better_supabase"."policies";
-create policy bsb_policies_read on "better_supabase"."policies"
+-- better_supabase.compliance_policies is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."compliance_policies" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."compliance_policies" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."compliance_policies" add column if not exists "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$');
+alter table "better_supabase"."compliance_policies" add column if not exists "title" text check (length("title") between 1 and 200);
+alter table "better_supabase"."compliance_policies" add column if not exists "owner_id" uuid;
+alter table "better_supabase"."compliance_policies" add column if not exists "requires_acknowledgement" boolean not null default true;
+alter table "better_supabase"."compliance_policies" add column if not exists "current_version_id" uuid references "better_supabase"."versions" ("id") on delete restrict;
+alter table "better_supabase"."compliance_policies" add column if not exists "version_number" integer;
+alter table "better_supabase"."compliance_policies" add column if not exists "published_at" timestamptz;
+alter table "better_supabase"."compliance_policies" add column if not exists "archived_at" timestamptz;
+alter table "better_supabase"."compliance_policies" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."compliance_policies" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "bsb_compliance_policies_tenant_key_key" on "better_supabase"."compliance_policies" ("tenant_id", "key");
+create unique index if not exists "bsb_compliance_policies_tenant_id_key" on "better_supabase"."compliance_policies" ("tenant_id", "id");
+create index if not exists "compliance_policies_version_idx" on "better_supabase"."compliance_policies" ("current_version_id") where "current_version_id" is not null;
+alter table "better_supabase"."compliance_policies" enable row level security;
+grant select on "better_supabase"."compliance_policies" to authenticated;
+grant all on "better_supabase"."compliance_policies" to service_role;
+drop policy if exists bsb_compliance_policies_read on "better_supabase"."compliance_policies";
+create policy bsb_compliance_policies_read on "better_supabase"."compliance_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -4751,7 +4751,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -4765,18 +4765,18 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
-  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
     where x."tenant_id" = save_compliance_policy.tenant
       and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
-    insert into "better_supabase"."policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
+    insert into "better_supabase"."compliance_policies" ("tenant_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
     on conflict ("tenant_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
+    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
       "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
       where x."id" = save_compliance_policy.policy_id and x."tenant_id" = save_compliance_policy.tenant
       returning * into v_row;
@@ -4805,13 +4805,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = publish_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = publish_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
@@ -4828,7 +4828,7 @@ begin
     v_row."tenant_id", 'compliance_policy', v_row."id"::text, publish_compliance_policy.content,
     null, coalesce(publish_compliance_policy.label, v_row."title"), 'manual', true, auth.uid()
   );
-  update "better_supabase"."policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
+  update "better_supabase"."compliance_policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
     "version_number" = (v_version ->> 'number')::integer, "published_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -4848,19 +4848,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = archive_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = archive_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
+  update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
@@ -4886,7 +4886,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = x."tenant_id")) order by x."title"), '[]'::jsonb)
-    from "better_supabase"."policies" x
+    from "better_supabase"."compliance_policies" x
     where x."tenant_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
   );
@@ -4994,25 +4994,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."evidence_tas
 create policy bsb_tenant_scope_delete on "better_supabase"."evidence_tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-create policy bsb_tenant_scope_select on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_select on "better_supabase"."compliance_policies" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_insert on "better_supabase"."compliance_policies" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-create policy bsb_tenant_scope_update on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_update on "better_supabase"."compliance_policies" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
-create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -5032,7 +5032,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
+-- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5045,14 +5045,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 2, 'managed')
+values ('compliance', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
--- @bsb-block compliance@2 managed
--- @bsb-hash sha256:60b90594892b58db46b93eddf005cb9a8da19b748b6707ece128d9721cc8ef84
+-- @bsb-block compliance@3 managed
+-- @bsb-hash sha256:5d09292697e8216db83c15b1d4662481b0e785d293f89b20f496af150f978b32
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5128,11 +5128,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -5253,7 +5253,7 @@ create policy control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
-create table if not exists "better_supabase"."policies" (
+create table if not exists "better_supabase"."compliance_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
@@ -5270,13 +5270,13 @@ create table if not exists "better_supabase"."policies" (
   unique ("org_id", "key"),
   unique ("org_id", "id")
 );
-create index if not exists "policies_version_idx" on "better_supabase"."policies" ("current_version_id") where "current_version_id" is not null;
-alter table "better_supabase"."policies" enable row level security;
-revoke all on "better_supabase"."policies" from public, anon, authenticated;
-grant select on "better_supabase"."policies" to authenticated;
-grant all on "better_supabase"."policies" to service_role;
-drop policy if exists policies_read on "better_supabase"."policies";
-create policy policies_read on "better_supabase"."policies"
+create index if not exists "compliance_policies_version_idx" on "better_supabase"."compliance_policies" ("current_version_id") where "current_version_id" is not null;
+alter table "better_supabase"."compliance_policies" enable row level security;
+revoke all on "better_supabase"."compliance_policies" from public, anon, authenticated;
+grant select on "better_supabase"."compliance_policies" to authenticated;
+grant all on "better_supabase"."compliance_policies" to service_role;
+drop policy if exists compliance_policies_read on "better_supabase"."compliance_policies";
+create policy compliance_policies_read on "better_supabase"."compliance_policies"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -5704,7 +5704,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_required boolean;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -5718,18 +5718,18 @@ begin
   ) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'COMPLIANCE_POLICY_INVALID';
   end if;
-  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."policies" x
+  select x."requires_acknowledgement" and x."archived_at" is null into v_required from "better_supabase"."compliance_policies" x
     where x."org_id" = save_compliance_policy.tenant
       and (x."id" = save_compliance_policy.policy_id or (save_compliance_policy.policy_id is null and x."key" = save_compliance_policy.key));
   if save_compliance_policy.policy_id is null then
-    insert into "better_supabase"."policies" ("org_id", "key", "title", "owner_id", "requires_acknowledgement")
+    insert into "better_supabase"."compliance_policies" ("org_id", "key", "title", "owner_id", "requires_acknowledgement")
     values (save_compliance_policy.tenant, save_compliance_policy.key, trim(save_compliance_policy.title), save_compliance_policy.owner_id, coalesce(save_compliance_policy.requires_acknowledgement, true))
     on conflict ("org_id", "key") do update
       set "title" = excluded."title", "owner_id" = excluded."owner_id",
         "requires_acknowledgement" = excluded."requires_acknowledgement", "updated_at" = now()
     returning * into v_row;
   else
-    update "better_supabase"."policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
+    update "better_supabase"."compliance_policies" x set "key" = save_compliance_policy.key, "title" = trim(save_compliance_policy.title), "owner_id" = save_compliance_policy.owner_id,
       "requires_acknowledgement" = coalesce(save_compliance_policy.requires_acknowledgement, true), "updated_at" = now()
       where x."id" = save_compliance_policy.policy_id and x."org_id" = save_compliance_policy.tenant
       returning * into v_row;
@@ -5758,13 +5758,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
   v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = publish_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = publish_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
@@ -5781,7 +5781,7 @@ begin
     v_row."org_id", 'compliance_policy', v_row."id"::text, publish_compliance_policy.content,
     null, coalesce(publish_compliance_policy.label, v_row."title"), 'manual', true, auth.uid()
   );
-  update "better_supabase"."policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
+  update "better_supabase"."compliance_policies" x set "current_version_id" = (v_version ->> 'id')::uuid,
     "version_number" = (v_version ->> 'number')::integer, "published_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
@@ -5801,19 +5801,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."policies"%rowtype;
+  v_row "better_supabase"."compliance_policies"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."policies" x where x."id" = archive_compliance_policy.policy_id for update;
+  select * into v_row from "better_supabase"."compliance_policies" x where x."id" = archive_compliance_policy.policy_id for update;
   if not found then
     raise exception 'policy not found' using errcode = 'P0002', hint = 'COMPLIANCE_POLICY_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'compliance.manage'), false)) then
     raise exception 'not allowed to manage policies' using errcode = '42501', hint = 'COMPLIANCE_POLICY_FORBIDDEN';
   end if;
-  update "better_supabase"."policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
+  update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
   perform "better_supabase"."drop_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
@@ -5839,7 +5839,7 @@ begin
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'title', x."title", 'ownerId', x."owner_id", 'requiresAcknowledgement', x."requires_acknowledgement", 'versionId', x."current_version_id", 'versionNumber', x."version_number", 'publishedAt', x."published_at", 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = x."id"::text and ack."version_id" = x."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = x."org_id")) order by x."title"), '[]'::jsonb)
-    from "better_supabase"."policies" x
+    from "better_supabase"."compliance_policies" x
     where x."org_id" = list_compliance_policies.tenant
       and (coalesce(list_compliance_policies.include_archived, false) or x."archived_at" is null)
   );
@@ -5947,25 +5947,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."evidence_tas
 create policy bsb_tenant_scope_delete on "better_supabase"."evidence_tasks" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."policies";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."policies";
-create policy bsb_tenant_scope_select on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."compliance_policies";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_select on "better_supabase"."compliance_policies" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('compliance.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."policies";
-create policy bsb_tenant_scope_insert on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_insert on "better_supabase"."compliance_policies" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."policies";
-create policy bsb_tenant_scope_update on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_update on "better_supabase"."compliance_policies" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."policies";
-create policy bsb_tenant_scope_delete on "better_supabase"."policies" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."compliance_policies";
+create policy bsb_tenant_scope_delete on "better_supabase"."compliance_policies" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 
@@ -5985,7 +5985,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:9c44ced4c1d777800cd14ebf32d0ed3d61bd8a151f1db686028b7ab2d9b4a5b7
+-- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5998,6 +5998,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('compliance', 2, 'managed')
+values ('compliance', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

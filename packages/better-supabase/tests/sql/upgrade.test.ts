@@ -217,10 +217,10 @@ describe("NAMES.migrations", () => {
   });
 
   it("renders a step before the move against the table's old name", () => {
-    const [plan] = upgradePlan([
+    const plan = upgradePlan([
       { module: "compliance", version: 1 },
       { module: "acknowledgements", version: 1 },
-    ]).filter((each) => each.module === "compliance");
+    ]).find((each) => each.module === "compliance");
 
     const [acknowledgements, rename] = plan!.steps;
 

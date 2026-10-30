@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@2 managed
--- @bsb-hash sha256:239a2185106ed65040b40b5aaee74d8e5c3e48892a01309374b179b82ccec4c2
+-- @bsb-block tasks@3 managed
+-- @bsb-hash sha256:465356822f732ba8660a22f9941bf87ca81c7c99fe72e2458bc284fba9b1b7cf
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,27 +45,27 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -138,14 +138,14 @@ create policy iterations_read on "better_supabase"."iterations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_items" (
+create table if not exists "better_supabase"."tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
   "title" text not null check (length("title") between 1 and 500),
   "body" text,
-  "parent_id" uuid references "better_supabase"."work_items" ("id") on delete cascade,
+  "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
@@ -170,44 +170,44 @@ create table if not exists "better_supabase"."work_items" (
   unique ("tenant_id", "number"),
   check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
-create index if not exists work_items_board_idx on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
-create index if not exists work_items_parent_idx on "better_supabase"."work_items" ("parent_id");
-create index if not exists work_items_project_idx on "better_supabase"."work_items" ("project_id");
-create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
-create index if not exists work_items_due_idx on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
-alter table "better_supabase"."work_items" enable row level security;
-revoke all on "better_supabase"."work_items" from public, anon, authenticated;
-grant select on "better_supabase"."work_items" to authenticated;
-grant all on "better_supabase"."work_items" to service_role;
-drop policy if exists work_items_read on "better_supabase"."work_items";
-create policy work_items_read on "better_supabase"."work_items"
+create index if not exists "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
+create index if not exists "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
+create index if not exists "tasks_project_idx" on "better_supabase"."tasks" ("project_id");
+create index if not exists "tasks_iteration_idx" on "better_supabase"."tasks" ("iteration_id");
+create index if not exists "tasks_due_idx" on "better_supabase"."tasks" ("tenant_id", "due_at") where "closed_at" is null;
+alter table "better_supabase"."tasks" enable row level security;
+revoke all on "better_supabase"."tasks" from public, anon, authenticated;
+grant select on "better_supabase"."tasks" to authenticated;
+grant all on "better_supabase"."tasks" to service_role;
+drop policy if exists tasks_read on "better_supabase"."tasks";
+create policy tasks_read on "better_supabase"."tasks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_item_assignees" (
+create table if not exists "better_supabase"."task_assignees" (
   "tenant_id" uuid not null,
-  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
   "user_id" uuid not null,
   "created_at" timestamptz not null default now(),
   primary key ("work_item_id", "user_id")
 );
-create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
-alter table "better_supabase"."work_item_assignees" enable row level security;
-revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
-grant select on "better_supabase"."work_item_assignees" to authenticated;
-grant all on "better_supabase"."work_item_assignees" to service_role;
-drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
-create policy work_item_assignees_read on "better_supabase"."work_item_assignees"
+create index if not exists "task_assignees_user_idx" on "better_supabase"."task_assignees" ("user_id");
+alter table "better_supabase"."task_assignees" enable row level security;
+revoke all on "better_supabase"."task_assignees" from public, anon, authenticated;
+grant select on "better_supabase"."task_assignees" to authenticated;
+grant all on "better_supabase"."task_assignees" to service_role;
+drop policy if exists task_assignees_read on "better_supabase"."task_assignees";
+create policy task_assignees_read on "better_supabase"."task_assignees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
-create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
+alter table "better_supabase"."tasks" add column if not exists "recurs_from" uuid references "better_supabase"."tasks" ("id") on delete set null;
+create unique index if not exists "tasks_recurs_from_idx" on "better_supabase"."tasks" ("recurs_from");
 
-create table if not exists "better_supabase"."work_item_checklist_items" (
+create table if not exists "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
   "title" text not null check (length("title") between 1 and 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
@@ -216,13 +216,13 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
-alter table "better_supabase"."work_item_checklist_items" enable row level security;
-revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
-grant select on "better_supabase"."work_item_checklist_items" to authenticated;
-grant all on "better_supabase"."work_item_checklist_items" to service_role;
-drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
-create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items"
+create index if not exists "task_checklist_item_idx" on "better_supabase"."task_checklist_items" ("work_item_id", "rank");
+alter table "better_supabase"."task_checklist_items" enable row level security;
+revoke all on "better_supabase"."task_checklist_items" from public, anon, authenticated;
+grant select on "better_supabase"."task_checklist_items" to authenticated;
+grant all on "better_supabase"."task_checklist_items" to service_role;
+drop policy if exists task_checklist_items_read on "better_supabase"."task_checklist_items";
+create policy task_checklist_items_read on "better_supabase"."task_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -238,14 +238,14 @@ begin
       with recursive up(id, depth) as (
         select new."parent_id", 1
         union all
-        select x."parent_id", up.depth + 1 from "better_supabase"."work_items" x join up on x."id" = up.id
+        select x."parent_id", up.depth + 1 from "better_supabase"."tasks" x join up on x."id" = up.id
         where x."parent_id" is not null and up.depth < 100
       )
       select 1 from up where up.id = new."id"
     ) then
       raise exception 'an item can''t sit under itself' using errcode = '23514', hint = 'TASK_PARENT_CYCLE';
     end if;
-    if not exists (select 1 from "better_supabase"."work_items" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
+    if not exists (select 1 from "better_supabase"."tasks" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
       raise exception 'the parent is in another organization' using errcode = '22023', hint = 'TASK_PARENT_INVALID';
     end if;
   end if;
@@ -278,8 +278,8 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bsb_work_item_guard on "better_supabase"."work_items";
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."work_items"
+drop trigger if exists bsb_work_item_guard on "better_supabase"."tasks";
+create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
@@ -296,7 +296,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_id uuid;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_linked integer;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -317,10 +317,10 @@ begin
     end if;
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."work_items" x where x."tenant_id" = create_task.tenant;
+  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   begin
-    insert into "better_supabase"."work_items" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
+    insert into "better_supabase"."tasks" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by")
     values (create_task.tenant, v_seq, v_identifier, trim(create_task.attrs ->> 'title'), create_task.attrs ->> 'body',
       (create_task.attrs ->> 'parentId')::uuid, (create_task.attrs ->> 'teamId')::uuid, (create_task.attrs ->> 'projectId')::uuid,
@@ -335,7 +335,7 @@ begin
   if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
     perform "better_supabase"."set_task_assignees"(v_id, create_task.assignees);
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = v_id;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = v_id;
   if jsonb_array_length(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -348,7 +348,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."tasks" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
@@ -370,7 +370,7 @@ declare
   v_change jsonb;
   v_item uuid;
   v_field text;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_accepted jsonb := '[]';
   v_rejected jsonb := '[]';
   v_hint text;
@@ -388,7 +388,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'workItemId')::uuid;
-      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
       declare
@@ -401,43 +401,43 @@ begin
   end;
       case v_field
       when 'title' then
-        update "better_supabase"."work_items" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
       when 'body' then
-        update "better_supabase"."work_items" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'parentId' then
-        update "better_supabase"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'teamId' then
-        update "better_supabase"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'projectId' then
-        update "better_supabase"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'iterationId' then
-        update "better_supabase"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'priority' then
-        update "better_supabase"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'estimate' then
-        update "better_supabase"."work_items" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
+        update "better_supabase"."tasks" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
       when 'progress' then
-        update "better_supabase"."work_items" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'startAt' then
-        update "better_supabase"."work_items" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'endAt' then
-        update "better_supabase"."work_items" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'dueAt' then
-        update "better_supabase"."work_items" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'stageId' then
-        update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
-        update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
           raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
         end if;
-        update "better_supabase"."work_items" x set
+        update "better_supabase"."tasks" x set
           "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
           "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
         where x."id" = v_item;
       when 'attachments' then
-        select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
+        select * into v_row from "better_supabase"."tasks" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -462,7 +462,7 @@ begin
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
-  for v_row in select * from "better_supabase"."work_items" x where x."id" = any (v_touched) loop
+  for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
     null;
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
@@ -481,21 +481,21 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
   v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   v_added := array(select x from unnest(v_users) x where not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
-  delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
-  insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
+    select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  delete from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
+  insert into "better_supabase"."task_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
   if cardinality(v_added) > 0 then
@@ -514,12 +514,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."work_items" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
+  update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -542,12 +542,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."work_items" x
+  delete from "better_supabase"."tasks" x
   where x."id" = delete_task.work_item
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
@@ -572,9 +572,9 @@ security invoker
 set search_path = ''
 as $$
   with recursive tree as (
-    select x.*, 0 as depth from "better_supabase"."work_items" x where x."id" = task_tree.root
+    select x.*, 0 as depth from "better_supabase"."tasks" x where x."id" = task_tree.root
     union all
-    select y.*, tree.depth + 1 from "better_supabase"."work_items" y join tree on y."parent_id" = tree."id"
+    select y.*, tree.depth + 1 from "better_supabase"."tasks" y join tree on y."parent_id" = tree."id"
     where tree.depth < 100 and y."archived_at" is null
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -585,7 +585,7 @@ as $$
       select case when count(*) filter (where ch."state" <> 'canceled') = 0 then
           case tree."state" when 'completed' then 100 else 0 end
         else round(100.0 * count(*) filter (where ch."state" = 'completed') / count(*) filter (where ch."state" <> 'canceled'))::integer end
-      from "better_supabase"."work_items" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
+      from "better_supabase"."tasks" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
   ) order by tree.depth, tree."rank" collate "C", tree."id"), '[]'::jsonb)
   from tree
 $$;
@@ -605,18 +605,18 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
-    from "better_supabase"."work_items" x
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
+    from "better_supabase"."tasks" x
     where x."tenant_id" = list_tasks.tenant and x."archived_at" is null
       and (list_tasks.filter ->> 'teamId' is null or x."team_id" = (list_tasks.filter ->> 'teamId')::uuid)
       and (list_tasks.filter ->> 'projectId' is null or x."project_id" = (list_tasks.filter ->> 'projectId')::uuid)
       and (list_tasks.filter ->> 'iterationId' is null or x."iteration_id" = (list_tasks.filter ->> 'iterationId')::uuid)
       and (list_tasks.filter ->> 'parentId' is null or x."parent_id" = (list_tasks.filter ->> 'parentId')::uuid)
-      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
+      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
       and (list_tasks.filter -> 'states' is null or x."state" = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
       and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x."closed_at" is null)
       and (list_tasks.search is null or x."title" ilike '%' || list_tasks.search || '%' or x."identifier" ilike list_tasks.search || '%')
-      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."work_items" z where z."id" = list_tasks.after))
+      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."tasks" z where z."id" = list_tasks.after))
     order by x."number" desc
     limit least(greatest(coalesce(list_tasks.page_size, 50), 1), 200)
   ) p
@@ -633,7 +633,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_id uuid := save_task_checklist_item.checklist_item;
   v_last text;
   v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
@@ -641,14 +641,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   begin
     if v_id is null then
-      select max(y."rank") into v_last from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_row."id";
-      insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
+      select max(y."rank") into v_last from "better_supabase"."task_checklist_items" y where y."work_item_id" = v_row."id";
+      insert into "better_supabase"."task_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
       values (v_row."tenant_id", v_row."id", trim(save_task_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
         case when v_done then now() end, case when v_done then auth.uid() end,
         coalesce(save_task_checklist_item.attrs ->> 'rank', case
@@ -658,7 +658,7 @@ begin
   end), auth.uid())
       returning "id" into v_id;
     else
-      update "better_supabase"."work_item_checklist_items" y set
+      update "better_supabase"."task_checklist_items" y set
         "title" = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y."title"),
         "rank" = coalesce(save_task_checklist_item.attrs ->> 'rank', y."rank"),
         "done" = coalesce(v_done, y."done"),
@@ -673,7 +673,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."work_item_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -686,17 +686,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x.* into v_row from "better_supabase"."work_items" x join "better_supabase"."work_item_checklist_items" y on y."work_item_id" = x."id"
+  select x.* into v_row from "better_supabase"."tasks" x join "better_supabase"."task_checklist_items" y on y."work_item_id" = x."id"
   where y."id" = delete_task_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
-  delete from "better_supabase"."work_item_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
+  delete from "better_supabase"."task_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
   null;
   return true;
 end;
@@ -713,7 +713,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
+  from "better_supabase"."task_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
@@ -726,7 +726,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."work_items" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.work_item
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -789,7 +789,7 @@ begin
 
   return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      from "better_supabase"."tasks" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
 end;
 $$;
@@ -853,67 +853,67 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+create policy bsb_tenant_scope_select on "better_supabase"."tasks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+create policy bsb_tenant_scope_insert on "better_supabase"."tasks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+create policy bsb_tenant_scope_update on "better_supabase"."tasks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
+create policy bsb_tenant_scope_delete on "better_supabase"."tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_select on "better_supabase"."task_checklist_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_checklist_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_update on "better_supabase"."task_checklist_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_checklist_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_select on "better_supabase"."task_assignees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_assignees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_update on "better_supabase"."task_assignees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_assignees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."projects";
@@ -975,7 +975,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:947ec2fa7bc023cb0a394e0acfde413aa967d15975b8b77eadf6f6d6b2206c3e
+-- @bsb-hash sha256:247e11a38fd49c22fdba0bad25afc54938a41dd09a758aecef0a20c54bbe679d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -987,14 +987,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."pipeline_stage_history"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."pipeline_stage_history" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 2, 'managed')
+values ('tasks', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@2 managed
--- @bsb-hash sha256:7fde258f36c95d4d983fc718ce152463ef4f062b1cdaca89c8df6fb081ed099c
+-- @bsb-block tasks@3 managed
+-- @bsb-hash sha256:e6345650297689b28f918b67e96cb8ef043803e723f4175461531bffa9357206
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1038,27 +1038,27 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -1131,14 +1131,14 @@ create policy iterations_read on "better_supabase"."iterations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_items" (
+create table if not exists "better_supabase"."tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
   "title" text not null check (length("title") between 1 and 500),
   "body" text,
-  "parent_id" uuid references "better_supabase"."work_items" ("id") on delete cascade,
+  "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
@@ -1163,44 +1163,44 @@ create table if not exists "better_supabase"."work_items" (
   unique ("tenant_id", "number"),
   check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
-create index if not exists work_items_board_idx on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
-create index if not exists work_items_parent_idx on "better_supabase"."work_items" ("parent_id");
-create index if not exists work_items_project_idx on "better_supabase"."work_items" ("project_id");
-create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
-create index if not exists work_items_due_idx on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
-alter table "better_supabase"."work_items" enable row level security;
-revoke all on "better_supabase"."work_items" from public, anon, authenticated;
-grant select on "better_supabase"."work_items" to authenticated;
-grant all on "better_supabase"."work_items" to service_role;
-drop policy if exists work_items_read on "better_supabase"."work_items";
-create policy work_items_read on "better_supabase"."work_items"
+create index if not exists "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
+create index if not exists "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
+create index if not exists "tasks_project_idx" on "better_supabase"."tasks" ("project_id");
+create index if not exists "tasks_iteration_idx" on "better_supabase"."tasks" ("iteration_id");
+create index if not exists "tasks_due_idx" on "better_supabase"."tasks" ("tenant_id", "due_at") where "closed_at" is null;
+alter table "better_supabase"."tasks" enable row level security;
+revoke all on "better_supabase"."tasks" from public, anon, authenticated;
+grant select on "better_supabase"."tasks" to authenticated;
+grant all on "better_supabase"."tasks" to service_role;
+drop policy if exists tasks_read on "better_supabase"."tasks";
+create policy tasks_read on "better_supabase"."tasks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_item_assignees" (
+create table if not exists "better_supabase"."task_assignees" (
   "tenant_id" uuid not null,
-  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
   "user_id" uuid not null,
   "created_at" timestamptz not null default now(),
   primary key ("work_item_id", "user_id")
 );
-create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
-alter table "better_supabase"."work_item_assignees" enable row level security;
-revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
-grant select on "better_supabase"."work_item_assignees" to authenticated;
-grant all on "better_supabase"."work_item_assignees" to service_role;
-drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
-create policy work_item_assignees_read on "better_supabase"."work_item_assignees"
+create index if not exists "task_assignees_user_idx" on "better_supabase"."task_assignees" ("user_id");
+alter table "better_supabase"."task_assignees" enable row level security;
+revoke all on "better_supabase"."task_assignees" from public, anon, authenticated;
+grant select on "better_supabase"."task_assignees" to authenticated;
+grant all on "better_supabase"."task_assignees" to service_role;
+drop policy if exists task_assignees_read on "better_supabase"."task_assignees";
+create policy task_assignees_read on "better_supabase"."task_assignees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
-create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
+alter table "better_supabase"."tasks" add column if not exists "recurs_from" uuid references "better_supabase"."tasks" ("id") on delete set null;
+create unique index if not exists "tasks_recurs_from_idx" on "better_supabase"."tasks" ("recurs_from");
 
-create table if not exists "better_supabase"."work_item_checklist_items" (
+create table if not exists "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
   "title" text not null check (length("title") between 1 and 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
@@ -1209,13 +1209,13 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
-alter table "better_supabase"."work_item_checklist_items" enable row level security;
-revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
-grant select on "better_supabase"."work_item_checklist_items" to authenticated;
-grant all on "better_supabase"."work_item_checklist_items" to service_role;
-drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
-create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items"
+create index if not exists "task_checklist_item_idx" on "better_supabase"."task_checklist_items" ("work_item_id", "rank");
+alter table "better_supabase"."task_checklist_items" enable row level security;
+revoke all on "better_supabase"."task_checklist_items" from public, anon, authenticated;
+grant select on "better_supabase"."task_checklist_items" to authenticated;
+grant all on "better_supabase"."task_checklist_items" to service_role;
+drop policy if exists task_checklist_items_read on "better_supabase"."task_checklist_items";
+create policy task_checklist_items_read on "better_supabase"."task_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -1231,14 +1231,14 @@ begin
       with recursive up(id, depth) as (
         select new."parent_id", 1
         union all
-        select x."parent_id", up.depth + 1 from "better_supabase"."work_items" x join up on x."id" = up.id
+        select x."parent_id", up.depth + 1 from "better_supabase"."tasks" x join up on x."id" = up.id
         where x."parent_id" is not null and up.depth < 100
       )
       select 1 from up where up.id = new."id"
     ) then
       raise exception 'an item can''t sit under itself' using errcode = '23514', hint = 'TASK_PARENT_CYCLE';
     end if;
-    if not exists (select 1 from "better_supabase"."work_items" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
+    if not exists (select 1 from "better_supabase"."tasks" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
       raise exception 'the parent is in another organization' using errcode = '22023', hint = 'TASK_PARENT_INVALID';
     end if;
   end if;
@@ -1271,8 +1271,8 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bsb_work_item_guard on "better_supabase"."work_items";
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."work_items"
+drop trigger if exists bsb_work_item_guard on "better_supabase"."tasks";
+create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
@@ -1289,7 +1289,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_id uuid;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_linked integer;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1310,10 +1310,10 @@ begin
     end if;
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."work_items" x where x."tenant_id" = create_task.tenant;
+  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   begin
-    insert into "better_supabase"."work_items" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
+    insert into "better_supabase"."tasks" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by")
     values (create_task.tenant, v_seq, v_identifier, trim(create_task.attrs ->> 'title'), create_task.attrs ->> 'body',
       (create_task.attrs ->> 'parentId')::uuid, (create_task.attrs ->> 'teamId')::uuid, (create_task.attrs ->> 'projectId')::uuid,
@@ -1328,7 +1328,7 @@ begin
   if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
     perform "better_supabase"."set_task_assignees"(v_id, create_task.assignees);
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = v_id;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = v_id;
   if jsonb_typeof(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) <> 'array' then
       raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
     end if;
@@ -1352,7 +1352,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."tasks" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
@@ -1374,7 +1374,7 @@ declare
   v_change jsonb;
   v_item uuid;
   v_field text;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_accepted jsonb := '[]';
   v_rejected jsonb := '[]';
   v_hint text;
@@ -1392,7 +1392,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'workItemId')::uuid;
-      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
       declare
@@ -1405,43 +1405,43 @@ begin
   end;
       case v_field
       when 'title' then
-        update "better_supabase"."work_items" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
       when 'body' then
-        update "better_supabase"."work_items" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'parentId' then
-        update "better_supabase"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'teamId' then
-        update "better_supabase"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'projectId' then
-        update "better_supabase"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'iterationId' then
-        update "better_supabase"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'priority' then
-        update "better_supabase"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'estimate' then
-        update "better_supabase"."work_items" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
+        update "better_supabase"."tasks" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
       when 'progress' then
-        update "better_supabase"."work_items" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'startAt' then
-        update "better_supabase"."work_items" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'endAt' then
-        update "better_supabase"."work_items" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'dueAt' then
-        update "better_supabase"."work_items" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'stageId' then
-        update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
-        update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
           raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
         end if;
-        update "better_supabase"."work_items" x set
+        update "better_supabase"."tasks" x set
           "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
           "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
         where x."id" = v_item;
       when 'attachments' then
-        select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
+        select * into v_row from "better_supabase"."tasks" x where x."id" = v_item;
         if jsonb_typeof(coalesce((v_change -> 'value'), '[]'::jsonb)) <> 'array' then
       raise exception 'attachments must be a list of attachment ids' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
     end if;
@@ -1477,7 +1477,7 @@ begin
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
-  for v_row in select * from "better_supabase"."work_items" x where x."id" = any (v_touched) loop
+  for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
     perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'workItemId')::uuid = v_row."id")), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
@@ -1496,7 +1496,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
   v_added uuid[];
   v_new uuid[];
@@ -1506,16 +1506,16 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   v_new := array(select x from unnest(v_users) x where x is distinct from auth.uid() and not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+    select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
   v_added := array(select x from unnest(v_users) x where not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
-  delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
-  insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
+    select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  delete from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
+  insert into "better_supabase"."task_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
   foreach v_user in array v_users loop
@@ -1558,12 +1558,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."work_items" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
+  update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -1586,12 +1586,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."work_items" x
+  delete from "better_supabase"."tasks" x
   where x."id" = delete_task.work_item
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
@@ -1616,9 +1616,9 @@ security invoker
 set search_path = ''
 as $$
   with recursive tree as (
-    select x.*, 0 as depth from "better_supabase"."work_items" x where x."id" = task_tree.root
+    select x.*, 0 as depth from "better_supabase"."tasks" x where x."id" = task_tree.root
     union all
-    select y.*, tree.depth + 1 from "better_supabase"."work_items" y join tree on y."parent_id" = tree."id"
+    select y.*, tree.depth + 1 from "better_supabase"."tasks" y join tree on y."parent_id" = tree."id"
     where tree.depth < 100 and y."archived_at" is null
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -1629,7 +1629,7 @@ as $$
       select case when count(*) filter (where ch."state" <> 'canceled') = 0 then
           case tree."state" when 'completed' then 100 else 0 end
         else round(100.0 * count(*) filter (where ch."state" = 'completed') / count(*) filter (where ch."state" <> 'canceled'))::integer end
-      from "better_supabase"."work_items" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
+      from "better_supabase"."tasks" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
   ) order by tree.depth, tree."rank" collate "C", tree."id"), '[]'::jsonb)
   from tree
 $$;
@@ -1649,18 +1649,18 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) as value, x."number" as number
-    from "better_supabase"."work_items" x
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) as value, x."number" as number
+    from "better_supabase"."tasks" x
     where x."tenant_id" = list_tasks.tenant and x."archived_at" is null
       and (list_tasks.filter ->> 'teamId' is null or x."team_id" = (list_tasks.filter ->> 'teamId')::uuid)
       and (list_tasks.filter ->> 'projectId' is null or x."project_id" = (list_tasks.filter ->> 'projectId')::uuid)
       and (list_tasks.filter ->> 'iterationId' is null or x."iteration_id" = (list_tasks.filter ->> 'iterationId')::uuid)
       and (list_tasks.filter ->> 'parentId' is null or x."parent_id" = (list_tasks.filter ->> 'parentId')::uuid)
-      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
+      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
       and (list_tasks.filter -> 'states' is null or x."state" = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
       and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x."closed_at" is null)
       and (list_tasks.search is null or x."title" ilike '%' || list_tasks.search || '%' or x."identifier" ilike list_tasks.search || '%')
-      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."work_items" z where z."id" = list_tasks.after))
+      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."tasks" z where z."id" = list_tasks.after))
     order by x."number" desc
     limit least(greatest(coalesce(list_tasks.page_size, 50), 1), 200)
   ) p
@@ -1677,7 +1677,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_id uuid := save_task_checklist_item.checklist_item;
   v_last text;
   v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
@@ -1685,14 +1685,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   begin
     if v_id is null then
-      select max(y."rank") into v_last from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_row."id";
-      insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
+      select max(y."rank") into v_last from "better_supabase"."task_checklist_items" y where y."work_item_id" = v_row."id";
+      insert into "better_supabase"."task_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
       values (v_row."tenant_id", v_row."id", trim(save_task_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
         case when v_done then now() end, case when v_done then auth.uid() end,
         coalesce(save_task_checklist_item.attrs ->> 'rank', case
@@ -1702,7 +1702,7 @@ begin
   end), auth.uid())
       returning "id" into v_id;
     else
-      update "better_supabase"."work_item_checklist_items" y set
+      update "better_supabase"."task_checklist_items" y set
         "title" = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y."title"),
         "rank" = coalesce(save_task_checklist_item.attrs ->> 'rank', y."rank"),
         "done" = coalesce(v_done, y."done"),
@@ -1717,7 +1717,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."work_item_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -1730,17 +1730,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x.* into v_row from "better_supabase"."work_items" x join "better_supabase"."work_item_checklist_items" y on y."work_item_id" = x."id"
+  select x.* into v_row from "better_supabase"."tasks" x join "better_supabase"."task_checklist_items" y on y."work_item_id" = x."id"
   where y."id" = delete_task_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
-  delete from "better_supabase"."work_item_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
+  delete from "better_supabase"."task_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
   perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   return true;
 end;
@@ -1757,7 +1757,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
+  from "better_supabase"."task_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
@@ -1770,7 +1770,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."tasks" x where x."id" = get_task.work_item
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -1785,12 +1785,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_task_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -1809,7 +1809,7 @@ begin
     do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
   end if;
   perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) -> 'recurrence' from "better_supabase"."work_items" x where x."id" = v_row."id");
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) -> 'recurrence' from "better_supabase"."tasks" x where x."id" = v_row."id");
 end;
 $$;
 revoke execute on function "better_supabase"."set_task_recurrence"(uuid, text, text) from public, anon;
@@ -1825,18 +1825,18 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_src "better_supabase"."work_items";
+  v_src "better_supabase"."tasks";
   v_next jsonb;
   v_id uuid;
   v_shift interval;
 begin
-  select * into v_src from "better_supabase"."work_items" x where x."id" = repeat_task.work_item for update;
+  select * into v_src from "better_supabase"."tasks" x where x."id" = repeat_task.work_item for update;
   if v_src."id" is null then
     raise exception 'work item not found' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
-  select x."id" into v_id from "better_supabase"."work_items" x where x."recurs_from" = v_src."id";
+  select x."id" into v_id from "better_supabase"."tasks" x where x."recurs_from" = v_src."id";
   if v_id is not null then
-    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
+    return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."tasks" x where x."id" = v_id);
   end if;
   v_shift := coalesce(repeat_task.due_at - coalesce(v_src."due_at", v_src."end_at", v_src."start_at"), interval '0');
   v_next := "better_supabase"."create_task"(v_src."tenant_id", jsonb_strip_nulls(jsonb_build_object(
@@ -1844,14 +1844,14 @@ begin
     'projectId', v_src."project_id", 'priority', v_src."priority", 'estimate', v_src."estimate",
     'startAt', v_src."start_at" + v_shift, 'endAt', v_src."end_at" + v_shift, 'dueAt', repeat_task.due_at,
     'pipelineId', v_src."pipeline_id")),
-    array(select y."user_id" from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_src."id"));
+    array(select y."user_id" from "better_supabase"."task_assignees" y where y."work_item_id" = v_src."id"));
   v_id := (v_next ->> 'id')::uuid;
-  update "better_supabase"."work_items" x set "recurs_from" = v_src."id" where x."id" = v_id;
-  insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "rank", "created_by")
-  select y."tenant_id", v_id, y."title", y."rank", y."created_by" from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_src."id";
+  update "better_supabase"."tasks" x set "recurs_from" = v_src."id" where x."id" = v_id;
+  insert into "better_supabase"."task_checklist_items" ("tenant_id", "work_item_id", "title", "rank", "created_by")
+  select y."tenant_id", v_id, y."title", y."rank", y."created_by" from "better_supabase"."task_checklist_items" y where y."work_item_id" = v_src."id";
   update "better_supabase"."recurrence_rules" rr set "subject_id" = v_id::text
   where rr."tenant_id" = v_src."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = v_src."id"::text;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."tasks" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."repeat_task"(uuid, timestamptz) from public, anon, authenticated;
@@ -1866,9 +1866,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
-  select * into v_row from "better_supabase"."work_items" x where x."id" = watch_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = watch_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can read' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -1888,7 +1888,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('userId', s."user_id", 'level', s."level") order by s."level", s."user_id"), '[]'::jsonb)
-  from "better_supabase"."work_items" x
+  from "better_supabase"."tasks" x
   join "better_supabase"."notification_subscriptions" s on s."subject_type" = 'task' and s."subject_id" = x."id"::text
     and s."organization_id" = x."tenant_id"
   where x."id" = list_task_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)) and s."level" in ('all', 'participating')
@@ -1956,7 +1956,7 @@ begin
   from "better_supabase"."projects" x where x."id" = v_id;
   return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      from "better_supabase"."tasks" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
 end;
 $$;
@@ -2020,67 +2020,67 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+create policy bsb_tenant_scope_select on "better_supabase"."tasks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+create policy bsb_tenant_scope_insert on "better_supabase"."tasks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+create policy bsb_tenant_scope_update on "better_supabase"."tasks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
+create policy bsb_tenant_scope_delete on "better_supabase"."tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_select on "better_supabase"."task_checklist_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_checklist_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_update on "better_supabase"."task_checklist_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_checklist_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_select on "better_supabase"."task_assignees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_assignees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_update on "better_supabase"."task_assignees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_assignees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."projects";
@@ -2142,7 +2142,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:93121538367359a5086c14767658f25f8505f25caff4ab24647283a81bd8074f
+-- @bsb-hash sha256:5f624da44fab1cdae70487422bfc195d73cd23691b1749db8a551bd2c9c529e4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2196,15 +2196,15 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."sla_clocks"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."sla_clocks" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."subject_collections"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."subject_collections" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."subject_collection_entries"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."subject_collection_entries" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."favorites"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."favorites" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."collection_favorites"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."collection_favorites" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."saved_items"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."saved_items" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."moderation_items"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."moderation_items" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."reviews"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."reviews" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."review_stats"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."review_stats" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."rules"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."rules" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."rule_defaults"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."rule_defaults" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."rule_evaluations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."rule_evaluations" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."rule_fields"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."rule_fields" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."automations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."automations" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."automation_defaults"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."automation_defaults" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."automation_evaluations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."automation_evaluations" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."automation_fields"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."automation_fields" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."score_models"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."score_models" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."scores"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."scores" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."passes"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."passes" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
@@ -2213,7 +2213,7 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."conversations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."conversations" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."message_record_mentions"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."message_record_mentions" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."channels"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."channels" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."activity_entries"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."activity_entries" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."timeline_entries"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."timeline_entries" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."mail_thread_subjects"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."mail_thread_subjects" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."segments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."segments" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."assignment_queues"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."assignment_queues" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
@@ -2230,14 +2230,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 2, 'managed')
+values ('tasks', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@2 managed
--- @bsb-hash sha256:e1ae34dd737090694454effe560d1470fa31dc974a9047c518fa04a14a57debd
+-- @bsb-block tasks@3 managed
+-- @bsb-hash sha256:367f21477afc74be57b36a5ba1aa0770d9d4c902ae57b700da6aa1ce90da8f53
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2281,27 +2281,27 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "app_private"."work_items";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."work_items";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."work_items";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."work_items";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."work_items";
+    drop policy if exists bsb_tenant_scope on "app_private"."tasks";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."tasks";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."tasks";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."tasks";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."tasks";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "app_private"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."work_item_checklist_items";
+    drop policy if exists bsb_tenant_scope on "app_private"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."task_checklist_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "app_private"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_select on "app_private"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_insert on "app_private"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_update on "app_private"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_delete on "app_private"."work_item_assignees";
+    drop policy if exists bsb_tenant_scope on "app_private"."task_assignees";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."task_assignees";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."task_assignees";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."task_assignees";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."task_assignees";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -2379,14 +2379,14 @@ create policy iterations_read on "app_private"."iterations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "app_private"."work_items" (
+create table if not exists "app_private"."tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
   "title" text not null check (length("title") between 1 and 500),
   "body" text,
-  "parent_id" uuid references "app_private"."work_items" ("id") on delete cascade,
+  "parent_id" uuid references "app_private"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "app_private"."projects" ("id") on delete set null,
   "iteration_id" uuid references "app_private"."iterations" ("id") on delete set null,
@@ -2411,44 +2411,44 @@ create table if not exists "app_private"."work_items" (
   unique ("tenant_id", "number"),
   check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
-create index if not exists work_items_board_idx on "app_private"."work_items" ("pipeline_id", "stage_id", "rank");
-create index if not exists work_items_parent_idx on "app_private"."work_items" ("parent_id");
-create index if not exists work_items_project_idx on "app_private"."work_items" ("project_id");
-create index if not exists work_items_iteration_idx on "app_private"."work_items" ("iteration_id");
-create index if not exists work_items_due_idx on "app_private"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
-alter table "app_private"."work_items" enable row level security;
-revoke all on "app_private"."work_items" from public, anon, authenticated;
-grant select on "app_private"."work_items" to authenticated;
-grant all on "app_private"."work_items" to service_role;
-drop policy if exists work_items_read on "app_private"."work_items";
-create policy work_items_read on "app_private"."work_items"
+create index if not exists "tasks_board_idx" on "app_private"."tasks" ("pipeline_id", "stage_id", "rank");
+create index if not exists "tasks_parent_idx" on "app_private"."tasks" ("parent_id");
+create index if not exists "tasks_project_idx" on "app_private"."tasks" ("project_id");
+create index if not exists "tasks_iteration_idx" on "app_private"."tasks" ("iteration_id");
+create index if not exists "tasks_due_idx" on "app_private"."tasks" ("tenant_id", "due_at") where "closed_at" is null;
+alter table "app_private"."tasks" enable row level security;
+revoke all on "app_private"."tasks" from public, anon, authenticated;
+grant select on "app_private"."tasks" to authenticated;
+grant all on "app_private"."tasks" to service_role;
+drop policy if exists tasks_read on "app_private"."tasks";
+create policy tasks_read on "app_private"."tasks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "app_private"."work_item_assignees" (
+create table if not exists "app_private"."task_assignees" (
   "tenant_id" uuid not null,
-  "work_item_id" uuid not null references "app_private"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "app_private"."tasks" ("id") on delete cascade,
   "user_id" uuid not null,
   "created_at" timestamptz not null default now(),
   primary key ("work_item_id", "user_id")
 );
-create index if not exists work_item_assignees_user_idx on "app_private"."work_item_assignees" ("user_id");
-alter table "app_private"."work_item_assignees" enable row level security;
-revoke all on "app_private"."work_item_assignees" from public, anon, authenticated;
-grant select on "app_private"."work_item_assignees" to authenticated;
-grant all on "app_private"."work_item_assignees" to service_role;
-drop policy if exists work_item_assignees_read on "app_private"."work_item_assignees";
-create policy work_item_assignees_read on "app_private"."work_item_assignees"
+create index if not exists "task_assignees_user_idx" on "app_private"."task_assignees" ("user_id");
+alter table "app_private"."task_assignees" enable row level security;
+revoke all on "app_private"."task_assignees" from public, anon, authenticated;
+grant select on "app_private"."task_assignees" to authenticated;
+grant all on "app_private"."task_assignees" to service_role;
+drop policy if exists task_assignees_read on "app_private"."task_assignees";
+create policy task_assignees_read on "app_private"."task_assignees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-alter table "app_private"."work_items" add column if not exists "recurs_from" uuid references "app_private"."work_items" ("id") on delete set null;
-create unique index if not exists work_items_recurs_from_idx on "app_private"."work_items" ("recurs_from");
+alter table "app_private"."tasks" add column if not exists "recurs_from" uuid references "app_private"."tasks" ("id") on delete set null;
+create unique index if not exists "tasks_recurs_from_idx" on "app_private"."tasks" ("recurs_from");
 
-create table if not exists "app_private"."work_item_checklist_items" (
+create table if not exists "app_private"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "work_item_id" uuid not null references "app_private"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "app_private"."tasks" ("id") on delete cascade,
   "title" text not null check (length("title") between 1 and 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
@@ -2457,13 +2457,13 @@ create table if not exists "app_private"."work_item_checklist_items" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists work_item_checklist_item_idx on "app_private"."work_item_checklist_items" ("work_item_id", "rank");
-alter table "app_private"."work_item_checklist_items" enable row level security;
-revoke all on "app_private"."work_item_checklist_items" from public, anon, authenticated;
-grant select on "app_private"."work_item_checklist_items" to authenticated;
-grant all on "app_private"."work_item_checklist_items" to service_role;
-drop policy if exists work_item_checklist_items_read on "app_private"."work_item_checklist_items";
-create policy work_item_checklist_items_read on "app_private"."work_item_checklist_items"
+create index if not exists "task_checklist_item_idx" on "app_private"."task_checklist_items" ("work_item_id", "rank");
+alter table "app_private"."task_checklist_items" enable row level security;
+revoke all on "app_private"."task_checklist_items" from public, anon, authenticated;
+grant select on "app_private"."task_checklist_items" to authenticated;
+grant all on "app_private"."task_checklist_items" to service_role;
+drop policy if exists task_checklist_items_read on "app_private"."task_checklist_items";
+create policy task_checklist_items_read on "app_private"."task_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -2479,14 +2479,14 @@ begin
       with recursive up(id, depth) as (
         select new."parent_id", 1
         union all
-        select x."parent_id", up.depth + 1 from "app_private"."work_items" x join up on x."id" = up.id
+        select x."parent_id", up.depth + 1 from "app_private"."tasks" x join up on x."id" = up.id
         where x."parent_id" is not null and up.depth < 100
       )
       select 1 from up where up.id = new."id"
     ) then
       raise exception 'an item can''t sit under itself' using errcode = '23514', hint = 'TASK_PARENT_CYCLE';
     end if;
-    if not exists (select 1 from "app_private"."work_items" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
+    if not exists (select 1 from "app_private"."tasks" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
       raise exception 'the parent is in another organization' using errcode = '22023', hint = 'TASK_PARENT_INVALID';
     end if;
   end if;
@@ -2519,8 +2519,8 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bsb_work_item_guard on "app_private"."work_items";
-create trigger bsb_work_item_guard before insert or update on "app_private"."work_items"
+drop trigger if exists bsb_work_item_guard on "app_private"."tasks";
+create trigger bsb_work_item_guard before insert or update on "app_private"."tasks"
 for each row execute function better_supabase.bsb_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
@@ -2537,7 +2537,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_id uuid;
-  v_row "app_private"."work_items";
+  v_row "app_private"."tasks";
   v_linked integer;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -2558,10 +2558,10 @@ begin
     end if;
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from "app_private"."work_items" x where x."tenant_id" = create_task.tenant;
+  select coalesce(max(x."number"), 0) + 1 into v_seq from "app_private"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   begin
-    insert into "app_private"."work_items" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
+    insert into "app_private"."tasks" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by")
     values (create_task.tenant, v_seq, v_identifier, trim(create_task.attrs ->> 'title'), create_task.attrs ->> 'body',
       (create_task.attrs ->> 'parentId')::uuid, (create_task.attrs ->> 'teamId')::uuid, (create_task.attrs ->> 'projectId')::uuid,
@@ -2576,7 +2576,7 @@ begin
   if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
     perform "app_private"."set_task_assignees"(v_id, create_task.assignees);
   end if;
-  select * into v_row from "app_private"."work_items" x where x."id" = v_id;
+  select * into v_row from "app_private"."tasks" x where x."id" = v_id;
   if jsonb_array_length(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -2589,7 +2589,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "app_private"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "app_private"."tasks" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "app_private"."create_task"(uuid, jsonb, uuid[]) from public, anon;
@@ -2611,7 +2611,7 @@ declare
   v_change jsonb;
   v_item uuid;
   v_field text;
-  v_row "app_private"."work_items";
+  v_row "app_private"."tasks";
   v_accepted jsonb := '[]';
   v_rejected jsonb := '[]';
   v_hint text;
@@ -2629,7 +2629,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'workItemId')::uuid;
-      if not exists (select 1 from "app_private"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "app_private"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
       declare
@@ -2642,43 +2642,43 @@ begin
   end;
       case v_field
       when 'title' then
-        update "app_private"."work_items" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
+        update "app_private"."tasks" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
       when 'body' then
-        update "app_private"."work_items" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "app_private"."tasks" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'parentId' then
-        update "app_private"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "app_private"."tasks" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'teamId' then
-        update "app_private"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "app_private"."tasks" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'projectId' then
-        update "app_private"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "app_private"."tasks" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'iterationId' then
-        update "app_private"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "app_private"."tasks" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'priority' then
-        update "app_private"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "app_private"."tasks" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'estimate' then
-        update "app_private"."work_items" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
+        update "app_private"."tasks" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
       when 'progress' then
-        update "app_private"."work_items" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "app_private"."tasks" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'startAt' then
-        update "app_private"."work_items" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "app_private"."tasks" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'endAt' then
-        update "app_private"."work_items" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "app_private"."tasks" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'dueAt' then
-        update "app_private"."work_items" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "app_private"."tasks" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'stageId' then
-        update "app_private"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "app_private"."tasks" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
-        update "app_private"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "app_private"."tasks" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
           raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
         end if;
-        update "app_private"."work_items" x set
+        update "app_private"."tasks" x set
           "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
           "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
         where x."id" = v_item;
       when 'attachments' then
-        select * into v_row from "app_private"."work_items" x where x."id" = v_item;
+        select * into v_row from "app_private"."tasks" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -2703,7 +2703,7 @@ begin
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
-  for v_row in select * from "app_private"."work_items" x where x."id" = any (v_touched) loop
+  for v_row in select * from "app_private"."tasks" x where x."id" = any (v_touched) loop
     null;
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
@@ -2722,21 +2722,21 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."work_items";
+  v_row "app_private"."tasks";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
   v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."work_items" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "app_private"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   v_added := array(select x from unnest(v_users) x where not exists (
-    select 1 from "app_private"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
-  delete from "app_private"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
-  insert into "app_private"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
+    select 1 from "app_private"."task_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  delete from "app_private"."task_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
+  insert into "app_private"."task_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
   if cardinality(v_added) > 0 then
@@ -2755,12 +2755,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."work_items";
+  v_row "app_private"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "app_private"."work_items" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
+  update "app_private"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -2783,12 +2783,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."work_items";
+  v_row "app_private"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "app_private"."work_items" x
+  delete from "app_private"."tasks" x
   where x."id" = delete_task.work_item
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
@@ -2813,9 +2813,9 @@ security invoker
 set search_path = ''
 as $$
   with recursive tree as (
-    select x.*, 0 as depth from "app_private"."work_items" x where x."id" = task_tree.root
+    select x.*, 0 as depth from "app_private"."tasks" x where x."id" = task_tree.root
     union all
-    select y.*, tree.depth + 1 from "app_private"."work_items" y join tree on y."parent_id" = tree."id"
+    select y.*, tree.depth + 1 from "app_private"."tasks" y join tree on y."parent_id" = tree."id"
     where tree.depth < 100 and y."archived_at" is null
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -2826,7 +2826,7 @@ as $$
       select case when count(*) filter (where ch."state" <> 'canceled') = 0 then
           case tree."state" when 'completed' then 100 else 0 end
         else round(100.0 * count(*) filter (where ch."state" = 'completed') / count(*) filter (where ch."state" <> 'canceled'))::integer end
-      from "app_private"."work_items" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
+      from "app_private"."tasks" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
   ) order by tree.depth, tree."rank" collate "C", tree."id"), '[]'::jsonb)
   from tree
 $$;
@@ -2846,18 +2846,18 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
-    from "app_private"."work_items" x
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."task_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
+    from "app_private"."tasks" x
     where x."tenant_id" = list_tasks.tenant and x."archived_at" is null
       and (list_tasks.filter ->> 'teamId' is null or x."team_id" = (list_tasks.filter ->> 'teamId')::uuid)
       and (list_tasks.filter ->> 'projectId' is null or x."project_id" = (list_tasks.filter ->> 'projectId')::uuid)
       and (list_tasks.filter ->> 'iterationId' is null or x."iteration_id" = (list_tasks.filter ->> 'iterationId')::uuid)
       and (list_tasks.filter ->> 'parentId' is null or x."parent_id" = (list_tasks.filter ->> 'parentId')::uuid)
-      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "app_private"."work_item_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
+      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "app_private"."task_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
       and (list_tasks.filter -> 'states' is null or x."state" = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
       and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x."closed_at" is null)
       and (list_tasks.search is null or x."title" ilike '%' || list_tasks.search || '%' or x."identifier" ilike list_tasks.search || '%')
-      and (list_tasks.after is null or x."number" < (select z."number" from "app_private"."work_items" z where z."id" = list_tasks.after))
+      and (list_tasks.after is null or x."number" < (select z."number" from "app_private"."tasks" z where z."id" = list_tasks.after))
     order by x."number" desc
     limit least(greatest(coalesce(list_tasks.page_size, 50), 1), 200)
   ) p
@@ -2874,7 +2874,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."work_items";
+  v_row "app_private"."tasks";
   v_id uuid := save_task_checklist_item.checklist_item;
   v_last text;
   v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
@@ -2882,14 +2882,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."work_items" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "app_private"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   begin
     if v_id is null then
-      select max(y."rank") into v_last from "app_private"."work_item_checklist_items" y where y."work_item_id" = v_row."id";
-      insert into "app_private"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
+      select max(y."rank") into v_last from "app_private"."task_checklist_items" y where y."work_item_id" = v_row."id";
+      insert into "app_private"."task_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
       values (v_row."tenant_id", v_row."id", trim(save_task_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
         case when v_done then now() end, case when v_done then auth.uid() end,
         coalesce(save_task_checklist_item.attrs ->> 'rank', case
@@ -2899,7 +2899,7 @@ begin
   end), auth.uid())
       returning "id" into v_id;
     else
-      update "app_private"."work_item_checklist_items" y set
+      update "app_private"."task_checklist_items" y set
         "title" = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y."title"),
         "rank" = coalesce(save_task_checklist_item.attrs ->> 'rank', y."rank"),
         "done" = coalesce(v_done, y."done"),
@@ -2914,7 +2914,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "app_private"."work_item_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "app_private"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "app_private"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -2927,17 +2927,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "app_private"."work_items";
+  v_row "app_private"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x.* into v_row from "app_private"."work_items" x join "app_private"."work_item_checklist_items" y on y."work_item_id" = x."id"
+  select x.* into v_row from "app_private"."tasks" x join "app_private"."task_checklist_items" y on y."work_item_id" = x."id"
   where y."id" = delete_task_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
-  delete from "app_private"."work_item_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
+  delete from "app_private"."task_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
   null;
   return true;
 end;
@@ -2954,7 +2954,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "app_private"."work_item_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
+  from "app_private"."task_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
 $$;
 revoke execute on function "app_private"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "app_private"."list_task_checklist"(uuid) to authenticated, service_role;
@@ -2967,7 +2967,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "app_private"."work_items" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "app_private"."tasks" x where x."id" = get_task.work_item
 $$;
 revoke execute on function "app_private"."get_task"(uuid) from public, anon;
 grant execute on function "app_private"."get_task"(uuid) to authenticated, service_role;
@@ -3030,7 +3030,7 @@ begin
 
   return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "app_private"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      from "app_private"."tasks" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "app_private"."projects" x where x."id" = v_id);
 end;
 $$;
@@ -3094,67 +3094,67 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "app_private"."work_items";
-drop policy if exists bsb_tenant_scope_select on "app_private"."work_items";
-create policy bsb_tenant_scope_select on "app_private"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope on "app_private"."tasks";
+drop policy if exists bsb_tenant_scope_select on "app_private"."tasks";
+create policy bsb_tenant_scope_select on "app_private"."tasks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."work_items";
-create policy bsb_tenant_scope_insert on "app_private"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "app_private"."tasks";
+create policy bsb_tenant_scope_insert on "app_private"."tasks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."work_items";
-create policy bsb_tenant_scope_update on "app_private"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "app_private"."tasks";
+create policy bsb_tenant_scope_update on "app_private"."tasks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."work_items";
-create policy bsb_tenant_scope_delete on "app_private"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "app_private"."tasks";
+create policy bsb_tenant_scope_delete on "app_private"."tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."work_item_checklist_items";
-drop policy if exists bsb_tenant_scope_select on "app_private"."work_item_checklist_items";
-create policy bsb_tenant_scope_select on "app_private"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope on "app_private"."task_checklist_items";
+drop policy if exists bsb_tenant_scope_select on "app_private"."task_checklist_items";
+create policy bsb_tenant_scope_select on "app_private"."task_checklist_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."work_item_checklist_items";
-create policy bsb_tenant_scope_insert on "app_private"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "app_private"."task_checklist_items";
+create policy bsb_tenant_scope_insert on "app_private"."task_checklist_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."work_item_checklist_items";
-create policy bsb_tenant_scope_update on "app_private"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "app_private"."task_checklist_items";
+create policy bsb_tenant_scope_update on "app_private"."task_checklist_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."work_item_checklist_items";
-create policy bsb_tenant_scope_delete on "app_private"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "app_private"."task_checklist_items";
+create policy bsb_tenant_scope_delete on "app_private"."task_checklist_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "app_private"."work_item_assignees";
-drop policy if exists bsb_tenant_scope_select on "app_private"."work_item_assignees";
-create policy bsb_tenant_scope_select on "app_private"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope on "app_private"."task_assignees";
+drop policy if exists bsb_tenant_scope_select on "app_private"."task_assignees";
+create policy bsb_tenant_scope_select on "app_private"."task_assignees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "app_private"."work_item_assignees";
-create policy bsb_tenant_scope_insert on "app_private"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "app_private"."task_assignees";
+create policy bsb_tenant_scope_insert on "app_private"."task_assignees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "app_private"."work_item_assignees";
-create policy bsb_tenant_scope_update on "app_private"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_update on "app_private"."task_assignees";
+create policy bsb_tenant_scope_update on "app_private"."task_assignees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "app_private"."work_item_assignees";
-create policy bsb_tenant_scope_delete on "app_private"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "app_private"."task_assignees";
+create policy bsb_tenant_scope_delete on "app_private"."task_assignees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "app_private"."projects";
@@ -3216,7 +3216,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:947ec2fa7bc023cb0a394e0acfde413aa967d15975b8b77eadf6f6d6b2206c3e
+-- @bsb-hash sha256:247e11a38fd49c22fdba0bad25afc54938a41dd09a758aecef0a20c54bbe679d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3228,14 +3228,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."pipeline_stage_history"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."pipeline_stage_history" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 2, 'managed')
+values ('tasks', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@2 managed
--- @bsb-hash sha256:9e30b8c438ebacc243ff37cca480ce05678ecfee3d8592487e84c0a91f470a0a
+-- @bsb-block tasks@3 managed
+-- @bsb-hash sha256:88c4353bd5134fc5bdf9fed650eeb02731d6886b16b5cc9fb44ba081eb8f1e81
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3279,27 +3279,27 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -3372,14 +3372,14 @@ create policy iterations_read on "better_supabase"."iterations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_items" (
+create table if not exists "better_supabase"."tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
   "title" text not null check (length("title") between 1 and 500),
   "body" text,
-  "parent_id" uuid references "better_supabase"."work_items" ("id") on delete cascade,
+  "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
@@ -3404,44 +3404,44 @@ create table if not exists "better_supabase"."work_items" (
   unique ("tenant_id", "number"),
   check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
-create index if not exists work_items_board_idx on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
-create index if not exists work_items_parent_idx on "better_supabase"."work_items" ("parent_id");
-create index if not exists work_items_project_idx on "better_supabase"."work_items" ("project_id");
-create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
-create index if not exists work_items_due_idx on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
-alter table "better_supabase"."work_items" enable row level security;
-revoke all on "better_supabase"."work_items" from public, anon, authenticated;
-grant select on "better_supabase"."work_items" to authenticated;
-grant all on "better_supabase"."work_items" to service_role;
-drop policy if exists work_items_read on "better_supabase"."work_items";
-create policy work_items_read on "better_supabase"."work_items"
+create index if not exists "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
+create index if not exists "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
+create index if not exists "tasks_project_idx" on "better_supabase"."tasks" ("project_id");
+create index if not exists "tasks_iteration_idx" on "better_supabase"."tasks" ("iteration_id");
+create index if not exists "tasks_due_idx" on "better_supabase"."tasks" ("tenant_id", "due_at") where "closed_at" is null;
+alter table "better_supabase"."tasks" enable row level security;
+revoke all on "better_supabase"."tasks" from public, anon, authenticated;
+grant select on "better_supabase"."tasks" to authenticated;
+grant all on "better_supabase"."tasks" to service_role;
+drop policy if exists tasks_read on "better_supabase"."tasks";
+create policy tasks_read on "better_supabase"."tasks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_item_assignees" (
+create table if not exists "better_supabase"."task_assignees" (
   "tenant_id" uuid not null,
-  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
   "user_id" uuid not null,
   "created_at" timestamptz not null default now(),
   primary key ("work_item_id", "user_id")
 );
-create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
-alter table "better_supabase"."work_item_assignees" enable row level security;
-revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
-grant select on "better_supabase"."work_item_assignees" to authenticated;
-grant all on "better_supabase"."work_item_assignees" to service_role;
-drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
-create policy work_item_assignees_read on "better_supabase"."work_item_assignees"
+create index if not exists "task_assignees_user_idx" on "better_supabase"."task_assignees" ("user_id");
+alter table "better_supabase"."task_assignees" enable row level security;
+revoke all on "better_supabase"."task_assignees" from public, anon, authenticated;
+grant select on "better_supabase"."task_assignees" to authenticated;
+grant all on "better_supabase"."task_assignees" to service_role;
+drop policy if exists task_assignees_read on "better_supabase"."task_assignees";
+create policy task_assignees_read on "better_supabase"."task_assignees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
-create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
+alter table "better_supabase"."tasks" add column if not exists "recurs_from" uuid references "better_supabase"."tasks" ("id") on delete set null;
+create unique index if not exists "tasks_recurs_from_idx" on "better_supabase"."tasks" ("recurs_from");
 
-create table if not exists "better_supabase"."work_item_checklist_items" (
+create table if not exists "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
   "title" text not null check (length("title") between 1 and 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
@@ -3450,13 +3450,13 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
-alter table "better_supabase"."work_item_checklist_items" enable row level security;
-revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
-grant select on "better_supabase"."work_item_checklist_items" to authenticated;
-grant all on "better_supabase"."work_item_checklist_items" to service_role;
-drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
-create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items"
+create index if not exists "task_checklist_item_idx" on "better_supabase"."task_checklist_items" ("work_item_id", "rank");
+alter table "better_supabase"."task_checklist_items" enable row level security;
+revoke all on "better_supabase"."task_checklist_items" from public, anon, authenticated;
+grant select on "better_supabase"."task_checklist_items" to authenticated;
+grant all on "better_supabase"."task_checklist_items" to service_role;
+drop policy if exists task_checklist_items_read on "better_supabase"."task_checklist_items";
+create policy task_checklist_items_read on "better_supabase"."task_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -3472,14 +3472,14 @@ begin
       with recursive up(id, depth) as (
         select new."parent_id", 1
         union all
-        select x."parent_id", up.depth + 1 from "better_supabase"."work_items" x join up on x."id" = up.id
+        select x."parent_id", up.depth + 1 from "better_supabase"."tasks" x join up on x."id" = up.id
         where x."parent_id" is not null and up.depth < 100
       )
       select 1 from up where up.id = new."id"
     ) then
       raise exception 'an item can''t sit under itself' using errcode = '23514', hint = 'TASK_PARENT_CYCLE';
     end if;
-    if not exists (select 1 from "better_supabase"."work_items" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
+    if not exists (select 1 from "better_supabase"."tasks" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
       raise exception 'the parent is in another organization' using errcode = '22023', hint = 'TASK_PARENT_INVALID';
     end if;
   end if;
@@ -3512,8 +3512,8 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bsb_work_item_guard on "better_supabase"."work_items";
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."work_items"
+drop trigger if exists bsb_work_item_guard on "better_supabase"."tasks";
+create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
@@ -3530,7 +3530,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_id uuid;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_linked integer;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3551,10 +3551,10 @@ begin
     end if;
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."work_items" x where x."tenant_id" = create_task.tenant;
+  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   begin
-    insert into "better_supabase"."work_items" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
+    insert into "better_supabase"."tasks" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by")
     values (create_task.tenant, v_seq, v_identifier, trim(create_task.attrs ->> 'title'), create_task.attrs ->> 'body',
       (create_task.attrs ->> 'parentId')::uuid, (create_task.attrs ->> 'teamId')::uuid, (create_task.attrs ->> 'projectId')::uuid,
@@ -3569,7 +3569,7 @@ begin
   if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
     perform "better_supabase"."set_task_assignees"(v_id, create_task.assignees);
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = v_id;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = v_id;
   if jsonb_array_length(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -3582,7 +3582,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."tasks" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
@@ -3604,7 +3604,7 @@ declare
   v_change jsonb;
   v_item uuid;
   v_field text;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_accepted jsonb := '[]';
   v_rejected jsonb := '[]';
   v_hint text;
@@ -3622,7 +3622,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'workItemId')::uuid;
-      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
       declare
@@ -3635,43 +3635,43 @@ begin
   end;
       case v_field
       when 'title' then
-        update "better_supabase"."work_items" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
       when 'body' then
-        update "better_supabase"."work_items" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'parentId' then
-        update "better_supabase"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'teamId' then
-        update "better_supabase"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'projectId' then
-        update "better_supabase"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'iterationId' then
-        update "better_supabase"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'priority' then
-        update "better_supabase"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'estimate' then
-        update "better_supabase"."work_items" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
+        update "better_supabase"."tasks" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
       when 'progress' then
-        update "better_supabase"."work_items" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'startAt' then
-        update "better_supabase"."work_items" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'endAt' then
-        update "better_supabase"."work_items" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'dueAt' then
-        update "better_supabase"."work_items" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'stageId' then
-        update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
-        update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
           raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
         end if;
-        update "better_supabase"."work_items" x set
+        update "better_supabase"."tasks" x set
           "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
           "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
         where x."id" = v_item;
       when 'attachments' then
-        select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
+        select * into v_row from "better_supabase"."tasks" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -3696,7 +3696,7 @@ begin
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
-  for v_row in select * from "better_supabase"."work_items" x where x."id" = any (v_touched) loop
+  for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
     null;
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
@@ -3715,21 +3715,21 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
   v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   v_added := array(select x from unnest(v_users) x where not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
-  delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
-  insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
+    select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  delete from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
+  insert into "better_supabase"."task_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
   if cardinality(v_added) > 0 then
@@ -3748,12 +3748,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."work_items" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
+  update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -3776,12 +3776,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."work_items" x
+  delete from "better_supabase"."tasks" x
   where x."id" = delete_task.work_item
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
@@ -3806,9 +3806,9 @@ security invoker
 set search_path = ''
 as $$
   with recursive tree as (
-    select x.*, 0 as depth from "better_supabase"."work_items" x where x."id" = task_tree.root
+    select x.*, 0 as depth from "better_supabase"."tasks" x where x."id" = task_tree.root
     union all
-    select y.*, tree.depth + 1 from "better_supabase"."work_items" y join tree on y."parent_id" = tree."id"
+    select y.*, tree.depth + 1 from "better_supabase"."tasks" y join tree on y."parent_id" = tree."id"
     where tree.depth < 100 and y."archived_at" is null
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -3819,7 +3819,7 @@ as $$
       select case when count(*) filter (where ch."state" <> 'canceled') = 0 then
           case tree."state" when 'completed' then 100 else 0 end
         else round(100.0 * count(*) filter (where ch."state" = 'completed') / count(*) filter (where ch."state" <> 'canceled'))::integer end
-      from "better_supabase"."work_items" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
+      from "better_supabase"."tasks" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
   ) order by tree.depth, tree."rank" collate "C", tree."id"), '[]'::jsonb)
   from tree
 $$;
@@ -3839,18 +3839,18 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
-    from "better_supabase"."work_items" x
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
+    from "better_supabase"."tasks" x
     where x."tenant_id" = list_tasks.tenant and x."archived_at" is null
       and (list_tasks.filter ->> 'teamId' is null or x."team_id" = (list_tasks.filter ->> 'teamId')::uuid)
       and (list_tasks.filter ->> 'projectId' is null or x."project_id" = (list_tasks.filter ->> 'projectId')::uuid)
       and (list_tasks.filter ->> 'iterationId' is null or x."iteration_id" = (list_tasks.filter ->> 'iterationId')::uuid)
       and (list_tasks.filter ->> 'parentId' is null or x."parent_id" = (list_tasks.filter ->> 'parentId')::uuid)
-      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
+      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
       and (list_tasks.filter -> 'states' is null or x."state" = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
       and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x."closed_at" is null)
       and (list_tasks.search is null or x."title" ilike '%' || list_tasks.search || '%' or x."identifier" ilike list_tasks.search || '%')
-      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."work_items" z where z."id" = list_tasks.after))
+      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."tasks" z where z."id" = list_tasks.after))
     order by x."number" desc
     limit least(greatest(coalesce(list_tasks.page_size, 50), 1), 200)
   ) p
@@ -3867,7 +3867,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_id uuid := save_task_checklist_item.checklist_item;
   v_last text;
   v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
@@ -3875,14 +3875,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   begin
     if v_id is null then
-      select max(y."rank") into v_last from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_row."id";
-      insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
+      select max(y."rank") into v_last from "better_supabase"."task_checklist_items" y where y."work_item_id" = v_row."id";
+      insert into "better_supabase"."task_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
       values (v_row."tenant_id", v_row."id", trim(save_task_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
         case when v_done then now() end, case when v_done then auth.uid() end,
         coalesce(save_task_checklist_item.attrs ->> 'rank', case
@@ -3892,7 +3892,7 @@ begin
   end), auth.uid())
       returning "id" into v_id;
     else
-      update "better_supabase"."work_item_checklist_items" y set
+      update "better_supabase"."task_checklist_items" y set
         "title" = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y."title"),
         "rank" = coalesce(save_task_checklist_item.attrs ->> 'rank', y."rank"),
         "done" = coalesce(v_done, y."done"),
@@ -3907,7 +3907,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."work_item_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -3920,17 +3920,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x.* into v_row from "better_supabase"."work_items" x join "better_supabase"."work_item_checklist_items" y on y."work_item_id" = x."id"
+  select x.* into v_row from "better_supabase"."tasks" x join "better_supabase"."task_checklist_items" y on y."work_item_id" = x."id"
   where y."id" = delete_task_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
-  delete from "better_supabase"."work_item_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
+  delete from "better_supabase"."task_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
   null;
   return true;
 end;
@@ -3947,7 +3947,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
+  from "better_supabase"."task_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
@@ -3960,7 +3960,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."work_items" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.work_item
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -4023,7 +4023,7 @@ begin
 
   return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      from "better_supabase"."tasks" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
 end;
 $$;
@@ -4087,67 +4087,67 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+create policy bsb_tenant_scope_select on "better_supabase"."tasks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+create policy bsb_tenant_scope_insert on "better_supabase"."tasks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+create policy bsb_tenant_scope_update on "better_supabase"."tasks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
+create policy bsb_tenant_scope_delete on "better_supabase"."tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_select on "better_supabase"."task_checklist_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_checklist_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_update on "better_supabase"."task_checklist_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_checklist_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_select on "better_supabase"."task_assignees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_assignees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_update on "better_supabase"."task_assignees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_assignees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."projects";
@@ -4350,7 +4350,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:947ec2fa7bc023cb0a394e0acfde413aa967d15975b8b77eadf6f6d6b2206c3e
+-- @bsb-hash sha256:247e11a38fd49c22fdba0bad25afc54938a41dd09a758aecef0a20c54bbe679d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4362,14 +4362,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."pipeline_stage_history"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."pipeline_stage_history" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 2, 'managed')
+values ('tasks', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@2 managed
--- @bsb-hash sha256:7305caac545b26e88adade6971d880336dad87b1c9b5ef0ceecd56a59eb31de3
+-- @bsb-block tasks@3 managed
+-- @bsb-hash sha256:c7f3d476c34d88a4051cc45d806e1e5c9972d1e0d075f7a1018149e2e4ff2ff5
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4429,27 +4429,27 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -4516,84 +4516,84 @@ create policy bsb_iterations_select on "better_supabase"."iterations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
--- better_supabase.work_items is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."work_items" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."work_items" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."work_items" add column if not exists "number" bigint;
-alter table "better_supabase"."work_items" add column if not exists "identifier" text;
-alter table "better_supabase"."work_items" add column if not exists "title" text check (length("title") between 1 and 500);
-alter table "better_supabase"."work_items" add column if not exists "body" text;
-alter table "better_supabase"."work_items" add column if not exists "parent_id" uuid references "better_supabase"."work_items" ("id") on delete cascade;
-alter table "better_supabase"."work_items" add column if not exists "team_id" uuid;
-alter table "better_supabase"."work_items" add column if not exists "project_id" uuid references "better_supabase"."projects" ("id") on delete set null;
-alter table "better_supabase"."work_items" add column if not exists "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null;
-alter table "better_supabase"."work_items" add column if not exists "priority" smallint not null default 0 check ("priority" between 0 and 4);
-alter table "better_supabase"."work_items" add column if not exists "estimate" numeric(10, 2) check ("estimate" >= 0);
-alter table "better_supabase"."work_items" add column if not exists "progress" smallint check ("progress" between 0 and 100);
-alter table "better_supabase"."work_items" add column if not exists "start_at" timestamptz;
-alter table "better_supabase"."work_items" add column if not exists "end_at" timestamptz;
-alter table "better_supabase"."work_items" add column if not exists "due_at" timestamptz;
-alter table "better_supabase"."work_items" add column if not exists "pipeline_id" uuid;
-alter table "better_supabase"."work_items" add column if not exists "stage_id" uuid;
-alter table "better_supabase"."work_items" add column if not exists "stage_entered_at" timestamptz;
-alter table "better_supabase"."work_items" add column if not exists "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'));
-alter table "better_supabase"."work_items" add column if not exists "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate'));
-alter table "better_supabase"."work_items" add column if not exists "closed_at" timestamptz;
-alter table "better_supabase"."work_items" add column if not exists "locked" boolean not null default false;
-alter table "better_supabase"."work_items" add column if not exists "rank" text collate "C" not null default 'V';
-alter table "better_supabase"."work_items" add column if not exists "archived_at" timestamptz;
-alter table "better_supabase"."work_items" add column if not exists "created_by" uuid;
-alter table "better_supabase"."work_items" add column if not exists "created_at" timestamptz not null default now();
-alter table "better_supabase"."work_items" add column if not exists "updated_at" timestamptz not null default now();
-create unique index if not exists "work_items_tenant_id_number_key" on "better_supabase"."work_items" ("tenant_id", "number");
-create index if not exists work_items_board_idx on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
-create index if not exists work_items_parent_idx on "better_supabase"."work_items" ("parent_id");
-create index if not exists work_items_project_idx on "better_supabase"."work_items" ("project_id");
-create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
-create index if not exists work_items_due_idx on "better_supabase"."work_items" ("tenant_id", "due_at") where "closed_at" is null;
-alter table "better_supabase"."work_items" enable row level security;
-grant select on "better_supabase"."work_items" to authenticated;
-grant all on "better_supabase"."work_items" to service_role;
-drop policy if exists bsb_work_items_select on "better_supabase"."work_items";
-create policy bsb_work_items_select on "better_supabase"."work_items"
+-- better_supabase.tasks is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."tasks" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."tasks" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."tasks" add column if not exists "number" bigint;
+alter table "better_supabase"."tasks" add column if not exists "identifier" text;
+alter table "better_supabase"."tasks" add column if not exists "title" text check (length("title") between 1 and 500);
+alter table "better_supabase"."tasks" add column if not exists "body" text;
+alter table "better_supabase"."tasks" add column if not exists "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade;
+alter table "better_supabase"."tasks" add column if not exists "team_id" uuid;
+alter table "better_supabase"."tasks" add column if not exists "project_id" uuid references "better_supabase"."projects" ("id") on delete set null;
+alter table "better_supabase"."tasks" add column if not exists "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null;
+alter table "better_supabase"."tasks" add column if not exists "priority" smallint not null default 0 check ("priority" between 0 and 4);
+alter table "better_supabase"."tasks" add column if not exists "estimate" numeric(10, 2) check ("estimate" >= 0);
+alter table "better_supabase"."tasks" add column if not exists "progress" smallint check ("progress" between 0 and 100);
+alter table "better_supabase"."tasks" add column if not exists "start_at" timestamptz;
+alter table "better_supabase"."tasks" add column if not exists "end_at" timestamptz;
+alter table "better_supabase"."tasks" add column if not exists "due_at" timestamptz;
+alter table "better_supabase"."tasks" add column if not exists "pipeline_id" uuid;
+alter table "better_supabase"."tasks" add column if not exists "stage_id" uuid;
+alter table "better_supabase"."tasks" add column if not exists "stage_entered_at" timestamptz;
+alter table "better_supabase"."tasks" add column if not exists "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'));
+alter table "better_supabase"."tasks" add column if not exists "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate'));
+alter table "better_supabase"."tasks" add column if not exists "closed_at" timestamptz;
+alter table "better_supabase"."tasks" add column if not exists "locked" boolean not null default false;
+alter table "better_supabase"."tasks" add column if not exists "rank" text collate "C" not null default 'V';
+alter table "better_supabase"."tasks" add column if not exists "archived_at" timestamptz;
+alter table "better_supabase"."tasks" add column if not exists "created_by" uuid;
+alter table "better_supabase"."tasks" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."tasks" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "tasks_tenant_id_number_key" on "better_supabase"."tasks" ("tenant_id", "number");
+create index if not exists "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
+create index if not exists "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
+create index if not exists "tasks_project_idx" on "better_supabase"."tasks" ("project_id");
+create index if not exists "tasks_iteration_idx" on "better_supabase"."tasks" ("iteration_id");
+create index if not exists "tasks_due_idx" on "better_supabase"."tasks" ("tenant_id", "due_at") where "closed_at" is null;
+alter table "better_supabase"."tasks" enable row level security;
+grant select on "better_supabase"."tasks" to authenticated;
+grant all on "better_supabase"."tasks" to service_role;
+drop policy if exists bsb_tasks_select on "better_supabase"."tasks";
+create policy bsb_tasks_select on "better_supabase"."tasks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
--- better_supabase.work_item_assignees is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."work_item_assignees" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."work_item_assignees" add column if not exists "work_item_id" uuid references "better_supabase"."work_items" ("id") on delete cascade;
-alter table "better_supabase"."work_item_assignees" add column if not exists "user_id" uuid;
-alter table "better_supabase"."work_item_assignees" add column if not exists "created_at" timestamptz not null default now();
-create unique index if not exists "work_item_assignees_work_item_id_user_id_key" on "better_supabase"."work_item_assignees" ("work_item_id", "user_id");
-create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
-alter table "better_supabase"."work_item_assignees" enable row level security;
-grant select on "better_supabase"."work_item_assignees" to authenticated;
-grant all on "better_supabase"."work_item_assignees" to service_role;
-drop policy if exists bsb_work_item_assignees_select on "better_supabase"."work_item_assignees";
-create policy bsb_work_item_assignees_select on "better_supabase"."work_item_assignees"
+-- better_supabase.task_assignees is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."task_assignees" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."task_assignees" add column if not exists "work_item_id" uuid references "better_supabase"."tasks" ("id") on delete cascade;
+alter table "better_supabase"."task_assignees" add column if not exists "user_id" uuid;
+alter table "better_supabase"."task_assignees" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "task_assignees_work_item_id_user_id_key" on "better_supabase"."task_assignees" ("work_item_id", "user_id");
+create index if not exists "task_assignees_user_idx" on "better_supabase"."task_assignees" ("user_id");
+alter table "better_supabase"."task_assignees" enable row level security;
+grant select on "better_supabase"."task_assignees" to authenticated;
+grant all on "better_supabase"."task_assignees" to service_role;
+drop policy if exists bsb_task_assignees_select on "better_supabase"."task_assignees";
+create policy bsb_task_assignees_select on "better_supabase"."task_assignees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
-create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
+alter table "better_supabase"."tasks" add column if not exists "recurs_from" uuid references "better_supabase"."tasks" ("id") on delete set null;
+create unique index if not exists "tasks_recurs_from_idx" on "better_supabase"."tasks" ("recurs_from");
 
--- better_supabase.work_item_checklist_items is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "work_item_id" uuid references "better_supabase"."work_items" ("id") on delete cascade;
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "title" text check (length("title") between 1 and 500);
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "done" boolean not null default false;
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "done_at" timestamptz;
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "done_by" uuid;
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "rank" text collate "C" check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "created_by" uuid;
-alter table "better_supabase"."work_item_checklist_items" add column if not exists "created_at" timestamptz not null default now();
-create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
-alter table "better_supabase"."work_item_checklist_items" enable row level security;
-grant select on "better_supabase"."work_item_checklist_items" to authenticated;
-grant all on "better_supabase"."work_item_checklist_items" to service_role;
-drop policy if exists bsb_work_item_checklist_items_select on "better_supabase"."work_item_checklist_items";
-create policy bsb_work_item_checklist_items_select on "better_supabase"."work_item_checklist_items"
+-- better_supabase.task_checklist_items is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."task_checklist_items" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."task_checklist_items" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."task_checklist_items" add column if not exists "work_item_id" uuid references "better_supabase"."tasks" ("id") on delete cascade;
+alter table "better_supabase"."task_checklist_items" add column if not exists "title" text check (length("title") between 1 and 500);
+alter table "better_supabase"."task_checklist_items" add column if not exists "done" boolean not null default false;
+alter table "better_supabase"."task_checklist_items" add column if not exists "done_at" timestamptz;
+alter table "better_supabase"."task_checklist_items" add column if not exists "done_by" uuid;
+alter table "better_supabase"."task_checklist_items" add column if not exists "rank" text collate "C" check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
+alter table "better_supabase"."task_checklist_items" add column if not exists "created_by" uuid;
+alter table "better_supabase"."task_checklist_items" add column if not exists "created_at" timestamptz not null default now();
+create index if not exists "task_checklist_item_idx" on "better_supabase"."task_checklist_items" ("work_item_id", "rank");
+alter table "better_supabase"."task_checklist_items" enable row level security;
+grant select on "better_supabase"."task_checklist_items" to authenticated;
+grant all on "better_supabase"."task_checklist_items" to service_role;
+drop policy if exists bsb_task_checklist_items_select on "better_supabase"."task_checklist_items";
+create policy bsb_task_checklist_items_select on "better_supabase"."task_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -4609,14 +4609,14 @@ begin
       with recursive up(id, depth) as (
         select new."parent_id", 1
         union all
-        select x."parent_id", up.depth + 1 from "better_supabase"."work_items" x join up on x."id" = up.id
+        select x."parent_id", up.depth + 1 from "better_supabase"."tasks" x join up on x."id" = up.id
         where x."parent_id" is not null and up.depth < 100
       )
       select 1 from up where up.id = new."id"
     ) then
       raise exception 'an item can''t sit under itself' using errcode = '23514', hint = 'TASK_PARENT_CYCLE';
     end if;
-    if not exists (select 1 from "better_supabase"."work_items" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
+    if not exists (select 1 from "better_supabase"."tasks" x where x."id" = new."parent_id" and x."tenant_id" = new."tenant_id") then
       raise exception 'the parent is in another organization' using errcode = '22023', hint = 'TASK_PARENT_INVALID';
     end if;
   end if;
@@ -4626,14 +4626,14 @@ begin
   if tg_op = 'INSERT' then
     if new."state" in ('completed', 'canceled') then
       new."closed_at" := now();
-      new."close_reason" := coalesce(new."close_reason", better_supabase.as_column_type(case new."state" when 'completed' then 'completed' else 'not_planned' end, (null::"better_supabase"."work_items")."close_reason"));
+      new."close_reason" := coalesce(new."close_reason", better_supabase.as_column_type(case new."state" when 'completed' then 'completed' else 'not_planned' end, (null::"better_supabase"."tasks")."close_reason"));
     end if;
     return new;
   end if;
   if new."state" is distinct from old."state" then
     if new."state" in ('completed', 'canceled') and old."state" not in ('completed', 'canceled') then
       new."closed_at" := now();
-      new."close_reason" := coalesce(new."close_reason", better_supabase.as_column_type(case new."state" when 'completed' then 'completed' else 'not_planned' end, (null::"better_supabase"."work_items")."close_reason"));
+      new."close_reason" := coalesce(new."close_reason", better_supabase.as_column_type(case new."state" when 'completed' then 'completed' else 'not_planned' end, (null::"better_supabase"."tasks")."close_reason"));
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
@@ -4649,8 +4649,8 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bsb_work_item_guard on "better_supabase"."work_items";
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."work_items"
+drop trigger if exists bsb_work_item_guard on "better_supabase"."tasks";
+create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
@@ -4667,7 +4667,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_id uuid;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_linked integer;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -4688,10 +4688,10 @@ begin
     end if;
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."work_items" x where x."tenant_id" = create_task.tenant;
+  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   begin
-    insert into "better_supabase"."work_items" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
+    insert into "better_supabase"."tasks" ("tenant_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by")
     values (create_task.tenant, v_seq, v_identifier, trim(create_task.attrs ->> 'title'), create_task.attrs ->> 'body',
       (create_task.attrs ->> 'parentId')::uuid, (create_task.attrs ->> 'teamId')::uuid, (create_task.attrs ->> 'projectId')::uuid,
@@ -4706,7 +4706,7 @@ begin
   if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
     perform "better_supabase"."set_task_assignees"(v_id, create_task.assignees);
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = v_id;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = v_id;
   if jsonb_array_length(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -4719,7 +4719,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."tasks" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
@@ -4741,7 +4741,7 @@ declare
   v_change jsonb;
   v_item uuid;
   v_field text;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_accepted jsonb := '[]';
   v_rejected jsonb := '[]';
   v_hint text;
@@ -4759,7 +4759,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'workItemId')::uuid;
-      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
       declare
@@ -4772,43 +4772,43 @@ begin
   end;
       case v_field
       when 'title' then
-        update "better_supabase"."work_items" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
       when 'body' then
-        update "better_supabase"."work_items" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'parentId' then
-        update "better_supabase"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'teamId' then
-        update "better_supabase"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'projectId' then
-        update "better_supabase"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'iterationId' then
-        update "better_supabase"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'priority' then
-        update "better_supabase"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'estimate' then
-        update "better_supabase"."work_items" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
+        update "better_supabase"."tasks" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
       when 'progress' then
-        update "better_supabase"."work_items" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'startAt' then
-        update "better_supabase"."work_items" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'endAt' then
-        update "better_supabase"."work_items" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'dueAt' then
-        update "better_supabase"."work_items" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'stageId' then
-        update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
-        update "better_supabase"."work_items" x set "close_reason" = better_supabase.as_column_type(nullif(trim(v_change -> 'value' #>> '{}'), ''), (null::"better_supabase"."work_items")."close_reason") where x."id" = v_item;
+        update "better_supabase"."tasks" x set "close_reason" = better_supabase.as_column_type(nullif(trim(v_change -> 'value' #>> '{}'), ''), (null::"better_supabase"."tasks")."close_reason") where x."id" = v_item;
       when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
           raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
         end if;
-        update "better_supabase"."work_items" x set
+        update "better_supabase"."tasks" x set
           "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
           "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
         where x."id" = v_item;
       when 'attachments' then
-        select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
+        select * into v_row from "better_supabase"."tasks" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -4833,7 +4833,7 @@ begin
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
-  for v_row in select * from "better_supabase"."work_items" x where x."id" = any (v_touched) loop
+  for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
     null;
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
@@ -4852,21 +4852,21 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
   v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   v_added := array(select x from unnest(v_users) x where not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
-  delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
-  insert into "better_supabase"."work_item_assignees" ("tenant_id", "work_item_id", "user_id")
+    select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  delete from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
+  insert into "better_supabase"."task_assignees" ("tenant_id", "work_item_id", "user_id")
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
   if cardinality(v_added) > 0 then
@@ -4885,12 +4885,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."work_items" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
+  update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -4913,12 +4913,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."work_items" x
+  delete from "better_supabase"."tasks" x
   where x."id" = delete_task.work_item
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
@@ -4943,9 +4943,9 @@ security invoker
 set search_path = ''
 as $$
   with recursive tree as (
-    select x.*, 0 as depth from "better_supabase"."work_items" x where x."id" = task_tree.root
+    select x.*, 0 as depth from "better_supabase"."tasks" x where x."id" = task_tree.root
     union all
-    select y.*, tree.depth + 1 from "better_supabase"."work_items" y join tree on y."parent_id" = tree."id"
+    select y.*, tree.depth + 1 from "better_supabase"."tasks" y join tree on y."parent_id" = tree."id"
     where tree.depth < 100 and y."archived_at" is null
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -4956,7 +4956,7 @@ as $$
       select case when count(*) filter (where ch."state" <> 'canceled') = 0 then
           case tree."state" when 'completed' then 100 else 0 end
         else round(100.0 * count(*) filter (where ch."state" = 'completed') / count(*) filter (where ch."state" <> 'canceled'))::integer end
-      from "better_supabase"."work_items" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
+      from "better_supabase"."tasks" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
   ) order by tree.depth, tree."rank" collate "C", tree."id"), '[]'::jsonb)
   from tree
 $$;
@@ -4976,18 +4976,18 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
-    from "better_supabase"."work_items" x
+    select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
+    from "better_supabase"."tasks" x
     where x."tenant_id" = list_tasks.tenant and x."archived_at" is null
       and (list_tasks.filter ->> 'teamId' is null or x."team_id" = (list_tasks.filter ->> 'teamId')::uuid)
       and (list_tasks.filter ->> 'projectId' is null or x."project_id" = (list_tasks.filter ->> 'projectId')::uuid)
       and (list_tasks.filter ->> 'iterationId' is null or x."iteration_id" = (list_tasks.filter ->> 'iterationId')::uuid)
       and (list_tasks.filter ->> 'parentId' is null or x."parent_id" = (list_tasks.filter ->> 'parentId')::uuid)
-      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
+      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
       and (list_tasks.filter -> 'states' is null or x."state"::text = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
       and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x."closed_at" is null)
       and (list_tasks.search is null or x."title" ilike '%' || list_tasks.search || '%' or x."identifier" ilike list_tasks.search || '%')
-      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."work_items" z where z."id" = list_tasks.after))
+      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."tasks" z where z."id" = list_tasks.after))
     order by x."number" desc
     limit least(greatest(coalesce(list_tasks.page_size, 50), 1), 200)
   ) p
@@ -5004,7 +5004,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_id uuid := save_task_checklist_item.checklist_item;
   v_last text;
   v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
@@ -5012,14 +5012,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   begin
     if v_id is null then
-      select max(y."rank") into v_last from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_row."id";
-      insert into "better_supabase"."work_item_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
+      select max(y."rank") into v_last from "better_supabase"."task_checklist_items" y where y."work_item_id" = v_row."id";
+      insert into "better_supabase"."task_checklist_items" ("tenant_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
       values (v_row."tenant_id", v_row."id", trim(save_task_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
         case when v_done then now() end, case when v_done then auth.uid() end,
         coalesce(save_task_checklist_item.attrs ->> 'rank', case
@@ -5029,7 +5029,7 @@ begin
   end), auth.uid())
       returning "id" into v_id;
     else
-      update "better_supabase"."work_item_checklist_items" y set
+      update "better_supabase"."task_checklist_items" y set
         "title" = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y."title"),
         "rank" = coalesce(save_task_checklist_item.attrs ->> 'rank', y."rank"),
         "done" = coalesce(v_done, y."done"),
@@ -5044,7 +5044,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."work_item_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -5057,17 +5057,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x.* into v_row from "better_supabase"."work_items" x join "better_supabase"."work_item_checklist_items" y on y."work_item_id" = x."id"
+  select x.* into v_row from "better_supabase"."tasks" x join "better_supabase"."task_checklist_items" y on y."work_item_id" = x."id"
   where y."id" = delete_task_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
-  delete from "better_supabase"."work_item_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
+  delete from "better_supabase"."task_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
   null;
   return true;
 end;
@@ -5084,7 +5084,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
+  from "better_supabase"."task_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
@@ -5097,7 +5097,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."work_items" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.work_item
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -5160,7 +5160,7 @@ begin
 
   return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      from "better_supabase"."tasks" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
 end;
 $$;
@@ -5224,67 +5224,67 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+create policy bsb_tenant_scope_select on "better_supabase"."tasks" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+create policy bsb_tenant_scope_insert on "better_supabase"."tasks" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+create policy bsb_tenant_scope_update on "better_supabase"."tasks" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
+create policy bsb_tenant_scope_delete on "better_supabase"."tasks" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_select on "better_supabase"."task_checklist_items" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_checklist_items" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_update on "better_supabase"."task_checklist_items" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_checklist_items" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_select on "better_supabase"."task_assignees" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_assignees" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_update on "better_supabase"."task_assignees" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_assignees" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."projects";
@@ -5346,7 +5346,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:947ec2fa7bc023cb0a394e0acfde413aa967d15975b8b77eadf6f6d6b2206c3e
+-- @bsb-hash sha256:247e11a38fd49c22fdba0bad25afc54938a41dd09a758aecef0a20c54bbe679d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5358,14 +5358,14 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."pipeline_stage_history"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."pipeline_stage_history" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 2, 'managed')
+values ('tasks', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
--- @bsb-block tasks@2 managed
--- @bsb-hash sha256:b4fce357e5fabfeeaa1da985e45045a87023eaf614a47cd1357355a07392f927
+-- @bsb-block tasks@3 managed
+-- @bsb-hash sha256:d7485f8f2cd232f7635f9c9b2cc36eb7837500a045b13b399aaf7d8fb5562dc4
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5409,27 +5409,27 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -5502,14 +5502,14 @@ create policy iterations_read on "better_supabase"."iterations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_items" (
+create table if not exists "better_supabase"."tasks" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
   "title" text not null check (length("title") between 1 and 500),
   "body" text,
-  "parent_id" uuid references "better_supabase"."work_items" ("id") on delete cascade,
+  "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
@@ -5534,44 +5534,44 @@ create table if not exists "better_supabase"."work_items" (
   unique ("org_id", "number"),
   check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
-create index if not exists work_items_board_idx on "better_supabase"."work_items" ("pipeline_id", "stage_id", "rank");
-create index if not exists work_items_parent_idx on "better_supabase"."work_items" ("parent_id");
-create index if not exists work_items_project_idx on "better_supabase"."work_items" ("project_id");
-create index if not exists work_items_iteration_idx on "better_supabase"."work_items" ("iteration_id");
-create index if not exists work_items_due_idx on "better_supabase"."work_items" ("org_id", "due_at") where "closed_at" is null;
-alter table "better_supabase"."work_items" enable row level security;
-revoke all on "better_supabase"."work_items" from public, anon, authenticated;
-grant select on "better_supabase"."work_items" to authenticated;
-grant all on "better_supabase"."work_items" to service_role;
-drop policy if exists work_items_read on "better_supabase"."work_items";
-create policy work_items_read on "better_supabase"."work_items"
+create index if not exists "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
+create index if not exists "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
+create index if not exists "tasks_project_idx" on "better_supabase"."tasks" ("project_id");
+create index if not exists "tasks_iteration_idx" on "better_supabase"."tasks" ("iteration_id");
+create index if not exists "tasks_due_idx" on "better_supabase"."tasks" ("org_id", "due_at") where "closed_at" is null;
+alter table "better_supabase"."tasks" enable row level security;
+revoke all on "better_supabase"."tasks" from public, anon, authenticated;
+grant select on "better_supabase"."tasks" to authenticated;
+grant all on "better_supabase"."tasks" to service_role;
+drop policy if exists tasks_read on "better_supabase"."tasks";
+create policy tasks_read on "better_supabase"."tasks"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create table if not exists "better_supabase"."work_item_assignees" (
+create table if not exists "better_supabase"."task_assignees" (
   "org_id" uuid not null,
-  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
   "user_id" uuid not null,
   "created_at" timestamptz not null default now(),
   primary key ("work_item_id", "user_id")
 );
-create index if not exists work_item_assignees_user_idx on "better_supabase"."work_item_assignees" ("user_id");
-alter table "better_supabase"."work_item_assignees" enable row level security;
-revoke all on "better_supabase"."work_item_assignees" from public, anon, authenticated;
-grant select on "better_supabase"."work_item_assignees" to authenticated;
-grant all on "better_supabase"."work_item_assignees" to service_role;
-drop policy if exists work_item_assignees_read on "better_supabase"."work_item_assignees";
-create policy work_item_assignees_read on "better_supabase"."work_item_assignees"
+create index if not exists "task_assignees_user_idx" on "better_supabase"."task_assignees" ("user_id");
+alter table "better_supabase"."task_assignees" enable row level security;
+revoke all on "better_supabase"."task_assignees" from public, anon, authenticated;
+grant select on "better_supabase"."task_assignees" to authenticated;
+grant all on "better_supabase"."task_assignees" to service_role;
+drop policy if exists task_assignees_read on "better_supabase"."task_assignees";
+create policy task_assignees_read on "better_supabase"."task_assignees"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-alter table "better_supabase"."work_items" add column if not exists "recurs_from" uuid references "better_supabase"."work_items" ("id") on delete set null;
-create unique index if not exists work_items_recurs_from_idx on "better_supabase"."work_items" ("recurs_from");
+alter table "better_supabase"."tasks" add column if not exists "recurs_from" uuid references "better_supabase"."tasks" ("id") on delete set null;
+create unique index if not exists "tasks_recurs_from_idx" on "better_supabase"."tasks" ("recurs_from");
 
-create table if not exists "better_supabase"."work_item_checklist_items" (
+create table if not exists "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "work_item_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "work_item_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
   "title" text not null check (length("title") between 1 and 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
@@ -5580,13 +5580,13 @@ create table if not exists "better_supabase"."work_item_checklist_items" (
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
-create index if not exists work_item_checklist_item_idx on "better_supabase"."work_item_checklist_items" ("work_item_id", "rank");
-alter table "better_supabase"."work_item_checklist_items" enable row level security;
-revoke all on "better_supabase"."work_item_checklist_items" from public, anon, authenticated;
-grant select on "better_supabase"."work_item_checklist_items" to authenticated;
-grant all on "better_supabase"."work_item_checklist_items" to service_role;
-drop policy if exists work_item_checklist_items_read on "better_supabase"."work_item_checklist_items";
-create policy work_item_checklist_items_read on "better_supabase"."work_item_checklist_items"
+create index if not exists "task_checklist_item_idx" on "better_supabase"."task_checklist_items" ("work_item_id", "rank");
+alter table "better_supabase"."task_checklist_items" enable row level security;
+revoke all on "better_supabase"."task_checklist_items" from public, anon, authenticated;
+grant select on "better_supabase"."task_checklist_items" to authenticated;
+grant all on "better_supabase"."task_checklist_items" to service_role;
+drop policy if exists task_checklist_items_read on "better_supabase"."task_checklist_items";
+create policy task_checklist_items_read on "better_supabase"."task_checklist_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -5602,14 +5602,14 @@ begin
       with recursive up(id, depth) as (
         select new."parent_id", 1
         union all
-        select x."parent_id", up.depth + 1 from "better_supabase"."work_items" x join up on x."id" = up.id
+        select x."parent_id", up.depth + 1 from "better_supabase"."tasks" x join up on x."id" = up.id
         where x."parent_id" is not null and up.depth < 100
       )
       select 1 from up where up.id = new."id"
     ) then
       raise exception 'an item can''t sit under itself' using errcode = '23514', hint = 'TASK_PARENT_CYCLE';
     end if;
-    if not exists (select 1 from "better_supabase"."work_items" x where x."id" = new."parent_id" and x."org_id" = new."org_id") then
+    if not exists (select 1 from "better_supabase"."tasks" x where x."id" = new."parent_id" and x."org_id" = new."org_id") then
       raise exception 'the parent is in another organization' using errcode = '22023', hint = 'TASK_PARENT_INVALID';
     end if;
   end if;
@@ -5642,8 +5642,8 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-drop trigger if exists bsb_work_item_guard on "better_supabase"."work_items";
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."work_items"
+drop trigger if exists bsb_work_item_guard on "better_supabase"."tasks";
+create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
 for each row execute function better_supabase.bsb_work_item_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
@@ -5660,7 +5660,7 @@ declare
   v_seq bigint;
   v_identifier text;
   v_id uuid;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_linked integer;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -5681,10 +5681,10 @@ begin
     end if;
   end;
   perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
-  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."work_items" x where x."org_id" = create_task.tenant;
+  select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."org_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   begin
-    insert into "better_supabase"."work_items" ("org_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
+    insert into "better_supabase"."tasks" ("org_id", "number", "identifier", "title", "body", "parent_id", "team_id", "project_id", "iteration_id",
       "priority", "estimate", "progress", "start_at", "end_at", "due_at", "pipeline_id", "stage_id", "created_by")
     values (create_task.tenant, v_seq, v_identifier, trim(create_task.attrs ->> 'title'), create_task.attrs ->> 'body',
       (create_task.attrs ->> 'parentId')::uuid, (create_task.attrs ->> 'teamId')::uuid, (create_task.attrs ->> 'projectId')::uuid,
@@ -5699,7 +5699,7 @@ begin
   if cardinality(coalesce(create_task.assignees, '{}')) > 0 then
     perform "better_supabase"."set_task_assignees"(v_id, create_task.assignees);
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = v_id;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = v_id;
   if jsonb_array_length(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -5712,7 +5712,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."work_items" x where x."id" = v_id);
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."tasks" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
@@ -5734,7 +5734,7 @@ declare
   v_change jsonb;
   v_item uuid;
   v_field text;
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_accepted jsonb := '[]';
   v_rejected jsonb := '[]';
   v_hint text;
@@ -5752,7 +5752,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_item := (v_change ->> 'workItemId')::uuid;
-      if not exists (select 1 from "better_supabase"."work_items" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null) then
+      if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
       declare
@@ -5765,43 +5765,43 @@ begin
   end;
       case v_field
       when 'title' then
-        update "better_supabase"."work_items" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "title" = trim(v_change -> 'value' #>> '{}') where x."id" = v_item;
       when 'body' then
-        update "better_supabase"."work_items" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "body" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'parentId' then
-        update "better_supabase"."work_items" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "parent_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'teamId' then
-        update "better_supabase"."work_items" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "team_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'projectId' then
-        update "better_supabase"."work_items" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "project_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'iterationId' then
-        update "better_supabase"."work_items" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "iteration_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'priority' then
-        update "better_supabase"."work_items" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "priority" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'estimate' then
-        update "better_supabase"."work_items" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
+        update "better_supabase"."tasks" x set "estimate" = (v_change -> 'value' #>> '{}')::numeric where x."id" = v_item;
       when 'progress' then
-        update "better_supabase"."work_items" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
+        update "better_supabase"."tasks" x set "progress" = (v_change -> 'value' #>> '{}')::smallint where x."id" = v_item;
       when 'startAt' then
-        update "better_supabase"."work_items" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "start_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'endAt' then
-        update "better_supabase"."work_items" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "end_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'dueAt' then
-        update "better_supabase"."work_items" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
+        update "better_supabase"."tasks" x set "due_at" = (v_change -> 'value' #>> '{}')::timestamptz where x."id" = v_item;
       when 'stageId' then
-        update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
+        update "better_supabase"."tasks" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
-        update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+        update "better_supabase"."tasks" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
       when 'window' then
         if jsonb_typeof(v_change -> 'value') <> 'object' then
           raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
         end if;
-        update "better_supabase"."work_items" x set
+        update "better_supabase"."tasks" x set
           "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
           "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
         where x."id" = v_item;
       when 'attachments' then
-        select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
+        select * into v_row from "better_supabase"."tasks" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
       raise exception 'install the attachments block to attach files' using errcode = '0A000', hint = 'TASK_ATTACHMENTS_UNAVAILABLE';
     end if;
@@ -5826,7 +5826,7 @@ begin
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
-  for v_row in select * from "better_supabase"."work_items" x where x."id" = any (v_touched) loop
+  for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
     null;
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
@@ -5845,21 +5845,21 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
   v_added uuid[];
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   v_added := array(select x from unnest(v_users) x where not exists (
-    select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
-  delete from "better_supabase"."work_item_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
-  insert into "better_supabase"."work_item_assignees" ("org_id", "work_item_id", "user_id")
+    select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and y."user_id" = x));
+  delete from "better_supabase"."task_assignees" y where y."work_item_id" = v_row."id" and not (y."user_id" = any (v_users));
+  insert into "better_supabase"."task_assignees" ("org_id", "work_item_id", "user_id")
   select v_row."org_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
   if cardinality(v_added) > 0 then
@@ -5878,12 +5878,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."work_items" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
+  update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
   where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -5906,12 +5906,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."work_items" x
+  delete from "better_supabase"."tasks" x
   where x."id" = delete_task.work_item
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.manage'), false))
   returning * into v_row;
@@ -5936,9 +5936,9 @@ security invoker
 set search_path = ''
 as $$
   with recursive tree as (
-    select x.*, 0 as depth from "better_supabase"."work_items" x where x."id" = task_tree.root
+    select x.*, 0 as depth from "better_supabase"."tasks" x where x."id" = task_tree.root
     union all
-    select y.*, tree.depth + 1 from "better_supabase"."work_items" y join tree on y."parent_id" = tree."id"
+    select y.*, tree.depth + 1 from "better_supabase"."tasks" y join tree on y."parent_id" = tree."id"
     where tree.depth < 100 and y."archived_at" is null
   )
   select coalesce(jsonb_agg(jsonb_build_object(
@@ -5949,7 +5949,7 @@ as $$
       select case when count(*) filter (where ch."state" <> 'canceled') = 0 then
           case tree."state" when 'completed' then 100 else 0 end
         else round(100.0 * count(*) filter (where ch."state" = 'completed') / count(*) filter (where ch."state" <> 'canceled'))::integer end
-      from "better_supabase"."work_items" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
+      from "better_supabase"."tasks" ch where ch."parent_id" = tree."id" and ch."archived_at" is null))
   ) order by tree.depth, tree."rank" collate "C", tree."id"), '[]'::jsonb)
   from tree
 $$;
@@ -5969,18 +5969,18 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(p.value order by p.number desc), '[]'::jsonb)
   from (
-    select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
-    from "better_supabase"."work_items" x
+    select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) as value, x."number" as number
+    from "better_supabase"."tasks" x
     where x."org_id" = list_tasks.tenant and x."archived_at" is null
       and (list_tasks.filter ->> 'teamId' is null or x."team_id" = (list_tasks.filter ->> 'teamId')::uuid)
       and (list_tasks.filter ->> 'projectId' is null or x."project_id" = (list_tasks.filter ->> 'projectId')::uuid)
       and (list_tasks.filter ->> 'iterationId' is null or x."iteration_id" = (list_tasks.filter ->> 'iterationId')::uuid)
       and (list_tasks.filter ->> 'parentId' is null or x."parent_id" = (list_tasks.filter ->> 'parentId')::uuid)
-      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."work_item_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
+      and (list_tasks.filter ->> 'assigneeId' is null or exists (select 1 from "better_supabase"."task_assignees" y where y."work_item_id" = x."id" and y."user_id" = (list_tasks.filter ->> 'assigneeId')::uuid))
       and (list_tasks.filter -> 'states' is null or x."state" = any (array(select jsonb_array_elements_text(list_tasks.filter -> 'states'))))
       and (coalesce((list_tasks.filter ->> 'open')::boolean, false) = false or x."closed_at" is null)
       and (list_tasks.search is null or x."title" ilike '%' || list_tasks.search || '%' or x."identifier" ilike list_tasks.search || '%')
-      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."work_items" z where z."id" = list_tasks.after))
+      and (list_tasks.after is null or x."number" < (select z."number" from "better_supabase"."tasks" z where z."id" = list_tasks.after))
     order by x."number" desc
     limit least(greatest(coalesce(list_tasks.page_size, 50), 1), 200)
   ) p
@@ -5997,7 +5997,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
   v_id uuid := save_task_checklist_item.checklist_item;
   v_last text;
   v_done boolean := (save_task_checklist_item.attrs ->> 'done')::boolean;
@@ -6005,14 +6005,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."work_items" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
   begin
     if v_id is null then
-      select max(y."rank") into v_last from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = v_row."id";
-      insert into "better_supabase"."work_item_checklist_items" ("org_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
+      select max(y."rank") into v_last from "better_supabase"."task_checklist_items" y where y."work_item_id" = v_row."id";
+      insert into "better_supabase"."task_checklist_items" ("org_id", "work_item_id", "title", "done", "done_at", "done_by", "rank", "created_by")
       values (v_row."org_id", v_row."id", trim(save_task_checklist_item.attrs ->> 'title'), coalesce(v_done, false),
         case when v_done then now() end, case when v_done then auth.uid() end,
         coalesce(save_task_checklist_item.attrs ->> 'rank', case
@@ -6022,7 +6022,7 @@ begin
   end), auth.uid())
       returning "id" into v_id;
     else
-      update "better_supabase"."work_item_checklist_items" y set
+      update "better_supabase"."task_checklist_items" y set
         "title" = coalesce(trim(save_task_checklist_item.attrs ->> 'title'), y."title"),
         "rank" = coalesce(save_task_checklist_item.attrs ->> 'rank', y."rank"),
         "done" = coalesce(v_done, y."done"),
@@ -6037,7 +6037,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."work_item_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -6050,17 +6050,17 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."work_items";
+  v_row "better_supabase"."tasks";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x.* into v_row from "better_supabase"."work_items" x join "better_supabase"."work_item_checklist_items" y on y."work_item_id" = x."id"
+  select x.* into v_row from "better_supabase"."tasks" x join "better_supabase"."task_checklist_items" y on y."work_item_id" = x."id"
   where y."id" = delete_task_checklist_item.checklist_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     return false;
   end if;
-  delete from "better_supabase"."work_item_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
+  delete from "better_supabase"."task_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
   null;
   return true;
 end;
@@ -6077,7 +6077,7 @@ security invoker
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."work_item_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."work_item_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
+  from "better_supabase"."task_checklist_items" y where y."work_item_id" = list_task_checklist.work_item
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
@@ -6090,7 +6090,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."work_item_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."work_item_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."work_items" x where x."id" = get_task.work_item
+  select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."work_item_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."work_item_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.work_item
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -6153,7 +6153,7 @@ begin
 
   return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
-      from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
+      from "better_supabase"."tasks" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
 end;
 $$;
@@ -6217,67 +6217,67 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."tasks";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."tasks";
+create policy bsb_tenant_scope_select on "better_supabase"."tasks" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."tasks";
+create policy bsb_tenant_scope_insert on "better_supabase"."tasks" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."tasks";
+create policy bsb_tenant_scope_update on "better_supabase"."tasks" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."tasks";
+create policy bsb_tenant_scope_delete on "better_supabase"."tasks" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_checklist_items";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_checklist_items";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_select on "better_supabase"."task_checklist_items" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_checklist_items" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_update on "better_supabase"."task_checklist_items" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_checklist_items" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_checklist_items";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_checklist_items" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."work_item_assignees";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_select on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."task_assignees";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_select on "better_supabase"."task_assignees" as restrictive
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("org_id" in (select better_supabase.tenant_ids_with('tasks.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_insert on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_insert on "better_supabase"."task_assignees" as restrictive
   for insert to public
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_update on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_update on "better_supabase"."task_assignees" as restrictive
   for update to public
   using ("org_id" in (select better_supabase.member_organization_ids()))
   with check ("org_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."work_item_assignees";
-create policy bsb_tenant_scope_delete on "better_supabase"."work_item_assignees" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."task_assignees";
+create policy bsb_tenant_scope_delete on "better_supabase"."task_assignees" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."projects";
@@ -6339,7 +6339,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:947ec2fa7bc023cb0a394e0acfde413aa967d15975b8b77eadf6f6d6b2206c3e
+-- @bsb-hash sha256:247e11a38fd49c22fdba0bad25afc54938a41dd09a758aecef0a20c54bbe679d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -6351,6 +6351,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."pipeline_stage_history"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."pipeline_stage_history" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('tasks', 2, 'managed')
+values ('tasks', 3, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -19,3 +19,4 @@ Module tables follow the naming convention (ADR 0130): a table is its entity's p
 - Tables you adopted through `blocks.<name>.tables`, and the tables of an entity you renamed, keep their names. Foreign key columns such as `work_item_id` keep theirs too.
 - `codemod 0.47` lists queries on an old `better_supabase` table for review.
 - The rename steps also rename the constraints and owned sequences that carry the old table name, so a schema diff after `upgrade` finds no drop and create pairs.
+- `compliance` moves to version 3. An install at version 1 first moves its policy acknowledgements onto the `acknowledgements` block, reading `policies`, and then renames the table. An upgrade step that runs before a table rename always reads the table by its old name.

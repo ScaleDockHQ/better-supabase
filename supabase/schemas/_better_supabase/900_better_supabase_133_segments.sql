@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:2470c12e9ff8250f7f0e12db67706421a3119842ae011721aae5c25d18d6ad86
+-- @bsb-hash sha256:d4f1fa33af604492bd6b9888a339a4f6c52de5d0e42bc192f6367b680dbc908a
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -511,7 +511,7 @@ begin
     ) x;
   elsif v_row."subject_type" = 'activity' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
-      select s."id"::text as id from "better_supabase"."engagements" s
+      select s."id"::text as id from "better_supabase"."activities" s
       where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
@@ -602,7 +602,7 @@ begin
     ) x;
   elsif v_row."subject_type" = 'lease' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
-      select s."id"::text as id from "better_supabase"."lease_agreements" s
+      select s."id"::text as id from "better_supabase"."leases" s
       where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
@@ -658,7 +658,7 @@ begin
     ) x;
   elsif v_row."subject_type" = 'compliance_policy' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
-      select s."id"::text as id from "better_supabase"."policies" s
+      select s."id"::text as id from "better_supabase"."compliance_policies" s
       where s."tenant_id" = v_row."tenant_id"
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001

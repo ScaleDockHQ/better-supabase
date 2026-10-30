@@ -12,7 +12,6 @@ import { fail, raise, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { tableMoves } from "../table-renames.ts";
 import { defaultRulesSql, saveVersionSql } from "./automations-defaults-sql.ts";
 import { operatorTable, rulesEvaluator } from "./automations-evaluate.ts";
-import { EVENTS } from "./automations-events.ts";
 import {
   ACTION_KIND,
   AUTOMATION_EVENTS,

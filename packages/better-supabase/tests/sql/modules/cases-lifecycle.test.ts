@@ -93,7 +93,7 @@ begin
   v_json := better_supabase.create_case_action(v_case.id, 'corrective', 'Replace the fixture', null, null, true);
   v_task := (v_json ->> 'taskId')::uuid;
   ${expectHint("perform better_supabase.close_case(v_case.id, null)", "CASE_ACTIONS_OPEN")}
-  update better_supabase.work_items set state = 'completed' where id = v_task;
+  update better_supabase.tasks set state = 'completed' where id = v_task;
   v_json := better_supabase.close_case(v_case.id, 'Fixed');
   if v_json ->> 'status' <> 'closed' or v_json ->> 'closedAt' is null or v_json ->> 'closeNote' <> 'Fixed' then
     raise exception 'closed %', v_json;
@@ -167,7 +167,7 @@ begin
   end if;
   perform better_supabase.record_case_root_cause(v_id, 'No checklist', null);
   v_task := (better_supabase.create_case_action(v_id, 'corrective', 'Add a checklist', null, null, true) ->> 'taskId')::uuid;
-  update better_supabase.work_items set state = 'completed' where id = v_task;
+  update better_supabase.tasks set state = 'completed' where id = v_task;
   -- Separate statements: one would read the row before the job updates it.
   if better_supabase.notify_due_case_effectiveness() <> 0 then
     raise exception 'reported early';

@@ -805,7 +805,7 @@ begin
   end loop;
 end $$;
 
--- compliance: version 1 to 2. The policies table is compliance_policies (ADR 0130).
+-- compliance: version 2 to 3. The policies table is compliance_policies (ADR 0130).
 do $$ begin if to_regclass('"better_supabase"."policies"') is not null and to_regclass('"better_supabase"."compliance_policies"') is null then alter table "better_supabase"."policies" rename to "compliance_policies"; end if; end $$;
 do $$
 declare o record;

@@ -1,13 +1,13 @@
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:9535abdca5507db47e699d7a59894e21129dacc7792188168b8acab03f582526
+-- @bsb-hash sha256:0299e571a21a6e13782036c73dc69c5ea027002fee25486ca10e521b53049317
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."activity_entries" t set "type" = m.next_type
+update "better_supabase"."timeline_entries" t set "type" = m.next_type
 from (values
   ('access.ended', 'access_request.ended'),
   ('access.request_approved', 'access_request.approved'),
@@ -102,6 +102,6 @@ from (values
 where t."type" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('timeline', 1, 'managed')
+values ('timeline', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

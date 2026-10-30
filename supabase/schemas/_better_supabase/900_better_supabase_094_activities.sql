@@ -1,6 +1,6 @@
 -- better-supabase module: activities
--- @bsb-block activities@1 managed
--- @bsb-hash sha256:7d073cd213dbf13a382e70066ce7513413d112a4bcb21ece3b2428a487ca8a65
+-- @bsb-block activities@2 managed
+-- @bsb-hash sha256:5bdab01a2be70005ee8f5180c587a2891147b6667eab037949d4f36d6f63c380
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,11 +44,11 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."activities";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."activities";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."activities";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."activities";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."activities";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -64,7 +64,7 @@ end $$;
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Calls, emails, meetings, notes and tasks logged on one or more records.
-create table if not exists "better_supabase"."engagements" (
+create table if not exists "better_supabase"."activities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type" text not null,
@@ -80,28 +80,28 @@ create table if not exists "better_supabase"."engagements" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists engagements_owner_open_idx on "better_supabase"."engagements" ("tenant_id", "owner_user_id", "due_at") where "done_at" is null;
-create index if not exists engagements_tenant_created_idx on "better_supabase"."engagements" ("tenant_id", "created_at" desc);
-create unique index if not exists engagements_external_ref_idx on "better_supabase"."engagements" ("tenant_id", "external_ref") where "external_ref" is not null;
+create index if not exists "activities_owner_open_idx" on "better_supabase"."activities" ("tenant_id", "owner_user_id", "due_at") where "done_at" is null;
+create index if not exists "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc);
+create unique index if not exists "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an engagement, when it locks, its addenda and the
 -- in-error flag.
-alter table "better_supabase"."engagements" add column if not exists "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));
-alter table "better_supabase"."engagements" add column if not exists "restricted_roles" text[];
-alter table "better_supabase"."engagements" add column if not exists "category" text check (length("category") between 1 and 63);
-alter table "better_supabase"."engagements" add column if not exists "locked_at" timestamptz;
-alter table "better_supabase"."engagements" add column if not exists "amends_id" uuid references "better_supabase"."engagements" ("id") on delete cascade;
-alter table "better_supabase"."engagements" add column if not exists "goal_id" uuid;
-alter table "better_supabase"."engagements" add column if not exists "marked_error_at" timestamptz;
-alter table "better_supabase"."engagements" add column if not exists "marked_error_by" uuid;
-alter table "better_supabase"."engagements" add column if not exists "marked_error_reason" text check (length("marked_error_reason") between 1 and 2000);
-create index if not exists engagements_amends_idx on "better_supabase"."engagements" ("amends_id");
-alter table "better_supabase"."engagements" enable row level security;
-revoke all on "better_supabase"."engagements" from public, anon, authenticated;
-grant select on "better_supabase"."engagements" to authenticated;
-grant all on "better_supabase"."engagements" to service_role;
+alter table "better_supabase"."activities" add column if not exists "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));
+alter table "better_supabase"."activities" add column if not exists "restricted_roles" text[];
+alter table "better_supabase"."activities" add column if not exists "category" text check (length("category") between 1 and 63);
+alter table "better_supabase"."activities" add column if not exists "locked_at" timestamptz;
+alter table "better_supabase"."activities" add column if not exists "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade;
+alter table "better_supabase"."activities" add column if not exists "goal_id" uuid;
+alter table "better_supabase"."activities" add column if not exists "marked_error_at" timestamptz;
+alter table "better_supabase"."activities" add column if not exists "marked_error_by" uuid;
+alter table "better_supabase"."activities" add column if not exists "marked_error_reason" text check (length("marked_error_reason") between 1 and 2000);
+create index if not exists "activities_amends_idx" on "better_supabase"."activities" ("amends_id");
+alter table "better_supabase"."activities" enable row level security;
+revoke all on "better_supabase"."activities" from public, anon, authenticated;
+grant select on "better_supabase"."activities" to authenticated;
+grant all on "better_supabase"."activities" to service_role;
 create table if not exists "better_supabase"."engagement_subjects" (
   "tenant_id" uuid not null,
-  "engagement_id" uuid not null references "better_supabase"."engagements" ("id") on delete cascade,
+  "engagement_id" uuid not null references "better_supabase"."activities" ("id") on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
   "position" integer not null default 1,
@@ -122,7 +122,7 @@ security definer
 set search_path = ''
 as $$
   select exists (
-    select 1 from "better_supabase"."engagements" x
+    select 1 from "better_supabase"."activities" x
     join "better_supabase"."engagement_subjects" k on k."engagement_id" = x."id"
     where x."id" = engagement_guest_readable.engagement
       and x."audience" = 'subject'
@@ -137,8 +137,8 @@ drop policy if exists engagement_subjects_read on "better_supabase"."engagement_
 create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) and "better_supabase"."engagement_guest_readable"("engagement_id")));
-drop policy if exists engagements_read on "better_supabase"."engagements";
-create policy engagements_read on "better_supabase"."engagements"
+drop policy if exists activities_read on "better_supabase"."activities";
+create policy activities_read on "better_supabase"."activities"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" lx where lx."engagement_id" = "id")
@@ -188,7 +188,7 @@ begin
   if nullif(log_activity.attrs ->> 'category', '') is not null and not (log_activity.attrs ->> 'category' = any ('{general,care,medical,behavior,family,incident}'::text[])) then
     raise exception 'category must be one of general, care, medical, behavior, family, incident' using errcode = '22023', hint = 'ACTIVITY_CATEGORY_INVALID';
   end if;
-  if exists (select 1 from "better_supabase"."engagements" x where x."tenant_id" = v_tenant and x."external_ref" = log_activity.attrs ->> 'externalRef' and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
+  if exists (select 1 from "better_supabase"."activities" x where x."tenant_id" = v_tenant and x."external_ref" = log_activity.attrs ->> 'externalRef' and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
     raise exception 'the engagement is locked: add an addendum with amend_activity instead' using errcode = '55000', hint = 'ACTIVITY_LOCKED';
   end if;
   declare
@@ -199,7 +199,7 @@ begin
         using log_activity.tenant, log_activity.attrs, log_activity.subjects;
     end if;
   end;
-  insert into "better_supabase"."engagements" ("tenant_id", "type", "title", "body", "outcome", "owner_user_id", "due_at", "done_at", "duration_seconds", "external_ref", "created_by", "audience", "restricted_roles", "category", "locked_at", "goal_id")
+  insert into "better_supabase"."activities" ("tenant_id", "type", "title", "body", "outcome", "owner_user_id", "due_at", "done_at", "duration_seconds", "external_ref", "created_by", "audience", "restricted_roles", "category", "locked_at", "goal_id")
   values (v_tenant, v_type, v_title, log_activity.attrs ->> 'body', log_activity.attrs ->> 'outcome', v_owner, (log_activity.attrs ->> 'dueAt')::timestamptz, (log_activity.attrs ->> 'doneAt')::timestamptz, (log_activity.attrs ->> 'durationSeconds')::integer, log_activity.attrs ->> 'externalRef', auth.uid(), coalesce(nullif(log_activity.attrs ->> 'audience', ''), 'team'), nullif((select coalesce(array_agg(r.value order by r.ordinality), '{}'::text[]) from jsonb_array_elements_text(case when jsonb_typeof(log_activity.attrs -> 'restrictedRoles') = 'array' then log_activity.attrs -> 'restrictedRoles' else '[]'::jsonb end) with ordinality r), '{}'), nullif(log_activity.attrs ->> 'category', ''), case when v_type = any ('{note,report}'::text[]) then now() + interval '24 hours' end, nullif(log_activity.attrs ->> 'goalId', '')::uuid)
   on conflict ("tenant_id", "external_ref") where "external_ref" is not null do update set
     "title" = excluded."title", "body" = excluded."body", "outcome" = excluded."outcome",
@@ -219,7 +219,7 @@ begin
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -232,7 +232,7 @@ begin
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'lease' then exists (select 1 from "better_supabase"."lease_agreements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'lease' then exists (select 1 from "better_supabase"."leases" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -240,7 +240,7 @@ begin
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."compliance_policies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'case' then exists (select 1 from "better_supabase"."cases" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -296,7 +296,7 @@ begin
         using v_id;
     end if;
   end;
-  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."engagements" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."log_activity"(uuid, jsonb, jsonb) from public, anon;
@@ -326,7 +326,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type", x."owner_user_id" into v_tenant, v_type, v_previous_owner
-  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
+  from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
   end if;
@@ -342,10 +342,10 @@ begin
   if nullif(update_activity.attrs ->> 'category', '') is not null and not (update_activity.attrs ->> 'category' = any ('{general,care,medical,behavior,family,incident}'::text[])) then
     raise exception 'category must be one of general, care, medical, behavior, family, incident' using errcode = '22023', hint = 'ACTIVITY_CATEGORY_INVALID';
   end if;
-  if exists (select 1 from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
+  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
     raise exception 'the engagement is locked: add an addendum with amend_activity instead' using errcode = '55000', hint = 'ACTIVITY_LOCKED';
   end if;
-  update "better_supabase"."engagements" x set
+  update "better_supabase"."activities" x set
     "type" = coalesce(update_activity.attrs ->> 'type', x."type"),
     "title" = coalesce(nullif(trim(update_activity.attrs ->> 'title'), ''), x."title"),
     "body" = case when update_activity.attrs ? 'body' then update_activity.attrs ->> 'body' else x."body" end,
@@ -378,7 +378,7 @@ begin
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'activity' then exists (select 1 from "better_supabase"."activities" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -391,7 +391,7 @@ begin
       when 'booking' then exists (select 1 from "better_supabase"."bookings" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'asset' then exists (select 1 from "better_supabase"."assets" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'asset_location' then exists (select 1 from "better_supabase"."asset_locations" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'lease' then exists (select 1 from "better_supabase"."lease_agreements" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'lease' then exists (select 1 from "better_supabase"."leases" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'expense_report' then exists (select 1 from "better_supabase"."expense_reports" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'expense_line' then exists (select 1 from "better_supabase"."expense_lines" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'donation_fund' then exists (select 1 from "better_supabase"."donation_funds" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -399,7 +399,7 @@ begin
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
-      when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."compliance_policies" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
       when 'case' then exists (select 1 from "better_supabase"."cases" s where s."id" = ((v_item ->> 'id'))::uuid and s."tenant_id"::text = v_tenant::text)
@@ -451,7 +451,7 @@ begin
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."engagements" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."update_activity"(uuid, jsonb, jsonb) from public, anon;
@@ -474,10 +474,10 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if exists (select 1 from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
+  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
     raise exception 'the engagement is locked: add an addendum with amend_activity instead' using errcode = '55000', hint = 'ACTIVITY_LOCKED';
   end if;
-  update "better_supabase"."engagements" x set
+  update "better_supabase"."activities" x set
     "done_at" = case when complete_activity.done then coalesce(x."done_at", now()) end,
     "outcome" = coalesce(complete_activity.outcome, x."outcome"),
     "updated_at" = now()
@@ -489,7 +489,7 @@ begin
   if complete_activity.done then
     perform "better_supabase".emit_event('activity.completed', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/activities');
   end if;
-  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."engagements" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."complete_activity"(uuid, boolean, text) from public, anon;
@@ -511,10 +511,10 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if exists (select 1 from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
+  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and (x."locked_at" <= now() or x."marked_error_at" is not null)) then
     raise exception 'the engagement is locked: add an addendum with amend_activity instead' using errcode = '55000', hint = 'ACTIVITY_LOCKED';
   end if;
-  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
+  delete from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     return false;
@@ -539,7 +539,7 @@ as $$
   select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
   from (
     select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, coalesce(x."done_at", x."due_at", x."created_at") as at, x."id" as id
-    from "better_supabase"."engagements" x
+    from "better_supabase"."activities" x
     join "better_supabase"."engagement_subjects" k on k."engagement_id" = x."id"
     where k."subject_type" = activities_of.subject_type and k."subject_id" = activities_of.subject_id
       and (activities_of.types is null or x."type" = any (activities_of.types))
@@ -561,7 +561,7 @@ security invoker
 set search_path = ''
 as $$
   select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now())
-  from "better_supabase"."engagements" x
+  from "better_supabase"."activities" x
   join "better_supabase"."engagement_subjects" k on k."engagement_id" = x."id"
   where k."subject_type" = next_activity.subject_type and k."subject_id" = next_activity.subject_id
     and x."done_at" is null and x."due_at" is not null
@@ -582,7 +582,7 @@ as $$
   select coalesce(jsonb_agg(p.value order by p.due nulls last, p.id), '[]'::jsonb)
   from (
     select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, x."due_at" as due, x."id" as id
-    from "better_supabase"."engagements" x
+    from "better_supabase"."activities" x
     where x."tenant_id" = open_activities.tenant
       and x."owner_user_id" = coalesce(open_activities.owner, auth.uid())
       and x."done_at" is null
@@ -599,7 +599,7 @@ grant execute on function "better_supabase"."open_activities"(uuid, uuid, timest
 create table if not exists "better_supabase"."engagement_recordings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "engagement_id" uuid not null references "better_supabase"."engagements" ("id") on delete cascade,
+  "engagement_id" uuid not null references "better_supabase"."activities" ("id") on delete cascade,
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
   "filename" text not null,
   "media_type" text not null,
@@ -622,7 +622,7 @@ grant all on "better_supabase"."engagement_recordings" to service_role;
 drop policy if exists engagement_recordings_read on "better_supabase"."engagement_recordings";
 create policy engagement_recordings_read on "better_supabase"."engagement_recordings"
   for select to authenticated
-  using (exists (select 1 from "better_supabase"."engagements" ex where ex."id" = "engagement_id"));
+  using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "engagement_id"));
 
 -- A transcript, one row per speaker turn, offsets in milliseconds from the
 -- start of the recording.
@@ -651,7 +651,7 @@ create policy engagement_transcript_segments_read on "better_supabase"."engageme
 -- Notes on an engagement: a summary and action items, written by an AI
 -- note taker or a member. One row per engagement; saving replaces it.
 create table if not exists "better_supabase"."engagement_notes" (
-  "engagement_id" uuid primary key references "better_supabase"."engagements" ("id") on delete cascade,
+  "engagement_id" uuid primary key references "better_supabase"."activities" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "summary" text not null check (length("summary") between 1 and 20000),
   "action_items" jsonb not null default '[]' check (jsonb_typeof("action_items") = 'array'),
@@ -668,7 +668,7 @@ grant all on "better_supabase"."engagement_notes" to service_role;
 drop policy if exists engagement_notes_read on "better_supabase"."engagement_notes";
 create policy engagement_notes_read on "better_supabase"."engagement_notes"
   for select to authenticated
-  using (exists (select 1 from "better_supabase"."engagements" ex where ex."id" = "engagement_id"));
+  using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "engagement_id"));
 
 -- Attaches a ready ai-files file of the engagement's tenant as a recording.
 -- The author, the owner and engagements.manage may attach; the file must be
@@ -691,7 +691,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type" into v_tenant, v_type
-  from "better_supabase"."engagements" x where x."id" = attach_activity_recording.engagement and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
+  from "better_supabase"."activities" x where x."id" = attach_activity_recording.engagement and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
   end if;
@@ -798,7 +798,7 @@ begin
   end if;
   select rx."engagement_id", rx."tenant_id", x."type" into v_engagement, v_tenant, v_type
   from "better_supabase"."engagement_recordings" rx
-  join "better_supabase"."engagements" x on x."id" = rx."engagement_id"
+  join "better_supabase"."activities" x on x."id" = rx."engagement_id"
   where rx."id" = v_recording and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   for update of rx;
   if v_engagement is null then
@@ -898,7 +898,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type" into v_tenant, v_type
-  from "better_supabase"."engagements" x where x."id" = save_activity_notes.engagement and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
+  from "better_supabase"."activities" x where x."id" = save_activity_notes.engagement and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
   end if;
@@ -944,7 +944,7 @@ as $$
       where rx."engagement_id" = x."id"
     ), '[]'::jsonb)
   )
-  from "better_supabase"."engagements" x
+  from "better_supabase"."activities" x
   where x."id" = activity_with_transcripts.engagement
 $$;
 revoke execute on function "better_supabase"."activity_with_transcripts"(uuid) from public, anon;
@@ -999,7 +999,7 @@ begin
     select left(coalesce(sv."name", 'Booking') || coalesce(' with ' || nullif(trim(new."customer_name"), ''), ''), 500)
     into v_title
     from "better_supabase"."booking_services" sv where sv."id" = new."service_id";
-    insert into "better_supabase"."engagements" ("tenant_id", "type", "title", "body", "owner_user_id", "due_at", "duration_seconds", "external_ref", "created_by")
+    insert into "better_supabase"."activities" ("tenant_id", "type", "title", "body", "owner_user_id", "due_at", "duration_seconds", "external_ref", "created_by")
     values (v_tenant, 'meeting', coalesce(v_title, 'Booking'), new."notes", v_owner, lower(new."during"), extract(epoch from upper(new."during") - lower(new."during"))::integer, v_ref, new."created_by")
     on conflict ("tenant_id", "external_ref") where "external_ref" is not null do update set
       "due_at" = excluded."due_at", "duration_seconds" = excluded."duration_seconds",
@@ -1026,7 +1026,7 @@ begin
       perform "better_supabase".emit_event('activity.updated', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', 'meeting', 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/activities');
     end if;
   elsif new."status" = 'cancelled' and tg_op = 'UPDATE' and old."status" = 'confirmed' then
-    update "better_supabase"."engagements" x set
+    update "better_supabase"."activities" x set
       "done_at" = coalesce(new."cancelled_at", now()),
       "outcome" = left('cancelled' || coalesce(': ' || nullif(trim(new."cancel_reason"), ''), ''), 500),
       "updated_at" = now()
@@ -1057,7 +1057,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_from "better_supabase"."engagements";
+  v_from "better_supabase"."activities";
   v_id uuid;
   v_body text := nullif(trim(amend_activity.body), '');
   v_subjects jsonb;
@@ -1066,7 +1066,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_from from "better_supabase"."engagements" x
+  select * into v_from from "better_supabase"."activities" x
   where x."id" = amend_activity.engagement and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" lx where lx."engagement_id" = x."id")
   or exists (select 1 from "better_supabase"."engagement_subjects" lx where lx."engagement_id" = x."id" and "better_supabase"."can_subject"(lx."subject_type", lx."subject_id", 'read'))
@@ -1080,7 +1080,7 @@ begin
   if v_body is null then
     raise exception 'an addendum needs a body' using errcode = '23502', hint = 'ACTIVITY_BODY_REQUIRED';
   end if;
-  insert into "better_supabase"."engagements" ("tenant_id", "type", "title", "body", "owner_user_id", "amends_id", "audience", "restricted_roles", "category", "goal_id", "locked_at", "created_by")
+  insert into "better_supabase"."activities" ("tenant_id", "type", "title", "body", "owner_user_id", "amends_id", "audience", "restricted_roles", "category", "goal_id", "locked_at", "created_by")
   values (v_from."tenant_id", v_from."type", v_from."title", v_body, auth.uid(), v_from."id", v_from."audience", v_from."restricted_roles", v_from."category", v_from."goal_id", case when v_from."type"::text = any ('{note,report}'::text[]) then now() + interval '24 hours' end, auth.uid())
   returning "id" into v_id;
   insert into "better_supabase"."engagement_subjects" ("tenant_id", "engagement_id", "subject_type", "subject_id", "position")
@@ -1089,7 +1089,7 @@ begin
   v_subjects := coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = v_id), '[]'::jsonb);
   v_first := v_subjects -> 0;
   perform "better_supabase".emit_event('activity.amended', jsonb_build_object('organizationId', v_from."tenant_id", 'engagementId', v_id, 'type', v_from."type"::text, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects, 'amendsId', v_from."id"), 'engagements/' || v_id::text, (v_from."tenant_id"::text)::text, null, 'better-supabase/activities');
-  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."engagements" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."amend_activity"(uuid, text) from public, anon;
@@ -1118,10 +1118,10 @@ begin
   if v_reason is null then
     raise exception 'say why the engagement is in error' using errcode = '23502', hint = 'ACTIVITY_REASON_REQUIRED';
   end if;
-  if exists (select 1 from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."marked_error_at" is not null) then
+  if exists (select 1 from "better_supabase"."activities" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false)) and x."marked_error_at" is not null) then
     raise exception 'the engagement is already marked in error' using errcode = '55000', hint = 'ACTIVITY_ALREADY_MARKED_ERROR';
   end if;
-  update "better_supabase"."engagements" x set
+  update "better_supabase"."activities" x set
     "marked_error_at" = now(),
     "marked_error_by" = auth.uid(),
     "marked_error_reason" = v_reason,
@@ -1132,7 +1132,7 @@ begin
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ACTIVITY_NOT_FOUND';
   end if;
   perform "better_supabase".emit_event('activity.error_marked', jsonb_build_object('organizationId', v_tenant, 'engagementId', v_id, 'type', v_type, 'subjectType', v_first ->> 'type', 'subjectId', v_first ->> 'id', 'subjects', v_subjects, 'reason', v_reason), 'engagements/' || v_id::text, (v_tenant::text)::text, null, 'better-supabase/activities');
-  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."engagements" x where x."id" = v_id);
+  return (select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) from "better_supabase"."activities" x where x."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."mark_activity_error"(uuid, text) from public, anon;
@@ -1153,9 +1153,9 @@ begin
     as $members$ select null::uuid where false $members$;
   end if;
 end $$;
-drop policy if exists bsb_tenant_scope on "better_supabase"."engagements";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."engagements";
-create policy bsb_tenant_scope_select on "better_supabase"."engagements" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."activities";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."activities";
+create policy bsb_tenant_scope_select on "better_supabase"."activities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
@@ -1164,17 +1164,17 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagements" as rest
   or exists (select 1 from "better_supabase"."engagement_subjects" lx where lx."engagement_id" = "id" and "better_supabase"."can_subject"(lx."subject_type", lx."subject_id", 'read'))
 ) and ("audience" <> 'restricted' or "tenant_id" in (select better_supabase.tenant_ids_with('activities.read_restricted')) or "owner_user_id" = (select auth.uid()) or "created_by" = (select auth.uid()) or exists (select 1 from "better_supabase"."engagement_subjects" nx where nx."engagement_id" = "id" and "better_supabase"."has_subject_role"(nx."subject_type", nx."subject_id", "restricted_roles")))) or ("audience" = 'subject' and "better_supabase"."engagement_guest_readable"("id")))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagements";
-create policy bsb_tenant_scope_insert on "better_supabase"."engagements" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."activities";
+create policy bsb_tenant_scope_insert on "better_supabase"."activities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."engagements";
-create policy bsb_tenant_scope_update on "better_supabase"."engagements" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."activities";
+create policy bsb_tenant_scope_update on "better_supabase"."activities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."engagements";
-create policy bsb_tenant_scope_delete on "better_supabase"."engagements" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."activities";
+create policy bsb_tenant_scope_delete on "better_supabase"."activities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."engagement_subjects";
@@ -1199,9 +1199,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."engagement_subjects"
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
-drop trigger if exists "bsb_search_activity_index" on "better_supabase"."engagements";
+drop trigger if exists "bsb_search_activity_index" on "better_supabase"."activities";
 create trigger "bsb_search_activity_index"
-  after insert or delete or update of "id", "tenant_id", "title", "body", "outcome" on "better_supabase"."engagements"
+  after insert or delete or update of "id", "tenant_id", "title", "body", "outcome" on "better_supabase"."activities"
   for each row execute function "better_supabase"."search_index_row"('activity', 'id');
 
 -- blocks.activities.api: entry points for the Data API.

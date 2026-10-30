@@ -491,11 +491,18 @@ const TO_ACKNOWLEDGEMENTS: BlockSqlUpgrade = {
     return `-- The acknowledgements tables, so the policy acknowledgements can move before the module files run.
 ${acknowledgementTables(acknowledgements)}
 
-insert into ${assignments} (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")})
-select x.${p("tenant")}, ${type}, x.${p("id")}::text, 'role', ${sqlString(POLICY_ROLE)}
-from ${ctx.table("policies")} x
-where x.${p("requiresAck")} and x.${p("archivedAt")} is null
-on conflict (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")}) do nothing;
+do $$
+begin
+  if to_regclass(${sqlString(ctx.table("policies"))}) is null then
+    return;
+  end if;
+  insert into ${assignments} (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")})
+  select x.${p("tenant")}, ${type}, x.${p("id")}::text, 'role', ${sqlString(POLICY_ROLE)}
+  from ${ctx.table("policies")} x
+  where x.${p("requiresAck")} and x.${p("archivedAt")} is null
+  on conflict (${g("tenant")}, ${g("subjectType")}, ${g("subjectId")}, ${g("principalType")}, ${g("principalId")}) do nothing;
+end;
+$$;
 
 do $$
 begin

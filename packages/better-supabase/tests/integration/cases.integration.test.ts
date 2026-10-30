@@ -121,7 +121,7 @@ describe.skipIf(!live)("cases", () => {
 
       await s.service();
       await s.rows(
-        "update better_supabase.work_items set state = 'completed' where id = $1",
+        "update better_supabase.tasks set state = 'completed' where id = $1",
         [action.taskId],
       );
       expect(await cases.notifyDueEffectiveness().orThrow()).toBe(0);

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
--- @bsb-block automations@1 managed
--- @bsb-hash sha256:8a135690e9e11a456a222a93fa35a30cb5cf24a04a029e5bce9c03da4a9e531d
+-- @bsb-block automations@2 managed
+-- @bsb-hash sha256:c024530e7dcd7b5a0528438b11877fe240a8f6443cc88af91e116d07982b1f48
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,27 +45,27 @@ grant execute on function better_supabase.raise_actor_readonly() to anon, authen
 do $$
 begin
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rules";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rules";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rules";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rules";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rules";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."automations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automations";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rule_versions";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rule_versions";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rule_versions";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rule_versions";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rule_versions";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_versions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_versions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_versions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_versions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_versions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."rule_evaluations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."rule_evaluations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."rule_evaluations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."rule_evaluations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."rule_evaluations";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."automation_evaluations";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."automation_evaluations";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."automation_evaluations";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."automation_evaluations";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."automation_evaluations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -74,7 +74,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Tenant rules: a FilterQuery over a subject type's fields, tested when the
 -- trigger event happens, and the actions the app runs when it matches.
-create table if not exists "better_supabase"."rules" (
+create table if not exists "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -92,19 +92,19 @@ create table if not exists "better_supabase"."rules" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists rules_trigger_idx on "better_supabase"."rules" ("workspace_id", "subject_type", "trigger", "rank");
-create index if not exists rules_created_by_idx on "better_supabase"."rules" ("created_by") where "created_by" is not null;
-create index if not exists rules_updated_by_idx on "better_supabase"."rules" ("updated_by") where "updated_by" is not null;
-alter table "better_supabase"."rules" add column if not exists "default_key" text;
-create unique index if not exists rules_default_key_idx on "better_supabase"."rules" ("workspace_id", "default_key") where "default_key" is not null;
-alter table "better_supabase"."rules" enable row level security;
-revoke all on "better_supabase"."rules" from public, anon, authenticated;
-grant all on "better_supabase"."rules" to service_role;
+create index if not exists "automations_trigger_idx" on "better_supabase"."automations" ("workspace_id", "subject_type", "trigger", "rank");
+create index if not exists "automations_created_by_idx" on "better_supabase"."automations" ("created_by") where "created_by" is not null;
+create index if not exists "automations_updated_by_idx" on "better_supabase"."automations" ("updated_by") where "updated_by" is not null;
+alter table "better_supabase"."automations" add column if not exists "default_key" text;
+create unique index if not exists "automations_default_key_idx" on "better_supabase"."automations" ("workspace_id", "default_key") where "default_key" is not null;
+alter table "better_supabase"."automations" enable row level security;
+revoke all on "better_supabase"."automations" from public, anon, authenticated;
+grant all on "better_supabase"."automations" to service_role;
 
 -- The automations blocks ship (defineBlock automations). Each organization
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
-create table if not exists "better_supabase"."rule_defaults" (
+create table if not exists "better_supabase"."automation_defaults" (
   "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
@@ -116,13 +116,13 @@ create table if not exists "better_supabase"."rule_defaults" (
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."rule_defaults" enable row level security;
-revoke all on "better_supabase"."rule_defaults" from public, anon, authenticated;
-grant all on "better_supabase"."rule_defaults" to service_role;
+alter table "better_supabase"."automation_defaults" enable row level security;
+revoke all on "better_supabase"."automation_defaults" from public, anon, authenticated;
+grant all on "better_supabase"."automation_defaults" to service_role;
 
 -- Every saved version of a rule's conditions and actions.
-create table if not exists "better_supabase"."rule_versions" (
-  "rule_id" uuid not null references "better_supabase"."rules" ("id") on delete cascade,
+create table if not exists "better_supabase"."automation_versions" (
+  "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "workspace_id" uuid not null,
   "name" text not null,
@@ -132,17 +132,17 @@ create table if not exists "better_supabase"."rule_versions" (
   "saved_at" timestamptz not null default now(),
   primary key ("rule_id", "version")
 );
-create index if not exists rule_versions_tenant_idx on "better_supabase"."rule_versions" ("workspace_id");
-alter table "better_supabase"."rule_versions" enable row level security;
-revoke all on "better_supabase"."rule_versions" from public, anon, authenticated;
-grant all on "better_supabase"."rule_versions" to service_role;
+create index if not exists "automation_versions_tenant_idx" on "better_supabase"."automation_versions" ("workspace_id");
+alter table "better_supabase"."automation_versions" enable row level security;
+revoke all on "better_supabase"."automation_versions" from public, anon, authenticated;
+grant all on "better_supabase"."automation_versions" to service_role;
 
 -- Live and test evaluations: which rule version saw which subject, and the
 -- truth of every condition and group.
-create table if not exists "better_supabase"."rule_evaluations" (
+create table if not exists "better_supabase"."automation_evaluations" (
   "id" bigint generated always as identity primary key,
   "workspace_id" uuid not null,
-  "rule_id" uuid not null references "better_supabase"."rules" ("id") on delete cascade,
+  "rule_id" uuid not null references "better_supabase"."automations" ("id") on delete cascade,
   "version" integer not null,
   "subject_type" text not null,
   "subject_id" text,
@@ -153,15 +153,15 @@ create table if not exists "better_supabase"."rule_evaluations" (
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
-create index if not exists rule_evaluations_rule_idx on "better_supabase"."rule_evaluations" ("rule_id", "evaluated_at" desc);
-create index if not exists rule_evaluations_tenant_idx on "better_supabase"."rule_evaluations" ("workspace_id", "evaluated_at" desc);
-alter table "better_supabase"."rule_evaluations" enable row level security;
-revoke all on "better_supabase"."rule_evaluations" from public, anon, authenticated;
-grant all on "better_supabase"."rule_evaluations" to service_role;
+create index if not exists "automation_evaluations_rule_idx" on "better_supabase"."automation_evaluations" ("rule_id", "evaluated_at" desc);
+create index if not exists "automation_evaluations_tenant_idx" on "better_supabase"."automation_evaluations" ("workspace_id", "evaluated_at" desc);
+alter table "better_supabase"."automation_evaluations" enable row level security;
+revoke all on "better_supabase"."automation_evaluations" from public, anon, authenticated;
+grant all on "better_supabase"."automation_evaluations" to service_role;
 
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
-create table if not exists "better_supabase"."rule_fields" (
+create table if not exists "better_supabase"."automation_fields" (
   "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
@@ -177,9 +177,9 @@ create table if not exists "better_supabase"."rule_fields" (
   primary key ("subject_type", "field_id"),
   check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
-alter table "better_supabase"."rule_fields" enable row level security;
-revoke all on "better_supabase"."rule_fields" from public, anon, authenticated;
-grant all on "better_supabase"."rule_fields" to service_role;
+alter table "better_supabase"."automation_fields" enable row level security;
+revoke all on "better_supabase"."automation_fields" from public, anon, authenticated;
+grant all on "better_supabase"."automation_fields" to service_role;
 
 -- A JSON value as text the way the TypeScript evaluator reads it:
 -- strings as they are, numbers and booleans printed, anything else null.
@@ -644,7 +644,7 @@ begin
   if jsonb_typeof(fields) is distinct from 'array' then
     raise exception 'fields must be an array' using errcode = '22023', hint = 'AUTOMATION_FIELDS_INVALID';
   end if;
-  insert into "better_supabase"."rule_fields" ("subject_type", "field_id", "label", "description", "type", "path", "column_type", "nullable", "options", "operators", "position")
+  insert into "better_supabase"."automation_fields" ("subject_type", "field_id", "label", "description", "type", "path", "column_type", "nullable", "options", "operators", "position")
   select sync_rule_fields.subject_type, x.value ->> 'id', coalesce(x.value ->> 'label', x.value ->> 'id'), x.value ->> 'description',
     x.value ->> 'type', coalesce(x.value ->> 'column', x.value ->> 'id'), coalesce(x.value ->> 'columnType', 'text'),
     coalesce((x.value ->> 'nullable')::boolean, true), x.value -> 'options', x.value -> 'operators', x.n::integer
@@ -660,10 +660,10 @@ begin
     "operators" = excluded."operators",
     "position" = excluded."position",
     "updated_at" = now();
-  delete from "better_supabase"."rule_fields" x
+  delete from "better_supabase"."automation_fields" x
   where x."subject_type" = sync_rule_fields.subject_type
     and not exists (select 1 from jsonb_array_elements(fields) y where y.value ->> 'id' = x."field_id");
-  select count(*) into v_count from "better_supabase"."rule_fields" x where x."subject_type" = sync_rule_fields.subject_type;
+  select count(*) into v_count from "better_supabase"."automation_fields" x where x."subject_type" = sync_rule_fields.subject_type;
   return v_count;
 exception when check_violation or not_null_violation then
   raise exception 'A rule field has an invalid id, type, column or column type' using errcode = '22023', hint = 'AUTOMATION_FIELDS_INVALID';
@@ -679,7 +679,7 @@ security definer
 set search_path = ''
 as $$
   select coalesce(jsonb_agg(jsonb_build_object('subjectType', x."subject_type", 'id', x."field_id", 'label', x."label", 'description', x."description", 'type', x."type", 'column', x."path", 'columnType', x."column_type", 'nullable', x."nullable", 'options', x."options", 'operators', x."operators") order by x."subject_type", x."position"), '[]'::jsonb)
-  from "better_supabase"."rule_fields" x
+  from "better_supabase"."automation_fields" x
   where rule_fields_list.subject_type is null or x."subject_type" = rule_fields_list.subject_type
 $$;
 
@@ -695,7 +695,7 @@ as $$
     'type', x."type", 'column', x."path", 'columnType', x."column_type",
     'nullable', x."nullable", 'operators', x."operators"
   )), '{}'::jsonb)
-  from "better_supabase"."rule_fields" x where x."subject_type" = rule_field_map.subject_type
+  from "better_supabase"."automation_fields" x where x."subject_type" = rule_field_map.subject_type
 $$;
 
 -- Creates or changes a rule. rule is { id?, version?, subjectType, trigger, name,
@@ -711,8 +711,8 @@ as $$
 #variable_conflict use_variable
 declare
   v_id uuid;
-  v_old "better_supabase"."rules";
-  v_row "better_supabase"."rules";
+  v_old "better_supabase"."automations";
+  v_row "better_supabase"."automations";
   v_subject_type text;
   v_trigger text;
   v_name text;
@@ -732,7 +732,7 @@ begin
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
-    select * into v_old from "better_supabase"."rules" x where x."id" = v_id and x."workspace_id" = save_rule.tenant for update;
+    select * into v_old from "better_supabase"."automations" x where x."id" = v_id and x."workspace_id" = save_rule.tenant for update;
     if v_old."id" is null then
       raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
@@ -779,12 +779,12 @@ begin
     end if;
   end loop;
   if v_old."id" is null then
-    insert into "better_supabase"."rules" ("workspace_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
+    insert into "better_supabase"."automations" ("workspace_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "stop_processing", "rank")
     values (save_rule.tenant, v_subject_type, v_trigger, v_name, v_description, v_conditions, v_actions, v_enabled, v_stop,
       case
-    when (select max(x."rank" collate "C") from "better_supabase"."rules" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
-    when length(substring((select max(x."rank" collate "C") from "better_supabase"."rules" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."rules" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."rules" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
-    else left((select max(x."rank" collate "C") from "better_supabase"."rules" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."rules" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."rules" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."rules" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
+    when (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) is null then 'V'
+    when length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) = length((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type)) then (select max(x."rank" collate "C") from "better_supabase"."automations" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) || 'V'
+    else left((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*'))) || substr('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', (strpos('0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz', substr((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type), length(substring((select max(x."rank" collate "C") from "better_supabase"."automations" x where x."workspace_id" = save_rule.tenant and x."subject_type" = v_subject_type) from '^z*')) + 1, 1)) - 1 + 62) / 2 + 1, 1)
   end)
     returning * into v_row;
   elsif v_old."trigger" = v_trigger and v_old."name" = v_name
@@ -793,7 +793,7 @@ begin
     and v_old."enabled" = v_enabled and v_old."stop_processing" = v_stop then
     return jsonb_build_object('id', v_old."id", 'organizationId', v_old."workspace_id", 'subjectType', v_old."subject_type", 'trigger', v_old."trigger", 'name', v_old."name", 'description', v_old."description", 'conditions', v_old."conditions", 'actions', v_old."actions", 'enabled', v_old."enabled", 'stopProcessing', v_old."stop_processing", 'rank', v_old."rank", 'version', v_old."version", 'createdBy', v_old."created_by", 'updatedBy', v_old."updated_by", 'createdAt', v_old."created_at", 'updatedAt', v_old."updated_at", 'defaultKey', v_old."default_key");
   else
-    update "better_supabase"."rules" x set
+    update "better_supabase"."automations" x set
       "trigger" = v_trigger,
       "name" = v_name,
       "description" = v_description,
@@ -807,7 +807,7 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  insert into "better_supabase"."rule_versions" ("rule_id", "version", "workspace_id", "name", "conditions", "actions", "saved_by")
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "workspace_id", "name", "conditions", "actions", "saved_by")
   values (v_row."id", v_row."version", v_row."workspace_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   if v_old."id" is null then
@@ -838,7 +838,7 @@ begin
   perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
     select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."workspace_id", 'subjectType', x."subject_type", 'trigger', x."trigger", 'name', x."name", 'description', x."description", 'conditions', x."conditions", 'actions', x."actions", 'enabled', x."enabled", 'stopProcessing', x."stop_processing", 'rank', x."rank", 'version', x."version", 'createdBy', x."created_by", 'updatedBy', x."updated_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'defaultKey', x."default_key") order by x."subject_type", x."trigger", x."rank" collate "C"), '[]'::jsonb)
-    from "better_supabase"."rules" x
+    from "better_supabase"."automations" x
     where x."workspace_id" = rules_list.tenant
       and (rules_list.subject_type is null or x."subject_type" = rules_list.subject_type)
       and (rules_list.trigger is null or x."trigger" = rules_list.trigger)
@@ -856,9 +856,9 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."rules";
+  v_row "better_supabase"."automations";
 begin
-  select * into v_row from "better_supabase"."rules" x where x."id" = rule_get.id;
+  select * into v_row from "better_supabase"."automations" x where x."id" = rule_get.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'automations.read'), false)) then
     return null;
   end if;
@@ -877,7 +877,7 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."workspace_id" into v_tenant from "better_supabase"."rules" x where x."id" = rule_versions_list.id;
+  select x."workspace_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_versions_list.id;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
@@ -887,7 +887,7 @@ begin
       'conditions', x."conditions", 'actions', x."actions",
       'savedBy', x."saved_by", 'savedAt', x."saved_at"
     ) order by x."version" desc), '[]'::jsonb)
-    from "better_supabase"."rule_versions" x where x."rule_id" = rule_versions_list.id
+    from "better_supabase"."automation_versions" x where x."rule_id" = rule_versions_list.id
   );
 end;
 $$;
@@ -900,12 +900,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."rules";
+  v_row "better_supabase"."automations";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."rules" x where x."id" = set_rule_enabled.id for update;
+  select * into v_row from "better_supabase"."automations" x where x."id" = set_rule_enabled.id for update;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
@@ -915,7 +915,7 @@ begin
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
     return jsonb_build_object('id', v_row."id", 'organizationId', v_row."workspace_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
   end if;
-  update "better_supabase"."rules" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
+  update "better_supabase"."automations" x set "enabled" = coalesce(set_rule_enabled.enabled, false), "updated_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
   if v_row."enabled" then
     null;
@@ -934,12 +934,12 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."rules";
+  v_row "better_supabase"."automations";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."rules" x where x."id" = rank_rule.id for update;
+  select * into v_row from "better_supabase"."automations" x where x."id" = rank_rule.id for update;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
@@ -949,7 +949,7 @@ begin
   if rank_rule.rank is null or rank_rule.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a key from rankBetween' using errcode = '22023', hint = 'AUTOMATION_RANK_INVALID';
   end if;
-  update "better_supabase"."rules" x set "rank" = rank_rule.rank, "updated_at" = now()
+  update "better_supabase"."automations" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."workspace_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
 end;
@@ -964,19 +964,19 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."rules";
+  v_row "better_supabase"."automations";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."rules" x where x."id" = remove_rule.id;
+  select * into v_row from "better_supabase"."automations" x where x."id" = remove_rule.id;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'automations.manage'), false)) then
     return false;
   end if;
   if v_row."default_key" is not null then
     raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'AUTOMATION_DEFAULT';
   end if;
-  delete from "better_supabase"."rules" x where x."id" = v_row."id";
+  delete from "better_supabase"."automations" x where x."id" = v_row."id";
   null;
   return true;
 end;
@@ -993,7 +993,7 @@ set search_path = ''
 as $$
 declare
   v_fields jsonb;
-  v_rule "better_supabase"."rules";
+  v_rule "better_supabase"."automations";
   v_result jsonb;
   v_matches jsonb := '[]'::jsonb;
 begin
@@ -1002,7 +1002,7 @@ begin
   end if;
   v_fields := "better_supabase"."rule_field_map"(matching_rules.subject_type);
   for v_rule in
-    select * from "better_supabase"."rules" x
+    select * from "better_supabase"."automations" x
     where x."workspace_id" = matching_rules.tenant and x."subject_type" = matching_rules.subject_type
       and x."trigger" = matching_rules.trigger and x."enabled"
     order by x."rank" collate "C"
@@ -1026,13 +1026,13 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_rule "better_supabase"."rules";
-  v_row "better_supabase"."rule_evaluations";
+  v_rule "better_supabase"."automations";
+  v_row "better_supabase"."automation_evaluations";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_rule from "better_supabase"."rules" x where x."id" = record_rule_evaluation.rule;
+  select * into v_rule from "better_supabase"."automations" x where x."id" = record_rule_evaluation.rule;
   if v_rule."id" is null then
     raise exception 'No rule has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
@@ -1045,7 +1045,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."workspace_id", 'automations.write'), false)) then
     raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  insert into "better_supabase"."rule_evaluations" ("workspace_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
+  insert into "better_supabase"."automation_evaluations" ("workspace_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
   values (v_rule."workspace_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
     coalesce(record_rule_evaluation.matched, false), coalesce(record_rule_evaluation.results, '{}'::jsonb), coalesce(record_rule_evaluation.mode, 'live'), auth.uid())
   returning * into v_row;
@@ -1067,7 +1067,7 @@ set search_path = ''
 as $$
 declare
   v_fields jsonb;
-  v_rule "better_supabase"."rules";
+  v_rule "better_supabase"."automations";
   v_result jsonb;
   v_matches jsonb := '[]'::jsonb;
 begin
@@ -1077,7 +1077,7 @@ begin
   perform "better_supabase"."install_default_rules"(run_rules.tenant);
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
   for v_rule in
-    select * from "better_supabase"."rules" x
+    select * from "better_supabase"."automations" x
     where x."workspace_id" = run_rules.tenant
       and (run_rules.subject_type is null or x."subject_type" = run_rules.subject_type)
       and x."trigger" = run_rules.trigger and x."enabled"
@@ -1108,11 +1108,11 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."rules" ("workspace_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
+  insert into "better_supabase"."automations" ("workspace_id", "subject_type", "trigger", "name", "description", "conditions", "actions", "enabled", "default_key", "created_by", "updated_by")
   select install_default_rules.tenant, x."subject_type", x."trigger", x."name", x."description", x."conditions", x."actions", x."enabled", x."key", null, null
-  from "better_supabase"."rule_defaults" x
+  from "better_supabase"."automation_defaults" x
   where not exists (
-    select 1 from "better_supabase"."rules" y where y."workspace_id" = install_default_rules.tenant and y."default_key" = x."key"
+    select 1 from "better_supabase"."automations" y where y."workspace_id" = install_default_rules.tenant and y."default_key" = x."key"
   )
   on conflict do nothing;
   get diagnostics v_count = row_count;
@@ -1130,24 +1130,24 @@ security definer
 set search_path = ''
 as $$
 declare
-  v_row "better_supabase"."rules";
-  v_default "better_supabase"."rule_defaults";
+  v_row "better_supabase"."automations";
+  v_default "better_supabase"."automation_defaults";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."rules" x where x."id" = reset_default_rule.id for update;
+  select * into v_row from "better_supabase"."automations" x where x."id" = reset_default_rule.id for update;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'automations.read'), false)) then
     raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
-  select * into v_default from "better_supabase"."rule_defaults" x where x."key" = v_row."default_key";
+  select * into v_default from "better_supabase"."automation_defaults" x where x."key" = v_row."default_key";
   if v_default."key" is null then
     raise exception 'No block ships this rule' using errcode = '22023', hint = 'AUTOMATION_NOT_DEFAULT';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."workspace_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."workspace_id", 'automations.write'), false) end)) then
     raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
-  update "better_supabase"."rules" x set
+  update "better_supabase"."automations" x set
     "trigger" = v_default."trigger",
     "name" = v_default."name",
     "description" = v_default."description",
@@ -1160,7 +1160,7 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  insert into "better_supabase"."rule_versions" ("rule_id", "version", "workspace_id", "name", "conditions", "actions", "saved_by")
+  insert into "better_supabase"."automation_versions" ("rule_id", "version", "workspace_id", "name", "conditions", "actions", "saved_by")
   values (v_row."id", v_row."version", v_row."workspace_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
   null;
@@ -1179,14 +1179,14 @@ as $$
 declare
   v_tenant uuid;
 begin
-  select x."workspace_id" into v_tenant from "better_supabase"."rules" x where x."id" = rule_evaluations_list.rule;
+  select x."workspace_id" into v_tenant from "better_supabase"."automations" x where x."id" = rule_evaluations_list.rule;
   if v_tenant is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'automations.read'), false)) then
     return '[]'::jsonb;
   end if;
   return (
     select coalesce(jsonb_agg(jsonb_build_object('id', y."id"::text, 'organizationId', y."workspace_id", 'ruleId', y."rule_id", 'version', y."version", 'subjectType', y."subject_type", 'subjectId', y."subject_id", 'trigger', y."trigger", 'matched', y."matched", 'results', y."results", 'mode', y."mode", 'evaluatedBy', y."evaluated_by", 'evaluatedAt', y."evaluated_at") order by y."evaluated_at" desc, y."id" desc), '[]'::jsonb)
     from (
-      select * from "better_supabase"."rule_evaluations" x
+      select * from "better_supabase"."automation_evaluations" x
       where x."rule_id" = rule_evaluations_list.rule
         and (rule_evaluations_list.before is null or x."evaluated_at" < rule_evaluations_list.before)
       order by x."evaluated_at" desc, x."id" desc
@@ -1271,14 +1271,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:c2c6ebcc716d6f629031a8db08c3e4e949e66b0f54d8d3431ff911c0f5c07ba5
+-- @bsb-hash sha256:75ffe1c16d5d668dcbd89b982e6431e9d51a6ed68d0ada90ff43db63399d41f5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."rules" t set "trigger" = m.next_type
+update "better_supabase"."automations" t set "trigger" = m.next_type
 from (values
   ('access.ended', 'access_request.ended'),
   ('access.request_approved', 'access_request.approved'),
@@ -1379,7 +1379,7 @@ from (values
 ) as m(old_type, next_type)
 where t."trigger" = m.old_type;
 
-update "better_supabase"."rule_defaults" t set "trigger" = m.next_type
+update "better_supabase"."automation_defaults" t set "trigger" = m.next_type
 from (values
   ('access.ended', 'access_request.ended'),
   ('access.request_approved', 'access_request.approved'),
@@ -1481,6 +1481,6 @@ from (values
 where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('automations', 1, 'managed')
+values ('automations', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

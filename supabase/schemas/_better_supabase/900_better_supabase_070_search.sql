@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:4deaa267cb60635377784f66be201f69aaca0022fc7edbeadce870e29dd672d5
+-- @bsb-hash sha256:57dcceb9c80530d82974d005e115e8ed58ba7592cb6cca3861f9b4647b2201f7
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -170,7 +170,7 @@ begin
     when 'activity' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."body"::text, s."outcome"::text), ''), null
         into v_tenant, v_title, v_body, v_url
-        from "better_supabase"."engagements" s
+        from "better_supabase"."activities" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
     when 'work_item' then
@@ -370,7 +370,7 @@ begin
     end loop;
   end if;
   if search_reindex.subject_type is null or search_reindex.subject_type = 'activity' then
-    for v_id in select s."id"::text from "better_supabase"."engagements" s loop
+    for v_id in select s."id"::text from "better_supabase"."activities" s loop
       if "better_supabase"."search_refresh"('activity', v_id) then
         v_count := v_count + 1;
       end if;

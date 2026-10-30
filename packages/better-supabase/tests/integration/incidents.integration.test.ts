@@ -25,8 +25,8 @@ const WITH_TASKS = [
   "incidents",
 ];
 
-// The shared stack's work_items table references `work_projects` (the Next.js
-// example renames it), and `create table if not exists` keeps that table.
+// The Next.js example names its projects table `work_projects`; this suite does
+// too.
 const TASKS_LAYOUT: BlockSqlLayout = {
   subjects: withBlockSubjects({}, ["tasks"], {}),
   modules: { tasks: { tables: { projects: "work_projects" } } },
@@ -280,7 +280,7 @@ describe.skipIf(!live)("incidents", () => {
       await s.service();
       expect(
         await s.rows<{ title: string; tenant_id: string }>(
-          "select title, tenant_id from better_supabase.work_items where id = $1",
+          "select title, tenant_id from better_supabase.tasks where id = $1",
           [action.taskId],
         ),
       ).toEqual([{ title: "Alert on queue depth", tenant_id: org }]);
@@ -314,7 +314,7 @@ describe.skipIf(!live)("incidents", () => {
       await s.service();
       expect(
         await s.value<number>(
-          "(select count(*)::int from better_supabase.work_items where id = $1)",
+          "(select count(*)::int from better_supabase.tasks where id = $1)",
           [action.taskId],
         ),
       ).toBe(1);

@@ -1,15 +1,15 @@
 -- ==== schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
--- @bsb-block timeline@1 managed
--- @bsb-hash sha256:c351728e10079d129d5c5a98bff4593b19f2a11e39ec1b05d0dd0dfbe5392872
--- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
+-- @bsb-block timeline@2 managed
+-- @bsb-hash sha256:34ba7e6d75f5b26f37e38da7973143d087e10ad2c4bca92f22df740f39c4cccc
+-- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 -- The activity feed: one row per outbox event, written by activitySink().
-create table if not exists "better_supabase"."activity_entries" (
+create table if not exists "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "event_id" text not null unique,
@@ -21,15 +21,15 @@ create table if not exists "better_supabase"."activity_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index if not exists activity_entries_feed_idx on "better_supabase"."activity_entries" ("organization_id", "occurred_at" desc, "id" desc);
-create index if not exists activity_entries_subject_idx on "better_supabase"."activity_entries" ("organization_id", "subject_type", "subject_id");
-create index if not exists activity_entries_actor_idx on "better_supabase"."activity_entries" ("actor_id");
-alter table "better_supabase"."activity_entries" enable row level security;
-revoke all on "better_supabase"."activity_entries" from public, anon, authenticated;
-grant select on "better_supabase"."activity_entries" to authenticated;
-grant all on "better_supabase"."activity_entries" to service_role;
-drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
-create policy activity_entries_read on "better_supabase"."activity_entries"
+create index if not exists "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
+create index if not exists "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
+create index if not exists "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
+alter table "better_supabase"."timeline_entries" enable row level security;
+revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
+grant select on "better_supabase"."timeline_entries" to authenticated;
+grant all on "better_supabase"."timeline_entries" to service_role;
+drop policy if exists timeline_entries_read on "better_supabase"."timeline_entries";
+create policy timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using (((select auth.uid()) is not null and coalesce((select auth.jwt()) ->> 'is_anonymous', 'false') <> 'true'));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
@@ -52,7 +52,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records activity' using errcode = '42501', hint = 'TIMELINE_ENTRY_FORBIDDEN';
   end if;
-  insert into "better_supabase"."activity_entries" ("event_id", "organization_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
+  insert into "better_supabase"."timeline_entries" ("event_id", "organization_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
   select e ->> 'event_id', (e ->> 'organization_id')::uuid, e ->> 'type', nullif(e ->> 'actor_id', '')::uuid,
     e ->> 'subject_type', e ->> 'subject_id', e ->> 'summary', coalesce(e -> 'data', '{}'::jsonb),
     coalesce((e ->> 'occurred_at')::timestamptz, now())
@@ -91,7 +91,7 @@ begin
     select u.entry, u.at, u.id from (
     (select to_jsonb(y.*) || jsonb_build_object('source', 'event') as entry,
       y."occurred_at" as at, y."id"::text as id
-    from "better_supabase"."activity_entries" y
+    from "better_supabase"."timeline_entries" y
     where y."organization_id" is not distinct from null::uuid
       and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
@@ -127,14 +127,14 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:4a6d9aa3c3763dbdf82747912ac12780447406b9e890869b44b0aba2212c04ab
+-- @bsb-hash sha256:5a1567d2385eb7c2b64b6d63db7b53d28d637a8bbcdc99c716970ce4554a312f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Event types renamed by the 0.47 naming convention (ADR 0130).
-update "better_supabase"."activity_entries" t set "type" = m.next_type
+update "better_supabase"."timeline_entries" t set "type" = m.next_type
 from (values
   ('access.ended', 'access_request.ended'),
   ('access.request_approved', 'access_request.approved'),
@@ -236,6 +236,6 @@ from (values
 where t."type" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('timeline', 1, 'managed')
+values ('timeline', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
