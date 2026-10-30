@@ -493,6 +493,20 @@ export interface AccessRequestEventData {
   readonly reason?: string;
 }
 
+/** `subject_member.added` and `subject_member.ended`, from the subjects block. */
+export interface SubjectMemberEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The `subject_members` row. */
+  readonly id: string;
+  /** Set for a user on the team, null for a team. */
+  readonly userId: string | null;
+  /** Set for a team on the team, null for a user. */
+  readonly teamId: string | null;
+  readonly role: string;
+  /** The last day the membership counts, `YYYY-MM-DD`, or null. */
+  readonly endsOn: string | null;
+}
+
 /** Events from the documents module. */
 export interface DocumentEventData extends SubjectEventData {
   readonly organizationId: string;

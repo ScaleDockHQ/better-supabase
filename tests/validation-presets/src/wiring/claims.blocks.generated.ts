@@ -17,6 +17,7 @@ import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
 import type { StateMachineEvents } from "better-supabase/blocks/state-machine";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
@@ -282,6 +283,9 @@ export const permissions = {
     read: "sla.read",
     manage: "sla.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
@@ -293,13 +297,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & SettingsEvents & SlaEvents & StateMachineEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & SettingsEvents & SlaEvents & StateMachineEvents & SubjectsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -397,6 +401,8 @@ export const blockEvents: Events<BlockEvents> = {
     "status.flagged",
     "status.paused",
     "status.resumed",
+    "subject_member.added",
+    "subject_member.ended",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -501,6 +507,8 @@ export const blockEventSchemas = {
   "status.flagged": true,
   "status.paused": true,
   "status.resumed": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

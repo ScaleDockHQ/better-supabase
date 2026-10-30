@@ -26,11 +26,25 @@ import {
   checkCall,
   registeredIdMatches,
   registeredSubjects,
+  teamActions,
   urlExpression,
 } from "../subject-registry.ts";
 import { accessModel } from "./permissions-model.ts";
+import {
+  RECORD_TEAM_EVENTS,
+  recordTeamContract,
+  recordTeamSql,
+  recordTeamTable,
+  SUBJECT_MEMBERS_TABLE,
+  teamGrant,
+  teamGrantFor,
+} from "./subjects-team.ts";
 
-const NAMES: BlockSqlNames = { tables: {} };
+const NAMES: BlockSqlNames = {
+  events: RECORD_TEAM_EVENTS,
+  options: ["recordTeam"],
+  tables: { members: SUBJECT_MEMBERS_TABLE },
+};
 
 /**
  * The provider's per-row grant for `entry.rows` on row `s`, through its
@@ -129,9 +143,10 @@ function actionCheck(
   subject: RegisteredSubject,
   provider: BlockSqlAccessProvider | undefined,
 ): string {
-  const permissions = Object.entries(subject.config.permissions ?? {});
+  const permissions = subject.config.permissions ?? {};
+  const actions = actionsOf(subject);
 
-  if (permissions.length === 0) {
+  if (actions.length === 0) {
     return "true";
   }
 
@@ -150,11 +165,30 @@ function actionCheck(
     return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
   };
 
-  return `(${SERVICE_CALLER} or case can_subject.action\n${permissions
-    .map(
-      ([action, value]) =>
-        `          when ${sqlString(action)} then ${entryCheck(`records.${subject.type}.permissions.${action}`, subject, value, provider, held, undefined)}`,
-    )
+  return `(${SERVICE_CALLER} or case can_subject.action\n${actions
+    .map((action) => {
+      const value = permissions[action];
+
+      const grants = [
+        ...(value === undefined
+          ? []
+          : [
+              entryCheck(
+                `records.${subject.type}.permissions.${action}`,
+                subject,
+                value,
+                provider,
+                held,
+                undefined,
+              ),
+            ]),
+        ...[teamGrant(ctx, subject, action)].filter(
+          (grant) => grant !== undefined,
+        ),
+      ];
+
+      return `          when ${sqlString(action)} then ${grants.length === 1 ? grants[0]! : `(${grants.join(" or ")})`}`;
+    })
     .join("\n")}\n          else true\n        end)`;
 }
 
@@ -164,13 +198,15 @@ function actionCheck(
  * they answer for the caller only.
  */
 function actionCheckFor(
+  ctx: BlockSqlContext,
   subject: RegisteredSubject,
   user: string,
   provider: BlockSqlAccessProvider | undefined,
 ): string {
-  const permissions = Object.entries(subject.config.permissions ?? {});
+  const permissions = subject.config.permissions ?? {};
+  const actions = actionsOf(subject);
 
-  if (permissions.length === 0) {
+  if (actions.length === 0) {
     return "false";
   }
 
@@ -190,12 +226,44 @@ function actionCheckFor(
     return parts.length === 1 ? parts[0]! : `(${parts.join(" or ")})`;
   };
 
-  return `case can_subject_for.action\n${permissions
-    .map(
-      ([action, value]) =>
-        `          when ${sqlString(action)} then ${entryCheck(`records.${subject.type}.permissions.${action}`, subject, value, provider, held, user)}`,
-    )
+  return `case can_subject_for.action\n${actions
+    .map((action) => {
+      const value = permissions[action];
+
+      const grants = [
+        ...(value === undefined
+          ? []
+          : [
+              entryCheck(
+                `records.${subject.type}.permissions.${action}`,
+                subject,
+                value,
+                provider,
+                held,
+                user,
+              ),
+            ]),
+        ...[teamGrantFor(ctx, subject, action, user)].filter(
+          (grant) => grant !== undefined,
+        ),
+      ];
+
+      return `          when ${sqlString(action)} then ${grants.length === 1 ? grants[0]! : `(${grants.join(" or ")})`}`;
+    })
     .join("\n")}\n          else false\n        end`;
+}
+
+/**
+ * The actions `can_subject` decides for `subject`: those in `permissions`, then
+ * the team's actions that `permissions` doesn't name.
+ */
+function actionsOf(subject: RegisteredSubject): readonly string[] {
+  const keyed = Object.keys(subject.config.permissions ?? {});
+
+  return [
+    ...keyed,
+    ...teamActions(subject).filter((action) => !keyed.includes(action)),
+  ];
 }
 
 /** The row `s` is `id` and, with `deletedAt`, not soft-deleted. */
@@ -377,7 +445,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 
   const fn = (name: string): string => ctx.fn(name);
 
-  return `${schemaPreamble(ctx)}
+  return `${schemaPreamble(ctx)}${recordTeamTable(ctx)}
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function ${fn("subject_types")}()
@@ -554,7 +622,7 @@ ${cases(
     `return exists (
         select 1 from ${subject.qualified} s
         where ${rowMatches(subject, "can_subject_for.subject_id")}
-          and ${actionCheckFor(subject, "can_subject_for.member", provider)}
+          and ${actionCheckFor(ctx, subject, "can_subject_for.member", provider)}
       );`,
 )}
     else
@@ -567,7 +635,7 @@ exception
 end;
 $$;
 ${serviceGrant(`${fn("can_subject_for")}(uuid, text, text, text)`)}
-${myWork(ctx)}${presenceSql(ctx)}`;
+${recordTeamSql(ctx, subjects)}${myWork(ctx)}${presenceSql(ctx)}`;
 }
 
 /** The prefix of a subject's presence topic, `presence:<type>:<id>`. */
@@ -622,7 +690,7 @@ $$;
 `;
 }
 
-function contract(): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
     { name: "subject_types", args: [], returns: "text[]" },
     { name: "subject_title", args: ["text", "text"], returns: "text" },
@@ -641,6 +709,7 @@ function contract(): readonly BlockSqlContractFunction[] {
     },
     { name: "my_work", args: ["{id}", "integer"], returns: "jsonb" },
     { name: "subject_presence_allowed", args: ["text"], returns: "boolean" },
+    ...recordTeamContract(ctx),
   ];
 }
 
@@ -649,8 +718,9 @@ export const SUBJECTS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, and Realtime presence on presence:<type>:<id> for readers of the subject.",
+    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.",
   requires: ["permissions"],
+  integrates: ["teams", "memberships"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

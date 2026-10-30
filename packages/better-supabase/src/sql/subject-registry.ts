@@ -5,6 +5,7 @@ import type {
 import type { EntityNames } from "../core/entity-naming.ts";
 
 import { tenantNames } from "../core/entity-naming.ts";
+import { isRecord } from "../core/guards.ts";
 import {
   subjectPermissionKey,
   subjectPermissionOf,
@@ -170,6 +171,44 @@ export function checkCall(check: string, id: string, alias = "s"): string {
   return `${sqlIdent(schema)}.${sqlIdent(name)}(${alias}.${id})`;
 }
 
+/** `team`: `{ actions }` with at least one action name, on a type with a tenant. */
+function checkTeam(
+  where: string,
+  entry: SubjectConfig,
+  tenant: string | undefined,
+): void {
+  const team: unknown = entry.team;
+
+  if (team === undefined) {
+    return;
+  }
+
+  const actions: unknown = isRecord(team) ? team["actions"] : undefined;
+
+  if (
+    !Array.isArray(actions) ||
+    actions.length === 0 ||
+    actions.some((action) => typeof action !== "string" || !ACTION.test(action))
+  ) {
+    throw new TypeError(
+      `${where}.team must be { actions: [...] } with at least one action name, such as ["read", "write"]`,
+    );
+  }
+
+  if (tenant === undefined) {
+    throw new TypeError(
+      `${where}.team needs a tenant column: record team rows belong to the record's tenant`,
+    );
+  }
+}
+
+/** The actions `subjects.<type>.team` grants to the record's team. */
+export function teamActions(subject: RegisteredSubject): readonly string[] {
+  return subject.tenant === undefined
+    ? []
+    : (subject.config.team?.actions ?? []);
+}
+
 /**
  * `config.subjects`, checked: every entry with its table split and quoted. A
  * subject without `tenant` gets the tenant column `naming` names
@@ -257,6 +296,8 @@ export function registeredSubjects(
     ) {
       throw new TypeError(`${where}.readAccess must be "tenant" or "record"`);
     }
+
+    checkTeam(where, entry, tenant);
 
     if (
       tenant === undefined &&

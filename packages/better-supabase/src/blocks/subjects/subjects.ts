@@ -2,18 +2,21 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
+import type { SubjectMembers } from "./members.ts";
 import type { MyWorkKind } from "./my-work-kinds.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectKey } from "../../core/block-subjects.ts";
 import { AsyncResult, ok } from "../../core/result.ts";
 import {
+  applyTemporal,
   blockCall,
   instantArg,
   isRecord,
   optionalInstant,
   optionalText,
 } from "../shared.ts";
+import { subjectMembers } from "./members.ts";
 import { MY_WORK_KINDS } from "./my-work-kinds.ts";
 
 /** The most refs one `subject_titles` call takes; `resolve` splits above it. */
@@ -99,6 +102,12 @@ export interface Subjects {
    * sent this week, recent mentions and SLA clocks warned on their work.
    */
   myWork(options?: MyWorkOptions): AsyncResult<readonly MyWorkItem[]>;
+  /**
+   * The record's team, for types with `config.subjects.<type>.team`: add, end
+   * and list memberships, and the records the caller is on the team of. `hooks`
+   * don't wrap these.
+   */
+  readonly members: SubjectMembers;
 }
 
 function resolvedOf(value: unknown): ResolvedSubject | undefined {
@@ -202,6 +211,7 @@ const resolvedList = (value: unknown): ResolvedSubject[] =>
  * mentions that show a link to each subject.
  */
 export function createSubjects(options: SubjectsOptions): Subjects {
+  applyTemporal(options);
   const call = blockCall(options.transport, options.schema, options.mappers);
 
   const client: Subjects = {
@@ -265,6 +275,7 @@ export function createSubjects(options: SubjectsOptions): Subjects {
         },
         workList,
       ),
+    members: subjectMembers(call),
   };
 
   return withBlockHooks(client, options.hooks, {

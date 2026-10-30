@@ -41,6 +41,7 @@ import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { RelationsEvents } from "better-supabase/blocks/relations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
@@ -390,6 +391,9 @@ export const permissions = {
     read: "sla.read",
     manage: "sla.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   tasks: {
     read: "tickets.read",
     write: "tickets.write",
@@ -410,13 +414,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "incidents.manage" | "incidents.read" | "incidents.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "teams.manage" | "teams.read" | "tickets.manage" | "tickets.read" | "tickets.write";
+export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "incidents.manage" | "incidents.read" | "incidents.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "relations.manage" | "relations.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "teams.manage" | "teams.read" | "tickets.manage" | "tickets.read" | "tickets.write";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & IncidentsEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & SlaEvents & TeamsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & IncidentsEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & SlaEvents & SubjectsEvents & TeamsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -506,6 +510,8 @@ export const blockEvents: Events<BlockEvents> = {
     "status_component.changed",
     "subject.linked",
     "subject.unlinked",
+    "subject_member.added",
+    "subject_member.ended",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -609,6 +615,8 @@ export const blockEventSchemas = {
   "status_component.changed": true,
   "subject.linked": true,
   "subject.unlinked": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

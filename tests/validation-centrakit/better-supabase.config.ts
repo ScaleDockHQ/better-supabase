@@ -417,7 +417,9 @@ export default defineConfig({
       options: { roles: ["viewer", "commenter", "editor"] },
     },
     "realtime-tables": {},
-    subjects: {},
+    // CentraKit's provider lists no subjects key, so record teams use its
+    // people.manage.
+    subjects: { permissions: { manage: "people.manage" } },
     // Comments are messages on the messaging core; CentraKit's provider names
     // its comment permissions, so messaging checks those keys.
     messaging: {

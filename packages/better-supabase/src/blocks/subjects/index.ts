@@ -11,6 +11,23 @@ export {
 
 export { MY_WORK_KINDS, type MyWorkKind } from "./my-work-kinds.ts";
 
+export {
+  type EndSubjectMemberOptions,
+  MY_SUBJECTS_LIMIT,
+  type MySubject,
+  type MySubjectsOptions,
+  type MySubjectsPage,
+  type SubjectMember,
+  type SubjectMemberInput,
+  type SubjectMembers,
+} from "./members.ts";
+
+export { subjectsEvents } from "./events.ts";
+
+export type { SubjectsEvents } from "./events.ts";
+
+export type { SubjectMemberEventData } from "../../core/block-events.ts";
+
 export { subjectsBlock } from "./manifest.ts";
 
 export { subjectKey } from "../../core/block-subjects.ts";

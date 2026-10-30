@@ -10,6 +10,7 @@ import {
 import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
@@ -179,6 +180,9 @@ export const permissions = {
     listRoles: "members.read",
     setOverride: "roles.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   tags: {
     manage: "tags.manage",
     read: "tags.read",
@@ -195,10 +199,10 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "roles.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read";
+export type PermissionKey = "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "roles.manage" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = MessagingEvents & NotificationsEvents & OrganizationsEvents & TagsEvents & TeamsEvents;
+export type BlockEvents = MessagingEvents & NotificationsEvents & OrganizationsEvents & SubjectsEvents & TagsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -245,6 +249,8 @@ export const blockEvents: Events<BlockEvents> = {
     "organization.updated",
     "subject.tagged",
     "subject.untagged",
+    "subject_member.added",
+    "subject_member.ended",
     "tag.created",
     "tag.deleted",
     "tag.updated",
@@ -301,6 +307,8 @@ export const blockEventSchemas = {
   "organization.updated": true,
   "subject.tagged": true,
   "subject.untagged": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "tag.created": true,
   "tag.deleted": true,
   "tag.updated": true,

@@ -1016,3 +1016,26 @@ function subjectScope(
 
   return scope;
 }
+
+/**
+ * Whether the caller may read the subject row `alias` points at through its
+ * `subject_type` and `subject_id` columns: `can_subject(..., 'read')`, so a
+ * record team (`subjects.<type>.team`) counts. For read policies of blocks that
+ * render after `subjects` and list it in `requires`.
+ */
+export function subjectRowReadable(
+  ctx: Pick<BlockSqlContext, "installed" | "of">,
+  alias: string,
+  columns: { readonly type?: string; readonly id?: string } = {},
+): string {
+  if (!ctx.installed("subjects")) {
+    throw new TypeError(
+      "subjectRowReadable needs the subjects block: add it to the module's requires",
+    );
+  }
+
+  const type = `${alias}.${sqlIdent(columns.type ?? "subject_type")}`;
+  const id = `${alias}.${sqlIdent(columns.id ?? "subject_id")}`;
+
+  return `coalesce(${ctx.of("subjects").fn("can_subject")}(${type}, ${id}::text, 'read'), false)`;
+}

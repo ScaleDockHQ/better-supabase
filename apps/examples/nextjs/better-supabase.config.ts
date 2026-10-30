@@ -109,6 +109,8 @@ export default defineConfig({
       url: "/customers/{id}",
       deletedAt: "archived_at",
       permissions: { read: "customers.read", write: "customers.write" },
+      // The account team on a customer reads and edits it without the keys.
+      team: { actions: ["read", "write"] },
       search: {},
     },
     drive_node: driveSubject(),

@@ -45,6 +45,14 @@ export interface SubjectConfig {
    */
   readonly readAccess?: "tenant" | "record";
   /**
+   * The record team (`subject_members`): `can_subject` grants each of `actions`
+   * to the users and teams on the record's team while their dates include
+   * today, next to the key, the owner column and the check. An action in
+   * `actions` without a `permissions` entry is granted only to the team. Needs
+   * a tenant column.
+   */
+  readonly team?: SubjectTeam;
+  /**
    * A scope the authorization provider declares whose ids are this subject's
    * ids, so a grant on the record counts as well as one on the tenant.
    */
@@ -108,6 +116,12 @@ export interface SubjectPermission {
    * it for another user, so the action is false there.
    */
   readonly check?: string;
+}
+
+/** `subjects.<type>.team`: the actions a record's team holds on it. */
+export interface SubjectTeam {
+  /** Such as `["read", "write"]`. */
+  readonly actions: readonly string[];
 }
 
 /** One table `search.watch[].through` crosses: from the `from` column to `to`. */

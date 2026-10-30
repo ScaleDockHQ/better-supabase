@@ -1700,9 +1700,11 @@ export interface BlockNameRegistry {
     readonly primary: never;
   };
   readonly "subjects": {
-    readonly tables: {};
-    readonly functions: "can_subject" | "can_subject_for" | "my_work" | "record_summary" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
-    readonly actions: never;
+    readonly tables: {
+      readonly "members": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "team" | "role" | "startsOn" | "endsOn" | "emergency" | "reason" | "createdBy" | "createdAt";
+    };
+    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "end_subject_member" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../src/sql/context.ts";
 import type { Subject } from "../../src/sql/subjects.ts";
 
-import { subjectReadable } from "../../src/sql/subjects.ts";
+import { subjectReadable, subjectRowReadable } from "../../src/sql/subjects.ts";
 
 const ctx = {
   scope: {
@@ -107,6 +107,34 @@ describe("subjectReadable with a registered read granted per row or to an owner"
 
     expect(sql).toContain(
       `and ((can(o, 'notes.read')) and s."owner_id" = auth.uid()))`,
+    );
+  });
+});
+
+describe("subjectRowReadable", () => {
+  const withSubjects = (installed: boolean) =>
+    ({
+      installed: (name: string) => installed && name === "subjects",
+      of: () => ({ fn: (name: string) => `bsb.${name}` }),
+    }) as unknown as Pick<BlockSqlContext, "installed" | "of">;
+
+  it("asks can_subject for the row's type and id", () => {
+    expect(subjectRowReadable(withSubjects(true), "c")).toBe(
+      `coalesce(bsb.can_subject(c."subject_type", c."subject_id"::text, 'read'), false)`,
+    );
+    expect(
+      subjectRowReadable(withSubjects(true), "c", {
+        type: "record_type",
+        id: "record_id",
+      }),
+    ).toBe(
+      `coalesce(bsb.can_subject(c."record_type", c."record_id"::text, 'read'), false)`,
+    );
+  });
+
+  it("needs the subjects block", () => {
+    expect(() => subjectRowReadable(withSubjects(false), "c")).toThrow(
+      /needs the subjects block/u,
     );
   });
 });

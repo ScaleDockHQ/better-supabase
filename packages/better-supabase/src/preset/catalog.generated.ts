@@ -1694,10 +1694,16 @@ export const PRESET_CATALOG: PresetCatalog = {
       "requires": [
         "permissions"
       ],
-      "integrates": [],
+      "integrates": [
+        "teams",
+        "memberships"
+      ],
       "manifest": "subjects",
       "scopes": [
         "tenant"
+      ],
+      "tenantNameClashes": [
+        "team"
       ]
     },
     {
@@ -19000,7 +19006,14 @@ export const PRESET_CATALOG: PresetCatalog = {
         "subpath": "better-supabase/blocks/subjects"
       },
       "consumes": {},
-      "provides": []
+      "provides": [],
+      "events": {
+        "type": "SubjectsEvents",
+        "types": [
+          "subject_member.added",
+          "subject_member.ended"
+        ]
+      }
     },
     {
       "name": "impersonation",

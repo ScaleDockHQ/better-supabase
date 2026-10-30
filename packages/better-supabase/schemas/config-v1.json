@@ -1464,6 +1464,19 @@
             "enum": ["tenant", "record"],
             "type": "string"
           },
+          "team": {
+            "type": "object",
+            "properties": {
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["actions"],
+            "additionalProperties": false
+          },
           "search": {
             "type": "object",
             "properties": {
@@ -6737,7 +6750,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "recordTeam": {}
+            }
           }
         }
       },

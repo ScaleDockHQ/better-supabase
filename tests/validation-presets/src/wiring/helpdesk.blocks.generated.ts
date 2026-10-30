@@ -42,6 +42,7 @@ import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SlaEvents } from "better-supabase/blocks/sla";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
@@ -442,6 +443,9 @@ export const permissions = {
     read: "sla.read",
     manage: "sla.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   tags: {
     manage: "tags.manage",
     read: "tags.read",
@@ -470,13 +474,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "tickets.manage" | "tickets.read" | "tickets.write" | "views.read" | "views.share";
+export type PermissionKey = "activity.read" | "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "tickets.manage" | "tickets.read" | "tickets.write" | "views.read" | "views.share";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & InboxEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SlaEvents & TagsEvents & TeamsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & InboxEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SlaEvents & SubjectsEvents & TagsEvents & TeamsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -571,6 +575,8 @@ export const blockEvents: Events<BlockEvents> = {
     "sla.warned",
     "subject.tagged",
     "subject.untagged",
+    "subject_member.added",
+    "subject_member.ended",
     "tag.created",
     "tag.deleted",
     "tag.updated",
@@ -682,6 +688,8 @@ export const blockEventSchemas = {
   "sla.warned": true,
   "subject.tagged": true,
   "subject.untagged": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "tag.created": true,
   "tag.deleted": true,
   "tag.updated": true,

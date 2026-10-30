@@ -18,6 +18,7 @@ import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
@@ -282,6 +283,9 @@ export const permissions = {
     update: "settings.update",
     platform: "settings.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
@@ -299,13 +303,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "employees.read" | "employees.view_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "calendar.manage" | "calendar.read" | "calendar.write" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "employees.read" | "employees.view_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "hiring.manage" | "hiring.read" | "hiring.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CalendarEvents & DocumentsEvents & EnrollmentsEvents & EmployeesEvents & HiringEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & AutomationsEvents & SettingsEvents & TeamsEvents & TimeTrackingEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & CalendarEvents & DocumentsEvents & EnrollmentsEvents & EmployeesEvents & HiringEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & AutomationsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -404,6 +408,8 @@ export const blockEvents: Events<BlockEvents> = {
     "rule.removed",
     "rule.saved",
     "scorecard.submitted",
+    "subject_member.added",
+    "subject_member.ended",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -517,6 +523,8 @@ export const blockEventSchemas = {
   "rule.removed": true,
   "rule.saved": true,
   "scorecard.submitted": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

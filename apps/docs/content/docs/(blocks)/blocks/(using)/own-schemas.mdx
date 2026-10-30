@@ -555,6 +555,8 @@ may be your own enum or domain.
 - `streams`
   - `better_supabase.streams`: `id`, `tenant_id`, `owner_id`, `closed_at`, `cancel_requested_at`, `expires_at`
   - `better_supabase.stream_chunks`: `stream_id`, `idx`, `data`
+- `subjects`
+  - `better_supabase.subject_members`: `id`, `tenant_id`, `subject_type`, `subject_id`, `user_id`, `team_id`, `role`, `starts_on`, `ends_on`, `emergency`, `reason`, `created_by`, `created_at`
 - `tags`
   - `better_supabase.tags`: `id`, `tenant_id`, `kind`, `name`, `slug`, `color`, `description`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.taggings`: `tenant_id`, `tag_id`, `subject_type`, `subject_id`, `created_at`; typed: `subject_type`
