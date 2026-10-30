@@ -197038,40 +197038,6 @@
       {
         "id": 3001951,
         "schema": "better_supabase",
-        "name": "upsert_contact",
-        "language": "plpgsql",
-        "definition": "\ndeclare\n  v_person uuid;\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_contact.tenant, 'inbox.reply'), false)) then\n    raise exception 'not allowed to edit contacts' using errcode = '42501', hint = 'INBOX_FORBIDDEN';\n  end if;\n  v_person := \"better_supabase\".\"resolve_person\"(upsert_contact.tenant, coalesce(input, '{}'::jsonb));\n  return (\n    select jsonb_build_object('id', p.\"id\", 'tenant_id', p.\"tenant_id\", 'user_id', p.\"user_id\", 'name', p.\"name\", 'email', p.\"email\", 'phone', p.\"phone\", 'avatar_url', p.\"avatar_url\", 'metadata', p.\"metadata\", 'created_at', p.\"created_at\")\n    from \"better_supabase\".\"people\" p where p.\"id\" = v_person\n  );\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.upsert_contact(tenant uuid, input jsonb)\n RETURNS jsonb\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_person uuid;\nbegin\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_contact.tenant, 'inbox.reply'), false)) then\n    raise exception 'not allowed to edit contacts' using errcode = '42501', hint = 'INBOX_FORBIDDEN';\n  end if;\n  v_person := \"better_supabase\".\"resolve_person\"(upsert_contact.tenant, coalesce(input, '{}'::jsonb));\n  return (\n    select jsonb_build_object('id', p.\"id\", 'tenant_id', p.\"tenant_id\", 'user_id', p.\"user_id\", 'name', p.\"name\", 'email', p.\"email\", 'phone', p.\"phone\", 'avatar_url', p.\"avatar_url\", 'metadata', p.\"metadata\", 'created_at', p.\"created_at\")\n    from \"better_supabase\".\"people\" p where p.\"id\" = v_person\n  );\nend;\n$function$\n",
-        "args": [
-          {
-            "mode": "in",
-            "name": "input",
-            "type_id": 3802,
-            "has_default": false
-          },
-          {
-            "mode": "in",
-            "name": "tenant",
-            "type_id": 2950,
-            "has_default": false
-          }
-        ],
-        "argument_types": "tenant uuid, input jsonb",
-        "identity_argument_types": "tenant uuid, input jsonb",
-        "return_type_id": 3802,
-        "return_type": "jsonb",
-        "return_type_relation_id": null,
-        "is_set_returning_function": false,
-        "prorows": null,
-        "behavior": "VOLATILE",
-        "security_definer": true,
-        "config_params": {
-          "search_path": "\"\""
-        }
-      },
-      {
-        "id": 3001952,
-        "schema": "better_supabase",
         "name": "upsert_message_template",
         "language": "plpgsql",
         "definition": "\n#variable_conflict use_variable\ndeclare\n  v_row \"better_supabase\".\"inbox_message_templates\"%rowtype;\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'inbox.manage'), false)) then\n    raise exception 'not allowed to manage templates' using errcode = '42501', hint = 'INBOX_FORBIDDEN';\n  end if;\n  insert into \"better_supabase\".\"inbox_message_templates\" as t (\"tenant_id\", \"inbox_id\", \"name\", \"channel\", \"language\", \"body\", \"variables\", \"external_id\")\n  values (tenant, (input ->> 'inbox_id')::uuid, input ->> 'name', input ->> 'channel', coalesce(input ->> 'language', 'en'), input ->> 'body', coalesce(input -> 'variables', '[]'::jsonb), input ->> 'external_id')\n  on conflict (\"tenant_id\", \"channel\", \"name\", \"language\") do update set\n    \"inbox_id\" = excluded.\"inbox_id\",\n    \"body\" = excluded.\"body\",\n    \"variables\" = excluded.\"variables\",\n    \"external_id\" = excluded.\"external_id\"\n  returning * into v_row;\n  return to_jsonb(v_row);\nend;\n",
@@ -197104,7 +197070,7 @@
         }
       },
       {
-        "id": 3001953,
+        "id": 3001952,
         "schema": "better_supabase",
         "name": "usage_breakdown",
         "language": "plpgsql",
@@ -197138,7 +197104,7 @@
         }
       },
       {
-        "id": 3001954,
+        "id": 3001953,
         "schema": "better_supabase",
         "name": "usage_history",
         "language": "plpgsql",
@@ -197184,7 +197150,7 @@
         }
       },
       {
-        "id": 3001955,
+        "id": 3001954,
         "schema": "better_supabase",
         "name": "usage_meters",
         "language": "sql",
@@ -197205,7 +197171,7 @@
         }
       },
       {
-        "id": 3001956,
+        "id": 3001955,
         "schema": "better_supabase",
         "name": "usage_overview",
         "language": "plpgsql",
@@ -197233,7 +197199,7 @@
         }
       },
       {
-        "id": 3001957,
+        "id": 3001956,
         "schema": "better_supabase",
         "name": "usage_quota",
         "language": "sql",
@@ -197279,7 +197245,7 @@
         }
       },
       {
-        "id": 3001958,
+        "id": 3001957,
         "schema": "better_supabase",
         "name": "usage_status",
         "language": "plpgsql",
@@ -197313,7 +197279,7 @@
         }
       },
       {
-        "id": 3001959,
+        "id": 3001958,
         "schema": "better_supabase",
         "name": "usage_used",
         "language": "sql",
@@ -197353,7 +197319,7 @@
         }
       },
       {
-        "id": 3001960,
+        "id": 3001959,
         "schema": "better_supabase",
         "name": "usage_window",
         "language": "plpgsql",
@@ -197399,7 +197365,7 @@
         }
       },
       {
-        "id": 3001961,
+        "id": 3001960,
         "schema": "better_supabase",
         "name": "usage_window_start",
         "language": "plpgsql",
@@ -197439,7 +197405,7 @@
         }
       },
       {
-        "id": 3001962,
+        "id": 3001961,
         "schema": "better_supabase",
         "name": "user_disabled",
         "language": "sql",
@@ -197467,7 +197433,7 @@
         }
       },
       {
-        "id": 3001963,
+        "id": 3001962,
         "schema": "better_supabase",
         "name": "validate_workflow_graph",
         "language": "plpgsql",
@@ -197495,7 +197461,7 @@
         }
       },
       {
-        "id": 3001964,
+        "id": 3001963,
         "schema": "better_supabase",
         "name": "variant_price",
         "language": "sql",
@@ -197541,7 +197507,7 @@
         }
       },
       {
-        "id": 3001965,
+        "id": 3001964,
         "schema": "better_supabase",
         "name": "verify_api_key",
         "language": "plpgsql",
@@ -197575,7 +197541,7 @@
         }
       },
       {
-        "id": 3001966,
+        "id": 3001965,
         "schema": "better_supabase",
         "name": "verify_course_certificate",
         "language": "sql",
@@ -197603,7 +197569,7 @@
         }
       },
       {
-        "id": 3001967,
+        "id": 3001966,
         "schema": "better_supabase",
         "name": "verify_organization_domain",
         "language": "plpgsql",
@@ -197637,7 +197603,7 @@
         }
       },
       {
-        "id": 3001968,
+        "id": 3001967,
         "schema": "better_supabase",
         "name": "version_insert",
         "language": "plpgsql",
@@ -197713,7 +197679,7 @@
         }
       },
       {
-        "id": 3001969,
+        "id": 3001968,
         "schema": "better_supabase",
         "name": "void_donation_receipt",
         "language": "plpgsql",
@@ -197747,7 +197713,7 @@
         }
       },
       {
-        "id": 3001970,
+        "id": 3001969,
         "schema": "better_supabase",
         "name": "void_invoice",
         "language": "plpgsql",
@@ -197787,7 +197753,7 @@
         }
       },
       {
-        "id": 3001971,
+        "id": 3001970,
         "schema": "better_supabase",
         "name": "vote",
         "language": "plpgsql",
@@ -197839,7 +197805,7 @@
         }
       },
       {
-        "id": 3001972,
+        "id": 3001971,
         "schema": "better_supabase",
         "name": "vote_on_post",
         "language": "plpgsql",
@@ -197873,7 +197839,7 @@
         }
       },
       {
-        "id": 3001973,
+        "id": 3001972,
         "schema": "better_supabase",
         "name": "vote_summary",
         "language": "sql",
@@ -197913,7 +197879,7 @@
         }
       },
       {
-        "id": 3001974,
+        "id": 3001973,
         "schema": "better_supabase",
         "name": "vote_tally",
         "language": "sql",
@@ -197953,7 +197919,7 @@
         }
       },
       {
-        "id": 3001975,
+        "id": 3001974,
         "schema": "better_supabase",
         "name": "waitlist_admit",
         "language": "plpgsql",
@@ -197987,7 +197953,7 @@
         }
       },
       {
-        "id": 3001976,
+        "id": 3001975,
         "schema": "better_supabase",
         "name": "wake_snoozed_conversations",
         "language": "plpgsql",
@@ -198008,7 +197974,7 @@
         }
       },
       {
-        "id": 3001977,
+        "id": 3001976,
         "schema": "better_supabase",
         "name": "watch_maintenance_request",
         "language": "plpgsql",
@@ -198042,7 +198008,7 @@
         }
       },
       {
-        "id": 3001978,
+        "id": 3001977,
         "schema": "better_supabase",
         "name": "watch_work_item",
         "language": "plpgsql",
@@ -198076,7 +198042,7 @@
         }
       },
       {
-        "id": 3001979,
+        "id": 3001978,
         "schema": "better_supabase",
         "name": "webhook_secrets",
         "language": "sql",
@@ -198104,7 +198070,7 @@
         }
       },
       {
-        "id": 3001980,
+        "id": 3001979,
         "schema": "better_supabase",
         "name": "withdraw_consent",
         "language": "plpgsql",
@@ -198138,7 +198104,7 @@
         }
       },
       {
-        "id": 3001981,
+        "id": 3001980,
         "schema": "better_supabase",
         "name": "withdraw_quote",
         "language": "plpgsql",
@@ -198178,7 +198144,7 @@
         }
       },
       {
-        "id": 3001982,
+        "id": 3001981,
         "schema": "better_supabase",
         "name": "within_quota",
         "language": "plpgsql",
@@ -198218,7 +198184,7 @@
         }
       },
       {
-        "id": 3001983,
+        "id": 3001982,
         "schema": "better_supabase",
         "name": "work_item_tree",
         "language": "sql",
@@ -198246,7 +198212,7 @@
         }
       },
       {
-        "id": 3001984,
+        "id": 3001983,
         "schema": "better_supabase",
         "name": "workflow_admission_active",
         "language": "sql",
@@ -198274,7 +198240,7 @@
         }
       },
       {
-        "id": 3001985,
+        "id": 3001984,
         "schema": "better_supabase",
         "name": "workflow_alerts_list",
         "language": "sql",
@@ -198302,7 +198268,7 @@
         }
       },
       {
-        "id": 3001986,
+        "id": 3001985,
         "schema": "better_supabase",
         "name": "workflow_claim_run_key",
         "language": "plpgsql",
@@ -198348,7 +198314,7 @@
         }
       },
       {
-        "id": 3001987,
+        "id": 3001986,
         "schema": "better_supabase",
         "name": "workflow_credential_get",
         "language": "sql",
@@ -198376,7 +198342,7 @@
         }
       },
       {
-        "id": 3001988,
+        "id": 3001987,
         "schema": "better_supabase",
         "name": "workflow_credentials_list",
         "language": "sql",
@@ -198404,7 +198370,7 @@
         }
       },
       {
-        "id": 3001989,
+        "id": 3001988,
         "schema": "better_supabase",
         "name": "workflow_definition_get",
         "language": "sql",
@@ -198432,7 +198398,7 @@
         }
       },
       {
-        "id": 3001990,
+        "id": 3001989,
         "schema": "better_supabase",
         "name": "workflow_definition_grants_list",
         "language": "sql",
@@ -198460,7 +198426,7 @@
         }
       },
       {
-        "id": 3001991,
+        "id": 3001990,
         "schema": "better_supabase",
         "name": "workflow_definitions_list",
         "language": "sql",
@@ -198494,7 +198460,7 @@
         }
       },
       {
-        "id": 3001992,
+        "id": 3001991,
         "schema": "better_supabase",
         "name": "workflow_graph_permissions",
         "language": "sql",
@@ -198522,7 +198488,7 @@
         }
       },
       {
-        "id": 3001993,
+        "id": 3001992,
         "schema": "better_supabase",
         "name": "workflow_node_kinds_list",
         "language": "sql",
@@ -198543,7 +198509,7 @@
         }
       },
       {
-        "id": 3001994,
+        "id": 3001993,
         "schema": "better_supabase",
         "name": "workflow_node_runs_list",
         "language": "sql",
@@ -198571,7 +198537,7 @@
         }
       },
       {
-        "id": 3001995,
+        "id": 3001994,
         "schema": "better_supabase",
         "name": "workflow_open_hooks",
         "language": "sql",
@@ -198653,7 +198619,7 @@
         }
       },
       {
-        "id": 3001996,
+        "id": 3001995,
         "schema": "better_supabase",
         "name": "workflow_purge_runs",
         "language": "plpgsql",
@@ -198693,7 +198659,7 @@
         }
       },
       {
-        "id": 3001997,
+        "id": 3001996,
         "schema": "better_supabase",
         "name": "workflow_release_run_key",
         "language": "sql",
@@ -198721,7 +198687,7 @@
         }
       },
       {
-        "id": 3001998,
+        "id": 3001997,
         "schema": "better_supabase",
         "name": "workflow_run_get",
         "language": "sql",
@@ -198749,7 +198715,7 @@
         }
       },
       {
-        "id": 3001999,
+        "id": 3001998,
         "schema": "better_supabase",
         "name": "workflow_run_principal",
         "language": "plpgsql",
@@ -198783,7 +198749,7 @@
         }
       },
       {
-        "id": 3002000,
+        "id": 3001999,
         "schema": "better_supabase",
         "name": "workflow_runs_list",
         "language": "sql",
@@ -198853,7 +198819,7 @@
         }
       },
       {
-        "id": 3002001,
+        "id": 3002000,
         "schema": "better_supabase",
         "name": "workflow_schedules_list",
         "language": "sql",
@@ -198881,7 +198847,7 @@
         }
       },
       {
-        "id": 3002002,
+        "id": 3002001,
         "schema": "better_supabase",
         "name": "workflow_set_run_key",
         "language": "sql",
@@ -198915,7 +198881,7 @@
         }
       },
       {
-        "id": 3002003,
+        "id": 3002002,
         "schema": "better_supabase",
         "name": "workflow_start_target",
         "language": "plpgsql",
@@ -198949,7 +198915,7 @@
         }
       },
       {
-        "id": 3002004,
+        "id": 3002003,
         "schema": "better_supabase",
         "name": "workflow_steps_list",
         "language": "sql",
@@ -198970,7 +198936,7 @@
         }
       },
       {
-        "id": 3002005,
+        "id": 3002004,
         "schema": "better_supabase",
         "name": "workflow_subject_start_target",
         "language": "plpgsql",
@@ -199016,7 +198982,7 @@
         }
       },
       {
-        "id": 3002006,
+        "id": 3002005,
         "schema": "better_supabase",
         "name": "workflow_triggers_list",
         "language": "sql",
@@ -199044,7 +199010,7 @@
         }
       },
       {
-        "id": 3002007,
+        "id": 3002006,
         "schema": "better_supabase",
         "name": "workflow_version_get",
         "language": "sql",
@@ -199072,7 +199038,7 @@
         }
       },
       {
-        "id": 3002008,
+        "id": 3002007,
         "schema": "better_supabase",
         "name": "workflow_versions_list",
         "language": "sql",
@@ -199100,7 +199066,7 @@
         }
       },
       {
-        "id": 3002009,
+        "id": 3002008,
         "schema": "better_supabase",
         "name": "workflow_webhook_target",
         "language": "sql",
@@ -199128,7 +199094,7 @@
         }
       },
       {
-        "id": 3002010,
+        "id": 3002009,
         "schema": "better_supabase",
         "name": "write_knowledge_chunks",
         "language": "plpgsql",
@@ -199168,7 +199134,7 @@
         }
       },
       {
-        "id": 3002011,
+        "id": 3002010,
         "schema": "better_supabase",
         "name": "write_off_invoice",
         "language": "plpgsql",
@@ -199208,7 +199174,7 @@
         }
       },
       {
-        "id": 3002012,
+        "id": 3002011,
         "schema": "better_supabase",
         "name": "yearly_giving_summary",
         "language": "plpgsql",
@@ -199254,7 +199220,7 @@
         }
       },
       {
-        "id": 3002013,
+        "id": 3002012,
         "schema": "public",
         "name": "app_table_set",
         "language": "plpgsql",
@@ -199300,7 +199266,7 @@
         }
       },
       {
-        "id": 3002014,
+        "id": 3002013,
         "schema": "public",
         "name": "client_notes_reveal",
         "language": "sql",
@@ -199346,7 +199312,7 @@
         }
       },
       {
-        "id": 3002015,
+        "id": 3002014,
         "schema": "public",
         "name": "customer_note_counts",
         "language": "sql",
@@ -199392,7 +199358,7 @@
         }
       },
       {
-        "id": 3002016,
+        "id": 3002015,
         "schema": "public",
         "name": "customers_by_status",
         "language": "sql",
@@ -199426,7 +199392,7 @@
         }
       },
       {
-        "id": 3002017,
+        "id": 3002016,
         "schema": "public",
         "name": "import_customer",
         "language": "plpgsql",
@@ -199466,7 +199432,7 @@
         }
       },
       {
-        "id": 3002018,
+        "id": 3002017,
         "schema": "public",
         "name": "import_customer_updated_at",
         "language": "sql",
@@ -199494,7 +199460,7 @@
         }
       },
       {
-        "id": 3002019,
+        "id": 3002018,
         "schema": "public",
         "name": "island_counts",
         "language": "sql",
@@ -199522,7 +199488,7 @@
         }
       },
       {
-        "id": 3002020,
+        "id": 3002019,
         "schema": "public",
         "name": "my_organizations",
         "language": "sql",
@@ -199580,7 +199546,7 @@
         }
       },
       {
-        "id": 3002021,
+        "id": 3002020,
         "schema": "public",
         "name": "my_profile",
         "language": "plpgsql",
@@ -199632,7 +199598,7 @@
         }
       },
       {
-        "id": 3002022,
+        "id": 3002021,
         "schema": "public",
         "name": "organization_invitations",
         "language": "sql",
@@ -199696,7 +199662,7 @@
         }
       },
       {
-        "id": 3002023,
+        "id": 3002022,
         "schema": "public",
         "name": "organization_members",
         "language": "sql",
@@ -199766,7 +199732,7 @@
         }
       },
       {
-        "id": 3002024,
+        "id": 3002023,
         "schema": "public",
         "name": "rs_workspace_summary",
         "language": "sql",
@@ -199794,7 +199760,7 @@
         }
       },
       {
-        "id": 3002025,
+        "id": 3002024,
         "schema": "public",
         "name": "search_notes",
         "language": "plpgsql",
@@ -199828,7 +199794,7 @@
         }
       },
       {
-        "id": 3002026,
+        "id": 3002025,
         "schema": "public",
         "name": "search_notes_scores",
         "language": "plpgsql",
@@ -199874,7 +199840,7 @@
         }
       },
       {
-        "id": 3002027,
+        "id": 3002026,
         "schema": "public",
         "name": "set_my_avatar_path",
         "language": "plpgsql",
@@ -199902,7 +199868,7 @@
         }
       },
       {
-        "id": 3002028,
+        "id": 3002027,
         "schema": "public",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -302504,20 +302470,6 @@
           "search_path": "\"\""
         },
         "execute": []
-      },
-      {
-        "schema": "better_supabase",
-        "name": "upsert_contact",
-        "signature": "tenant uuid, input jsonb",
-        "language": "plpgsql",
-        "volatility": "volatile",
-        "securityDefiner": true,
-        "settings": {
-          "search_path": "\"\""
-        },
-        "execute": [
-          "authenticated"
-        ]
       },
       {
         "schema": "better_supabase",
