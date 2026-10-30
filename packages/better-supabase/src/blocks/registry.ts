@@ -65,6 +65,7 @@ import { impersonationBlock } from "./impersonation/manifest.ts";
 import { importsBlock } from "./imports/manifest.ts";
 import { inboxBlock } from "./inbox/manifest.ts";
 import { incidentsBlock } from "./incidents/manifest.ts";
+import { inspectionsBlock } from "./inspections/manifest.ts";
 import { inventoryBlock } from "./inventory/manifest.ts";
 import { invoicesBlock } from "./invoices/manifest.ts";
 import { jsonbSchemasBlock } from "./jsonb-schemas/manifest.ts";
@@ -215,6 +216,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   qualificationsBlock,
   risksBlock,
   casesBlock,
+  inspectionsBlock,
   shiftsBlock,
   consentsBlock,
   observationsBlock,

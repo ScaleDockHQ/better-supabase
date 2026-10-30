@@ -9238,6 +9238,52 @@
       "RpcClient"
     ]
   },
+  "./blocks/inspections": {
+    "values": [
+      "createInspections",
+      "dbTransport",
+      "extendBlock",
+      "inspectionFindingInputSchema",
+      "inspectionInputSchema",
+      "inspectionProgramInputSchema",
+      "inspectionsBlock",
+      "inspectionsEvents",
+      "inspectionsSqlOptions",
+      "rpcTransport",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "Inspection",
+      "InspectionAuditee",
+      "InspectionCancelledEventData",
+      "InspectionChange",
+      "InspectionDetail",
+      "InspectionEventData",
+      "InspectionFinding",
+      "InspectionFindingCaseRaisedEventData",
+      "InspectionFindingEventData",
+      "InspectionFindingInput",
+      "InspectionInput",
+      "InspectionListOptions",
+      "InspectionMember",
+      "InspectionMemberRole",
+      "InspectionProgram",
+      "InspectionProgramEventData",
+      "InspectionProgramInput",
+      "InspectionProgramStatus",
+      "Inspections",
+      "InspectionsEvents",
+      "InspectionsOptions",
+      "InspectionsSqlOptions",
+      "InspectionStatus",
+      "RpcClient"
+    ]
+  },
   "./blocks/shifts": {
     "values": [
       "createShifts",

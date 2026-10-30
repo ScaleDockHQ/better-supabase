@@ -278,4 +278,5 @@ export const MODULE_PERMISSION_SCOPES: {
     close: "tenant",
     manage: "tenant",
   },
+  inspections: { read: "tenant", write: "tenant", manage: "tenant" },
 };

@@ -109,6 +109,7 @@ import {
   RouteIcon,
   SatelliteDishIcon,
   ScanSearchIcon,
+  SearchCheckIcon,
   ScrollTextIcon,
   ScaleIcon,
   SearchIcon,
@@ -319,6 +320,7 @@ export const BLOCK_ICONS = {
   incidents: SirenIcon,
   risks: Grid3x3Icon,
   cases: FileWarningIcon,
+  inspections: SearchCheckIcon,
   "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,
