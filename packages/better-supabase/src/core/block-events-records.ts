@@ -37,8 +37,8 @@ export interface EngagementAmendedEventData extends EngagementEventData {
   readonly amendsId: string;
 }
 
-/** `engagement.marked_error`: the engagement was flagged as entered in error. */
-export interface EngagementMarkedErrorEventData extends EngagementEventData {
+/** `engagement.error_marked`: the engagement was flagged as entered in error. */
+export interface EngagementErrorMarkedEventData extends EngagementEventData {
   readonly reason: string;
 }
 

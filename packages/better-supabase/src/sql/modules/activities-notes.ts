@@ -120,8 +120,8 @@ export function noteRules(ctx: BlockSqlContext): NoteRules {
   }
 
   const readRestricted = ctx.permission(
-    "read_restricted",
-    moduleOperations("activities").read_restricted,
+    "readRestricted",
+    moduleOperations("activities").readRestricted,
   );
 
   const guests =
@@ -431,7 +431,7 @@ begin
   if v_tenant is null then
     ${fail("ENGAGEMENT_NOT_FOUND", "no such engagement you can edit", "P0002")}
   end if;
-  ${record("engagement.marked_error", "v_id", "v_type", "v_tenant", "'reason', v_reason")}
+  ${record("engagement.error_marked", "v_id", "v_type", "v_tenant", "'reason', v_reason")}
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;

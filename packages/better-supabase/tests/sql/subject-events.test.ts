@@ -62,7 +62,7 @@ const SUBJECT_EVENTS = [
   "engagement.transcribed",
   "engagement.summarized",
   "engagement.amended",
-  "engagement.marked_error",
+  "engagement.error_marked",
   "collection.entry_added",
   "collection.entry_removed",
   "saved_item.reminded",

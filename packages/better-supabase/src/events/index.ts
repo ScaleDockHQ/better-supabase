@@ -358,7 +358,7 @@ export type {
   WorkItemEventData,
   EngagementEventData,
   EngagementAmendedEventData,
-  EngagementMarkedErrorEventData,
+  EngagementErrorMarkedEventData,
   EngagementRecordingEventData,
   MailAccountEventData,
   MailMessageEventData,

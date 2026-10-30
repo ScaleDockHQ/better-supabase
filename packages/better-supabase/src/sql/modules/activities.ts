@@ -73,7 +73,7 @@ const EVENTS: BlockSqlEvents<ActivitiesEvents> = {
     subject: "engagements",
     payload: [...PAYLOAD, "amendsId"],
   },
-  "engagement.marked_error": {
+  "engagement.error_marked": {
     subject: "engagements",
     payload: [...PAYLOAD, "reason"],
   },
