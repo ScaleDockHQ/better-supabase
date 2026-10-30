@@ -528,6 +528,12 @@ may be your own enum or domain.
   - `better_supabase.share_links`: `id`, `tenant_id`, `subject_type`, `subject_id`, `token_hash`, `role`, `version`, `expires_at`, `revoked_at`, `max_uses`, `created_by`
   - `better_supabase.subject_views`: `id`, `tenant_id`, `subject_type`, `subject_id`, `version`, `viewer_kind`, `viewer`, `first_viewed_at`, `last_viewed_at`, `view_count`
   - `better_supabase.subject_user_state`: `subject_type`, `subject_id`, `user_id`, `starred_at`, `last_opened_at`
+- `shifts`
+  - `better_supabase.shift_templates`: `id`, `tenant_id`, `name`, `team_id`, `starts_time`, `ends_time`, `break_minutes`, `headcount`, `required_qualifications`, `weekdays`, `archived_at`
+  - `better_supabase.shifts`: `id`, `tenant_id`, `template_id`, `team_id`, `starts_at`, `ends_at`, `break_minutes`, `headcount`, `required_qualifications`, `status`, `published_at`, `canceled_at`
+  - `better_supabase.shift_assignments`: `id`, `tenant_id`, `shift_id`, `user_id`, `status`, `starts_at`, `ends_at`
+  - `better_supabase.shift_swaps`: `id`, `tenant_id`, `assignment_id`, `from_user_id`, `to_user_id`, `status`, `decided_at`
+  - `better_supabase.shift_availability`: `id`, `tenant_id`, `user_id`, `on_date`, `from_time`, `until_time`, `kind`
 - `shipments`
   - `better_supabase.shipments`: `id`, `tenant_id`, `reference`, `status`, `from_address`, `to_address`, `carrier`, `service`, `tracking_number`, `label_id`, `label_format`, `label_cost`, `currency`, `labeled_at`, `delivered_at`, `cancelled_at`, `created_at`, `updated_at`; typed: `status`
   - `better_supabase.shipment_packages`: `id`, `tenant_id`, `shipment_id`, `position`, `weight_grams`

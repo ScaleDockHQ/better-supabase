@@ -444,6 +444,19 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "roster-board",
+    title: "Roster board",
+    blocks: ["shifts"],
+    kind: "screen",
+    description:
+      "This week's shifts in a column per day, with their status and how many places are filled.",
+    web: {
+      file: `${WEB_APP}/src/features/shifts/components/roster-board.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
     slug: "hiring-board",
     title: "Hiring board",
     blocks: ["hiring"],

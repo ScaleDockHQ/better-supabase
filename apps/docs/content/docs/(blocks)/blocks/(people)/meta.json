@@ -10,6 +10,7 @@
     "employees",
     "qualifications",
     "leave",
+    "shifts",
     "passes"
   ]
 }

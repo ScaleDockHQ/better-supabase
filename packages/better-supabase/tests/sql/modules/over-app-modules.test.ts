@@ -92,6 +92,7 @@ const MODULES = [
   "incidents",
   "compliance",
   "qualifications",
+  "shifts",
   "mail-sync",
   "usage",
   "oauth-server",

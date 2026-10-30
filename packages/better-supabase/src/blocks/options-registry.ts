@@ -102,6 +102,7 @@ import type { ServiceAccountsSqlOptions } from "./service-accounts/options.ts";
 import type { SessionsSqlOptions } from "./sessions/options.ts";
 import type { SettingsSqlOptions } from "./settings/options.ts";
 import type { ShareLinksSqlOptions } from "./share-links/options.ts";
+import type { ShiftsSqlOptions } from "./shifts/options.ts";
 import type { ShipmentsSqlOptions } from "./shipments/options.ts";
 import type { SignaturesSqlOptions } from "./signatures/options.ts";
 import type { SigningKeysSqlOptions } from "./signing-keys/options.ts";
@@ -233,6 +234,7 @@ import { serviceAccountsSqlOptions } from "./service-accounts/options.ts";
 import { sessionsSqlOptions } from "./sessions/options.ts";
 import { settingsSqlOptions } from "./settings/options.ts";
 import { shareLinksSqlOptions } from "./share-links/options.ts";
+import { shiftsSqlOptions } from "./shifts/options.ts";
 import { shipmentsSqlOptions } from "./shipments/options.ts";
 import { signaturesSqlOptions } from "./signatures/options.ts";
 import { signingKeysSqlOptions } from "./signing-keys/options.ts";
@@ -360,6 +362,7 @@ export interface BlockOptionsRegistry {
   readonly posts: PostsSqlOptions;
   readonly content: ContentSqlOptions;
   readonly qualifications: QualificationsSqlOptions;
+  readonly shifts: ShiftsSqlOptions;
   readonly profiles: ProfilesSqlOptions;
   readonly promotions: PromotionsSqlOptions;
   readonly push: PushSqlOptions;
@@ -513,6 +516,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   posts: postsSqlOptions,
   content: contentSqlOptions,
   qualifications: qualificationsSqlOptions,
+  shifts: shiftsSqlOptions,
   profiles: profilesSqlOptions,
   promotions: promotionsSqlOptions,
   push: pushSqlOptions,

@@ -38,6 +38,7 @@ export type NavId =
   | "compliance"
   | "qualifications"
   | "risks"
+  | "shifts"
   | "notifications"
   | "workflows"
   | "workflowBuilder"
@@ -228,6 +229,7 @@ export const navItems: readonly NavItem[] = [
   },
   { id: "qualifications", href: "/qualifications", group: "workspace" },
   { id: "risks", href: "/risks", group: "workspace", requires: "risks.read" },
+  { id: "shifts", href: "/shifts", group: "workspace" },
   { id: "notifications", href: "/notifications", group: "workspace" },
   {
     id: "workflows",

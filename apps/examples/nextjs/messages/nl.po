@@ -506,6 +506,16 @@ msgctxt "teams.DtvBtA"
 msgid "All teams"
 msgstr "Alle teams"
 
+#: src/app/[locale]/(app)/shifts/page.tsx
+msgctxt "shifts.poLbhw"
+msgid "Shifts"
+msgstr "Diensten"
+
+#: src/app/[locale]/(app)/shifts/page.tsx
+msgctxt "shifts.-poPQI"
+msgid "Who works when this week, with the open places on each shift."
+msgstr "Wie wanneer werkt deze week, met de open plekken per dienst."
+
 #: src/app/[locale]/(app)/shop/inventory/page.tsx
 #: src/app/[locale]/(app)/shop/page.tsx
 msgctxt "shop.MlzEfB"
@@ -8125,6 +8135,11 @@ msgid "Risks"
 msgstr "Risico's"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.poLbhw"
+msgid "Shifts"
+msgstr "Diensten"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Meldingen"
@@ -11156,6 +11171,71 @@ msgstr "Auditlog"
 msgctxt "settings._3yfCs"
 msgid "AI providers"
 msgstr "AI-providers"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.LHKgIm"
+msgid "The roster didn't load"
+msgstr "Het rooster is niet geladen"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.7aB5fd"
+msgid "No shifts this week"
+msgstr "Geen diensten deze week"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.eTTTI3"
+msgid "Save a shift template, generate the week's shifts from it, then publish them."
+msgstr "Sla een dienstsjabloon op, maak daarmee de diensten van de week en publiceer ze."
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.1lj_dz"
+msgid "Read the shifts guide"
+msgstr "Lees de handleiding voor diensten"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.w7tf2z"
+msgid "Published"
+msgstr "Gepubliceerd"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.PFtMy9"
+msgid "Canceled"
+msgstr "Geannuleerd"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.l2ZoQ2"
+msgid "This week's roster"
+msgstr "Rooster van deze week"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.LadPL1"
+msgid "The shifts of each day and how many of their places are filled."
+msgstr "De diensten per dag en hoeveel plekken bezet zijn."
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.ONuwo0"
+msgid "{assigned}/{headcount} filled"
+msgstr "{assigned}/{headcount} bezet"
+
+#: src/features/shifts/components/roster-board.tsx
+msgctxt "shifts.IatzIV"
+msgid "{count} requested"
+msgstr "{count} aangevraagd"
 
 #: src/features/shop/components/adjust-stock-dialog.tsx
 msgctxt "shop.ddW5zC"

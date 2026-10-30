@@ -1060,6 +1060,11 @@
       "types": "./dist/blocks/risks/index.d.ts",
       "default": "./dist/blocks/risks/index.js"
     },
+    "./blocks/shifts": {
+      "@better-supabase/source": "./src/blocks/shifts/index.ts",
+      "types": "./dist/blocks/shifts/index.d.ts",
+      "default": "./dist/blocks/shifts/index.js"
+    },
     "./blocks/contracts": {
       "@better-supabase/source": "./src/blocks/contracts/index.ts",
       "types": "./dist/blocks/contracts/index.d.ts",
@@ -1917,6 +1922,10 @@
       "./blocks/risks": {
         "types": "./dist/blocks/risks/index.d.ts",
         "default": "./dist/blocks/risks/index.js"
+      },
+      "./blocks/shifts": {
+        "types": "./dist/blocks/shifts/index.d.ts",
+        "default": "./dist/blocks/shifts/index.js"
       },
       "./blocks/contracts": {
         "types": "./dist/blocks/contracts/index.d.ts",

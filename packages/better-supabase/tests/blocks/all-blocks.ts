@@ -117,6 +117,7 @@ import type { serviceAccountsBlock } from "../../src/blocks/service-accounts/man
 import type { sessionsBlock } from "../../src/blocks/sessions/manifest.ts";
 import type { settingsBlock } from "../../src/blocks/settings/manifest.ts";
 import type { shareLinksBlock } from "../../src/blocks/share-links/manifest.ts";
+import type { shiftsBlock } from "../../src/blocks/shifts/manifest.ts";
 import type { shipmentsBlock } from "../../src/blocks/shipments/manifest.ts";
 import type { signaturesBlock } from "../../src/blocks/signatures/manifest.ts";
 import type { signingKeysBlock } from "../../src/blocks/signing-keys/manifest.ts";
@@ -222,6 +223,7 @@ export type AllBlocks = {
   readonly posts: typeof postsBlock;
   readonly content: typeof contentBlock;
   readonly qualifications: typeof qualificationsBlock;
+  readonly shifts: typeof shiftsBlock;
   readonly jsonbSchemas: typeof jsonbSchemasBlock;
   readonly knowledge: typeof knowledgeBlock;
   readonly leave: typeof leaveBlock;

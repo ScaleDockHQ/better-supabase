@@ -1,0 +1,309 @@
+---
+title: Shifts
+description: Shift templates, shifts planned in draft and published per team and location, assignments checked for overlap, leave, qualifications and rest, open shift requests, swaps, availability, a roster and planned hours.
+---
+
+`shifts` plans who works when. A template, such as "Early, 07:00 to 15:00 on
+weekdays", generates draft shifts for a range of days. Planners put members
+on them, and publishing the drafts shows them to the team. Every assignment
+is checked first: the member has no other shift at that time, no approved
+leave that day, the qualifications the shift needs and enough rest since
+their last shift. Members ask for open shifts, offer a shift to a colleague,
+and say when they are available.
+
+```bash
+better-supabase add shifts
+```
+
+```ts
+import { createShifts } from "better-supabase/blocks/shifts";
+```
+
+The module requires `memberships`, `permissions` and `teams`. With
+[leave](/docs/blocks/leave) an assignment on a day of approved leave is
+refused, and with [qualifications](/docs/blocks/qualifications) a member
+without a required qualification is refused or warned. With
+[employees](/docs/blocks/employees) the hours report shows contract hours, with
+[assets](/docs/blocks/assets) a location is an asset, with
+[time-tracking](/docs/blocks/time-tracking) worked shifts become time entries,
+and with [approvals](/docs/blocks/approvals) a swap decision can link an
+approval request. With [notifications](/docs/blocks/notifications) members hear
+about their shifts, with `outbox` the module records the events, and with
+`audit` every change is audited.
+
+## Tables
+
+| Table                | Holds                                                                                            |
+| -------------------- | ------------------------------------------------------------------------------------------------ |
+| `shift_templates`    | A pattern per organization: start and end time, weekdays, break, headcount and qualifications    |
+| `shifts`             | One shift: `starts_at`, `ends_at`, its team and location, `status` and `headcount`               |
+| `shift_assignments`  | A member on a shift, with the shift's times copied so an exclusion constraint can refuse overlap |
+| `shift_swaps`        | A member offering their assignment to another, and the decision                                  |
+| `shift_availability` | One row per member and day: `available`, `unavailable` or `preferred`, for the day or a window   |
+
+The module installs `btree_gist` for the overlap constraint. Every member reads
+their own assignments, swaps and availability. Everything else needs a
+permission:
+
+| Permission       | Allows                                                                    |
+| ---------------- | ------------------------------------------------------------------------- |
+| `shifts.read`    | reading the templates, published shifts and assignments                   |
+| `shifts.request` | asking for open shifts and setting one's own availability                 |
+| `shifts.write`   | saving templates and drafts, assigning, and setting anyone's availability |
+| `shifts.manage`  | publishing and canceling shifts, deciding requests and swaps, hours       |
+
+Admins have all four; members get `shifts.read` and `shifts.request`.
+
+## Templates
+
+```ts
+const early = await db.shifts
+  .saveTemplate(organizationId, {
+    name: "Early",
+    startsTime: "07:00",
+    endsTime: "15:00",
+    weekdays: [1, 2, 3, 4, 5],
+    teamId,
+    breakMinutes: 30,
+    headcount: 3,
+    requiredQualifications: ["first_aid"],
+  })
+  .orThrow();
+
+const drafts = await db.shifts
+  .generate(
+    organizationId,
+    early.id,
+    Temporal.PlainDate.from("2026-11-02"),
+    Temporal.PlainDate.from("2026-11-29"),
+  )
+  .orThrow();
+```
+
+Times are in the block's time zone (`options.timeZone`, UTC by default). An
+end at or before the start runs into the next day, so `22:00` to `06:00` is a
+night shift. `weekdays` are ISO weekdays, 1 (Monday) to 7 (Sunday).
+`generate` covers at most 92 days and skips days that already have the
+template's shift, so running it twice creates nothing new. `archiveTemplate`
+stops a template from generating; its shifts stay.
+
+## Shifts
+
+```ts
+const shift = await db.shifts
+  .upsert(organizationId, {
+    startsAt: Temporal.Instant.from("2026-11-07T09:00:00Z"),
+    endsAt: Temporal.Instant.from("2026-11-07T17:00:00Z"),
+    teamId,
+    headcount: 2,
+  })
+  .orThrow();
+
+await db.shifts
+  .publish(
+    organizationId,
+    Temporal.PlainDate.from("2026-11-02"),
+    Temporal.PlainDate.from("2026-11-08"),
+  )
+  .orThrow();
+```
+
+`upsert` saves a draft, or changes the shift named by `shiftId`; a shift lasts
+at most 24 hours, and its assignments move with it. `publish` publishes the
+drafts that start in the range, for one `teamId` or all, and returns how many.
+`cancel(shiftId, reason)` cancels a shift and releases its assignments.
+
+## Assignments
+
+```ts
+const assignment = await db.shifts.assign(shift.id, userId).orThrow();
+```
+
+`assign` refuses the member when another assigned shift overlaps
+(`SHIFT_ASSIGNMENT_OVERLAP`), when they have approved leave that day
+(`SHIFT_ASSIGNMENT_ON_LEAVE`), when they lack a required qualification on the
+shift's day (`SHIFT_ASSIGNMENT_UNQUALIFIED`), when they would rest less than
+`minRestHours` between two shifts (`SHIFT_ASSIGNMENT_REST_TOO_SHORT`) and when
+the shift is full (`SHIFT_FULL`). With `qualificationCheck: "warn"` a missing
+qualification doesn't refuse the assignment: it goes through and
+`assignment.warnings` names the qualification. `unassign` releases one.
+
+A member asks for a place on a published shift with `requestOpenShift`. The
+request holds no place until a planner calls `decideRequest(assignmentId,
+true)`, which runs the same checks; `false` turns it down.
+
+## Swaps
+
+```ts
+const swap = await db.shifts
+  .requestSwap(assignment.id, colleagueId, "Dentist that morning")
+  .orThrow();
+
+await db.shifts.decideSwap(swap.id, true).orThrow();
+```
+
+A member offers their assignment on a shift that hasn't started to a
+colleague. Approving it, with `shifts.manage`, checks the colleague like an
+assignment, releases the first member and assigns the colleague. The member
+who asked may withdraw with `decideSwap(swap.id, false)`. With approvals
+installed, pass `{ approvalId }` to link the approval request the decision
+came from.
+
+## Availability
+
+```ts
+await db.shifts
+  .setAvailability(organizationId, {
+    onDate: Temporal.PlainDate.from("2026-11-11"),
+    kind: "unavailable",
+  })
+  .orThrow();
+```
+
+Each member has one row per day: `available`, `unavailable` or `preferred`,
+for the whole day or from `fromTime` to `untilTime`. Setting it again replaces
+the row, and `clearAvailability` removes it. A planner with `shifts.write`
+sets it for another member with `userId`. Availability informs the planner;
+`assign` doesn't refuse an unavailable member.
+
+## Roster and hours
+
+```ts
+const week = await db.shifts
+  .roster(
+    organizationId,
+    Temporal.PlainDate.from("2026-11-02"),
+    Temporal.PlainDate.from("2026-11-08"),
+  )
+  .orThrow();
+// [{ ...shift, assignments: [{ userId, status }] }]
+
+const mine = await db.shifts.myShifts().orThrow();
+
+const hours = await db.shifts
+  .hours(organizationId, Temporal.PlainDate.from("2026-11-02"))
+  .orThrow();
+// [{ userId, shifts, plannedHours, contractHours, differenceHours }]
+```
+
+`roster` lists the shifts that start in the range with their assigned and
+requested members; members see the published ones and planners the drafts
+too. `myShifts` returns the caller's shifts in every organization, the next 30
+days by default. `hours` sums each member's planned hours in the week, breaks
+taken off, next to the hours of their employee contract when the employees
+block keeps contracts.
+
+## Time entries
+
+With time-tracking installed, run `toTimeEntries` with the service role, for
+example nightly from a [job](/docs/blocks/queue). It writes a time entry for
+every assigned shift that ended, from its start to its end less the break,
+with the subject `shift_assignment`. It writes each entry once, and skips
+weeks whose timesheet is submitted and entries that would overlap one the
+member already logged.
+
+## Options
+
+| Option               | Default   | Does                                                      |
+| -------------------- | --------- | --------------------------------------------------------- |
+| `minRestHours`       | `11`      | Hours a member rests between two shifts, 0 to 48          |
+| `qualificationCheck` | `"block"` | `"block"` refuses an unqualified member, `"warn"` assigns |
+| `timeZone`           | `"UTC"`   | The IANA zone templates and days are in                   |
+| `extraColumns`       | none      | Extra columns on the shifts table                         |
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  shifts: {
+    options: { minRestHours: 8, timeZone: "Europe/Amsterdam" },
+  },
+},
+```
+
+Pass a Standard Schema as `fields` to type the extra columns, parse them on
+reads and validate them on `upsert`:
+
+```ts
+const shifts = createShifts({
+  transport,
+  fields: z.object({ site_code: z.string().optional() }),
+});
+```
+
+## Adopting tables
+
+An app with its own tables keeps them: the module runs over them and maps
+their columns. The location, note, creator, assigner, approval and timestamp
+columns are optional; map them to `null` and the module leaves out what needs
+them. The overlap check also runs in the assignment functions, so an adopted
+assignments table needs no exclusion constraint.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  shifts: {
+    tables: {
+      shifts: "public.rota_shifts",
+      assignments: "public.rota_assignments",
+    },
+    columns: {
+      shifts: { tenant: "org_id", location: null, note: null },
+      assignments: { user: "member_id", assignedBy: null },
+    },
+  },
+},
+```
+
+## Events
+
+| Event                       | Data                                                                            |
+| --------------------------- | ------------------------------------------------------------------------------- |
+| `shift.created`             | `organizationId`, `shiftId`, `teamId`, `startsAt`, `endsAt`, `status`           |
+| `shift.published`           | `organizationId`, `shiftId`, `teamId`, `startsAt`, `endsAt`                     |
+| `shift.cancelled`           | the same shift fields, with `reason`                                            |
+| `shift_assignment.created`  | `organizationId`, `shiftId`, `assignmentId`, `userId`, `startsAt`, `endsAt`     |
+| `shift_assignment.released` | the same assignment fields, with `reason`                                       |
+| `shift_swap.requested`      | `organizationId`, `swapId`, `assignmentId`, `shiftId`, `fromUserId`, `toUserId` |
+| `shift_swap.decided`        | the same swap fields, with `status`                                             |
+
+A released assignment's `reason` is the planner's text, `shift_canceled`,
+`swapped` or `request_rejected`. With notifications installed, a member hears
+when they are put on a shift or taken off it, when a shift they are on is
+published or canceled, when a swap is offered to them and when their swap is
+decided.
+
+## Hooks
+
+`before_shift_save`, `after_shift_save`, `before_shift_cancel`,
+`after_shift_cancel`, `before_shift_assignment_create` and
+`after_shift_assignment_create` run in the same transaction as the change.
+See [extending blocks](/docs/extending/blocks).
+
+## Errors
+
+| Hint                              | Cause                                                                  |
+| --------------------------------- | ---------------------------------------------------------------------- |
+| `SHIFT_FORBIDDEN`                 | the caller lacks the permission the call needs                         |
+| `SHIFT_INVALID`                   | a bad time, range, weekday, headcount, break or availability           |
+| `SHIFT_NOT_FOUND`                 | no shift with that id the caller can change                            |
+| `SHIFT_TEMPLATE_NOT_FOUND`        | no active template with that id in the organization                    |
+| `SHIFT_CANCELED`                  | the shift is canceled                                                  |
+| `SHIFT_FULL`                      | the shift has as many members as its headcount                         |
+| `SHIFT_ASSIGNMENT_INVALID`        | the user isn't a member, or the assignment can't change that way       |
+| `SHIFT_ASSIGNMENT_NOT_FOUND`      | no assignment with that id                                             |
+| `SHIFT_ASSIGNMENT_OVERLAP`        | the member has another shift at that time                              |
+| `SHIFT_ASSIGNMENT_ON_LEAVE`       | the member has approved leave on the shift's day (leave block)         |
+| `SHIFT_ASSIGNMENT_UNQUALIFIED`    | the member lacks a required qualification (qualifications block)       |
+| `SHIFT_ASSIGNMENT_REST_TOO_SHORT` | the member would rest less than `minRestHours` between shifts          |
+| `SHIFT_SWAP_INVALID`              | the shift started, the swap is decided, or the colleague can't take it |
+| `SHIFT_SWAP_NOT_FOUND`            | no swap with that id                                                   |
+
+## Without the client
+
+`db.shifts` is this client. Code that does not go through `bsb.db()` builds it
+with a transport:
+
+```ts
+import { createShifts } from "better-supabase/blocks/shifts";
+
+const shifts = createShifts({ transport });
+const roster = await shifts.roster(organizationId, from, until).orThrow();
+```
