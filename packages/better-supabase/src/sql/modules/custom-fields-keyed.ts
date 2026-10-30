@@ -76,7 +76,7 @@ export interface FieldKeys {
  * `on.<type>.keys`: the permission keys that gate one record type's values,
  * each falling back to the module's own key.
  */
-export function subjectFieldKeys(
+function subjectFieldKeys(
   subjects: readonly (readonly [string, Subject])[],
 ): readonly (readonly [string, Partial<FieldKeys>])[] {
   return subjects.flatMap(([type, subject]) => {
