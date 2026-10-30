@@ -165,7 +165,13 @@ jobs:
           pnpm exec turbo run test --filter=better-supabase "${affected[@]}" --log-file -- \
             --shard="$SHARD/3" --reporter=blob
 
+      # The blob reporter prints no failures, so a failed shard replays its own report.
+      - name: Show the failed tests
+        if: failure()
+        run: pnpm --filter better-supabase exec vitest --merge-reports --reporter=default
+
       - name: Upload the blob report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
           name: unit-blob-${{ matrix.shard }}
