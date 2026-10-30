@@ -155,6 +155,15 @@ writes it. With `tasks`, `savePostmortem` refuses it with
 `INCIDENTS_INVALID`; write action items through `addPostmortemAction`
 instead.
 
+When you add `tasks` to an install that already has postmortems with
+`action_items`, `better-supabase add --adopt` copies each item into a task through
+`add_incident_postmortem_action`. An item is a string or an object with a
+`title` (or `text`, `name`, `description`), an optional `assigneeId` and an
+optional `dueAt`. An assignee or due date that doesn't parse is dropped from the
+task, and an item without a title becomes "Action item N". The step leaves the
+column as it is and skips a postmortem that already has linked actions, so
+running it again adds nothing.
+
 ## Status page
 
 ```ts

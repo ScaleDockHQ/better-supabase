@@ -7,6 +7,7 @@ import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 import { createIncidents } from "../../src/blocks/incidents/index.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { sqlTransport } from "../../src/core/block-transport.ts";
+import { renderBlocks } from "../../src/sql/render.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -318,6 +319,77 @@ describe.skipIf(!live)("incidents", () => {
           [action.taskId],
         ),
       ).toBe(1);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("copies action items written before the tasks block into tasks without losing one", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      const responder = await s.user("responder");
+      await s.install(WITH_TASKS, TASKS_LAYOUT);
+      const org = await s.organization(owner, { member: responder });
+      const incidents = createIncidents({ transport: sqlTransport(s.sql) });
+
+      await s.as(owner);
+
+      const incident = await incidents
+        .open(org, { title: "Disk full", severity: "sev2" })
+        .orThrow();
+
+      const postmortem = await incidents
+        .savePostmortem(incident.id, { summary: "Logs filled the disk" })
+        .orThrow();
+
+      const items = [
+        {
+          title: "Rotate logs",
+          assigneeId: responder.id,
+          dueAt: "2026-11-02T09:00:00Z",
+        },
+        "Add a disk alert",
+        { text: "Review retention", assigneeId: "not-a-uuid", dueAt: "soon" },
+        { owner: "ops" },
+      ];
+
+      await s.service();
+      await s.rows(
+        "update better_supabase.incident_postmortems set action_items = $1::jsonb where id = $2",
+        [JSON.stringify(items), postmortem.id],
+      );
+
+      const data = renderBlocks(WITH_TASKS, TASKS_LAYOUT).find(
+        (file) => file.module === "incidents" && file.kind === "data",
+      );
+
+      expect(data).toBeDefined();
+      await s.rows(data?.contents ?? "");
+      // A second run adds nothing.
+      await s.rows(data?.contents ?? "");
+
+      await s.asRole(owner);
+      const detail = await incidents.get(incident.id).orThrow();
+      const actions = detail?.postmortem?.actions ?? [];
+
+      expect(actions.map((item) => item.title)).toEqual([
+        "Rotate logs",
+        "Add a disk alert",
+        "Review retention",
+        "Action item 4",
+      ]);
+      expect(actions[0]?.dueAt?.toString()).toBe("2026-11-02T09:00:00Z");
+
+      await s.service();
+      // The column stays readable.
+      expect(
+        await s.value<number>(
+          "(select jsonb_array_length(action_items) from better_supabase.incident_postmortems where id = $1)",
+          [postmortem.id],
+        ),
+      ).toBe(items.length);
     } finally {
       await s.close();
     }
