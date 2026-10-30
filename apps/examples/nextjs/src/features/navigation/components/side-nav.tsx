@@ -31,6 +31,7 @@ import {
   FolderKanbanIcon,
   NotebookTextIcon,
   ClipboardListIcon,
+  PillIcon,
   PresentationIcon,
   LayoutTemplateIcon,
   FileUpIcon,
@@ -117,6 +118,7 @@ const ICONS = {
   shifts: CalendarDaysIcon,
   finance: LandmarkIcon,
   observations: HeartPulseIcon,
+  medications: PillIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
@@ -293,6 +295,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "observations": {
         return t("Observations");
+      }
+
+      case "medications": {
+        return t("Medications");
       }
 
       case "notifications": {

@@ -470,6 +470,9 @@ export default defineConfig({
     },
     // Consent per customer and purpose, backed by a signature or a form.
     consents: {},
+    // Medication charts on customers: orders with a dose and schedule,
+    // planned doses recorded as given or refused, missed doses notified.
+    medications: {},
     incidents: {},
     reminders: {},
     "drive-files": {},
