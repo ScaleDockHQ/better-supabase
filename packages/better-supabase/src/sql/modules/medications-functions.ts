@@ -6,6 +6,7 @@ import {
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
+  extraFieldsArg,
   writeExtraColumns,
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
@@ -15,7 +16,10 @@ import {
   medicationKeys,
   medicationTimeZone,
   orderJson,
+  MEDICATION_EXTRA,
   ORDER_RESERVED,
+  ROW_RESERVED,
+  signatureCheck,
   orderRecord,
   scheduleCheck,
   sqlList,
@@ -262,6 +266,56 @@ export function medicationFunctions(ctx: BlockSqlContext): string {
   v_strength text;
   v_high_risk boolean;`;
 
+  const medicationExtras = ctx.extraColumns(
+    "medications",
+    ROW_RESERVED,
+    MEDICATION_EXTRA,
+  );
+
+  const medicationFields = extraFieldsArg(medicationExtras);
+
+  // Stores the prescriber's completed signature on an order as its approval.
+  const approveOrderSql = has("orders", "signature")
+    ? `
+-- Approves an order with the caller's completed signature on it (subject type
+-- medication_order, the order's id). Needs the signatures module.
+create or replace function ${fn("approve_medication_order")}(order_id uuid, signature_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row ${orders}%rowtype;
+begin
+  select * into v_row from ${orders} x where x.${o("id")} = approve_medication_order.order_id for update;
+  if not found then
+    ${fail("MEDICATION_ORDER_NOT_FOUND", "medication order not found", "P0002")}
+  end if;
+  if not ${allowed(`v_row.${o("tenant")}`, prescribe)} then
+    ${forbidden("not allowed to prescribe medication")}
+  end if;
+  if approve_medication_order.signature_id is null then
+    ${fail("MEDICATION_SIGNATURE_INVALID", "approving an order needs a signature", "22023")}
+  end if;
+  ${signatureCheck(ctx, {
+    signature: "approve_medication_order.signature_id",
+    tenant: `v_row.${o("tenant")}`,
+    type: "'medication_order'",
+    id: `v_row.${o("id")}::text`,
+  })}
+  update ${orders} x set ${o("signature")} = approve_medication_order.signature_id${touch("orders")}
+  where x.${o("id")} = v_row.${o("id")}
+  returning x.* into v_row;
+  ${orderRecord(ctx, "medication_order.updated", "v_row", "", "Medication order approved")}
+  return ${orderJson(ctx, "v_row")};
+end;
+$$;
+${userGrant(`${fn("approve_medication_order")}(uuid, uuid)`)}
+`
+    : "";
+
   /** PL/pgSQL that inserts an order from the `ORDER_FIELDS` into `v_row`. */
   const extras = ctx.extraColumns("orders", ORDER_RESERVED);
 
@@ -338,7 +392,8 @@ export function medicationFunctions(ctx: BlockSqlContext): string {
 -- Adds a medication to the organization's catalog, or changes one
 -- (medication_id). A code from a catalog other than custom is unique in the
 -- organization.
-create or replace function ${fn("save_medication")}(tenant ${idType}, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null)
+${medicationFields.drop(fn("save_medication"), `${idType}, text, text, text, text, text, text, boolean, uuid`)}
+create or replace function ${fn("save_medication")}(tenant ${idType}, name text, unit text, code_system text default 'custom', code text default null, form text default null, strength text default null, high_risk boolean default false, medication_id uuid default null${medicationFields.param})
 returns jsonb
 language plpgsql
 security definer
@@ -378,11 +433,11 @@ begin
     if not found then
       ${medicationNotFound}
     end if;
-  end if;
+  end if;${writeExtraColumns(medications, medicationExtras, "save_medication.fields", `x.${m("id")} = v_medication.${m("id")}`, "v_medication")}
   return ${medicationJson(ctx, "v_medication")};
 end;
 $$;
-${userGrant(`${fn("save_medication")}(${idType}, text, text, text, text, text, text, boolean, uuid)`)}
+${userGrant(`${fn("save_medication")}(${idType}, text, text, text, text, text, text, boolean, uuid${medicationFields.type})`)}
 
 -- Archives a medication: new orders can't use it; its orders stay.
 create or replace function ${fn("archive_medication")}(medication_id uuid)
@@ -612,7 +667,7 @@ begin
 end;
 $$;
 ${userGrant(`${fn("update_medication_order")}(uuid, jsonb)`)}
-
+${approveOrderSql}
 -- Pauses an active order (paused true) or resumes a paused one. A paused
 -- order gets no planned doses; the ones after now are removed.
 create or replace function ${fn("pause_medication_order")}(order_id uuid, paused boolean default true)

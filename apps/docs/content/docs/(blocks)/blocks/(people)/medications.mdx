@@ -229,12 +229,15 @@ it.
 
 ## Options
 
-| Option               | Default | Does                                                                               |
-| -------------------- | ------- | ---------------------------------------------------------------------------------- |
-| `missedAfterMinutes` | `60`    | Minutes after its planned time a dose counts as missed, 1 to 1440                  |
-| `missedCaseKind`     | none    | The key of a case kind a missed dose opens, such as `incident`; none opens no case |
-| `timeZone`           | `"UTC"` | The IANA zone schedule times, start dates and the chart are in                     |
-| `extraColumns`       | none    | Extra columns on the medication orders table                                       |
+| Option                       | Default | Does                                                                               |
+| ---------------------------- | ------- | ---------------------------------------------------------------------------------- |
+| `missedAfterMinutes`         | `60`    | Minutes after its planned time a dose counts as missed, 1 to 1440                  |
+| `missedCaseKind`             | none    | The key of a case kind a missed dose opens, such as `incident`; none opens no case |
+| `timeZone`                   | `"UTC"` | The IANA zone schedule times, start dates and the chart are in                     |
+| `extraColumns`               | none    | Extra columns on the medication orders table                                       |
+| `medicationExtraColumns`     | none    | Extra columns on the medications table; `saveMedication` takes them as `fields`    |
+| `administrationExtraColumns` | none    | Extra columns on the doses table; `recordAdministration` takes them as `fields`    |
+| `guestRead`                  | `false` | A guest with a read grant on a record reads its orders, doses and medications      |
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -289,24 +292,51 @@ Resuming an order fires `medication_order.updated`, with `status` `active`.
 `after_medication_administration_record` run in the same transaction as the
 change. See [extending blocks](/docs/extending/blocks).
 
+## Signatures
+
+With the `signatures` block installed, an order is approved with the
+prescriber's completed signature on it, and a dose is recorded with the
+member's own signature. The signature must be the caller's, completed, in the
+same organization, on subject type `medication_order` (the order's id) or
+`medication_administration` (the dose's id).
+
+```ts
+const result = await medications.approveOrder(order.id, signature.id);
+await medications.recordAdministration(dose.id, "given", {
+  signatureId: signature.id,
+});
+```
+
+Both calls reuse the existing `medication_order.updated` and dose events. A
+signature id without the `signatures` block fails with
+`MEDICATION_SIGNATURE_INVALID`.
+
+## Guest reads
+
+With `guestRead: true`, a guest who holds a read grant on a record (see
+[Guests](/docs/blocks/guests)) reads that record's orders, their doses and the
+medications the orders name. Guests never write; every function still needs a
+member.
+
 ## Errors
 
-| Hint                                  | Cause                                                                               |
-| ------------------------------------- | ----------------------------------------------------------------------------------- |
-| `MEDICATION_FORBIDDEN`                | the caller lacks the permission the call needs                                      |
-| `MEDICATION_INVALID`                  | a bad name, unit or code system, or a code already in the list                      |
-| `MEDICATION_NOT_FOUND`                | no active medication with that id, or no catalog item with that code                |
-| `MEDICATION_NO_CATALOG`               | the client was created without a `catalog`                                          |
-| `MEDICATION_CATALOG_FAILED`           | the catalog threw                                                                   |
-| `MEDICATION_ORDER_INVALID`            | a bad dose, schedule, date range or record, or a scheduled order without a schedule |
-| `MEDICATION_ORDER_NOT_FOUND`          | no order with that id                                                               |
-| `MEDICATION_ORDER_INACTIVE`           | a dose of a paused or stopped order, or an as-needed dose outside its dates         |
-| `MEDICATION_ADMINISTRATION_INVALID`   | the dose is recorded already, or the input is bad                                   |
-| `MEDICATION_ADMINISTRATION_NOT_FOUND` | no dose with that id                                                                |
-| `MEDICATION_REASON_REQUIRED`          | a refused, skipped or as-needed dose, or a stopped order, without a reason          |
-| `MEDICATION_DOUBLE_CHECK_REQUIRED`    | a high-risk dose without `checkedBy`, or a checker who can't administer             |
-| `MEDICATION_DOUBLE_CHECK_SELF`        | the checker is the member recording the dose                                        |
-| `MEDICATION_MAX_DOSE_EXCEEDED`        | the as-needed dose would pass `maxPerDay` in 24 hours                               |
+| Hint                                  | Cause                                                                                     |
+| ------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `MEDICATION_FORBIDDEN`                | the caller lacks the permission the call needs                                            |
+| `MEDICATION_INVALID`                  | a bad name, unit or code system, or a code already in the list                            |
+| `MEDICATION_NOT_FOUND`                | no active medication with that id, or no catalog item with that code                      |
+| `MEDICATION_NO_CATALOG`               | the client was created without a `catalog`                                                |
+| `MEDICATION_CATALOG_FAILED`           | the catalog threw                                                                         |
+| `MEDICATION_ORDER_INVALID`            | a bad dose, schedule, date range or record, or a scheduled order without a schedule       |
+| `MEDICATION_ORDER_NOT_FOUND`          | no order with that id                                                                     |
+| `MEDICATION_ORDER_INACTIVE`           | a dose of a paused or stopped order, or an as-needed dose outside its dates               |
+| `MEDICATION_ADMINISTRATION_INVALID`   | the dose is recorded already, or the input is bad                                         |
+| `MEDICATION_ADMINISTRATION_NOT_FOUND` | no dose with that id                                                                      |
+| `MEDICATION_REASON_REQUIRED`          | a refused, skipped or as-needed dose, or a stopped order, without a reason                |
+| `MEDICATION_DOUBLE_CHECK_REQUIRED`    | a high-risk dose without `checkedBy`, or a checker who can't administer                   |
+| `MEDICATION_DOUBLE_CHECK_SELF`        | the checker is the member recording the dose                                              |
+| `MEDICATION_SIGNATURE_INVALID`        | a signature that isn't the caller's completed one on the record, or no `signatures` block |
+| `MEDICATION_MAX_DOSE_EXCEEDED`        | the as-needed dose would pass `maxPerDay` in 24 hours                                     |
 
 ## Without the client
 

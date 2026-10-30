@@ -1,9 +1,17 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
-import { fail, SERVICE_CALLER, serviceGrant, userGrant } from "../shared.ts";
+import {
+  extraFieldsArg,
+  fail,
+  SERVICE_CALLER,
+  serviceGrant,
+  userGrant,
+  writeExtraColumns,
+} from "../shared.ts";
 import {
   administrationJson,
+  ADMINISTRATION_EXTRA,
   administrationRecord,
   doubleCheck,
   medicationJson,
@@ -14,6 +22,8 @@ import {
   notifyMedication,
   orderJson,
   PLAN_DAYS,
+  ROW_RESERVED,
+  signatureCheck,
 } from "./medications-shared.ts";
 
 /**
@@ -60,6 +70,31 @@ export function medicationAdministrationFunctions(
   const o = (column: string): string => ctx.col("orders", column);
   const a = (column: string): string => ctx.col("administrations", column);
   const fn = (name: string): string => ctx.fn(name);
+
+  const extras = ctx.extraColumns(
+    "administrations",
+    ROW_RESERVED,
+    ADMINISTRATION_EXTRA,
+  );
+
+  const fields = extraFieldsArg(extras);
+  const hasSignature = ctx.has("administrations", "signature");
+
+  /** The `signature_id` parameter of record_medication_administration. */
+  const signed = hasSignature
+    ? { param: ", signature_id uuid default null", type: ", uuid" }
+    : { param: "", type: "" };
+
+  const signatureSet = hasSignature
+    ? `,\n    ${a("signature")} = record_medication_administration.signature_id`
+    : "";
+
+  /** Drops the signature this build left out so no stale overload stays. */
+  const dropOld = (name: string, types: string): string =>
+    hasSignature
+      ? `drop function if exists ${fn(name)}(${types});\ndrop function if exists ${fn(name)}(${types}, jsonb);`
+      : "";
+
   const idType = ctx.idType;
   const { administer, manage } = medicationKeys(ctx);
   const canSubject = ctx.of("subjects").fn("can_subject");
@@ -172,7 +207,9 @@ ${userGrant(`${fn("plan_medication_administrations")}(${idType}, timestamptz)`)}
 -- Records a planned or missed dose as given, refused or skipped. refused and
 -- skipped need a reason. A dose of a high-risk medication, or of an order that
 -- requires it, needs checked_by: another member who may administer.
-create or replace function ${fn("record_medication_administration")}(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
+${dropOld("record_medication_administration", "uuid, text, numeric, text, uuid, text")}
+${fields.drop(fn("record_medication_administration"), `uuid, text, numeric, text, uuid, text${signed.type}`)}
+create or replace function ${fn("record_medication_administration")}(administration_id uuid, status text, dose numeric default null, reason text default null, checked_by uuid default null, note text default null${signed.param}${fields.param})
 returns jsonb
 language plpgsql
 security definer
@@ -220,6 +257,16 @@ begin
       tenant: `v_order.${o("tenant")}`,
     })}
   end if;
+  ${
+    hasSignature
+      ? signatureCheck(ctx, {
+          signature: "record_medication_administration.signature_id",
+          tenant: `v_order.${o("tenant")}`,
+          type: "'medication_administration'",
+          id: `v_row.${a("id")}::text`,
+        })
+      : ""
+  }
   ${ctx.hook("before_medication_administration_record", [
     ["uuid", `v_order.${o("id")}`],
     ["text", "v_status"],
@@ -230,19 +277,20 @@ begin
     ${a("dose")} = case when v_status = 'given' then v_dose else x.${a("dose")} end,
     ${a("performer")} = (select auth.uid()),
     ${a("checkedBy")} = case when v_status = 'given' then record_medication_administration.checked_by end,
-    ${a("reason")} = v_reason${noteSet}
+    ${a("reason")} = v_reason${noteSet}${signatureSet}
   where x.${a("id")} = v_row.${a("id")}
-  returning x.* into v_row;
+  returning x.* into v_row;${writeExtraColumns(administrations, extras, "record_medication_administration.fields", `x.${a("id")} = v_row.${a("id")}`, "v_row")}
   ${recorded}
   ${ctx.hook("after_medication_administration_record", [["uuid", `v_row.${a("id")}`]])}
   return ${administrationJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("record_medication_administration")}(uuid, text, numeric, text, uuid, text)`)}
+${userGrant(`${fn("record_medication_administration")}(uuid, text, numeric, text, uuid, text${signed.type}${fields.type})`)}
 
 -- Records a dose of an as-needed order, with the reason it was given. The
 -- doses given in the last 24 hours plus this one stay within max_per_day.
-create or replace function ${fn("record_as_needed_administration")}(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null)
+${fields.drop(fn("record_as_needed_administration"), "uuid, numeric, text, uuid, text")}
+create or replace function ${fn("record_as_needed_administration")}(order_id uuid, dose numeric default null, reason text default null, checked_by uuid default null, note text default null${fields.param})
 returns jsonb
 language plpgsql
 security definer
@@ -298,13 +346,13 @@ begin
   ])}
   insert into ${administrations} (${a("tenant")}, ${a("order")}, ${a("administeredAt")}, ${a("status")}, ${a("dose")}, ${a("performer")}, ${a("checkedBy")}, ${a("reason")}${hasNote ? `, ${a("note")}` : ""})
   values (v_order.${o("tenant")}, v_order.${o("id")}, now(), 'given', v_dose, (select auth.uid()), record_as_needed_administration.checked_by, v_reason${hasNote ? ", nullif(trim(record_as_needed_administration.note), '')" : ""})
-  returning * into v_row;
+  returning * into v_row;${writeExtraColumns(administrations, extras, "record_as_needed_administration.fields", `x.${a("id")} = v_row.${a("id")}`, "v_row")}
   ${recorded}
   ${ctx.hook("after_medication_administration_record", [["uuid", `v_row.${a("id")}`]])}
   return ${administrationJson(ctx, "v_row")};
 end;
 $$;
-${userGrant(`${fn("record_as_needed_administration")}(uuid, numeric, text, uuid, text)`)}
+${userGrant(`${fn("record_as_needed_administration")}(uuid, numeric, text, uuid, text${fields.type})`)}
 
 -- Marks the planned doses more than ${missedAfter} minutes past their time as missed,
 -- and tells the members who manage medication. Run it on a timer.

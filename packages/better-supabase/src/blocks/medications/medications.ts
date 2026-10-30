@@ -66,6 +66,11 @@ export interface Medication {
   /** A high-risk medication needs a second member to check every dose. */
   readonly highRisk: boolean;
   readonly archivedAt?: Temporal.Instant;
+  /**
+   * The extra columns (`blocks.medications.options.medicationExtraColumns`),
+   * keyed by database name.
+   */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** What `saveMedication` takes. */
@@ -79,6 +84,8 @@ export interface MedicationInput {
   readonly highRisk?: boolean;
   /** Updates this medication instead of adding one. */
   readonly medicationId?: string;
+  /** Values for `medicationExtraColumns`, keyed by database name. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** A medication as a drug database returns it, for `importMedication`. */
@@ -198,6 +205,8 @@ export interface MedicationOrder<F extends object = Record<never, never>> {
   readonly requiresDoubleCheck: boolean;
   readonly status: MedicationOrderStatus;
   readonly stoppedReason?: string;
+  /** The prescriber's signature, set by `approveOrder`. */
+  readonly signatureId?: string;
   readonly createdBy?: string;
   /** The extra columns, keyed by database name. */
   readonly fields: ExtraFields<F>;
@@ -226,6 +235,14 @@ export interface MedicationAdministration {
   /** Why a dose was refused, skipped or given as needed. */
   readonly reason?: string;
   readonly note?: string;
+  /** The member's signature on the dose, when it was recorded with one. */
+  readonly signatureId?: string;
+  /**
+   * The extra columns
+   * (`blocks.medications.options.administrationExtraColumns`), keyed by
+   * database name.
+   */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** What `recordAdministration` takes. */
@@ -238,6 +255,13 @@ export interface MedicationAdministrationInput {
   /** Required for a high-risk dose: another member who may administer. */
   readonly checkedBy?: string;
   readonly note?: string;
+  /**
+   * The caller's completed signature on the dose (subject type
+   * `medication_administration`, the dose's id). Needs the signatures block.
+   */
+  readonly signatureId?: string;
+  /** Values for `administrationExtraColumns`, keyed by database name. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** What `recordAsNeeded` takes. */
@@ -247,6 +271,8 @@ export interface MedicationAsNeededInput {
   readonly dose?: number;
   readonly checkedBy?: string;
   readonly note?: string;
+  /** Values for `administrationExtraColumns`, keyed by database name. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** A record's medication chart: the orders in a range and their doses. */
@@ -343,6 +369,14 @@ export interface Medications<F extends object = Record<never, never>> {
   pauseOrder(orderId: string): AsyncResult<MedicationOrder<F>>;
   resumeOrder(orderId: string): AsyncResult<MedicationOrder<F>>;
   /** Stops an order for good. */
+  /**
+   * Approves an order with the caller's completed signature on it (subject type
+   * `medication_order`, the order's id). Needs the signatures block.
+   */
+  approveOrder(
+    orderId: string,
+    signatureId: string,
+  ): AsyncResult<MedicationOrder<F>>;
   stopOrder(orderId: string, reason: string): AsyncResult<MedicationOrder<F>>;
   /** A record's orders, newest first; stopped ones only when asked. */
   ordersOf(
@@ -437,6 +471,21 @@ function scheduleOf(value: unknown): MedicationSchedule | undefined {
   };
 }
 
+/**
+ * The `fields` object of a medication or dose, or undefined without extra
+ * columns.
+ */
+const extraFieldsOf = (
+  value: unknown,
+): Readonly<Record<string, unknown>> | undefined =>
+  isRecord(value) ? value : undefined;
+
+/** The `fields` argument, left out when the call sets none. */
+const fieldsArg = (
+  fields: Readonly<Record<string, unknown>> | undefined,
+): { readonly fields?: Readonly<Record<string, unknown>> } =>
+  fields === undefined ? {} : { fields };
+
 function medicationOf(value: unknown, fn: string): Medication {
   const row = recordOf(value, fn);
 
@@ -451,6 +500,7 @@ function medicationOf(value: unknown, fn: string): Medication {
     unit: textOf(row["unit"]),
     highRisk: row["highRisk"] === true,
     ...optional("archivedAt", optionalInstant(row["archivedAt"])),
+    ...optional("fields", extraFieldsOf(row["fields"])),
   };
 }
 
@@ -477,6 +527,7 @@ function orderOf(value: unknown, fn: string): MedicationOrder {
     requiresDoubleCheck: row["requiresDoubleCheck"] === true,
     status: enumOrThrow(row["status"], ORDER_STATUSES, "status"),
     ...optional("stoppedReason", optionalText(row["stoppedReason"])),
+    ...optional("signatureId", optionalText(row["signatureId"])),
     ...optional("createdBy", optionalText(row["createdBy"])),
     fields: isRecord(row["fields"]) ? row["fields"] : {},
   };
@@ -512,6 +563,8 @@ function administrationOf(
     ...optional("checkedBy", optionalText(row["checkedBy"])),
     ...optional("reason", optionalText(row["reason"])),
     ...optional("note", optionalText(row["note"])),
+    ...optional("signatureId", optionalText(row["signatureId"])),
+    ...optional("fields", extraFieldsOf(row["fields"])),
   };
 }
 
@@ -661,6 +714,7 @@ export function createMedications<
           strength: input.strength ?? null,
           high_risk: input.highRisk ?? false,
           medication_id: input.medicationId ?? null,
+          ...fieldsArg(input.fields),
         },
         one("save_medication", medicationOf),
       ),
@@ -754,6 +808,12 @@ export function createMedications<
         ),
     pauseOrder: (orderId) => pause(orderId, true),
     resumeOrder: (orderId) => pause(orderId, false),
+    approveOrder: (orderId, signatureId) =>
+      call(
+        "approve_medication_order",
+        { order_id: orderId, signature_id: signatureId },
+        one("approve_medication_order", orderOf),
+      ).andThen(fields.row),
     stopOrder: (orderId, reason) =>
       call(
         "stop_medication_order",
@@ -786,6 +846,10 @@ export function createMedications<
           reason: input.reason ?? null,
           checked_by: input.checkedBy ?? null,
           note: input.note ?? null,
+          ...(input.signatureId === undefined
+            ? {}
+            : { signature_id: input.signatureId }),
+          ...fieldsArg(input.fields),
         },
         one("record_medication_administration", administrationOf),
       ),
@@ -798,6 +862,7 @@ export function createMedications<
           reason: input.reason,
           checked_by: input.checkedBy ?? null,
           note: input.note ?? null,
+          ...fieldsArg(input.fields),
         },
         one("record_as_needed_administration", administrationOf),
       ),

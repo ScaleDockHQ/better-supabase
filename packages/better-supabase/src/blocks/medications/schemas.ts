@@ -20,6 +20,11 @@ export const medicationInputSchema: EntitySchema<MedicationInput> =
       strength: { kind: "string", optional: true, maxLength: 100 },
       highRisk: { kind: "boolean", optional: true },
       medicationId: { kind: "uuid", optional: true },
+      fields: {
+        kind: "json",
+        optional: true,
+        description: "The extra columns, keyed by database name.",
+      },
     },
   });
 

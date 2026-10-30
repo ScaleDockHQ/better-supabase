@@ -5850,6 +5850,21 @@
                 "additionalProperties": {
                   "type": "string"
                 }
+              },
+              "guestRead": {
+                "type": "boolean"
+              },
+              "medicationExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "administrationExtraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }

@@ -21,6 +21,16 @@ export type MedicationsSqlOptions = {
   readonly timeZone?: string;
   /** Extra columns on the medication orders table. */
   readonly extraColumns?: ExtraColumns;
+  /**
+   * A guest with a read grant on a record reads its medication orders, doses
+   * and the medications they name (needs the `guests` block or an authorization
+   * provider with `portalSubjects`). Default false.
+   */
+  readonly guestRead?: boolean;
+  /** Extra columns on the medications table. */
+  readonly medicationExtraColumns?: ExtraColumns;
+  /** Extra columns on the medication administrations table. */
+  readonly administrationExtraColumns?: ExtraColumns;
 };
 
 export const medicationsSqlOptions: BlockOptionsSchema<MedicationsSqlOptions> =
@@ -29,4 +39,7 @@ export const medicationsSqlOptions: BlockOptionsSchema<MedicationsSqlOptions> =
     missedCaseKind: option.string(),
     timeZone: option.string({ default: "UTC" }),
     extraColumns: option.extraColumns(),
+    guestRead: option.boolean(),
+    medicationExtraColumns: option.extraColumns(),
+    administrationExtraColumns: option.extraColumns(),
   });
