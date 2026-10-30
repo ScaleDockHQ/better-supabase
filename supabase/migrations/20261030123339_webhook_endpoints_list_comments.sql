@@ -135,7 +135,6 @@ CREATE OR REPLACE FUNCTION better_supabase.list_comments (
 )
   RETURNS jsonb
   LANGUAGE plpgsql
-  STABLE
   SET search_path TO ''
   AS $function$
 declare
@@ -144,6 +143,7 @@ begin
   if v_conv is null then
     return '[]'::jsonb;
   end if;
+  perform "better_supabase"."record_subject_read"(list_comments.subject_type, list_comments.subject_id, null, 'comments', 'list_comments');
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null

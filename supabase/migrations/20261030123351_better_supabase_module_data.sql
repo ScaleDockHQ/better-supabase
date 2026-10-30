@@ -1,4 +1,4 @@
--- better-supabase add --adopt: the rows and settings of updated-at, audit, memberships, invitations, queue, realtime-tables, jsonb-schemas, grants, read-sets, entitlements, rate-limit, vector-search, permissions, organizations, profiles, outbox, notifications, webhooks-out, sessions, api-keys, settings, usage, flags, drive, guests, comments, attachments, data-lifecycle, sso, enrollments, onboarding, waitlist, announcements, streams, credentials, workflows, workflow-sdk, workflow-editor, chat-sdk-state, inbox, ai-chat, ai-files, knowledge, memory, agents, connectors, ai-schedules, push, ai-cache, ai-keys, numbering, teams, tags, state-machine, custom-fields, share-links, reminders, imports, subjects, rank, saved-views, relations, bulk, catalog, search, metrics, calendar, bookings, versions, trash, reactions, approvals, access-requests, documents, ledger, inventory, drive-files, orders, promotions, forms, signatures, time-tracking, service-accounts, templates, deals, hiring, tasks, tasks, pipelines, contacts, activities, quotes, invoices, sla, goals, employees, signing-keys, moderation, automations, assets, scores, passes, billable-time, leases, expenses, donations, dispatch, shipments, contracts, compliance, incidents, courses, messaging, channels, timeline, mail-sync, segments, assignment, enrichment, forecasts, field-history, sequences, lead-scoring, posts, field-encryption, content, qualifications, which a schema diff skips.
+-- better-supabase add --adopt: the rows and settings of updated-at, audit, memberships, invitations, queue, realtime-tables, jsonb-schemas, grants, read-sets, entitlements, rate-limit, vector-search, permissions, organizations, profiles, outbox, notifications, webhooks-out, sessions, api-keys, settings, usage, flags, drive, guests, comments, attachments, data-lifecycle, sso, enrollments, onboarding, waitlist, announcements, streams, credentials, workflows, workflow-sdk, workflow-editor, chat-sdk-state, inbox, ai-chat, ai-files, knowledge, memory, agents, connectors, ai-schedules, push, ai-cache, ai-keys, numbering, teams, tags, state-machine, custom-fields, share-links, reminders, imports, subjects, rank, saved-views, relations, bulk, catalog, search, metrics, calendar, bookings, versions, trash, reactions, approvals, access-requests, documents, ledger, inventory, drive-files, orders, promotions, forms, signatures, time-tracking, service-accounts, templates, deals, hiring, tasks, tasks, pipelines, contacts, activities, quotes, invoices, sla, goals, employees, signing-keys, moderation, automations, assets, scores, passes, billable-time, leases, expenses, donations, dispatch, shipments, contracts, compliance, incidents, courses, messaging, channels, timeline, mail-sync, segments, assignment, enrichment, forecasts, field-history, sequences, lead-scoring, posts, field-encryption, content, qualifications, risks, shifts, accounting, acknowledgements, consents, observations, medications, which a schema diff skips.
 
 set lock_timeout = '5s';
 
@@ -198,11 +198,126 @@ on conflict (name) do update
 
 -- better-supabase module: permissions
 -- @bsb-block-data permissions
--- @bsb-hash sha256:307786e72dde3f398ada1f7f7028d6b1d09e23a8a8817bd51f2c204e8ec695b1
+-- @bsb-hash sha256:9764b09aece35ae78ffbebe45c5c143b8212edb1394eaea0012d5c632a2f5614
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Permission keys renamed by the 0.46 naming convention (ADR 0130).
+do $$
+declare
+  r record;
+  v_key text;
+  v_old uuid;
+  v_new uuid;
+  v_changed boolean := false;
+begin
+  for r in
+    select * from (values
+    ('activity.*', array['timeline.*']::text[], true),
+    ('activity.read', array['timeline.read']::text[], true),
+    ('ai.*', array['agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*']::text[], true),
+    ('ai.admin', array['ai_files.manage', 'ai_keys.manage', 'ai_schedules.manage', 'connectors.manage', 'knowledge.manage', 'memory.manage']::text[], true),
+    ('ai.create', array['agents.write', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.use', 'knowledge.write']::text[], true),
+    ('ai.moderate', array['agents.moderate']::text[], true),
+    ('ai.read', array['agents.read', 'connectors.read', 'knowledge.read', 'memory.read']::text[], true),
+    ('ai.share', array['agents.publish']::text[], true),
+    ('ai_chat.admin', array['ai_chat.manage']::text[], true),
+    ('controls.*', array['compliance.*']::text[], true),
+    ('controls.acknowledge', array['compliance.acknowledge']::text[], true),
+    ('controls.collect', array['compliance.collect']::text[], true),
+    ('controls.manage', array['compliance.manage']::text[], true),
+    ('controls.read', array['compliance.read']::text[], true),
+    ('custom_fields.sensitive.read', array['custom_fields.read_sensitive']::text[], true),
+    ('employees.view_sensitive', array['employees.read_sensitive']::text[], true),
+    ('engagements.*', array['activities.*']::text[], true),
+    ('engagements.manage', array['activities.manage']::text[], true),
+    ('engagements.read', array['activities.read']::text[], true),
+    ('engagements.write', array['activities.write']::text[], true),
+    ('history.*', array['field_history.*']::text[], true),
+    ('history.read', array['field_history.read']::text[], true),
+    ('mail.*', array['mail_sync.*']::text[], true),
+    ('mail.connect', array['mail_sync.connect']::text[], true),
+    ('mail.manage', array['mail_sync.manage']::text[], true),
+    ('mail.read', array['mail_sync.read']::text[], true),
+    ('mail.send', array['mail_sync.send']::text[], true),
+    ('members.*', array['waitlist.invite']::text[], false),
+    ('members.invite', array['waitlist.invite']::text[], false),
+    ('number_sequences.*', array['numbering.*']::text[], true),
+    ('number_sequences.assign', array['numbering.assign']::text[], true),
+    ('organization.*', array['data_lifecycle.*']::text[], false),
+    ('organization.export', array['data_lifecycle.export']::text[], true),
+    ('parties.*', array['contacts.*']::text[], true),
+    ('parties.manage', array['contacts.manage']::text[], true),
+    ('parties.read', array['contacts.read']::text[], true),
+    ('parties.write', array['contacts.write']::text[], true),
+    ('rules.*', array['automations.*']::text[], true),
+    ('rules.admin', array['automations.manage']::text[], true),
+    ('rules.edit', array['automations.write']::text[], true),
+    ('rules.publish', array['automations.publish']::text[], true),
+    ('rules.read', array['automations.read']::text[], true),
+    ('segments.edit', array['segments.write']::text[], true),
+    ('service_principals.*', array['service_accounts.*']::text[], true),
+    ('service_principals.manage', array['service_accounts.manage']::text[], true),
+    ('service_principals.read', array['service_accounts.read']::text[], true),
+    ('support.*', array['impersonation.*']::text[], true),
+    ('support.read', array['impersonation.read']::text[], true),
+    ('support.revoke', array['impersonation.revoke']::text[], true),
+    ('support.start', array['impersonation.start']::text[], true),
+    ('targets.*', array['goals.*']::text[], true),
+    ('targets.manage', array['goals.manage']::text[], true),
+    ('targets.read', array['goals.read']::text[], true),
+    ('views.*', array['saved_views.*']::text[], true),
+    ('views.read', array['saved_views.read']::text[], true),
+    ('views.share', array['saved_views.share']::text[], true),
+    ('work_items.*', array['tasks.*']::text[], true),
+    ('work_items.manage', array['tasks.manage']::text[], true),
+    ('work_items.read', array['tasks.read']::text[], true),
+    ('work_items.write', array['tasks.write']::text[], true),
+    ('workflow.*', array['workflows.*', 'workflow_editor.*']::text[], true),
+    ('workflow.admin', array['workflows.manage', 'workflow_editor.manage']::text[], true),
+    ('workflow.edit', array['workflow_editor.write']::text[], true),
+    ('workflow.publish', array['workflow_editor.publish']::text[], true),
+    ('workflow.read', array['workflows.read', 'workflow_editor.read']::text[], true),
+    ('workflow.run', array['workflows.run', 'workflow_editor.run']::text[], true)
+    ) as m(old_key, next_keys, retire)
+  loop
+    select "id" into v_old from "better_supabase"."permissions" where "key" = r.old_key;
+    continue when v_old is null;
+    v_changed := true;
+
+    if r.retire and cardinality(r.next_keys) = 1
+      and not exists (select 1 from "better_supabase"."permissions" where "key" = r.next_keys[1]) then
+      update "better_supabase"."permissions" set "key" = r.next_keys[1] where "id" = v_old;
+      continue;
+    end if;
+
+    foreach v_key in array r.next_keys loop
+      select "id" into v_new from "better_supabase"."permissions" where "key" = v_key;
+      if v_new is null then
+        insert into "better_supabase"."permissions" ("key") values (v_key) returning "id" into v_new;
+      end if;
+      insert into "better_supabase"."role_permissions" ("role_id", "permission_id")
+      select l."role_id", v_new from "better_supabase"."role_permissions" l where l."permission_id" = v_old
+      on conflict do nothing;
+      insert into "better_supabase"."permission_overrides" ("organization_id", "role_id", "permission_id", "granted")
+      select o."organization_id", o."role_id", v_new, o."granted"
+      from "better_supabase"."permission_overrides" o
+      where o."permission_id" = v_old
+      on conflict do nothing;
+    end loop;
+
+    if r.retire then
+      delete from "better_supabase"."permissions" where "id" = v_old;
+    end if;
+  end loop;
+
+  if v_changed and to_regprocedure('better_supabase.bump_authz_versions(uuid[])') is not null then
+    execute 'select better_supabase.bump_authz_versions(array(select id from auth.users))';
+  end if;
+end;
+$$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('permissions', 1, 'managed')
@@ -346,14 +461,14 @@ on conflict (name) do update
 
 -- better-supabase module: drive
 -- @bsb-block-data drive
--- @bsb-hash sha256:da363416284271105f5b8aca2cba8f5f804764f6211202b435b16becfca2d334
+-- @bsb-hash sha256:456861a8de132fa0ec1a416d10fa30a61c07cbd9e9db22f20aecfdab2ba94bab
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive', 1, 'managed')
+values ('drive', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -402,7 +517,7 @@ on conflict (name) do update
 
 -- better-supabase module: data-lifecycle
 -- @bsb-block-data data-lifecycle
--- @bsb-hash sha256:f5b3e1b63eb0f0eee30fc84a1ce265c8fa794402a5f303dbb3ab73aa65c4df57
+-- @bsb-hash sha256:2aaeb774923f87ce4066af2206504066d85675dc8ae1205d19bfd05e8d53c33f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -413,7 +528,7 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('data-lifecycle', 6, 'managed')
+values ('data-lifecycle', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1063,14 +1178,14 @@ on conflict (name) do update
 
 -- better-supabase module: drive-files
 -- @bsb-block-data drive-files
--- @bsb-hash sha256:ec009a2142b7166e7080ab6e6634a82fddbec5752a75f5af7eaa495213eb8446
+-- @bsb-hash sha256:a9de9d58b473f459508f98079d0d866885f96d734c53177ddc265cc3291cd7ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive-files', 1, 'managed')
+values ('drive-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1738,5 +1853,113 @@ on conflict (name) do update
 
 insert into better_supabase.blocks (name, version, mode)
 values ('qualifications', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: risks
+-- @bsb-block-data risks
+-- @bsb-hash sha256:c9230989b9b165e7c6a5c6270cc003d39bc7d1c14630c7d79e62a15caf694035
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('risks', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: shifts
+-- @bsb-block-data shifts
+-- @bsb-hash sha256:1885529dd31ecefd0b84d5f3f56b949fcd6011a51a38cbeec6dd8c7bf0fc1545
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create extension if not exists "btree_gist" with schema "extensions";
+
+insert into better_supabase.blocks (name, version, mode)
+values ('shifts', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: accounting
+-- @bsb-block-data accounting
+-- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('accounting', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: acknowledgements
+-- @bsb-block-data acknowledgements
+-- @bsb-hash sha256:f804dc1bd56a250af2771946adc718a33fc2dbcbbb8cd45180ca0480d6b11329
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('acknowledgements', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: consents
+-- @bsb-block-data consents
+-- @bsb-hash sha256:847489b2aac958461d00305ddc46b04b6f03efe6f788452507bf88a805895ea4
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('consents', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: observations
+-- @bsb-block-data observations
+-- @bsb-hash sha256:15b68d26cf29d7a6ab506771f194c4125667d9ec17bcc98190ed785ca39060fc
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- blocks.observations.options.defaults: the vital signs, as system
+-- definitions every organization reads.
+insert into "better_supabase"."observation_definitions" ("tenant_id", "key", "title", "value_type", "unit", "code_system", "code", "components", "decimals", "valid_low", "valid_high", "reference_low", "reference_high", "critical_low", "critical_high")
+values
+  (null, 'heart_rate', 'Heart rate', 'integer', '/min', 'http://loinc.org', '8867-4', null, null, 0, 350, 51, 90, 40, 131),
+  (null, 'blood_pressure', 'Blood pressure', 'components', null, 'http://loinc.org', '85354-9', '[{"key":"systolic","title":"Systolic","unit":"mm[Hg]","code":"8480-6","validLow":0,"validHigh":350,"referenceLow":100,"referenceHigh":140,"criticalLow":90,"criticalHigh":220}, {"key":"diastolic","title":"Diastolic","unit":"mm[Hg]","code":"8462-4","validLow":0,"validHigh":250,"referenceLow":60,"referenceHigh":90,"criticalLow":40,"criticalHigh":130}]'::jsonb, null, null, null, null, null, null, null),
+  (null, 'body_temperature', 'Body temperature', 'number', 'Cel', 'http://loinc.org', '8310-5', null, 1, 20, 46, 36.1, 38, 35, 39.1),
+  (null, 'respiratory_rate', 'Respiratory rate', 'integer', '/min', 'http://loinc.org', '9279-1', null, null, 0, 100, 12, 20, 8, 25),
+  (null, 'oxygen_saturation', 'Oxygen saturation', 'integer', '%', 'http://loinc.org', '2708-6', null, null, 0, 100, 96, null, 91, null),
+  (null, 'body_weight', 'Body weight', 'number', 'kg', 'http://loinc.org', '29463-7', null, 1, 0, 700, null, null, null, null),
+  (null, 'body_height', 'Body height', 'number', 'cm', 'http://loinc.org', '8302-2', null, 1, 0, 300, null, null, null, null),
+  (null, 'pain_score', 'Pain score', 'integer', '{score}', 'http://loinc.org', '72514-3', null, null, 0, 10, null, 3, null, null),
+  (null, 'blood_glucose', 'Blood glucose', 'number', 'mmol/L', 'http://loinc.org', '15074-8', null, 1, 0, 60, 4, 7.8, 3, 20)
+on conflict ("tenant_id", "key") do nothing;
+
+insert into better_supabase.blocks (name, version, mode)
+values ('observations', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- better-supabase module: medications
+-- @bsb-block-data medications
+-- @bsb-hash sha256:5a31b4489eba3fccd92a203fd47e002c98354a7226595d3ed756da092d3c5994
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('medications', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
