@@ -261,18 +261,18 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 
 | Hint                                                                           | Cause                                                      |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| `ACTIVITY_FORBIDDEN`                                                         | the caller lacks `activities.write`                        |
-| `ACTIVITY_TYPE_INVALID`                                                      | not a configured type                                      |
-| `ACTIVITY_TITLE_REQUIRED`                                                    | the title is empty                                         |
-| `ACTIVITY_SUBJECTS_INVALID`                                                  | `subjects` isn't a list of `{ type, id }`                  |
-| `ACTIVITY_SUBJECT_FORBIDDEN`                                                 | a record is unknown, in another organization or unreadable |
-| `ACTIVITY_NOT_FOUND`                                                         | no engagement the caller can edit, or read for `amend`     |
-| `ACTIVITY_LOCKED`                                                            | the engagement is locked or flagged in error               |
-| `ACTIVITY_AUDIENCE_INVALID`                                                  | not `team`, `subject` or `restricted`, or bad roles        |
-| `ACTIVITY_CATEGORY_INVALID`                                                  | not one of `options.noteCategories`                        |
-| `ACTIVITY_BODY_REQUIRED`                                                     | an addendum without a body                                 |
-| `ACTIVITY_REASON_REQUIRED`                                                   | `markError` without a reason                               |
-| `ACTIVITY_ALREADY_MARKED_ERROR`                                              | the engagement is already flagged in error                 |
+| `ACTIVITY_FORBIDDEN`                                                           | the caller lacks `activities.write`                        |
+| `ACTIVITY_TYPE_INVALID`                                                        | not a configured type                                      |
+| `ACTIVITY_TITLE_REQUIRED`                                                      | the title is empty                                         |
+| `ACTIVITY_SUBJECTS_INVALID`                                                    | `subjects` isn't a list of `{ type, id }`                  |
+| `ACTIVITY_SUBJECT_FORBIDDEN`                                                   | a record is unknown, in another organization or unreadable |
+| `ACTIVITY_NOT_FOUND`                                                           | no engagement the caller can edit, or read for `amend`     |
+| `ACTIVITY_LOCKED`                                                              | the engagement is locked or flagged in error               |
+| `ACTIVITY_AUDIENCE_INVALID`                                                    | not `team`, `subject` or `restricted`, or bad roles        |
+| `ACTIVITY_CATEGORY_INVALID`                                                    | not one of `options.noteCategories`                        |
+| `ACTIVITY_BODY_REQUIRED`                                                       | an addendum without a body                                 |
+| `ACTIVITY_REASON_REQUIRED`                                                     | `markError` without a reason                               |
+| `ACTIVITY_ALREADY_MARKED_ERROR`                                                | the engagement is already flagged in error                 |
 | `AI_FILE_NOT_FOUND`                                                            | no ready file of the organization the caller may attach    |
 | `ACTIVITY_RECORDING_EXISTS`                                                    | the file is already a recording of the engagement          |
 | `ACTIVITY_RECORDING_NOT_FOUND`                                                 | no such recording                                          |

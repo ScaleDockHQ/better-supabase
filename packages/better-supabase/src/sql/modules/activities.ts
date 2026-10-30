@@ -264,10 +264,7 @@ function build(ctx: BlockSqlContext): string {
 )${member === "true" ? "" : ` and ${member}`}`;
   };
 
-  /**
-   * Fails with ACTIVITY_LOCKED when the caller may edit `id` but it is
-   * locked.
-   */
+  /** Fails with ACTIVITY_LOCKED when the caller may edit `id` but it is locked. */
   const refuseLocked = (id: string): string =>
     notes.locked("x.") === "false"
       ? ""

@@ -40,19 +40,6 @@ const layout = (
   },
 });
 
-// The Next.js example keeps the block on the work_item noun, so the shared
-// stack's pipeline triggers on work_items check for work_item pipelines.
-async function install(
-  s: BlockSession,
-  modules: readonly string[],
-  sql: BlockSqlLayout,
-): Promise<void> {
-  await s.client.query(
-    "drop trigger if exists bsb_pipeline_work_item on better_supabase.work_items; drop trigger if exists bsb_pipeline_status_work_item on better_supabase.work_items",
-  );
-  await s.install(modules, sql);
-}
-
 const hint = (result: Result<unknown>): string =>
   result.ok ? "ok" : (result.error.hint ?? result.error.message);
 
@@ -68,7 +55,7 @@ describe.skipIf(!live)("work items", () => {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
       const pm = await s.user("pm");
-      await install(s, MODULES, layout());
+      await s.install(MODULES, layout());
       const org = await s.organization(owner, { member: dev, member2: pm });
       const transport = sqlTransport(s.sql);
       const items = createTasks({ transport });
@@ -236,7 +223,7 @@ describe.skipIf(!live)("work items", () => {
     try {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
-      await install(s, MODULES, layout(0, { actionPath: "/tasks/{id}" }));
+      await s.install(MODULES, layout(0, { actionPath: "/tasks/{id}" }));
       const org = await s.organization(owner, { member: dev });
       const items = createTasks({ transport: sqlTransport(s.sql) });
 
@@ -252,7 +239,7 @@ describe.skipIf(!live)("work items", () => {
         { subject_label: "Ship it", action_path: `/tasks/${item.id}` },
       ]);
 
-      await install(s, ["tasks"], layout(0, { notify: false }));
+      await s.install(["tasks"], layout(0, { notify: false }));
       const quiet = await items.create(org, { title: "Quiet" }).orThrow();
       await items.assign(quiet.id, [dev.id]).orThrow();
 
@@ -273,7 +260,7 @@ describe.skipIf(!live)("work items", () => {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
       const other = await s.user("other");
-      await install(s, MODULES, layout(1));
+      await s.install(MODULES, layout(1));
       const org = await s.organization(owner, { member: dev, member2: other });
       const items = createTasks({ transport: sqlTransport(s.sql) });
 
@@ -444,7 +431,7 @@ describe.skipIf(!live)("work items", () => {
       const owner = await s.user("owner");
       const dev = await s.user("dev");
       const other = await s.user("other");
-      await install(s, [...MODULES, "attachments", "reminders"], layout());
+      await s.install([...MODULES, "attachments", "reminders"], layout());
       const org = await s.organization(owner, { member: dev, member2: other });
       const items = createTasks({ transport: sqlTransport(s.sql) });
 
