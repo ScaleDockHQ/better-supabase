@@ -9,6 +9,7 @@
     "temporal",
     "naming",
     "commerce",
+    "fhir",
     "nested-tenancy"
   ]
 }

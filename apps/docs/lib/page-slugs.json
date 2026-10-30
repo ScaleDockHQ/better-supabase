@@ -225,6 +225,7 @@
   "concepts/caching",
   "concepts/casing",
   "concepts/commerce",
+  "concepts/fhir",
   "concepts/naming",
   "concepts/nested-tenancy",
   "concepts/results",
