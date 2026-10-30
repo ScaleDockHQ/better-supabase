@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:f033bbec207ac262ba8d94dbc3cfee0aa9e4f3998d1bcb62f4f526a114770824
+-- @bsb-hash sha256:8b363f02eacdb89f216deb3a11309a6009fe3bdad1d491e7db575b85ccf72f61
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -119,14 +119,14 @@ begin
   end if;
 
   if coalesce(create_share_link.role, 'view') <> all (case create_share_link.subject_type
-    when 'drive_node' then array['view']::text[]
+    when 'drive_node' then array['view', 'download', 'upload']::text[]
     else array[coalesce(create_share_link.role, 'view')]
   end) then
     raise exception 'this subject type''s links can''t carry that role' using errcode = '22023', hint = 'SHARE_LINK_ROLE_INVALID';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     v_subject_ok := case create_share_link.subject_type
-    when 'drive_node' then exists (select 1 from "centrakit"."file_node" s where s."id"::text = create_share_link.subject_id and s."organization_id"::text = create_share_link.tenant::text)
+    when 'drive_node' then "better_supabase"."drive_share_link_allowed"(create_share_link.subject_id::text, create_share_link.tenant::text, coalesce(create_share_link.role, 'view'))
     else case create_share_link.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'comments.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'comments.read'), false)

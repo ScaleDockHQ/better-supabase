@@ -1,6 +1,7 @@
 "use server";
 
 import { ok } from "better-supabase";
+import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { refreshCaller } from "@/lib/refresh-caller";
@@ -168,6 +169,52 @@ export const downloadDriveFile = bsb.action(
     }
 
     return ok({ url: download.data.signedUrl });
+  },
+);
+
+/** Checks the file out for two hours, or checks it back in. */
+export const setDriveCheckout = bsb.action(
+  {
+    input: v.object({ id: Id, locked: v.boolean() }),
+    requireTenant: true,
+    permission: "drive.create",
+  },
+  async ({ id, locked }, { db, auth }) => {
+    const drive = driveOf(db);
+
+    const node = locked
+      ? await drive.lock(id, {
+          until: Temporal.Now.instant().add({ hours: 2 }),
+        })
+      : await drive.unlock(id);
+
+    if (!node.ok) {
+      return node;
+    }
+
+    await refreshCaller(auth);
+
+    return ok({ id: node.data.id, locked: node.data.lockedBy !== undefined });
+  },
+);
+
+/** Keeps the original from viewers; they still see the previews. */
+export const setDriveDownloadsBlocked = bsb.action(
+  {
+    input: v.object({ id: Id, blocked: v.boolean() }),
+    requireTenant: true,
+    permission: "drive.create",
+  },
+  async ({ id, blocked }, { db, auth }) => {
+    const node = await driveOf(db).blockDownloads(id, blocked);
+
+    if (!node.ok) {
+      return node;
+    }
+
+    await refreshCaller(auth);
+
+    return ok({ id: node.data.id, blocked: node.data.downloadBlocked });
   },
 );
 

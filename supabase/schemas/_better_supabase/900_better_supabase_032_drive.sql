@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:c6706445d1a5fa116e3515e23b1390e862cbe6e67d13c8e732d5943c9255d6f7
+-- @bsb-hash sha256:de8777edd238792e1c36b3d57f94b2502b5c09ea5b8f4d703a85a16344db85f7
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -78,6 +78,11 @@ create table if not exists "better_supabase"."drive_nodes" (
   "external_id" text,
   "external_metadata" jsonb not null default '{}'::jsonb,
   "legal_hold_until" timestamptz,
+  "locked_by" uuid,
+  "locked_until" timestamptz,
+  "lock_note" text check (length("lock_note") <= 500),
+  "download_blocked" boolean not null default false,
+  "preview_pages" integer check ("preview_pages" >= 0),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -89,6 +94,11 @@ create index if not exists "drive_nodes_parent_fk_idx" on "better_supabase"."dri
 create index if not exists "drive_nodes_path_idx" on "better_supabase"."drive_nodes" ("path" text_pattern_ops);
 create index if not exists "drive_nodes_attachment_idx" on "better_supabase"."drive_nodes" ("attachment_id");
 create unique index if not exists "drive_nodes_external_idx" on "better_supabase"."drive_nodes" ("tenant_id", "source", "external_id") where "external_id" is not null and "deleted_at" is null;
+alter table "better_supabase"."drive_nodes" add column if not exists "locked_by" uuid;
+alter table "better_supabase"."drive_nodes" add column if not exists "locked_until" timestamptz;
+alter table "better_supabase"."drive_nodes" add column if not exists "lock_note" text check (length("lock_note") <= 500);
+alter table "better_supabase"."drive_nodes" add column if not exists "download_blocked" boolean not null default false;
+alter table "better_supabase"."drive_nodes" add column if not exists "preview_pages" integer check ("preview_pages" >= 0);
 alter table "better_supabase"."drive_nodes" enable row level security;
 revoke all on "better_supabase"."drive_nodes" from public, anon, authenticated;
 grant select on "better_supabase"."drive_nodes" to authenticated;
@@ -253,6 +263,79 @@ $$;
 revoke execute on function "better_supabase"."drive_node_writable"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_node_writable"(uuid) to authenticated, service_role;
 
+-- Whether the caller may comment on the node: options.commentRole (editor).
+create or replace function "better_supabase"."drive_can_comment"(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select "better_supabase"."drive_can"(drive_can_comment.node, 'editor')
+$$;
+revoke execute on function "better_supabase"."drive_can_comment"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_can_comment"(uuid) to authenticated, service_role;
+
+-- Whether downloads of the node's original are blocked on it, a folder above it
+-- or its drive. Share links honor the block whatever their role.
+create or replace function "better_supabase"."drive_download_blocked"(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select exists (select 1 from "better_supabase"."drive_nodes" b where b."id" = any ("better_supabase"."drive_ancestors"(drive_download_blocked.node)) and b."download_blocked") or false
+$$;
+revoke execute on function "better_supabase"."drive_download_blocked"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_download_blocked"(uuid) to service_role;
+
+-- Whether the caller may download the node's original: read access, and no
+-- download block unless they hold the write role (editor). Previews only need
+-- read access.
+create or replace function "better_supabase"."drive_can_download"(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or ("better_supabase"."drive_can"(drive_can_download.node, 'viewer')
+    and ("better_supabase"."drive_can"(drive_can_download.node, 'editor') or not "better_supabase"."drive_download_blocked"(drive_can_download.node)))
+$$;
+revoke execute on function "better_supabase"."drive_can_download"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_can_download"(uuid) to authenticated, service_role;
+
+-- create_share_link's check for a node: it exists in the tenant, the caller
+-- holds the share role (owner) on it, and an upload link names a folder.
+create or replace function "better_supabase"."drive_share_link_allowed"(node text, tenant text, role text)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if drive_share_link_allowed.node !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return false;
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x
+  where x."id" = drive_share_link_allowed.node::uuid and x."tenant_id"::text = drive_share_link_allowed.tenant::text;
+  if not found or not "better_supabase"."drive_can"(v_node."id", 'owner') then
+    return false;
+  end if;
+  if drive_share_link_allowed.role = 'upload' and v_node."kind" <> 'folder' then
+    raise exception 'an upload link names a folder' using errcode = '22023', hint = 'DRIVE_LINK_ROLE_INVALID';
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_share_link_allowed"(text, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_share_link_allowed"(text, text, text) to service_role;
+
 -- The nodes drive_can(node, 'viewer') is true for, as one set, so the read policy
 -- runs it once per statement instead of once per row: every node in an organization
 -- the caller manages, and the subtree of each grant that names them.
@@ -290,7 +373,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'source', ($1)."source", 'externalId', ($1)."external_id", 'externalMetadata', ($1)."external_metadata", 'legalHoldUntil', ($1)."legal_hold_until", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at")
+  select jsonb_build_object('id', ($1)."id", 'organizationId', ($1)."tenant_id", 'driveId', null, 'parentId', ($1)."parent_id", 'kind', ($1)."kind", 'name', ($1)."name", 'rank', ($1)."rank", 'source', ($1)."source", 'externalId', ($1)."external_id", 'externalMetadata', ($1)."external_metadata", 'legalHoldUntil', ($1)."legal_hold_until", 'lockedBy', case when ($1)."locked_until" > now() then ($1)."locked_by" end, 'lockedUntil', case when ($1)."locked_until" > now() then ($1)."locked_until" end, 'lockNote', case when ($1)."locked_until" > now() then ($1)."lock_note" end, 'downloadBlocked', ($1)."download_blocked", 'previewPages', ($1)."preview_pages", 'createdBy', ($1)."created_by", 'createdAt', ($1)."created_at", 'updatedAt', ($1)."updated_at", 'deletedAt', ($1)."deleted_at")
 $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
@@ -559,7 +642,7 @@ begin
   perform "better_supabase"."drive_check_parent"(drive_create_folder.tenant, drive_create_folder.parent, drive_create_folder.drive);
   v_node := "better_supabase"."drive_insert_node"(drive_create_folder.tenant, drive_create_folder.drive, drive_create_folder.parent, 'folder', v_name,
     case when v_conflict = 'replace' then 'fail' else v_conflict end, drive_create_folder.fields);
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_create_folder"(uuid, uuid, text, text, jsonb, uuid) from public, anon;
@@ -579,7 +662,7 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_get"(uuid) from public, anon;
@@ -606,7 +689,7 @@ begin
     raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
   end if;
   return (
-    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"))) order by ((c.r)."kind" = 'folder') desc, (c.r)."rank", lower((c.r)."name"), (c.r)."id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"), 'downloadable', "better_supabase"."drive_can_download"((c.r)."id"))) order by ((c.r)."kind" = 'folder') desc, (c.r)."rank", lower((c.r)."name"), (c.r)."id"), '[]'::jsonb)
     from (
       select x as r from "better_supabase"."drive_nodes" x
       where x."tenant_id" = drive_list.tenant and x."parent_id" is not distinct from drive_list.parent and x."deleted_at" is null
@@ -632,7 +715,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-  select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"))) order by (c.r)."name", (c.r)."id"), '[]'::jsonb)
+  select coalesce(jsonb_agg(("better_supabase"."drive_node_json"(c.r) || jsonb_build_object('role', "better_supabase"."drive_role"((c.r)."id"), 'readOnly', (coalesce((c.r)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((c.r)."id"), 'downloadable', "better_supabase"."drive_can_download"((c.r)."id"))) order by (c.r)."name", (c.r)."id"), '[]'::jsonb)
   from (
     select x as r from "better_supabase"."drive_nodes" x
     where x."tenant_id" = drive_shared.tenant and x."deleted_at" is null
@@ -704,8 +787,11 @@ begin
   if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
   end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  end if;
   if v_name = v_node."name" then
-    return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+    return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
   end if;
   v_name := "better_supabase"."drive_free_name"(v_node."tenant_id", null, v_node."parent_id", v_name, v_node."id",
     case when "better_supabase"."drive_conflict"(drive_rename.conflict) = 'rename' then 'rename' else 'fail' end);
@@ -740,7 +826,7 @@ begin
         using v_node."id";
     end if;
   end;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_rename"(uuid, text, text) from public, anon;
@@ -776,6 +862,9 @@ begin
   end if;
   if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
     raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
+  end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
   end if;
   if drive_move.rank is not null and drive_move.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
     raise exception 'rank must be a key from rankBetween' using errcode = '22023', hint = 'DRIVE_RANK_INVALID';
@@ -843,7 +932,7 @@ begin
         using v_node."id";
     end if;
   end;
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_move"(uuid, uuid, text, text, uuid) from public, anon;
@@ -859,6 +948,7 @@ as $$
 #variable_conflict use_column
 declare
   v_node "better_supabase"."drive_nodes"%rowtype;
+  v_locked "better_supabase"."drive_nodes"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -875,6 +965,13 @@ begin
   end if;
   if "better_supabase"."drive_node_held"(v_node."id") then
     raise exception 'this item is under a legal hold' using errcode = '42501', hint = 'DRIVE_HELD';
+  end if;
+  select * into v_locked from "better_supabase"."drive_nodes" lk
+  where lk."id" in (select s.node_id from "better_supabase"."drive_subtree"(v_node."id") s)
+    and (lk."locked_until" > now() and lk."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
+  limit 1;
+  if found then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_locked."locked_by", 'lockedUntil', v_locked."locked_until")::text;
   end if;
   delete from "better_supabase"."drive_nodes" x where x."id" in (select s.node_id from "better_supabase"."drive_subtree"(v_node."id") s);
   return true;
@@ -1074,7 +1171,7 @@ begin
     tenant => (v_node."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'legalHoldUntil', v_node."legal_hold_until")
   );
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_hold"(uuid, timestamptz) from public, anon;
@@ -1117,11 +1214,188 @@ begin
     tenant => (v_node."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text)
   );
-  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id")));
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
 end;
 $$;
 revoke execute on function "better_supabase"."drive_release_hold"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_release_hold"(uuid) to authenticated, service_role;
+
+
+
+-- Checks a file out: only the holder may change it until the lock ends
+-- (8 hours by default, 30 days at most) or the holder releases it. Holding it
+-- already extends it.
+create or replace function "better_supabase"."drive_lock"(node uuid, until timestamptz default null, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_until timestamptz := coalesce(drive_lock.until, now() + interval '8 hours');
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_lock.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if auth.uid() is null then
+    raise exception 'not allowed to check out an item without a user' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if not "better_supabase"."drive_node_writable"(v_node."id") then
+    if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
+      raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
+    end if;
+    raise exception 'not allowed to check out this item' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if v_node."kind" <> 'file' then
+    raise exception 'only a file can be checked out' using errcode = '22023', hint = 'DRIVE_NOT_A_FILE';
+  end if;
+  if v_until <= now() or v_until > now() + interval '30 days' then
+    raise exception 'a lock ends in the future and within 30 days' using errcode = '22023', hint = 'DRIVE_LOCK_INVALID';
+  end if;
+  if length(drive_lock.note) > 500 then
+    raise exception 'a lock note is at most 500 characters' using errcode = '22023', hint = 'DRIVE_LOCK_INVALID';
+  end if;
+  if (v_node."locked_until" > now() and v_node."locked_by" is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+    raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+  end if;
+  update "better_supabase"."drive_nodes" x set "locked_by" = auth.uid(), "locked_until" = v_until, "lock_note" = drive_lock.note, "updated_at" = now()
+  where x."id" = v_node."id"
+  returning * into v_node;
+  perform "better_supabase".emit_event('drive.node_locked', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'lockedBy', v_node."locked_by"::text, 'lockedUntil', v_node."locked_until"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_locked',
+    category => 'data',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'checked out',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'lockedBy', v_node."locked_by"::text, 'lockedUntil', v_node."locked_until")
+  );
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_lock"(uuid, timestamptz, text) from public, anon;
+grant execute on function "better_supabase"."drive_lock"(uuid, timestamptz, text) to authenticated, service_role;
+
+-- Releases a lock: the holder, or with force the share role (owner). An
+-- item without a live lock comes back unchanged.
+create or replace function "better_supabase"."drive_unlock"(node uuid, force boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_holder uuid;
+  v_forced boolean := false;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_unlock.node and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_node."locked_until" is null or v_node."locked_until" <= now() then
+    if v_node."locked_by" is not null then
+      update "better_supabase"."drive_nodes" x set "locked_by" = null, "locked_until" = null, "lock_note" = null
+      where x."id" = v_node."id"
+      returning * into v_node;
+    end if;
+    return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+  end if;
+  v_holder := v_node."locked_by";
+  if v_holder is distinct from auth.uid() and not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    if not coalesce(drive_unlock.force, false) then
+      raise exception 'this item is checked out by someone else' using errcode = '55P03', hint = 'DRIVE_LOCKED', detail = jsonb_build_object('lockedBy', v_node."locked_by", 'lockedUntil', v_node."locked_until")::text;
+    end if;
+    if not "better_supabase"."drive_can"(v_node."id", 'owner') then
+      raise exception 'not allowed to break someone else''s lock' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+    end if;
+    v_forced := true;
+  end if;
+  update "better_supabase"."drive_nodes" x set "locked_by" = null, "locked_until" = null, "lock_note" = null, "updated_at" = now()
+  where x."id" = v_node."id"
+  returning * into v_node;
+  perform "better_supabase".emit_event('drive.node_unlocked', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'lockedBy', v_holder::text, 'forced', v_forced), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_unlocked',
+    category => 'data',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'checked in',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'lockedBy', v_holder::text, 'forced', v_forced)
+  );
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_unlock"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."drive_unlock"(uuid, boolean) to authenticated, service_role;
+
+-- Blocks or allows downloads of the originals on a node and everything under
+-- it, or on a whole drive (the share role, owner). Readers keep previews; the
+-- write role (editor) still downloads.
+create or replace function "better_supabase"."drive_set_download_blocked"(target_type text, target_id uuid, blocked boolean)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if drive_set_download_blocked.target_type is null or drive_set_download_blocked.target_type not in ('node') then
+    raise exception 'target_type must be node' using errcode = '22023', hint = 'DRIVE_TARGET_INVALID';
+  end if;
+  if drive_set_download_blocked.blocked is null then
+    raise exception 'blocked must be true or false' using errcode = '22023', hint = 'DRIVE_TARGET_INVALID';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_set_download_blocked.target_id and x."deleted_at" is null for update;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'viewer')) then
+    raise exception 'drive item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(v_node."id", 'owner')) then
+    raise exception 'not allowed to change downloads of this item' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if (coalesce(v_node."source", 'internal') <> 'internal' or false) then
+    raise exception 'this item mirrors an external account and is read-only' using errcode = '42501', hint = 'DRIVE_READ_ONLY';
+  end if;
+  if v_node."download_blocked" is distinct from drive_set_download_blocked.blocked then
+    update "better_supabase"."drive_nodes" x set "download_blocked" = drive_set_download_blocked.blocked, "updated_at" = now()
+    where x."id" = v_node."id"
+    returning * into v_node;
+    perform "better_supabase".emit_event('drive.node_download_blocked_changed', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'downloadBlocked', v_node."download_blocked"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_download_blocked_changed',
+    category => 'access',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'download block changed',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'downloadBlocked', v_node."download_blocked")
+  );
+  end if;
+  return ("better_supabase"."drive_node_json"(v_node) || jsonb_build_object('role', "better_supabase"."drive_role"((v_node)."id"), 'readOnly', (coalesce((v_node)."source", 'internal') <> 'internal' or false), 'held', "better_supabase"."drive_node_held"((v_node)."id"), 'downloadable', "better_supabase"."drive_can_download"((v_node)."id")));
+end;
+$$;
+revoke execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1226,6 +1500,42 @@ set search_path = ''
 as $$ select "better_supabase"."drive_node_writable"($1) $$;
 revoke execute on function "api"."drive_node_writable"(uuid) from public, anon;
 grant execute on function "api"."drive_node_writable"(uuid) to authenticated, service_role;
+
+create or replace function "api"."drive_can_comment"(node uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_can_comment"($1) $$;
+revoke execute on function "api"."drive_can_comment"(uuid) from public, anon;
+grant execute on function "api"."drive_can_comment"(uuid) to authenticated, service_role;
+
+create or replace function "api"."drive_download_blocked"(node uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_download_blocked"($1) $$;
+revoke execute on function "api"."drive_download_blocked"(uuid) from public, anon, authenticated;
+grant execute on function "api"."drive_download_blocked"(uuid) to service_role;
+
+create or replace function "api"."drive_can_download"(node uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_can_download"($1) $$;
+revoke execute on function "api"."drive_can_download"(uuid) from public, anon;
+grant execute on function "api"."drive_can_download"(uuid) to authenticated, service_role;
+
+create or replace function "api"."drive_share_link_allowed"(node text, tenant text, role text)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_share_link_allowed"($1, $2, $3) $$;
+revoke execute on function "api"."drive_share_link_allowed"(text, text, text) from public, anon, authenticated;
+grant execute on function "api"."drive_share_link_allowed"(text, text, text) to service_role;
 
 create or replace function "api"."drive_readable_ids"()
 returns setof uuid
@@ -1352,6 +1662,33 @@ set search_path = ''
 as $$ select "better_supabase"."drive_release_hold"($1) $$;
 revoke execute on function "api"."drive_release_hold"(uuid) from public, anon;
 grant execute on function "api"."drive_release_hold"(uuid) to authenticated, service_role;
+
+create or replace function "api"."drive_lock"(node uuid, until timestamptz default null, note text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_lock"($1, $2, $3) $$;
+revoke execute on function "api"."drive_lock"(uuid, timestamptz, text) from public, anon;
+grant execute on function "api"."drive_lock"(uuid, timestamptz, text) to authenticated, service_role;
+
+create or replace function "api"."drive_unlock"(node uuid, force boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_unlock"($1, $2) $$;
+revoke execute on function "api"."drive_unlock"(uuid, boolean) from public, anon;
+grant execute on function "api"."drive_unlock"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."drive_set_download_blocked"(target_type text, target_id uuid, blocked boolean)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_set_download_blocked"($1, $2, $3) $$;
+revoke execute on function "api"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
+grant execute on function "api"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

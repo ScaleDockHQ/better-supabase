@@ -17904,6 +17904,9 @@ export async function DriveExplorer({
                       id={item.id}
                       kind={item.kind}
                       name={item.name}
+                      locked={item.locked}
+                      downloadBlocked={item.downloadBlocked}
+                      downloadable={item.downloadable}
                     />
                   </TableCell>
                 </TableRow>

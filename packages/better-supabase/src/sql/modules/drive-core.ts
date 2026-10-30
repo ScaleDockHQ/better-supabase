@@ -14,6 +14,12 @@ import { driveDrivesSql } from "./drive-drives.ts";
 import { driveGrantsSql } from "./drive-grants.ts";
 import { driveHoldsSql } from "./drive-holds.ts";
 import { CONFLICTS, READ_ONLY_GUARD } from "./drive-kit.ts";
+import {
+  driveAccessSql,
+  driveLocksSql,
+  lockGuard,
+  subtreeLockGuard,
+} from "./drive-locks.ts";
 import { driveTablesSql, driveTriggersSql } from "./drive-tables.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
@@ -298,7 +304,7 @@ as $$
   ), false)
 $$;
 ${userGrant(`${fn("drive_node_writable")}(uuid)`)}
-
+${driveAccessSql(kit)}
 -- The nodes drive_can(node, ${sqlString(roles.read)}) is true for, as one set, so the read policy
 -- runs it once per statement instead of once per row: every node in an organization
 -- the caller manages${roles.member === undefined ? "" : " or reads with options.memberRole"}, and the subtree of each grant that names them.
@@ -741,6 +747,7 @@ begin
   if ${readOnly("v_node")} then
     ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;
+  ${lockGuard(kit, "v_node")}
   if v_name = v_node.${n("name")} then
     return ${withRole("v_node")};
   end if;
@@ -789,6 +796,7 @@ begin
   if ${readOnly("v_node")} then
     ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;
+  ${lockGuard(kit, "v_node")}
   ${
     ranked
       ? `if drive_move.rank is not null and drive_move.rank !~ ${RANK_KEY_PATTERN} then
@@ -891,7 +899,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_node ${T}%rowtype;
+  v_node ${T}%rowtype;${kit.lockColumns ? `\n  v_locked ${T}%rowtype;` : ""}
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_delete.node;
   if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
@@ -906,6 +914,7 @@ begin
   if ${fn("drive_node_held")}(v_node.${n("id")}) then
     ${fail("DRIVE_HELD", "this item is under a legal hold", "42501")}
   end if;
+  ${subtreeLockGuard(kit, `v_node.${n("id")}`)}
   delete from ${T} x where x.${n("id")} in (select s.node_id from ${fn("drive_subtree")}(v_node.${n("id")}) s);
   return true;
 end;
@@ -915,6 +924,7 @@ ${userGrant(`${fn("drive_delete")}(uuid)`)}
 ${driveGrantsSql(kit)}
 ${driveHoldsSql(kit)}
 ${driveDrivesSql(kit)}
+${driveLocksSql(kit)}
 `;
 
   return core;

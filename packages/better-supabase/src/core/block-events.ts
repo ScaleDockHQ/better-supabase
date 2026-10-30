@@ -584,6 +584,20 @@ export interface DriveEventData extends SubjectEventData {
   /** For `drive.node_hold_placed`: when the legal hold ends. */
   readonly legalHoldUntil?: string;
   /**
+   * For `drive.node_locked` and `drive.node_unlocked`: who holds, or held, the
+   * lock.
+   */
+  readonly lockedBy?: string;
+  /** For `drive.node_locked`: when the lock ends. */
+  readonly lockedUntil?: string;
+  /** For `drive.node_unlocked`: someone other than the holder broke it. */
+  readonly forced?: boolean;
+  /**
+   * For `drive.node_download_blocked_changed` and
+   * `drive.download_blocked_changed`.
+   */
+  readonly downloadBlocked?: boolean;
+  /**
    * For `drive.node_purged`: the stored objects to delete, as `{ bucket, path
    * }`.
    */

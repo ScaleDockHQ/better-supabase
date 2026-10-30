@@ -713,6 +713,7 @@ describe("drive client", () => {
           check: "better_supabase.drive_node_readable",
         },
         write: "drive.manage",
+        comment: { check: "better_supabase.drive_can_comment" },
         fields: { check: "better_supabase.drive_node_writable" },
       },
       readAccess: "record",

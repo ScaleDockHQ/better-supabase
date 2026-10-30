@@ -21,6 +21,7 @@ export type DriveSqlOptions = {
   readonly roles?: readonly string[];
   readonly writeRole?: unknown;
   readonly shareRole?: unknown;
+  readonly commentRole?: unknown;
   readonly memberRole?: unknown;
   readonly subjectType?: string;
   readonly conflict?: string;
@@ -29,6 +30,7 @@ export type DriveSqlOptions = {
   readonly sources?: readonly string[];
   readonly roleFunctions?: DriveRoleFunctions;
   readonly readPolicy?: boolean;
+  readonly previewPrefix?: string;
   readonly extraColumns?: ExtraColumns;
 };
 
@@ -37,6 +39,7 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     roles: option.strings({ default: ["viewer", "editor", "owner"] }),
     writeRole: option.unknown(),
     shareRole: option.unknown(),
+    commentRole: option.unknown(),
     memberRole: option.unknown(),
     subjectType: option.string({ default: "drive_node" }),
     conflict: option.string({ default: "fail" }),
@@ -45,5 +48,6 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     sources: option.strings({ default: ["google-drive", "onedrive"] }),
     roleFunctions: option.unknown<DriveRoleFunctions>(),
     readPolicy: option.boolean({ default: true }),
+    previewPrefix: option.string({ default: "_previews" }),
     extraColumns: option.extraColumns(),
   });

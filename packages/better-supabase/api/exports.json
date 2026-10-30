@@ -7016,6 +7016,7 @@
   "./blocks/drive": {
     "values": [
       "createDrive",
+      "createDrivePreviews",
       "dbTransport",
       "DRIVE_ROOT",
       "driveBlock",
@@ -7024,6 +7025,7 @@
       "driveTree",
       "fileTypeCategory",
       "nodeType",
+      "previewRendererOf",
       "rpcTransport",
       "sqlTransport"
     ],
@@ -7049,6 +7051,10 @@
       "DriveNodeKind",
       "DriveOptions",
       "DrivePage",
+      "DrivePreviewJob",
+      "DrivePreviews",
+      "DrivePreviewService",
+      "DrivePreviewsOptions",
       "DrivePrincipal",
       "DrivePrincipalType",
       "DriveRevision",
@@ -7057,7 +7063,10 @@
       "DriveUpload",
       "NewDrive",
       "NewDriveFile",
-      "NewDriveFolder"
+      "NewDriveFolder",
+      "PreviewInput",
+      "PreviewPage",
+      "PreviewRenderer"
     ]
   },
   "./blocks/signatures": {

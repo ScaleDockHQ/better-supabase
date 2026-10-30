@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:272424d0fbb4092e0f04da2dcb1b0aa68c0bbcb36225afa1c8c51b4905d0a1b7
+-- @bsb-hash sha256:038d59e4b2f1fb5cf0683db2b125e618a652035d885a3a96017eb08ff51e0270
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -166,8 +166,9 @@ revoke execute on function "better_supabase"."drive_marked"(uuid, boolean, integ
 grant execute on function "better_supabase"."drive_marked"(uuid, boolean, integer) to authenticated, service_role;
 
 -- What a share link on a node opens: the node and, for a folder, its
--- children. node picks an item under the linked folder. For a file, file
--- carries the object for the server to sign a download URL with.
+-- children. node picks an item under the linked folder. For a file, object
+-- carries the original for the server to sign a download URL with, unless the
+-- link's download_allowed is false or a download block covers the file. An upload link opens nothing.
 create or replace function "better_supabase"."drive_link"(token text, node uuid default null)
 returns jsonb
 language plpgsql
@@ -182,10 +183,11 @@ declare
   v_root text;
   v_expires timestamptz;
   v_tenant text;
+  v_download boolean;
   v_node "centrakit"."file_node"%rowtype;
 begin
-  select l."id", l."role", l."subject_id", l."expires_at", l."tenant_id"::text
-    into v_link_id, v_role, v_root, v_expires, v_tenant
+  select l."id", l."role", l."subject_id", l."expires_at", l."tenant_id"::text, l."download_allowed"
+    into v_link_id, v_role, v_root, v_expires, v_tenant, v_download
   from "centrakit"."share_links" l
   where l."token_hash" = encode(extensions.digest(convert_to(drive_link.token, 'utf8'), 'sha256'), 'hex')
     and l."subject_type" = 'drive_node'
@@ -201,8 +203,12 @@ begin
   if not found or not (v_root::uuid = any ("better_supabase"."drive_ancestors"(v_node."id"))) then
     raise exception 'this link does not open that item' using errcode = 'P0002', hint = 'DRIVE_LINK_NOT_FOUND';
   end if;
+  if v_role = 'upload' then
+    raise exception 'an upload link takes files and opens nothing' using errcode = '22023', hint = 'DRIVE_LINK_ROLE_INVALID';
+  end if;
+  v_download := coalesce(v_download, true) and not "better_supabase"."drive_download_blocked"(v_node."id");
   return jsonb_build_object(
-    'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires),
+    'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires, 'downloadAllowed', v_download),
     'node', "better_supabase"."drive_node_json"(v_node),
     'children', case when v_node."kind" = 'folder' then (
       select coalesce(jsonb_agg("better_supabase"."drive_node_json"(c.r) order by ((c.r)."kind" = 'folder') desc, lower((c.r)."name"), (c.r)."id"), '[]'::jsonb)
