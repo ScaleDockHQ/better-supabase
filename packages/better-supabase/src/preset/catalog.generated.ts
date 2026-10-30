@@ -3352,14 +3352,24 @@ export const PRESET_CATALOG: PresetCatalog = {
               "externalRef": "external_ref",
               "createdBy": "created_by",
               "createdAt": "created_at",
-              "updatedAt": "updated_at"
+              "updatedAt": "updated_at",
+              "audience": "audience",
+              "restrictedRoles": "restricted_roles",
+              "category": "category",
+              "lockedAt": "locked_at",
+              "amends": "amends_id",
+              "goal": "goal_id",
+              "markedErrorAt": "marked_error_at",
+              "markedErrorBy": "marked_error_by",
+              "markedErrorReason": "marked_error_reason"
             }
           }
         },
         "keys": {
           "read": "activities.read",
           "write": "activities.write",
-          "manage": "activities.manage"
+          "manage": "activities.manage",
+          "readRestricted": "activities.read_restricted"
         }
       }
     },
@@ -18613,6 +18623,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "EngagementActionItem"
         },
         {
+          "name": "EngagementAudience"
+        },
+        {
           "name": "EngagementInput",
           "fields": true
         },
@@ -18682,6 +18695,33 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "audience": {
+                "kind": "enum",
+                "values": [
+                  "team",
+                  "subject",
+                  "restricted"
+                ],
+                "optional": true,
+                "nullable": true
+              },
+              "restrictedRoles": {
+                "kind": "string",
+                "array": true,
+                "optional": true,
+                "minLength": 1
+              },
+              "category": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "minLength": 1
+              },
+              "goalId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
               "fields": {
                 "kind": "json",
                 "optional": true,
@@ -18748,6 +18788,39 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "null"
                   ]
                 },
+                "audience": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "team",
+                    "subject",
+                    "restricted",
+                    null
+                  ]
+                },
+                "restrictedRoles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "category": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "goalId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
                 "fields": {
                   "description": "Values for the extra columns, by column name."
                 }
@@ -18806,6 +18879,33 @@ export const PRESET_CATALOG: PresetCatalog = {
               },
               "externalRef": {
                 "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "audience": {
+                "kind": "enum",
+                "values": [
+                  "team",
+                  "subject",
+                  "restricted"
+                ],
+                "optional": true,
+                "nullable": true
+              },
+              "restrictedRoles": {
+                "kind": "string",
+                "array": true,
+                "optional": true,
+                "minLength": 1
+              },
+              "category": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "minLength": 1
+              },
+              "goalId": {
+                "kind": "uuid",
                 "optional": true,
                 "nullable": true
               },
@@ -18875,6 +18975,39 @@ export const PRESET_CATALOG: PresetCatalog = {
                     "null"
                   ]
                 },
+                "audience": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "team",
+                    "subject",
+                    "restricted",
+                    null
+                  ]
+                },
+                "restrictedRoles": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "category": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "minLength": 1
+                },
+                "goalId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
                 "fields": {
                   "description": "Values for the extra columns, by column name."
                 }
@@ -18893,7 +19026,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "engagement.deleted",
           "engagement.recorded",
           "engagement.transcribed",
-          "engagement.summarized"
+          "engagement.summarized",
+          "engagement.amended",
+          "engagement.error_marked"
         ]
       }
     },

@@ -54,7 +54,7 @@ export interface EngagementSubject {
  * Who reads an engagement besides its author and owner: the tenant's readers of
  * its records (`team`), also guests with a read grant on one of them
  * (`subject`), or only members with one of `restrictedRoles` on a record's team
- * or `engagements.read_restricted` (`restricted`).
+ * or `activities.read_restricted` (`restricted`).
  */
 export type EngagementAudience = "team" | "subject" | "restricted";
 
@@ -169,7 +169,7 @@ export interface Activities<F extends object = Record<never, never>> {
   amend(id: string, body: string): AsyncResult<Engagement<F>>;
   /**
    * Flags an engagement as entered in error with a reason. The row stays and
-   * locks. The author, the owner and members with `engagements.manage` may.
+   * locks. The author, the owner and members with `activities.manage` may.
    */
   markError(id: string, reason: string): AsyncResult<Engagement<F>>;
   /** A record's engagements, newest first (50 by default, at most 200). */

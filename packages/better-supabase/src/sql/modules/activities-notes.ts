@@ -71,9 +71,9 @@ export interface NoteRules {
   readonly guests: boolean;
   /**
    * The extra condition a member's read of row `p` passes: a `restricted`
-   * engagement needs `engagements.read_restricted`, one of its roles on a
-   * linked record's team, or to be its author or owner. `true` without the
-   * audience column.
+   * engagement needs `activities.read_restricted`, one of its roles on a linked
+   * record's team, or to be its author or owner. `true` without the audience
+   * column.
    */
   readonly memberRead: (p: string) => string;
   /** A guest's read of row `p`, `false` without guests. */
@@ -403,7 +403,7 @@ ${userGrant(`${fn("amend_engagement")}(uuid, text)`)}
     ? `
 -- Flags an engagement as entered in error with a reason. The row stays, so
 -- the record keeps what was written; the flag also locks it. The author, the
--- owner and members with engagements.manage may mark it.
+-- owner and members with activities.manage may mark it.
 create or replace function ${fn("mark_engagement_error")}(engagement uuid, reason text)
 returns jsonb
 language plpgsql

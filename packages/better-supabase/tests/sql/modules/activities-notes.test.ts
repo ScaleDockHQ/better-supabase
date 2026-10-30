@@ -90,7 +90,7 @@ describe("progress notes, rendered", () => {
     expect(sql).toContain('function "better_supabase"."mark_engagement_error"');
     expect(sql).toContain("interval '24 hours'");
     expect(sql).toContain("'{note,report}'::text[]");
-    expect(sql).toContain("engagements.read_restricted");
+    expect(sql).toContain("activities.read_restricted");
     expect(sql).toContain('"better_supabase"."has_subject_role"');
     expect(sql).not.toContain("engagement_guest_readable");
   });
@@ -174,7 +174,7 @@ describe("progress notes, rendered", () => {
       .join("\n");
 
     expect(sql).not.toContain("-- Progress notes:");
-    expect(sql).not.toContain("engagements.read_restricted");
+    expect(sql).not.toContain("activities.read_restricted");
   });
 });
 

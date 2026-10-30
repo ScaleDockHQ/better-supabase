@@ -2,7 +2,7 @@
 "better-supabase": minor
 ---
 
-Activities takes progress notes. An engagement has an `audience`: `team` keeps today's read rule, `subject` also lets guests with a read grant on a linked record read it, and `restricted` needs one of `restrictedRoles` on a linked record's team, the new `engagements.read_restricted` permission, or to be its author or owner. Engagements also take a `category` (checked against `options.noteCategories`) and a `goalId`.
+Activities takes progress notes. An engagement has an `audience`: `team` keeps today's read rule, `subject` also lets guests with a read grant on a linked record read it, and `restricted` needs one of `restrictedRoles` on a linked record's team, the new `activities.read_restricted` permission, or to be its author or owner. Engagements also take a `category` (checked against `options.noteCategories`) and a `goalId`.
 
 Engagements of a `options.lockTypes` type (default `note` and `report`) lock `options.lockAfterHours` after they are logged (default 24). After that, `update`, `complete` and `remove` fail with `ENGAGEMENT_LOCKED`. Notes logged before this release keep no lock. `amend(id, body)` adds a linked addendum (`amend_engagement`, event `engagement.amended`), and `markError(id, reason)` flags an engagement as entered in error and locks it (`mark_engagement_error`, event `engagement.marked_error`).
 
