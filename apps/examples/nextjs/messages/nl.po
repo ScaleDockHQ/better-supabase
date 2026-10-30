@@ -398,6 +398,16 @@ msgctxt "notifications.vdNnuz"
 msgid "Sent by the notifications block. The count stays live over Realtime."
 msgstr "Verstuurd door het notifications-blok. Het aantal blijft live via Realtime."
 
+#: src/app/[locale]/(app)/observations/page.tsx
+msgctxt "observations.M_xDHn"
+msgid "Observations"
+msgstr "Observaties"
+
+#: src/app/[locale]/(app)/observations/page.tsx
+msgctxt "observations.fXkKNK"
+msgid "A customer's latest vital signs, each flagged against its reference range, with the trend of its recent readings."
+msgstr "De laatste vitale functies van een klant, elk gemarkeerd tegen het referentiebereik, met het verloop van de recente metingen."
+
 #: src/app/[locale]/(app)/page.tsx
 msgctxt "dashboard.hzSNj4"
 msgid "Dashboard"
@@ -8515,6 +8525,11 @@ msgid "Finance"
 msgstr "Financiën"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.M_xDHn"
+msgid "Observations"
+msgstr "Observaties"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Meldingen"
@@ -8683,6 +8698,111 @@ msgstr "Tellen…"
 msgctxt "notifications.94cCzv"
 msgid "{count, number} unread"
 msgstr "{count, number} ongelezen"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.isSzws"
+msgid "The vital signs didn't load"
+msgstr "De vitale functies zijn niet geladen"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.myq2ZL"
+msgid "Normal"
+msgstr "Normaal"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.477I0g"
+msgid "Low"
+msgstr "Laag"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.AxMhQr"
+msgid "High"
+msgstr "Hoog"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.LyFoHh"
+msgid "Critically low"
+msgstr "Kritiek laag"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.oU6Scx"
+msgid "Critically high"
+msgstr "Kritiek hoog"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.fh3p7B"
+msgid "Vital signs"
+msgstr "Vitale functies"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.tziwxM"
+msgid "The latest readings of a customer, against their ranges."
+msgstr "De laatste metingen van een klant, tegen hun bereik."
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.pU67Jy"
+msgid "The latest readings for {name}, against their ranges."
+msgstr "De laatste metingen voor {name}, tegen hun bereik."
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.T22tdu"
+msgid "No readings yet"
+msgstr "Nog geen metingen"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.UFYKw7"
+msgid "Recorded vital signs appear here with their flag and recent trend."
+msgstr "Vastgelegde vitale functies verschijnen hier met hun markering en recente verloop."
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.Vc6lZj"
+msgid "Read how to record an observation"
+msgstr "Lees hoe je een observatie vastlegt"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.pfC1Ww"
+msgid "Latest vital signs"
+msgstr "Laatste vitale functies"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.XsDoHr"
+msgid "Measurement"
+msgstr "Meting"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.adThp5"
+msgid "Latest"
+msgstr "Laatste"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.bSCV9J"
+msgid "Flag"
+msgstr "Markering"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.WZTXKm"
+msgid "Trend"
+msgstr "Verloop"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.ZKqxlO"
+msgid "Observed"
+msgstr "Gemeten"
+
+#: src/features/observations/components/observation-chart.tsx
+msgctxt "observations.0PpfG7"
+msgid "{title}: the last {count, number} readings"
+msgstr "{title}: de laatste {count, number} metingen"
 
 #: src/features/offline/components/connectivity-fallback.tsx
 msgctxt "offline.38Jnwq"
