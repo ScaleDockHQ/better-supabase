@@ -208,7 +208,10 @@ order and refuses one that would pass `maxPerDay` in 24 hours.
 `markMissed` marks the planned doses more than `missedAfterMinutes` late as
 missed and returns how many. Run it from a job with the service role. With
 notifications installed, the members with `medications.manage` hear about
-each missed dose.
+each missed dose. With [cases](/docs/blocks/cases) installed and
+`missedCaseKind` set, each missed dose also opens a case of that kind, titled
+with the medication's name. With [relations](/docs/blocks/relations) the case
+links to the order's record.
 
 ## Chart
 
@@ -226,11 +229,12 @@ it.
 
 ## Options
 
-| Option               | Default | Does                                                              |
-| -------------------- | ------- | ----------------------------------------------------------------- |
-| `missedAfterMinutes` | `60`    | Minutes after its planned time a dose counts as missed, 1 to 1440 |
-| `timeZone`           | `"UTC"` | The IANA zone schedule times, start dates and the chart are in    |
-| `extraColumns`       | none    | Extra columns on the medication orders table                      |
+| Option               | Default | Does                                                                               |
+| -------------------- | ------- | ---------------------------------------------------------------------------------- |
+| `missedAfterMinutes` | `60`    | Minutes after its planned time a dose counts as missed, 1 to 1440                  |
+| `missedCaseKind`     | none    | The key of a case kind a missed dose opens, such as `incident`; none opens no case |
+| `timeZone`           | `"UTC"` | The IANA zone schedule times, start dates and the chart are in                     |
+| `extraColumns`       | none    | Extra columns on the medication orders table                                       |
 
 ```ts title="better-supabase.config.ts"
 blocks: {

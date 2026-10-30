@@ -1,0 +1,260 @@
+---
+title: Cases
+description: Nonconformities, complaints, incidents, near misses and other cases of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, actions as work items, an effectiveness check, public intake through forms and a close guard.
+---
+
+`cases` tracks what goes wrong or needs changing in an organization, from the
+report to a verified close. A case has a kind (a nonconformity, a complaint,
+an incident), moves through its kind's pipeline, gets a root cause and
+actions, and closes only once nothing that its kind requires is missing.
+
+```bash
+better-supabase add cases
+```
+
+```ts
+import { createCases } from "better-supabase/blocks/cases";
+```
+
+The module requires `tenant`, `permissions`, `subjects` and `pipelines`. With
+[tasks](/docs/blocks/tasks) a case's actions are work items. With
+[numbering](/docs/blocks/numbering) the number after a kind's prefix comes from
+a `case` sequence; without it the number is the case's position in the
+organization. With [forms](/docs/blocks/forms) a public form opens cases, with
+[relations](/docs/blocks/relations) and [drive](/docs/blocks/drive) a case
+names the documents it `affects`, with
+[notifications](/docs/blocks/notifications) the owner hears about a due
+effectiveness check, with `outbox` it records the events, and with `audit`
+every change is audited.
+
+## Tables
+
+| Table          | Holds                                                                                                 |
+| -------------- | ----------------------------------------------------------------------------------------------------- |
+| `case_kinds`   | The kinds per organization by `key`: the number prefix, the pipeline and what closing a case requires |
+| `cases`        | A case with its kind, number, severity, source, owner, stage, status, root cause and effectiveness    |
+| `case_actions` | The work items of a case: containment, correction, corrective, preventive or improvement actions      |
+
+Members with `cases.read` read every table. Writes go through the functions
+below. A case is a subject of type `case`, so comments, attachments, tags and
+the other subject blocks work on it.
+
+| Permission     | Allows                                                   | Default roles        |
+| -------------- | -------------------------------------------------------- | -------------------- |
+| `cases.read`   | reading cases, kinds and actions                         | owner, admin, member |
+| `cases.create` | opening a case                                           | owner, admin, member |
+| `cases.write`  | changing any case, moving it, its root cause and actions | owner, admin         |
+| `cases.close`  | closing, reopening and canceling a case                  | owner, admin         |
+| `cases.manage` | creating, changing and archiving kinds                   | owner, admin         |
+
+A case's owner may change and close their own case without `cases.write` or
+`cases.close`.
+
+## Kinds
+
+Every organization starts with `options.kinds`. Each kind gets its own
+pipeline with the stages `reported`, `investigating`, `acting`, `verifying`,
+`closed` and `canceled`, so an organization can add or rename stages per kind.
+
+| Kind            | Prefix | Closing requires                       |
+| --------------- | ------ | -------------------------------------- |
+| `nonconformity` | `NC`   | a root cause and actions               |
+| `complaint`     | `CMP`  | a root cause and actions               |
+| `incident`      | `INC`  | a root cause and actions               |
+| `near_miss`     | `NM`   | a root cause                           |
+| `observation`   | `OBS`  | nothing                                |
+| `improvement`   | `IMP`  | actions                                |
+| `change`        | `CHG`  | actions and revised affected documents |
+| `finding`       | `FND`  | a root cause and actions               |
+
+`saveKind` adds a kind or, with `kindId`, changes one; it needs
+`cases.manage`. `archiveKind` stops new cases of a kind and keeps the old
+ones.
+
+```ts
+await db.cases
+  .saveKind({
+    key: "spill",
+    name: "Chemical spill",
+    prefix: "SPL",
+    requiresEffectiveness: true,
+    effectivenessAfterDays: 30,
+  })
+  .orThrow();
+```
+
+## Opening and working a case
+
+Server code calls the `cases` instance on `db`, in the caller's organization:
+
+```ts
+const opened = await db.cases
+  .open({
+    kind: "nonconformity",
+    title: "Burr on housing edge",
+    severity: "high",
+    source: "inspection",
+    ownerId,
+  })
+  .orThrow();
+// opened.number starts with the kind's prefix: "NC-"
+
+await db.cases.recordRootCause(opened.id, "Worn deburring tool").orThrow();
+
+await db.cases
+  .createAction(opened.id, {
+    type: "corrective",
+    title: "Replace the deburring tool and add it to maintenance",
+    assigneeId,
+  })
+  .orThrow();
+```
+
+`open` needs `cases.create` and puts the case on the first stage of its kind's
+pipeline. The severity must be one of `options.severities` and the source one
+of `options.sources`. `createAction` adds a work item through the tasks
+block, and `linkAction` makes an existing one an action. An action is
+required by default: closing waits until its work item is completed or
+canceled.
+
+`move` puts a case on another stage of its pipeline, which the
+[case board](/docs/registry/ui-recipes/case-board) recipe does when a card is
+dragged. A stage's outcome sets the case's status: `open`, `closed` or
+`canceled`.
+
+## The close guard
+
+`blockers` returns what still stops a case from closing, in this order:
+
+| Blocker                       | Until                                                        |
+| ----------------------------- | ------------------------------------------------------------ |
+| `CASE_ROOT_CAUSE_REQUIRED`    | the kind requires a root cause and none is recorded          |
+| `CASE_ACTIONS_REQUIRED`       | the kind requires actions and the case has no required one   |
+| `CASE_ACTIONS_OPEN`           | a required action's work item is still open                  |
+| `CASE_EFFECTIVENESS_REQUIRED` | the kind requires an effectiveness check and none passed     |
+| `CASE_DOCUMENTS_NOT_REVISED`  | a document the case `affects` has no version effective since |
+
+`close` and a move to a closing stage fail with the first blocker's code while
+one remains. `reopen` takes a closed or canceled case back to its pipeline's
+first stage, and `cancel` ends an open case without the guard.
+
+```ts
+const blockers = await db.cases.blockers(opened.id).orThrow();
+
+if (blockers.length === 0) {
+  await db.cases.close(opened.id, "Tool replaced, no new burrs").orThrow();
+}
+```
+
+The [case detail](/docs/registry/ui-recipes/case-detail) recipe shows the
+blockers and enables its Close button once there are none.
+
+## Effectiveness
+
+A kind with `effectivenessAfterDays` sets a case's `effectivenessDueOn` that
+many days after its last required action is done. `recordEffectiveness`
+records whether the actions worked; `false` keeps the case from closing until
+a later check passes.
+
+Run `notifyDueEffectiveness` daily with the service role; the block's
+`effectiveness-due` schedule does that at 06:00. It records
+`case.effectiveness_date_reached` once for each due check and notifies the
+owner.
+
+## Intake through forms
+
+`case_from_submission` is a [forms](/docs/blocks/forms) submission handler.
+It opens a case from the answers `kind` (else `options.intakeKind`), `title`,
+`description`, `severity`, `source`, `occurredAt`, `name`, `email` and `phone`,
+also for an anonymous public form, and links the submission to the case.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  forms: {
+    options: { handlers: { complaint: "better_supabase.case_from_submission" } },
+  },
+},
+```
+
+With [medications](/docs/blocks/medications) and its `missedCaseKind` option,
+a missed dose opens a case of that kind.
+
+## Methods
+
+| Method                                   | Returns                                                    |
+| ---------------------------------------- | ---------------------------------------------------------- |
+| `saveKind(input)`                        | the kind                                                   |
+| `archiveKind(kindId)`                    | the archived kind                                          |
+| `kinds(options)`                         | the kinds by name                                          |
+| `open(input)`                            | the case                                                   |
+| `update(caseId, change)`                 | the case                                                   |
+| `move(caseId, { stageId, rank })`        | the case on its new stage                                  |
+| `recordRootCause(caseId, rootCause)`     | the case                                                   |
+| `createAction(caseId, input)`            | the action and its work item ids                           |
+| `linkAction(caseId, taskId, type)`       | the action and its work item ids                           |
+| `removeAction(actionId)`                 | the case; the work item stays                              |
+| `recordEffectiveness(caseId, effective)` | the case                                                   |
+| `blockers(caseId)`                       | the blocker codes, empty when it may close                 |
+| `close(caseId, note)`                    | the closed case                                            |
+| `reopen(caseId, reason)`                 | the reopened case                                          |
+| `cancel(caseId, reason)`                 | the canceled case                                          |
+| `get(caseId)`                            | the case with its kind, stage, actions, blockers and links |
+| `list(options)`                          | a page of cases, newest first, and the next cursor         |
+| `stats(options)`                         | counts per severity, source, stage, kind or root cause     |
+| `notifyDueEffectiveness()`               | how many due checks it reported                            |
+
+`list` filters by `kind`, `status`, `severity`, `source`, `owner`, `stage`,
+`overdue` and `search`, with `limit` and `cursor`.
+
+## Options
+
+| Option         | Default                           | Does                                             |
+| -------------- | --------------------------------- | ------------------------------------------------ |
+| `severities`   | `low` to `critical`               | The severities a case takes                      |
+| `sources`      | `internal`, `customer` and 5 more | Where a case comes from                          |
+| `kinds`        | the eight kinds above             | The kinds each organization starts with          |
+| `intakeKind`   | `"complaint"`                     | The kind a form opens when its answers name none |
+| `extraColumns` | none                              | Extra columns on the cases table                 |
+
+## Errors
+
+| Hint                       | Cause                                                          |
+| -------------------------- | -------------------------------------------------------------- |
+| `CASE_FORBIDDEN`           | the caller lacks the permission and doesn't own the case       |
+| `CASE_INVALID`             | a field is invalid, or a change names a column the table lacks |
+| `CASE_KIND_INVALID`        | a kind's key, prefix or effectiveness days are invalid         |
+| `CASE_KIND_NOT_FOUND`      | no kind with this key or id                                    |
+| `CASE_KIND_ARCHIVED`       | the kind is archived, so it opens no cases                     |
+| `CASE_SEVERITY_UNKNOWN`    | the severity isn't one of `options.severities`                 |
+| `CASE_SOURCE_UNKNOWN`      | the source isn't one of `options.sources`                      |
+| `CASE_CLOSED`              | the case is closed or canceled                                 |
+| `CASE_NOT_FOUND`           | no case with this id                                           |
+| `CASE_ACTION_NOT_FOUND`    | no case action with this id                                    |
+| `CASE_STAGE_MISSING`       | the pipeline has no active stage with the outcome a call needs |
+| `CASE_TASKS_NOT_INSTALLED` | `createAction` or `linkAction` without the tasks block         |
+| `CASE_FORMS_NOT_INSTALLED` | `case_from_submission` without the forms block                 |
+
+The blocker codes above are errors too, from `close` and from a move to a
+closing stage; the error's detail lists every blocker.
+
+## Events
+
+`case_kind.created`, `case_kind.updated`, `case_kind.archived`,
+`case.created`, `case.updated`, `case.root_cause_recorded`,
+`case_action.created`, `case_action.deleted`, `case.effectiveness_recorded`,
+`case.effectiveness_date_reached`, `case.closed`, `case.reopened` and
+`case.cancelled`. The [events page](/docs/extending/events) lists their
+payloads.
+
+## Without the client
+
+`db.cases` is this client. Code that does not go through `bsb.db()` builds it
+with a transport and an organization id:
+
+```ts
+const cases = createCases({ transport, tenant: organizationId });
+
+const opened = await cases
+  .open({ kind: "complaint", title: "Late delivery" })
+  .orThrow();
+```

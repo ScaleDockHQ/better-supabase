@@ -17231,6 +17231,110 @@ export const PRESET_CATALOG: PresetCatalog = {
       },
       "consumes": {},
       "provides": [],
+      "entityTypes": [
+        {
+          "name": "Case",
+          "fields": true
+        },
+        {
+          "name": "CaseAction"
+        },
+        {
+          "name": "CaseActionAdded"
+        },
+        {
+          "name": "CaseActionCreatedEventData"
+        },
+        {
+          "name": "CaseActionDeletedEventData"
+        },
+        {
+          "name": "CaseActionInput"
+        },
+        {
+          "name": "CaseActionType"
+        },
+        {
+          "name": "CaseBlocker"
+        },
+        {
+          "name": "CaseChange",
+          "fields": true
+        },
+        {
+          "name": "CaseClosedEventData"
+        },
+        {
+          "name": "CaseDetail",
+          "fields": true
+        },
+        {
+          "name": "CaseEffectivenessDateReachedEventData"
+        },
+        {
+          "name": "CaseEffectivenessRecordedEventData"
+        },
+        {
+          "name": "CaseEventData"
+        },
+        {
+          "name": "CaseInput",
+          "fields": true
+        },
+        {
+          "name": "CaseKind"
+        },
+        {
+          "name": "CaseKindEventData"
+        },
+        {
+          "name": "CaseKindInput"
+        },
+        {
+          "name": "CaseListOptions"
+        },
+        {
+          "name": "CaseMove"
+        },
+        {
+          "name": "CasePage",
+          "fields": true
+        },
+        {
+          "name": "CaseReasonEventData"
+        },
+        {
+          "name": "CaseRootCauseRecordedEventData"
+        },
+        {
+          "name": "Cases",
+          "fields": true
+        },
+        {
+          "name": "CasesEvents"
+        },
+        {
+          "name": "CasesOptions"
+        },
+        {
+          "name": "CasesSqlOptions"
+        },
+        {
+          "name": "CaseStat"
+        },
+        {
+          "name": "CaseStatsGroup"
+        },
+        {
+          "name": "CaseStatsOptions"
+        },
+        {
+          "name": "CaseStatus"
+        },
+        {
+          "name": "CaseUpdatedEventData"
+        }
+      ],
       "entitySchemas": {
         "case": {
           "input": {
@@ -17563,6 +17667,24 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           }
         }
+      },
+      "events": {
+        "type": "CasesEvents",
+        "types": [
+          "case_kind.created",
+          "case_kind.updated",
+          "case_kind.archived",
+          "case.created",
+          "case.updated",
+          "case.root_cause_recorded",
+          "case_action.created",
+          "case_action.deleted",
+          "case.effectiveness_recorded",
+          "case.effectiveness_date_reached",
+          "case.closed",
+          "case.reopened",
+          "case.cancelled"
+        ]
       },
       "schedules": [
         {
