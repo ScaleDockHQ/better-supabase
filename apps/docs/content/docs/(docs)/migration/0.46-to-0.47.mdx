@@ -328,8 +328,8 @@ The compliance block now requires the
 acknowledgements there (ADR 0131). `upgrade` installs it with compliance, and
 the data step copies every `policy_acknowledgements` row into
 `acknowledgements` as a `compliance_policy` acknowledgement of the same
-version, assigns every live policy that requires acknowledgement to the
-`member` role, and drops `policy_acknowledgements`. Saving a policy that
+version, assigns every live policy that requires acknowledgement to every
+member (the role principal `*`, so owners and admins are included), and drops `policy_acknowledgements`. Saving a policy that
 requires acknowledgement assigns it the same way.
 
 | 0.46                                                           | 0.47                                                         |

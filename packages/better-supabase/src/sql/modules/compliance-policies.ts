@@ -3,14 +3,63 @@ import type { BlockSqlContext } from "../context.ts";
 import { sqlString } from "../../core/template.ts";
 import { entityType } from "../resolved-names.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
+import { ALL_MEMBERS } from "./acknowledgements-shared.ts";
 import { optionalField } from "./compliance-shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 /**
- * The role a policy that requires acknowledgement is assigned to in the
- * acknowledgements block.
+ * The role principal a policy that requires acknowledgement is assigned to in
+ * the acknowledgements block: every member, owners and admins included.
  */
-export const POLICY_ROLE = "member";
+export const POLICY_ROLE: string = ALL_MEMBERS;
+
+/**
+ * The role a policy was assigned to before every member was covered. The data
+ * step moves its assignments onto {@link POLICY_ROLE}.
+ */
+export const FORMER_POLICY_ROLE = "member";
+
+/**
+ * Moves the policy assignments that name the former `member` role onto every
+ * member, so policies published before the change reach owners and admins too.
+ * It skips a policy that already has the every-member assignment and runs again
+ * harmlessly.
+ */
+export function widenPolicyAssignments(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const acknowledgements = ctx.of("acknowledgements");
+  const assignments = acknowledgements.table("assignments");
+
+  const g = (column: string): string =>
+    acknowledgements.col("assignments", column);
+
+  const type = sqlString(entityType(ctx.resolved, "compliance_policy"));
+
+  return `-- Policies assigned to the member role reach every member.
+do $$
+begin
+  if to_regclass(${sqlString(assignments)}) is null then
+    return;
+  end if;
+  update ${assignments} x
+  set ${g("principalId")} = ${sqlString(POLICY_ROLE)}
+  where x.${g("subjectType")} = ${type}
+    and x.${g("principalType")} = 'role'
+    and x.${g("principalId")} = ${sqlString(FORMER_POLICY_ROLE)}
+    and not exists (
+      select 1 from ${assignments} y
+      where y.${g("tenant")} = x.${g("tenant")}
+        and y.${g("subjectType")} = x.${g("subjectType")}
+        and y.${g("subjectId")} = x.${g("subjectId")}
+        and y.${g("principalType")} = 'role'
+        and y.${g("principalId")} = ${sqlString(POLICY_ROLE)}
+    );
+end;
+$$;`;
+}
 
 /** The policy functions of the `compliance` module. */
 export function policyFunctions(ctx: BlockSqlContext): string {
@@ -90,7 +139,7 @@ export function policyFunctions(ctx: BlockSqlContext): string {
   return `
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
 -- versions publish_compliance_policy writes. A policy that requires
--- acknowledgement is assigned once to every member holding the member role
+-- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
 create or replace function ${fn("save_compliance_policy")}(tenant ${idType}, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
@@ -189,7 +238,7 @@ end;
 $$;
 ${userGrant(`${fn("publish_compliance_policy")}(uuid, jsonb, text)`)}
 
--- Archives a policy and removes its member role assignment, so members stop
+-- Archives a policy and removes its every-member assignment, so members stop
 -- seeing it as pending.
 create or replace function ${fn("archive_compliance_policy")}(policy_id uuid)
 returns jsonb

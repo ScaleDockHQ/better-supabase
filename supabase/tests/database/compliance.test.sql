@@ -3,7 +3,7 @@
 -- collects evidence and acknowledges the policy, and the Globex owner (…a3)
 -- sees none of it. Run with `supabase test db`.
 begin;
-select plan(24);
+select plan(26);
 
 select is(
   (select count(*) from pg_catalog.pg_tables
@@ -64,9 +64,22 @@ select is(
 select is(
   (select count(*) from better_supabase.acknowledgement_assignments
     where subject_type = 'compliance_policy' and subject_id = (select id from ids where name = 'aup')::text
-      and principal_type = 'role' and principal_id = 'member'),
+      and principal_type = 'role' and principal_id = '*'),
   1::bigint,
-  'a policy that requires acknowledgement is assigned to the member role once'
+  'a policy that requires acknowledgement is assigned to every member once'
+);
+select is(
+  (select count(*) from better_supabase.acknowledgement_assignments
+    where subject_type = 'compliance_policy' and subject_id = (select id from ids where name = 'aup')::text
+      and principal_id = 'member'),
+  0::bigint,
+  'the policy is not assigned to the member role alone'
+);
+select is(
+  (select count(*) from jsonb_array_elements(better_supabase.list_my_acknowledgements('00000000-0000-4000-8000-000000000001')) a
+    where a ->> 'subjectType' = 'compliance_policy'),
+  1::bigint,
+  'the owner, who is not in the member role, also has the policy to acknowledge'
 );
 
 reset role;

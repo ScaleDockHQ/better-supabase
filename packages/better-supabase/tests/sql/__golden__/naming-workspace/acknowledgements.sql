@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:b21e644bcc9909957f11ae4eab74fc038f850526f42ea3353ffa3a35c94cc84d
+-- @bsb-hash sha256:799e3c80dbd31305e128ffd98cc6e7cb8f37d1816c5e03685d8fd2ca6b6db3c1
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -259,7 +259,8 @@ begin
   elsif assign_acknowledgement.principal_type = 'team' then
     raise exception 'team assignments need the teams module' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
   elsif assign_acknowledgement.principal_type = 'role' then
-    if not (assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
+    if not (assign_acknowledgement.principal_id = '*'
+      or assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
       or exists (select 1 from "better_supabase"."memberships" m where m."workspace_id" = assign_acknowledgement.tenant and m."role" = assign_acknowledgement.principal_id)) then
       raise exception 'the role isn''t a role in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
@@ -379,7 +380,7 @@ begin
     join "better_supabase"."memberships" m on m."workspace_id" = x."tenant_id" and m."user_id" = v_me
     where x."subject_type" = acknowledge.subject_type and x."subject_id" = acknowledge.subject_id
       and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
     limit 1;
   if v_tenant is null then
     raise exception 'you aren''t asked to acknowledge this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_NOT_ASSIGNED';
@@ -470,7 +471,7 @@ begin
           from "better_supabase"."acknowledgement_assignments" x
           join "better_supabase"."memberships" m on m."workspace_id" = x."tenant_id" and m."user_id" = v_me
           where x."tenant_id" = list_my_acknowledgements.tenant and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
           group by x."subject_type", x."subject_id"
         ) q
         where true
@@ -528,7 +529,7 @@ begin
       join "better_supabase"."memberships" m on m."workspace_id" = x."tenant_id"
       where x."tenant_id" = v_tenant and x."subject_type" = acknowledgement_status.subject_type and x."subject_id" = acknowledgement_status.subject_id
         and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
       group by m."user_id") c
     left join "better_supabase"."acknowledgements" k on k."subject_type" = acknowledgement_status.subject_type and k."subject_id" = acknowledgement_status.subject_id
       and k."version_id" = v_version and k."user_id" = c.user_id
@@ -600,7 +601,7 @@ begin
         from "better_supabase"."acknowledgement_assignments" x
         join "better_supabase"."memberships" m on m."workspace_id" = x."tenant_id"
         where x."due_in_days" is not null and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
         group by x."tenant_id", x."subject_type", x."subject_id", m."user_id"
       ) q
     ) y

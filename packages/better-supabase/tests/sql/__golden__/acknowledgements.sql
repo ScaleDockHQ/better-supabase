@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:fbeb41014bf4ffcb7abc493e4526bdec29ba9790ed1aec153f36346c1118e553
+-- @bsb-hash sha256:f6606b13fe670decf8e2c9107b18de4b06731ef741be95a62bb64a545eb195f1
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -259,7 +259,8 @@ begin
   elsif assign_acknowledgement.principal_type = 'team' then
     raise exception 'team assignments need the teams module' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
   elsif assign_acknowledgement.principal_type = 'role' then
-    if not (assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
+    if not (assign_acknowledgement.principal_id = '*'
+      or assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
       or exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = assign_acknowledgement.tenant and m."role" = assign_acknowledgement.principal_id)) then
       raise exception 'the role isn''t a role in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
@@ -379,7 +380,7 @@ begin
     join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
     where x."subject_type" = acknowledge.subject_type and x."subject_id" = acknowledge.subject_id
       and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
     limit 1;
   if v_tenant is null then
     raise exception 'you aren''t asked to acknowledge this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_NOT_ASSIGNED';
@@ -470,7 +471,7 @@ begin
           from "better_supabase"."acknowledgement_assignments" x
           join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
           where x."tenant_id" = list_my_acknowledgements.tenant and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
           group by x."subject_type", x."subject_id"
         ) q
         where true
@@ -528,7 +529,7 @@ begin
       join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
       where x."tenant_id" = v_tenant and x."subject_type" = acknowledgement_status.subject_type and x."subject_id" = acknowledgement_status.subject_id
         and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
       group by m."user_id") c
     left join "better_supabase"."acknowledgements" k on k."subject_type" = acknowledgement_status.subject_type and k."subject_id" = acknowledgement_status.subject_id
       and k."version_id" = v_version and k."user_id" = c.user_id
@@ -600,7 +601,7 @@ begin
         from "better_supabase"."acknowledgement_assignments" x
         join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
         where x."due_in_days" is not null and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
         group by x."tenant_id", x."subject_type", x."subject_id", m."user_id"
       ) q
     ) y
@@ -719,7 +720,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:6c24d7d8ac51381381ae4723300ee3f666a384bd1115ec6a20792f63a22b0c59
+-- @bsb-hash sha256:cd1fce58a22cf6e232434eb7743513afd9987f924f3f5621ff496cf6e29e70be
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1004,7 +1005,8 @@ begin
       raise exception 'the team isn''t a team in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
   elsif assign_acknowledgement.principal_type = 'role' then
-    if not (assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
+    if not (assign_acknowledgement.principal_id = '*'
+      or assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
       or exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = assign_acknowledgement.tenant and m."role" = assign_acknowledgement.principal_id)) then
       raise exception 'the role isn''t a role in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
@@ -1133,7 +1135,7 @@ begin
     join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
     where x."subject_type" = acknowledge.subject_type and x."subject_id" = acknowledge.subject_id
       and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role")
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role"))
       or (x."principal_type" = 'team' and exists (
         select 1 from "better_supabase"."team_members" tm
         where tm."tenant_id" = m."organization_id"
@@ -1249,7 +1251,7 @@ begin
           from "better_supabase"."acknowledgement_assignments" x
           join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
           where x."tenant_id" = list_my_acknowledgements.tenant and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role")
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role"))
       or (x."principal_type" = 'team' and exists (
         select 1 from "better_supabase"."team_members" tm
         where tm."tenant_id" = m."organization_id"
@@ -1313,7 +1315,7 @@ begin
       join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
       where x."tenant_id" = v_tenant and x."subject_type" = acknowledgement_status.subject_type and x."subject_id" = acknowledgement_status.subject_id
         and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role")
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role"))
       or (x."principal_type" = 'team' and exists (
         select 1 from "better_supabase"."team_members" tm
         where tm."tenant_id" = m."organization_id"
@@ -1391,7 +1393,7 @@ begin
         from "better_supabase"."acknowledgement_assignments" x
         join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
         where x."due_in_days" is not null and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role")
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role"))
       or (x."principal_type" = 'team' and exists (
         select 1 from "better_supabase"."team_members" tm
         where tm."tenant_id" = m."organization_id"
@@ -1530,7 +1532,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:df87bf412c1bff720c14386be916c3f5e175baedbe21a59bb4a00473e309e196
+-- @bsb-hash sha256:f4ea32e6a5728bfb2617fbf426c5dc3b663b06d7c2c8c641f333a061e81f0b0b
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1793,7 +1795,8 @@ begin
   elsif assign_acknowledgement.principal_type = 'team' then
     raise exception 'team assignments need the teams module' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
   elsif assign_acknowledgement.principal_type = 'role' then
-    if not (assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
+    if not (assign_acknowledgement.principal_id = '*'
+      or assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
       or exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = assign_acknowledgement.tenant and m."role" = assign_acknowledgement.principal_id)) then
       raise exception 'the role isn''t a role in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
@@ -1913,7 +1916,7 @@ begin
     join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
     where x."subject_type" = acknowledge.subject_type and x."subject_id" = acknowledge.subject_id
       and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
     limit 1;
   if v_tenant is null then
     raise exception 'you aren''t asked to acknowledge this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_NOT_ASSIGNED';
@@ -2004,7 +2007,7 @@ begin
           from "app_private"."acknowledgement_assignments" x
           join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
           where x."tenant_id" = list_my_acknowledgements.tenant and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
           group by x."subject_type", x."subject_id"
         ) q
         where true
@@ -2062,7 +2065,7 @@ begin
       join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
       where x."tenant_id" = v_tenant and x."subject_type" = acknowledgement_status.subject_type and x."subject_id" = acknowledgement_status.subject_id
         and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
       group by m."user_id") c
     left join "app_private"."acknowledgements" k on k."subject_type" = acknowledgement_status.subject_type and k."subject_id" = acknowledgement_status.subject_id
       and k."version_id" = v_version and k."user_id" = c.user_id
@@ -2134,7 +2137,7 @@ begin
         from "app_private"."acknowledgement_assignments" x
         join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
         where x."due_in_days" is not null and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
         group by x."tenant_id", x."subject_type", x."subject_id", m."user_id"
       ) q
     ) y
@@ -2253,7 +2256,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:130c5bd29692b8ea0224b7ad57ab42804a8cabf79c8e06772d7a0702b3b6f252
+-- @bsb-hash sha256:88806fa848c29a90a80da400d19452d21e766847f70e23659e612632f4d5f537
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2511,7 +2514,8 @@ begin
   elsif assign_acknowledgement.principal_type = 'team' then
     raise exception 'team assignments need the teams module' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
   elsif assign_acknowledgement.principal_type = 'role' then
-    if not (assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
+    if not (assign_acknowledgement.principal_id = '*'
+      or assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
       or exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = assign_acknowledgement.tenant and m."role" = assign_acknowledgement.principal_id)) then
       raise exception 'the role isn''t a role in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
@@ -2631,7 +2635,7 @@ begin
     join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
     where x."subject_type" = acknowledge.subject_type and x."subject_id" = acknowledge.subject_id
       and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
     limit 1;
   if v_tenant is null then
     raise exception 'you aren''t asked to acknowledge this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_NOT_ASSIGNED';
@@ -2722,7 +2726,7 @@ begin
           from "better_supabase"."acknowledgement_assignments" x
           join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
           where x."tenant_id" = list_my_acknowledgements.tenant and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
           group by x."subject_type", x."subject_id"
         ) q
         where true
@@ -2780,7 +2784,7 @@ begin
       join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
       where x."tenant_id" = v_tenant and x."subject_type" = acknowledgement_status.subject_type and x."subject_id" = acknowledgement_status.subject_id
         and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
       group by m."user_id") c
     left join "better_supabase"."acknowledgements" k on k."subject_type" = acknowledgement_status.subject_type and k."subject_id" = acknowledgement_status.subject_id
       and k."version_id" = v_version and k."user_id" = c.user_id
@@ -2852,7 +2856,7 @@ begin
         from "better_supabase"."acknowledgement_assignments" x
         join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
         where x."due_in_days" is not null and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
         group by x."tenant_id", x."subject_type", x."subject_id", m."user_id"
       ) q
     ) y
@@ -3065,7 +3069,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:f6f0184ece32df3fd8cb0142ceb6304d75935016c53c6f7176d2c60f19d0566a
+-- @bsb-hash sha256:31e735828b4bc50472336512cbe3de2781a745518838bb5b4eb4fa971b8b7a82
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3317,7 +3321,8 @@ begin
   elsif assign_acknowledgement.principal_type = 'team' then
     raise exception 'team assignments need the teams module' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
   elsif assign_acknowledgement.principal_type = 'role' then
-    if not (assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
+    if not (assign_acknowledgement.principal_id = '*'
+      or assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
       or exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = assign_acknowledgement.tenant and m."role" = assign_acknowledgement.principal_id)) then
       raise exception 'the role isn''t a role in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
@@ -3437,7 +3442,7 @@ begin
     join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
     where x."subject_type" = acknowledge.subject_type and x."subject_id" = acknowledge.subject_id
       and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
     limit 1;
   if v_tenant is null then
     raise exception 'you aren''t asked to acknowledge this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_NOT_ASSIGNED';
@@ -3528,7 +3533,7 @@ begin
           from "better_supabase"."acknowledgement_assignments" x
           join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
           where x."tenant_id" = list_my_acknowledgements.tenant and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
           group by x."subject_type", x."subject_id"
         ) q
         where true
@@ -3586,7 +3591,7 @@ begin
       join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
       where x."tenant_id" = v_tenant and x."subject_type" = acknowledgement_status.subject_type and x."subject_id" = acknowledgement_status.subject_id
         and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
       group by m."user_id") c
     left join "better_supabase"."acknowledgements" k on k."subject_type" = acknowledgement_status.subject_type and k."subject_id" = acknowledgement_status.subject_id
       and k."version_id" = v_version and k."user_id" = c.user_id
@@ -3658,7 +3663,7 @@ begin
         from "better_supabase"."acknowledgement_assignments" x
         join "better_supabase"."memberships" m on m."organization_id" = x."tenant_id"
         where x."due_in_days" is not null and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
         group by x."tenant_id", x."subject_type", x."subject_id", m."user_id"
       ) q
     ) y
@@ -3777,7 +3782,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:fe075324ec75422f175bf4608f3d30168aadd047379a93ed02c8c2559cee5e7a
+-- @bsb-hash sha256:0713cb263a63f28f689b87d94d0170ada18fd49ff4ed8c72f9a8828c1eb86d51
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4035,7 +4040,8 @@ begin
   elsif assign_acknowledgement.principal_type = 'team' then
     raise exception 'team assignments need the teams module' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
   elsif assign_acknowledgement.principal_type = 'role' then
-    if not (assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
+    if not (assign_acknowledgement.principal_id = '*'
+      or assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
       or exists (select 1 from "better_supabase"."memberships" m where m."org_id" = assign_acknowledgement.tenant and m."role" = assign_acknowledgement.principal_id)) then
       raise exception 'the role isn''t a role in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
@@ -4155,7 +4161,7 @@ begin
     join "better_supabase"."memberships" m on m."org_id" = x."org_id" and m."user_id" = v_me
     where x."subject_type" = acknowledge.subject_type and x."subject_id" = acknowledge.subject_id
       and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
     limit 1;
   if v_tenant is null then
     raise exception 'you aren''t asked to acknowledge this record' using errcode = '42501', hint = 'ACKNOWLEDGEMENT_NOT_ASSIGNED';
@@ -4246,7 +4252,7 @@ begin
           from "better_supabase"."acknowledgement_assignments" x
           join "better_supabase"."memberships" m on m."org_id" = x."org_id" and m."user_id" = v_me
           where x."org_id" = list_my_acknowledgements.tenant and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
           group by x."subject_type", x."subject_id"
         ) q
         where true
@@ -4304,7 +4310,7 @@ begin
       join "better_supabase"."memberships" m on m."org_id" = x."org_id"
       where x."org_id" = v_tenant and x."subject_type" = acknowledgement_status.subject_type and x."subject_id" = acknowledgement_status.subject_id
         and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
       group by m."user_id") c
     left join "better_supabase"."acknowledgements" k on k."subject_type" = acknowledgement_status.subject_type and k."subject_id" = acknowledgement_status.subject_id
       and k."version_id" = v_version and k."user_id" = c.user_id
@@ -4376,7 +4382,7 @@ begin
         from "better_supabase"."acknowledgement_assignments" x
         join "better_supabase"."memberships" m on m."org_id" = x."org_id"
         where x."due_in_days" is not null and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', m."role")))
         group by x."org_id", x."subject_type", x."subject_id", m."user_id"
       ) q
     ) y

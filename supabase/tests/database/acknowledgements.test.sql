@@ -60,8 +60,8 @@ select is(
 );
 select is(
   jsonb_array_length(better_supabase.list_acknowledgement_assignments('compliance_policy', (select id::text from ids where name = 'aup'))),
-  1,
-  'the owner lists the assignment'
+  2,
+  'the owner lists the every-member assignment and the member role assignment'
 );
 
 reset role;

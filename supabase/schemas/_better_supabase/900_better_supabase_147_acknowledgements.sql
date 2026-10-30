@@ -1,6 +1,6 @@
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:4682dcce15eea6b72ffb0201726e67cf259a24aca50cd0e3767e7a3fc2744e51
+-- @bsb-hash sha256:9e4d1946527f55e5fcca3a935a2956701a204e9ef348d7dc75111a04c0b0e8ea
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -295,7 +295,8 @@ begin
       raise exception 'the team isn''t a team in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
   elsif assign_acknowledgement.principal_type = 'role' then
-    if not (assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
+    if not (assign_acknowledgement.principal_id = '*'
+      or assign_acknowledgement.principal_id = any (array['owner', 'admin', 'member', 'viewer']::text[])
       or exists (select 1 from "public"."memberships" m where m."organization_id" = assign_acknowledgement.tenant and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = assign_acknowledgement.principal_id)) then
       raise exception 'the role isn''t a role in this organization' using errcode = '22023', hint = 'ACKNOWLEDGEMENT_PRINCIPAL_INVALID';
     end if;
@@ -432,7 +433,7 @@ begin
     join "public"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
     where x."subject_type" = acknowledge.subject_type and x."subject_id" = acknowledge.subject_id
       and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = (select r."key" from "better_supabase"."roles" r where r."id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', (select r."key" from "better_supabase"."roles" r where r."id" = m."role")))
       or (x."principal_type" = 'team' and exists (
         select 1 from "better_supabase"."team_members" tm
         where tm."tenant_id" = m."organization_id"
@@ -552,7 +553,7 @@ begin
           from "better_supabase"."acknowledgement_assignments" x
           join "public"."memberships" m on m."organization_id" = x."tenant_id" and m."user_id" = v_me
           where x."tenant_id" = list_my_acknowledgements.tenant and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = (select r."key" from "better_supabase"."roles" r where r."id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', (select r."key" from "better_supabase"."roles" r where r."id" = m."role")))
       or (x."principal_type" = 'team' and exists (
         select 1 from "better_supabase"."team_members" tm
         where tm."tenant_id" = m."organization_id"
@@ -624,7 +625,7 @@ begin
       join "public"."memberships" m on m."organization_id" = x."tenant_id"
       where x."tenant_id" = v_tenant and x."subject_type" = acknowledgement_status.subject_type and x."subject_id" = acknowledgement_status.subject_id
         and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = (select r."key" from "better_supabase"."roles" r where r."id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', (select r."key" from "better_supabase"."roles" r where r."id" = m."role")))
       or (x."principal_type" = 'team' and exists (
         select 1 from "better_supabase"."team_members" tm
         where tm."tenant_id" = m."organization_id"
@@ -706,7 +707,7 @@ begin
         from "better_supabase"."acknowledgement_assignments" x
         join "public"."memberships" m on m."organization_id" = x."tenant_id"
         where x."due_in_days" is not null and ((x."principal_type" = 'user' and x."principal_id" = m."user_id"::text)
-      or (x."principal_type" = 'role' and x."principal_id" = (select r."key" from "better_supabase"."roles" r where r."id" = m."role"))
+      or (x."principal_type" = 'role' and x."principal_id" in ('*', (select r."key" from "better_supabase"."roles" r where r."id" = m."role")))
       or (x."principal_type" = 'team' and exists (
         select 1 from "better_supabase"."team_members" tm
         where tm."tenant_id" = m."organization_id"

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@3 managed
--- @bsb-hash sha256:58002811b3e4164ccc46b1d06d7798bce6a26090862893e11fcf5abdd8085d16
+-- @bsb-hash sha256:927fa7a220d36d06e808cf743bbc79988d04a4fd855c87458065fcb3f63a2117
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -642,7 +642,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
 -- versions publish_compliance_policy writes. A policy that requires
--- acknowledgement is assigned once to every member holding the member role
+-- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
@@ -687,9 +687,9 @@ begin
     end if;
   end if;
   if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
-    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);
   elsif not v_row."requires_acknowledgement" and v_required then
-    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
@@ -741,7 +741,7 @@ $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
--- Archives a policy and removes its member role assignment, so members stop
+-- Archives a policy and removes its every-member assignment, so members stop
 -- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
@@ -765,7 +765,7 @@ begin
   update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
@@ -934,7 +934,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
+-- @bsb-hash sha256:9c8dd3a0c078fe8fa8b26a5e4150173a155016d4f66941a272a96b1bb91732be
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -946,6 +946,28 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
+-- Policies assigned to the member role reach every member.
+do $$
+begin
+  if to_regclass('"better_supabase"."acknowledgement_assignments"') is null then
+    return;
+  end if;
+  update "better_supabase"."acknowledgement_assignments" x
+  set "principal_id" = '*'
+  where x."subject_type" = 'compliance_policy'
+    and x."principal_type" = 'role'
+    and x."principal_id" = 'member'
+    and not exists (
+      select 1 from "better_supabase"."acknowledgement_assignments" y
+      where y."tenant_id" = x."tenant_id"
+        and y."subject_type" = x."subject_type"
+        and y."subject_id" = x."subject_id"
+        and y."principal_type" = 'role'
+        and y."principal_id" = '*'
+    );
+end;
+$$;
+
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 3, 'managed')
 on conflict (name) do update
@@ -954,7 +976,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@3 managed
--- @bsb-hash sha256:34081d6b22da56ca66bfe059b5d50c589f06e8279e25e929a7436829f617318b
+-- @bsb-hash sha256:580f85286fb8a31446cbb808e464def501b529049ea09a8da0cad3c14d89a293
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1650,7 +1672,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
 -- versions publish_compliance_policy writes. A policy that requires
--- acknowledgement is assigned once to every member holding the member role
+-- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
@@ -1695,9 +1717,9 @@ begin
     end if;
   end if;
   if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
-    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);
   elsif not v_row."requires_acknowledgement" and v_required then
-    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
@@ -1758,7 +1780,7 @@ $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
--- Archives a policy and removes its member role assignment, so members stop
+-- Archives a policy and removes its every-member assignment, so members stop
 -- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
@@ -1782,7 +1804,7 @@ begin
   update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
@@ -1951,7 +1973,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:cfa551d2d6de42335cd18ad491f2817490664e37628f106526016cef54fd27ad
+-- @bsb-hash sha256:3fb311b70cbd65030b93d8378bbb49a62189e3dcfc1e0ffd190e0861720fa6fe
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2038,6 +2060,28 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."medication_orders"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."medication_orders" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
+-- Policies assigned to the member role reach every member.
+do $$
+begin
+  if to_regclass('"better_supabase"."acknowledgement_assignments"') is null then
+    return;
+  end if;
+  update "better_supabase"."acknowledgement_assignments" x
+  set "principal_id" = '*'
+  where x."subject_type" = 'compliance_policy'
+    and x."principal_type" = 'role'
+    and x."principal_id" = 'member'
+    and not exists (
+      select 1 from "better_supabase"."acknowledgement_assignments" y
+      where y."tenant_id" = x."tenant_id"
+        and y."subject_type" = x."subject_type"
+        and y."subject_id" = x."subject_id"
+        and y."principal_type" = 'role'
+        and y."principal_id" = '*'
+    );
+end;
+$$;
+
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 3, 'managed')
 on conflict (name) do update
@@ -2046,7 +2090,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@3 managed
--- @bsb-hash sha256:b3094d085425f83db75afb847bc3c6bf730025020b0752fbbbaf43ce6d7dcc3d
+-- @bsb-hash sha256:99e8c7442b19c8e73b957174c9b2dd253caa13e54d5164e49b34d0fd08361049
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2692,7 +2736,7 @@ grant execute on function "app_private"."notify_overdue_evidence_tasks"() to ser
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
 -- versions publish_compliance_policy writes. A policy that requires
--- acknowledgement is assigned once to every member holding the member role
+-- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
 create or replace function "app_private"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
@@ -2737,9 +2781,9 @@ begin
     end if;
   end if;
   if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
-    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);
   elsif not v_row."requires_acknowledgement" and v_required then
-    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
@@ -2791,7 +2835,7 @@ $$;
 revoke execute on function "app_private"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "app_private"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
--- Archives a policy and removes its member role assignment, so members stop
+-- Archives a policy and removes its every-member assignment, so members stop
 -- seeing it as pending.
 create or replace function "app_private"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
@@ -2815,7 +2859,7 @@ begin
   update "app_private"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
@@ -2984,7 +3028,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
+-- @bsb-hash sha256:9c8dd3a0c078fe8fa8b26a5e4150173a155016d4f66941a272a96b1bb91732be
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2996,6 +3040,28 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
+-- Policies assigned to the member role reach every member.
+do $$
+begin
+  if to_regclass('"better_supabase"."acknowledgement_assignments"') is null then
+    return;
+  end if;
+  update "better_supabase"."acknowledgement_assignments" x
+  set "principal_id" = '*'
+  where x."subject_type" = 'compliance_policy'
+    and x."principal_type" = 'role'
+    and x."principal_id" = 'member'
+    and not exists (
+      select 1 from "better_supabase"."acknowledgement_assignments" y
+      where y."tenant_id" = x."tenant_id"
+        and y."subject_type" = x."subject_type"
+        and y."subject_id" = x."subject_id"
+        and y."principal_type" = 'role'
+        and y."principal_id" = '*'
+    );
+end;
+$$;
+
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 3, 'managed')
 on conflict (name) do update
@@ -3004,7 +3070,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@3 managed
--- @bsb-hash sha256:b72ae68eae8bca583718dcc6138aa3f8d3c30aa1b028865ecc0c35c19d219508
+-- @bsb-hash sha256:c86c51f909f0d5589e03c4125c1f53b485ed160fe70ba2c9092892a5873e760a
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3645,7 +3711,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
 -- versions publish_compliance_policy writes. A policy that requires
--- acknowledgement is assigned once to every member holding the member role
+-- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
@@ -3690,9 +3756,9 @@ begin
     end if;
   end if;
   if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
-    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);
   elsif not v_row."requires_acknowledgement" and v_required then
-    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
@@ -3744,7 +3810,7 @@ $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
--- Archives a policy and removes its member role assignment, so members stop
+-- Archives a policy and removes its every-member assignment, so members stop
 -- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
@@ -3768,7 +3834,7 @@ begin
   update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
@@ -4099,7 +4165,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
+-- @bsb-hash sha256:9c8dd3a0c078fe8fa8b26a5e4150173a155016d4f66941a272a96b1bb91732be
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4111,6 +4177,28 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
+-- Policies assigned to the member role reach every member.
+do $$
+begin
+  if to_regclass('"better_supabase"."acknowledgement_assignments"') is null then
+    return;
+  end if;
+  update "better_supabase"."acknowledgement_assignments" x
+  set "principal_id" = '*'
+  where x."subject_type" = 'compliance_policy'
+    and x."principal_type" = 'role'
+    and x."principal_id" = 'member'
+    and not exists (
+      select 1 from "better_supabase"."acknowledgement_assignments" y
+      where y."tenant_id" = x."tenant_id"
+        and y."subject_type" = x."subject_type"
+        and y."subject_id" = x."subject_id"
+        and y."principal_type" = 'role'
+        and y."principal_id" = '*'
+    );
+end;
+$$;
+
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 3, 'managed')
 on conflict (name) do update
@@ -4119,7 +4207,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@3 managed
--- @bsb-hash sha256:7fe704692f93ff3c0b00d281f97cb421299ef1c419fad9dc5473033216a136a1
+-- @bsb-hash sha256:90660368f813284f431c5729584ff2083745bb5921cf6f254a9901f660593180
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4740,7 +4828,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
 -- versions publish_compliance_policy writes. A policy that requires
--- acknowledgement is assigned once to every member holding the member role
+-- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
@@ -4785,9 +4873,9 @@ begin
     end if;
   end if;
   if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
-    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);
   elsif not v_row."requires_acknowledgement" and v_required then
-    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
@@ -4839,7 +4927,7 @@ $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
--- Archives a policy and removes its member role assignment, so members stop
+-- Archives a policy and removes its every-member assignment, so members stop
 -- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
@@ -4863,7 +4951,7 @@ begin
   update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."tenant_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."organization_id" = ack."tenant_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."organization_id" = v_row."tenant_id"));
 end;
 $$;
@@ -5032,7 +5120,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
+-- @bsb-hash sha256:9c8dd3a0c078fe8fa8b26a5e4150173a155016d4f66941a272a96b1bb91732be
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5044,6 +5132,28 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 
+-- Policies assigned to the member role reach every member.
+do $$
+begin
+  if to_regclass('"better_supabase"."acknowledgement_assignments"') is null then
+    return;
+  end if;
+  update "better_supabase"."acknowledgement_assignments" x
+  set "principal_id" = '*'
+  where x."subject_type" = 'compliance_policy'
+    and x."principal_type" = 'role'
+    and x."principal_id" = 'member'
+    and not exists (
+      select 1 from "better_supabase"."acknowledgement_assignments" y
+      where y."tenant_id" = x."tenant_id"
+        and y."subject_type" = x."subject_type"
+        and y."subject_id" = x."subject_id"
+        and y."principal_type" = 'role'
+        and y."principal_id" = '*'
+    );
+end;
+$$;
+
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 3, 'managed')
 on conflict (name) do update
@@ -5052,7 +5162,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@3 managed
--- @bsb-hash sha256:5d09292697e8216db83c15b1d4662481b0e785d293f89b20f496af150f978b32
+-- @bsb-hash sha256:b3508e166fb0078f38984ce71e063a8994f12bf707f95ce01d7a512fc575b4b1
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5693,7 +5803,7 @@ grant execute on function "better_supabase"."notify_overdue_evidence_tasks"() to
 
 -- Creates a policy by key, or changes one (policy_id). Its text lives in the
 -- versions publish_compliance_policy writes. A policy that requires
--- acknowledgement is assigned once to every member holding the member role
+-- acknowledgement is assigned once to every member, whatever their role
 -- (acknowledgements block); turning the requirement off removes that
 -- assignment.
 create or replace function "better_supabase"."save_compliance_policy"(tenant uuid, key text, title text, owner_id uuid default null, requires_acknowledgement boolean default true, policy_id uuid default null)
@@ -5738,9 +5848,9 @@ begin
     end if;
   end if;
   if v_row."requires_acknowledgement" and v_row."archived_at" is null and v_required is distinct from true then
-    perform "better_supabase"."place_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', 'member', null);
+    perform "better_supabase"."place_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', '*', null);
   elsif not v_row."requires_acknowledgement" and v_required then
-    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+    perform "better_supabase"."drop_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
 end;
@@ -5792,7 +5902,7 @@ $$;
 revoke execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) from public, anon;
 grant execute on function "better_supabase"."publish_compliance_policy"(uuid, jsonb, text) to authenticated, service_role;
 
--- Archives a policy and removes its member role assignment, so members stop
+-- Archives a policy and removes its every-member assignment, so members stop
 -- seeing it as pending.
 create or replace function "better_supabase"."archive_compliance_policy"(policy_id uuid)
 returns jsonb
@@ -5816,7 +5926,7 @@ begin
   update "better_supabase"."compliance_policies" x set "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', 'member');
+  perform "better_supabase"."drop_acknowledgement_assignment"(v_row."org_id", 'compliance_policy', v_row."id"::text, 'role', '*');
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'title', v_row."title", 'ownerId', v_row."owner_id", 'requiresAcknowledgement', v_row."requires_acknowledgement", 'versionId', v_row."current_version_id", 'versionNumber', v_row."version_number", 'publishedAt', v_row."published_at", 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'acknowledgedAt', (select ack."acknowledged_at" from "better_supabase"."acknowledgements" ack where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id" and ack."user_id" = auth.uid()), 'acknowledgedCount', (select count(*) from "better_supabase"."acknowledgements" ack join "better_supabase"."memberships" am on am."org_id" = ack."org_id" and am."user_id" = ack."user_id" where ack."subject_type" = 'compliance_policy' and ack."subject_id" = v_row."id"::text and ack."version_id" = v_row."current_version_id"), 'memberCount', (select count(*) from "better_supabase"."memberships" pm where pm."org_id" = v_row."org_id"));
 end;
 $$;
@@ -5985,7 +6095,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:ba6e487c44ed8bcd16f082c81d0fa33d1c3c506e6552f0d2721a0e8392bb2b77
+-- @bsb-hash sha256:d4c9ea51de7af835cf2744246029f06b2e6154673cd7684a83d034c372bbdbc4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5996,6 +6106,28 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgements"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_notices"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+
+-- Policies assigned to the member role reach every member.
+do $$
+begin
+  if to_regclass('"better_supabase"."acknowledgement_assignments"') is null then
+    return;
+  end if;
+  update "better_supabase"."acknowledgement_assignments" x
+  set "principal_id" = '*'
+  where x."subject_type" = 'compliance_policy'
+    and x."principal_type" = 'role'
+    and x."principal_id" = 'member'
+    and not exists (
+      select 1 from "better_supabase"."acknowledgement_assignments" y
+      where y."org_id" = x."org_id"
+        and y."subject_type" = x."subject_type"
+        and y."subject_id" = x."subject_id"
+        and y."principal_type" = 'role'
+        and y."principal_id" = '*'
+    );
+end;
+$$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 3, 'managed')
