@@ -5920,6 +5920,56 @@ msgctxt "drive.6oOCCL"
 msgid "Upload file"
 msgstr "Bestand uploaden"
 
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.V0lHV9"
+msgid "Send files"
+msgstr "Bestanden sturen"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.fCgMR2"
+msgid "Files you send go straight to the folder's owner."
+msgstr "Bestanden die je stuurt gaan direct naar de eigenaar van de map."
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.gyrIEl"
+msgid "File"
+msgstr "Bestand"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.FtamuF"
+msgid "Up to 1 MB per file."
+msgstr "Tot 1 MB per bestand."
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.5sg7KC"
+msgid "Password"
+msgstr "Wachtwoord"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.pbzTAi"
+msgid "This link needs its password. Check it and try again."
+msgstr "Deze link vraagt om een wachtwoord. Controleer het en probeer het opnieuw."
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.9WRlF4"
+msgid "Send"
+msgstr "Versturen"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.LtWJ-M"
+msgid "File sent"
+msgstr "Bestand verstuurd"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.z_wUXE"
+msgid "Received"
+msgstr "Ontvangen"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.bBehi3"
+msgid "Send another file"
+msgstr "Nog een bestand sturen"
+
 #: src/features/drive/components/grants-editor.tsx
 msgctxt "drive.WYpfjO"
 msgid "Can view"

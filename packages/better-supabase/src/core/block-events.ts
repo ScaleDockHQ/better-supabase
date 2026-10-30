@@ -591,6 +591,11 @@ export interface DriveEventData extends SubjectEventData {
   /** For `drive.node_moved`. */
   readonly previousParentId?: string | null;
   /**
+   * For `drive.node_created`: `internal`, or `request` for a file sent through
+   * a file request link.
+   */
+  readonly source?: string;
+  /**
    * For `drive.node_shared` and `drive.node_unshared`: `user`, `team` or
    * `role`.
    */

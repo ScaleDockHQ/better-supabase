@@ -68,3 +68,21 @@ build fails with a `TypeError` naming the missing one. The preview prefix is
 part of the storage policy, so changing it later orphans existing previews.
 Revisit when a WOPI editor or a sync client needs locks or a changes feed
 that the node columns can't express.
+
+## Amendment: upload-only grants and file requests (2026-10-30)
+
+- The upload role is accepted on node grants only, and only on folders
+  (`DRIVE_ROLE_UNKNOWN` with the reason `upload role is for folders`). It
+  needs the node table's `createdBy` column: a contributor may upload a
+  revision of a file they added and commit it, through `drive_uploaded_own`,
+  and nothing else. `drive_create_file` takes a free name for a caller who
+  can't read the folder, so the result never reveals the names it holds.
+- A file request is a `drive_link_upload` call on an upload link. It runs
+  the share link's password and use checks, creates the file with `source`
+  `request` and no creator, and is rate limited per link (`drive_link_upload`
+  scope, 20 an hour) when `rate-limit` is installed. Request files stay
+  writable for the folder's editors; only mirrored sources are read-only.
+- `drive_request_files` wraps `create_share_link` with the role `upload`, so
+  the drive's share role check applies before the link exists.
+- None of the new functions are in the drive modules' custom contract, so
+  an app that implements the drive itself keeps working without them.

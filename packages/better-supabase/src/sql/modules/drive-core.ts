@@ -526,11 +526,13 @@ revoke execute on function ${fn("drive_check_parent")}(${ctx.idType}, uuid, uuid
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
+drop function if exists ${fn("drive_insert_node")}(${ctx.idType}, uuid, uuid, text, text, text, jsonb, text);
 drop function if exists ${fn("drive_insert_node")}(${ctx.idType}, uuid, uuid, text, text, text, jsonb);
 drop function if exists ${fn("drive_insert_node")}(${ctx.idType}, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
--- from the parent.${nodeRole === undefined ? ` At the root, the creator gets ${roles.top}.` : ""}
-create or replace function ${fn("drive_insert_node")}(tenant ${ctx.idType}, drive uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
+-- from the parent.${nodeRole === undefined ? ` At the root, the creator gets ${roles.top}.` : ""} source 'request' marks a
+-- file request upload, which has no creator.
+create or replace function ${fn("drive_insert_node")}(tenant ${ctx.idType}, drive uuid, parent uuid, kind text, name text, conflict text, fields jsonb, source text default 'internal')
 returns ${T}
 language plpgsql
 security definer
@@ -577,12 +579,12 @@ ${
   end if;
 `
     : ""
-}  ${record("drive.node_created", "v_node", `, 'kind', v_node.${n("kind")}, 'name', v_node.${n("name")}, 'parentId', v_node.${n("parent")}`, dataAudit("v_node", "created"))}
+}  ${record("drive.node_created", "v_node", `, 'kind', v_node.${n("kind")}, 'name', v_node.${n("name")}, 'parentId', v_node.${n("parent")}, 'source', drive_insert_node.source`, dataAudit("v_node", "created"))}
   ${ctx.hook("after_drive_node_create", [["uuid", `v_node.${n("id")}`]])}
   return v_node;
 end;
 $$;
-revoke execute on function ${fn("drive_insert_node")}(${ctx.idType}, uuid, uuid, text, text, text, jsonb) from public, anon, authenticated;
+revoke execute on function ${fn("drive_insert_node")}(${ctx.idType}, uuid, uuid, text, text, text, jsonb, text) from public, anon, authenticated;
 
 create or replace function ${fn("drive_create_folder")}(tenant ${ctx.idType}, parent uuid, name text, conflict text default null, fields jsonb default null, drive uuid default null)
 returns jsonb

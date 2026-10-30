@@ -8,7 +8,7 @@ const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
 const EVENTS: BlockSqlEvents<DriveEvents> = {
   "drive.node_created": {
     subject: PATH_SEGMENT,
-    payload: [...SUBJECT, "kind", "name", "parentId"],
+    payload: [...SUBJECT, "kind", "name", "parentId", "source"],
   },
   "drive.node_renamed": {
     subject: PATH_SEGMENT,
@@ -97,6 +97,7 @@ export const NAMES: BlockSqlNames = {
     "shareRole",
     "commentRole",
     "memberRole",
+    "uploadRole",
     "subjectType",
     "conflict",
     "drives",

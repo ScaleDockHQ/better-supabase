@@ -65,6 +65,19 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "file-request-upload",
+    title: "File request upload",
+    blocks: ["drive", "share-links"],
+    kind: "screen",
+    description:
+      "The public page of a file request link, where anyone with the link sends a file into a folder, with the link's password when it has one.",
+    web: {
+      file: `${WEB_APP}/src/features/drive/components/file-request-upload.tsx`,
+      components: ["badge", "button", "card", "empty", "field", "input"],
+      glue: [],
+    },
+  },
+  {
     slug: "reactions-bar",
     title: "Reactions bar",
     blocks: ["reactions"],

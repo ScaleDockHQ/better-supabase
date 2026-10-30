@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@1 managed
--- @bsb-hash sha256:e9bee538de2313fc51cc562fd563493253f42442a42536e6cc1c97b74d070c2f
+-- @bsb-hash sha256:b02a4ab7d01fe0d5b0e8835d33e7e0bfbb394f6a974d956fb8c0ae3177f4096c
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -260,6 +260,23 @@ $$;
 revoke execute on function "better_supabase"."drive_can_download"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_can_download"(uuid) to authenticated, service_role;
 
+-- Whether the caller may add files to the folder: the write role (editor).
+-- External mirrors take no files.
+create or replace function "better_supabase"."drive_can_upload"(folder uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select x."kind" = 'folder' and not (false or false) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."drive_can"(x."id", 'editor'))
+    from "centrakit"."file_node" x where x."id" = drive_can_upload.folder
+  ), false)
+$$;
+revoke execute on function "better_supabase"."drive_can_upload"(uuid) from public, anon;
+grant execute on function "better_supabase"."drive_can_upload"(uuid) to authenticated, service_role;
+
 -- create_share_link's check for a node: it exists in the tenant, the caller
 -- holds the share role (editor) on it, and an upload link names a folder.
 create or replace function "better_supabase"."drive_share_link_allowed"(node text, tenant text, role text)
@@ -457,11 +474,13 @@ revoke execute on function "better_supabase"."drive_check_parent"(uuid, uuid, uu
 
 -- It returns the node table's row type, which differs between managed and
 -- adopted tables.
+drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text);
 drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb);
 drop function if exists "better_supabase"."drive_insert_node"(uuid, uuid, text, text, text, jsonb);
 -- Inserts a node after its siblings. Extra columns come from fields, or
--- from the parent. At the root, the creator gets editor.
-create or replace function "better_supabase"."drive_insert_node"(tenant uuid, drive uuid, parent uuid, kind text, name text, conflict text, fields jsonb)
+-- from the parent. At the root, the creator gets editor. source 'request' marks a
+-- file request upload, which has no creator.
+create or replace function "better_supabase"."drive_insert_node"(tenant uuid, drive uuid, parent uuid, kind text, name text, conflict text, fields jsonb, source text default 'internal')
 returns "centrakit"."file_node"
 language plpgsql
 security definer
@@ -488,14 +507,14 @@ begin
     end if;
   end;
   insert into "centrakit"."file_node" ("organization_id", "parent_id", "kind", "name", "created_by")
-  values (drive_insert_node.tenant, drive_insert_node.parent, better_supabase.as_column_type(drive_insert_node.kind, (null::"centrakit"."file_node")."kind"), v_name, auth.uid())
+  values (drive_insert_node.tenant, drive_insert_node.parent, better_supabase.as_column_type(drive_insert_node.kind, (null::"centrakit"."file_node")."kind"), v_name, case when drive_insert_node.source = 'request' then null else auth.uid() end)
   returning * into v_node;
   if drive_insert_node.parent is null and auth.uid() is not null then
     delete from "centrakit"."file_node_grant" dg where dg."file_node_id" = v_node."id" and dg."user_id" = auth.uid();
     insert into "centrakit"."file_node_grant" ("organization_id", "file_node_id", "user_id", "role")
     values (v_node."organization_id", v_node."id", auth.uid(), better_supabase.as_column_type('editor', (null::"centrakit"."file_node_grant")."role"));
   end if;
-  perform "better_supabase".emit_event('drive.node_created', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id"), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('drive.node_created', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id", 'source', drive_insert_node.source), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
     event_type => 'drive.node_created',
     category => 'data',
@@ -504,7 +523,7 @@ begin
     target_label => v_node."name",
     summary => 'created',
     tenant => (v_node."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id")
+    metadata => jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id", 'source', drive_insert_node.source)
   );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_drive_node_create"(uuid)');
@@ -517,7 +536,7 @@ begin
   return v_node;
 end;
 $$;
-revoke execute on function "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb) from public, anon, authenticated;
+revoke execute on function "better_supabase"."drive_insert_node"(uuid, uuid, uuid, text, text, text, jsonb, text) from public, anon, authenticated;
 
 create or replace function "better_supabase"."drive_create_folder"(tenant uuid, parent uuid, name text, conflict text default null, fields jsonb default null, drive uuid default null)
 returns jsonb

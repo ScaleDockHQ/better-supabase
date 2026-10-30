@@ -2632,7 +2632,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "teams",
         "share-links",
         "tags",
-        "approvals"
+        "approvals",
+        "rate-limit"
       ],
       "manifest": "drive",
       "scopes": [

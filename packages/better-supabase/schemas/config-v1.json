@@ -4751,6 +4751,7 @@
               "shareRole": {},
               "commentRole": {},
               "memberRole": {},
+              "uploadRole": {},
               "subjectType": {
                 "type": "string",
                 "default": "drive_node"

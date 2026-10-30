@@ -1,5 +1,6 @@
 import type { DriveKit } from "./drive-kit.ts";
 
+import { sqlString } from "../../core/template.ts";
 import {
   activeMembership,
   fail,
@@ -91,9 +92,16 @@ begin
   if ${readOnly("v_node")} then
     ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;
-  if ${rank("drive_share.role")} = 0 then
-    ${fail("DRIVE_ROLE_UNKNOWN", `role must be one of ${roles.all.join(", ")}`, "22023")}
-  end if;
+  if ${rank("drive_share.role")} = 0${roles.upload === undefined ? "" : ` and drive_share.role is distinct from ${sqlString(roles.upload)}`} then
+    ${fail("DRIVE_ROLE_UNKNOWN", `role must be one of ${[...roles.all, ...(roles.upload === undefined ? [] : [roles.upload])].join(", ")}`, "22023")}
+  end if;${
+    roles.upload === undefined
+      ? ""
+      : `
+  if drive_share.role = ${sqlString(roles.upload)} and v_node.${n("kind")} <> 'folder' then
+    raise exception 'the upload role is for folders' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN', detail = '{"reason":"upload role is for folders"}';
+  end if;`
+  }
   if v_type not in ${principalTypes} or drive_share.principal_id is null then
     ${fail("DRIVE_PRINCIPAL_INVALID", "principal_type must be user, team or role", "22023")}
   end if;

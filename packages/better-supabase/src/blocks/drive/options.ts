@@ -23,6 +23,7 @@ export type DriveSqlOptions = {
   readonly shareRole?: unknown;
   readonly commentRole?: unknown;
   readonly memberRole?: unknown;
+  readonly uploadRole?: unknown;
   readonly subjectType?: string;
   readonly conflict?: string;
   readonly drives?: boolean;
@@ -41,6 +42,7 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     shareRole: option.unknown(),
     commentRole: option.unknown(),
     memberRole: option.unknown(),
+    uploadRole: option.unknown(),
     subjectType: option.string({ default: "drive_node" }),
     conflict: option.string({ default: "fail" }),
     drives: option.boolean({ default: false }),

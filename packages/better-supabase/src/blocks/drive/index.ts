@@ -30,6 +30,12 @@ export {
   type NewDriveFolder,
 } from "./drive.ts";
 
+export type {
+  DriveContribution,
+  DriveFileRequest,
+  DriveRequestUpload,
+} from "./requests.ts";
+
 export {
   createDrivePreviews,
   type DrivePreviewJob,

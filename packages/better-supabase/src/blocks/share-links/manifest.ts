@@ -23,5 +23,5 @@ export const shareLinksBlock: BlockOf<
   create: createShareLinks,
   record: shareLinksBinding,
   category: "collaboration",
-  recipes: ["share-link-dialog"],
+  recipes: ["share-link-dialog", "file-request-upload"],
 });

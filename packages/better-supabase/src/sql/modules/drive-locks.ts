@@ -38,14 +38,24 @@ export function subtreeLockGuard(kit: DriveKit, node: string): string {
 }
 
 /**
- * The comment and download checks. They render before the functions that call
- * them, since `language sql` bodies are checked when they are created.
+ * The comment, download and upload checks. They render before the functions
+ * that call them, since `language sql` bodies are checked when they are
+ * created.
  */
 export function driveAccessSql(kit: DriveKit): string {
   const {
+    ctx,
     T,
+    G,
     n,
+    g,
     fn,
+    read,
+    live,
+    readOnly,
+    principalMatch,
+    grantLive,
+    canUpload,
     roles,
     drives,
     D,
@@ -108,6 +118,56 @@ as $$
 $$;
 ${userGrant(`${fn("drive_can_download")}(uuid)`)}
 
+-- Whether the caller may add files to the folder: the write role (${roles.write})${
+    roles.upload === undefined
+      ? ""
+      : `, or a
+-- live options.uploadRole (${roles.upload}) grant on it or a folder above it, which reads nothing`
+  }.
+-- External mirrors take no files.
+create or replace function ${fn("drive_can_upload")}(folder uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select x.${n("kind")} = 'folder' and not ${readOnly("x")} and (${SERVICE_CALLER} or ${canWrite(`x.${n("id")}`)}${
+      roles.upload === undefined
+        ? ""
+        : ` or (auth.uid() is not null
+      and ${ctx.can("tenant", `x.${n("tenant")}`, read)}
+      and exists (select 1 from ${G} ug
+        where ug.${g("node")} = any (${fn("drive_ancestors")}(x.${n("id")})) and ug.${g("role")} = ${sqlString(roles.upload)}${grantLive("ug")}
+          and ${principalMatch("ug", "auth.uid()", `x.${n("tenant")}`)}))`
+    })
+    from ${T} x where x.${n("id")} = drive_can_upload.folder${live("x")}
+  ), false)
+$$;
+${userGrant(`${fn("drive_can_upload")}(uuid)`)}
+${
+  roles.upload === undefined
+    ? ""
+    : `
+-- Whether the node is a file the caller added under the upload role and may
+-- still finish uploading: they created it, and may still upload to its folder.
+create or replace function ${fn("drive_uploaded_own")}(node uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce((
+    select x.${n("kind")} = 'file' and x.${n("parent")} is not null
+      and x.${n("createdBy")} = auth.uid() and ${canUpload(`x.${n("parent")}`)}
+    from ${T} x where x.${n("id")} = drive_uploaded_own.node${live("x")}
+  ), false)
+$$;
+${userGrant(`${fn("drive_uploaded_own")}(uuid)`)}
+`
+}
 -- create_share_link's check for a node: it exists in the tenant, the caller
 -- holds the share role (${roles.share}) on it, and an upload link names a folder.
 create or replace function ${fn("drive_share_link_allowed")}(node text, tenant text, role text)
