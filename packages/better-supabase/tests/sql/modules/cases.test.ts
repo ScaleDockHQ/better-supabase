@@ -172,6 +172,38 @@ describe("cases module", () => {
     expect(() => sqlOf(withOptions({ sources: [] }))).toThrow("at least one");
   });
 
+  it("checks revised documents only with controlled drive documents and relations", () => {
+    const revision = "'CASE_DOCUMENTS_NOT_REVISED'::text";
+
+    const withDrive = [
+      ...BASE,
+      "drive",
+      "versions",
+      "approvals",
+      "state-machine",
+      "numbering",
+      "relations",
+    ];
+
+    const drive = (options: Record<string, unknown>): Layout => ({
+      modules: { drive: options },
+    });
+
+    const control = { options: { control: { types: ["sop"] } } };
+
+    expect(sqlOf(drive(control), withDrive)).toContain(revision);
+    expect(sqlOf(drive({}), withDrive)).not.toContain(revision);
+    expect(
+      sqlOf(drive({ ...control, mode: "custom" }), withDrive),
+    ).not.toContain(revision);
+    expect(
+      sqlOf(
+        drive(control),
+        withDrive.filter((name) => name !== "relations"),
+      ),
+    ).not.toContain(revision);
+  });
+
   it("renders nothing in custom mode and lists the functions to implement", () => {
     const custom: Layout = { modules: { cases: { mode: "custom" } } };
     expect(sqlOf(custom).trim()).toBe("");
