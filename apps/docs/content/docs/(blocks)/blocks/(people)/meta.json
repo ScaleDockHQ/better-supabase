@@ -12,6 +12,7 @@
     "observations",
     "leave",
     "shifts",
+    "medications",
     "passes"
   ]
 }

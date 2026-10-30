@@ -401,6 +401,10 @@ may be your own enum or domain.
   - `better_supabase.mail_tracked_links`: `tenant_id`, `message_id`, `position`, `url`, `click_count`
   - `better_supabase.mail_tracking_events`: `id`, `tenant_id`, `message_id`, `kind`, `occurred_at`; typed: `kind`
   - `better_supabase.mail_thread_subjects`: `tenant_id`, `thread_id`, `subject_type`, `subject_id`; typed: `source`
+- `medications`
+  - `better_supabase.medications`: `id`, `tenant_id`, `name`, `code_system`, `code`, `unit`, `high_risk`, `archived_at`
+  - `better_supabase.medication_orders`: `id`, `tenant_id`, `subject_type`, `subject_id`, `medication_id`, `dose`, `dose_unit`, `route`, `schedule`, `as_needed`, `as_needed_reason`, `max_per_day`, `starts_on`, `ends_on`, `source`, `external_id`, `requires_double_check`, `status`, `stopped_reason`
+  - `better_supabase.medication_administrations`: `id`, `tenant_id`, `order_id`, `scheduled_at`, `administered_at`, `status`, `dose`, `performer_id`, `checked_by`, `reason`
 - `memberships`
   - `better_supabase.memberships`: `organization_id`, `user_id`, `role`, `created_at`
 - `memory`
