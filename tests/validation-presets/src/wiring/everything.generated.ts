@@ -5,6 +5,7 @@ import {
 } from "better-supabase/blocks";
 import { permissionsBlock } from "better-supabase/blocks/permissions";
 import { accessRequestsBlock } from "better-supabase/blocks/access-requests";
+import { accountingBlock } from "better-supabase/blocks/accounting";
 import { agentsBlock } from "better-supabase/blocks/agents";
 import { aiCacheBlock } from "better-supabase/blocks/ai-cache";
 import { aiChatBlock } from "better-supabase/blocks/ai-chat";
@@ -135,6 +136,7 @@ import { blockConfig } from "./everything.blocks.generated.ts";
 export const blockSet = defineBlocks(blockConfig, {
   permissions: permissionsBlock,
   accessRequests: accessRequestsBlock,
+  accounting: accountingBlock,
   agents: agentsBlock,
   aiCache: aiCacheBlock,
   aiChat: aiChatBlock,

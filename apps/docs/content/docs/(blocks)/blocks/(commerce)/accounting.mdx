@@ -1,0 +1,226 @@
+---
+title: Accounting
+description: Double-entry books in money. A chart of accounts with account roles, journals, fiscal years of periods, balanced entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.
+---
+
+`accounting` keeps an organization's general ledger. Entries are drafts until
+they post: posting checks that the debits equal the credits in the functional
+currency, that the date falls in an open period after the lock date and that
+every dimension value exists, then numbers the entry per journal and fiscal
+year (`SAL-2026-00001`). A posted entry can't change; a correction is a
+reversal. The [ledger](/docs/blocks/ledger) block stays separate: it keeps
+operational balances in any unit, such as stock or store credit, while
+`accounting` keeps the books in money (ADR 0136).
+
+```bash
+better-supabase add accounting
+```
+
+The module needs `memberships` and `permissions`, and records its events
+through `outbox` and `audit` when they are installed.
+
+| Permission          | Grants                                                                 |
+| ------------------- | ---------------------------------------------------------------------- |
+| `accounting.read`   | the chart, journals, periods, entries and reports                      |
+| `accounting.write`  | saving and deleting draft entries                                      |
+| `accounting.post`   | posting and reversing entries                                          |
+| `accounting.close`  | closing and reopening periods and closing fiscal years                 |
+| `accounting.manage` | setup, accounts, account roles, journals, dimensions, tax codes and FX |
+
+Owners and admins hold all five. Members hold none by default, since the
+books show every amount the organization earns and spends.
+
+Server code calls the `accounting` instance on `db`:
+
+```ts
+import { money } from "better-supabase/commerce";
+
+await db.accounting
+  .setup(organizationId, { functionalCurrency: "EUR" })
+  .orThrow();
+await db.accounting.openFiscalYear(organizationId, 2026).orThrow();
+
+const sales = (await db.accounting.journals(organizationId).orThrow()).find(
+  (journal) => journal.code === "SAL",
+);
+
+const draft = await db.accounting
+  .saveEntry({
+    journalId: sales!.id,
+    entryDate: Temporal.PlainDate.from("2026-03-05"),
+    reference: "INV-2026-0042",
+    sourceType: "invoice",
+    sourceId: invoiceId,
+    lines: [
+      {
+        accountCode: "1200",
+        debit: money(12_100n, "EUR"),
+        partyId: customerId,
+      },
+      {
+        accountCode: "4000",
+        credit: 10_000n,
+        dimensions: { project: "apollo" },
+      },
+      { accountCode: "2100", credit: 2_100n },
+    ],
+  })
+  .orThrow();
+
+const entry = await db.accounting.postEntry(draft.id).orThrow();
+// entry.number === "SAL-2026-00001"
+```
+
+## Setup and the chart
+
+`setup(organizationId, { functionalCurrency, fiscalYearStartMonth })` writes
+the organization's settings and, with the default `chart: "generic"`, seeds a
+small chart of accounts and the journals `SAL`, `PUR`, `BNK`, `CSH` and
+`GEN`. Calling it again keeps what exists. With `chart: "none"` the app
+imports its own chart (a national chart such as RGS, through the
+[imports](/docs/blocks/imports) block or `saveAccount`) and maps the roles
+itself.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  accounting: {
+    options: {
+      chart: "generic",
+      functionalCurrency: "EUR",
+      fiscalYearStartMonth: 1,
+    },
+  },
+},
+```
+
+| Option                 | Default                  | What it does                                               |
+| ---------------------- | ------------------------ | ---------------------------------------------------------- |
+| `chart`                | `"generic"`              | `"generic"` seeds a chart with every role mapped; `"none"` |
+| `functionalCurrency`   | `"EUR"`                  | the default currency `setup` writes                        |
+| `fiscalYearStartMonth` | `1`                      | the default first month of the fiscal year                 |
+| `subtypes`             | bank, cash, receivable … | the account subtypes `saveAccount` accepts                 |
+
+An account has a `code` that is unique in the organization, a `type`
+(`asset`, `liability`, `equity`, `income` or `expense`), a subtype, an
+optional parent and currency, and `reconcilable`. `archiveAccount` hides an
+account from new entries. An account with posted lines keeps its type and
+currency, and an account mapped to a role, a journal or a tax code can't be
+archived (`ACCOUNTING_ACCOUNT_IN_USE`).
+
+### Account roles
+
+Other blocks never post to an account code. They post to a role, and each
+organization maps every role to one of its accounts with
+`setAccountRole(organizationId, role, accountId)`:
+
+`receivable`, `payable`, `bank`, `revenue`, `cogs`, `inventory`,
+`tax_payable`, `tax_receivable`, `retained_earnings`, `fx_gain`, `fx_loss`,
+`fixed_asset`, `accumulated_depreciation`, `depreciation_expense` and
+`suspense`.
+
+The generic chart maps all of them. A posting or a year-end close that needs
+an unmapped role fails with `ACCOUNTING_ACCOUNT_ROLE_MISSING`.
+
+## Entries
+
+`saveEntry` creates a draft, or replaces a draft's header and lines when it
+passes `entryId`. Each line names an account (`accountId` or `accountCode`)
+and a `debit` or a `credit`, as `Money` in the functional currency or a
+`bigint` of its minor units. A line in another currency gives
+`amountCurrency` and, without `debit` or `credit`, converts at `fxRate` or the
+stored rate on the entry date (`ACCOUNTING_FX_RATE_MISSING` when there is
+none). Lines also take a `taxCodeId`, a `partyId`, `dimensions` and a
+`description`.
+
+`postEntry(entryId)` posts a draft. `reverseEntry(entryId, entryDate?)` posts
+an entry of opposite lines (default on the original's date) and marks the
+original `reversed`. `deleteEntry` deletes drafts only. `sourceType` and
+`sourceId` tie an entry to the document it books, and a document can have one
+entry that isn't reversed (`ACCOUNTING_ENTRY_DUPLICATE`).
+
+The `before_accounting_entry_post`, `after_accounting_entry_post`,
+`before_accounting_entry_reverse` and `after_accounting_entry_reverse`
+[hooks](/docs/extending/blocks#hooks-in-sql) run inside the posting transaction.
+
+## Dimensions, tax codes and exchange rates
+
+`saveDimension(organizationId, "project", "Project")` and
+`saveDimensionValue(dimensionId, { code, name })` define the keys and values
+that lines may carry in `dimensions`. Posting refuses an unknown key or value
+(`ACCOUNTING_DIMENSION_INVALID`), and every report filters on dimensions.
+
+`saveTaxCode` stores a code with a rate in basis points (`2100` is 21%), a
+kind (`sales` or `purchase`), the account the tax posts to and the boxes of a
+tax return it counts toward. `setFxRate` stores one unit of `base` in `quote`
+on a date, and `fxRate(organizationId, base, quote, onDate)` reads the latest
+rate on or before that date, direct or inverted.
+
+## Periods and the close
+
+`openFiscalYear(organizationId, 2026)` creates twelve monthly periods from
+the start month. `setLockDate(organizationId, date)` refuses postings on or
+before a date without closing periods, and `null` clears it.
+
+`closeBlockers(periodId)` lists what keeps a period from closing (for now,
+`draft_entries`). `closePeriod(periodId)` closes a period without blockers,
+and `reopenPeriod(periodId, reason)` opens it again with a reason the event
+carries. `closeFiscalYear(organizationId, 2026)` posts one closing entry in
+the general journal that moves the year's income and expenses to the
+`retained_earnings` account, then closes every period of the year.
+
+## Reports
+
+| Method                                 | Returns                                                                   |
+| -------------------------------------- | ------------------------------------------------------------------------- |
+| `trialBalance(org, { since, until })`  | per account: opening, debit, credit and closing, and the totals           |
+| `profitAndLoss(org, { since, until })` | income and expense lines and net income, without year-end closing entries |
+| `balanceSheet(org, { asOf })`          | assets, liabilities, equity, the unclosed current earnings and `balanced` |
+| `generalLedger(accountId, { since })`  | the account's posted lines with a running balance                         |
+
+Every report takes `dimensions` to sum only lines with those values. Reports
+run with the caller's rights, so a caller without `accounting.read` gets
+empty reports. Amounts are `bigint` minor units of the functional currency.
+
+The [trial balance recipe](/docs/registry/ui-recipes/trial-balance) renders
+the balance sheet totals, net income and the trial balance on a page.
+
+## Errors
+
+| Hint                              | Cause                                                                   |
+| --------------------------------- | ----------------------------------------------------------------------- |
+| `ACCOUNTING_*_FORBIDDEN`          | the caller lacks the permission for this                                |
+| `ACCOUNTING_*_NOT_FOUND`          | no account, journal, entry, period, dimension or tax code with this id  |
+| `ACCOUNTING_*_INVALID`            | an input is out of range, such as a line with both a debit and a credit |
+| `ACCOUNTING_SETTING_NOT_FOUND`    | `setup` hasn't run for the organization                                 |
+| `ACCOUNTING_ACCOUNT_IN_USE`       | the account has posted lines, or a role, journal or tax code uses it    |
+| `ACCOUNTING_ACCOUNT_ROLE_MISSING` | no account is mapped to a role the operation needs                      |
+| `ACCOUNTING_ENTRY_UNBALANCED`     | the debits and credits differ in the functional currency                |
+| `ACCOUNTING_ENTRY_POSTED`         | the entry is posted and can't be changed or deleted                     |
+| `ACCOUNTING_ENTRY_REVERSED`       | the entry is already reversed                                           |
+| `ACCOUNTING_ENTRY_DUPLICATE`      | the source document already has an entry                                |
+| `ACCOUNTING_DIMENSION_INVALID`    | a line names a dimension or value that doesn't exist or is archived     |
+| `ACCOUNTING_FX_RATE_MISSING`      | no exchange rate on or before the entry date                            |
+| `ACCOUNTING_PERIOD_NOT_FOUND`     | no period covers the entry date; open its fiscal year first             |
+| `ACCOUNTING_PERIOD_CLOSED`        | the date is in a closed period or on or before the lock date            |
+| `ACCOUNTING_PERIOD_CLOSE_BLOCKED` | the period has blockers such as draft entries                           |
+| `FISCAL_YEAR_CLOSED`              | the fiscal year is already closed                                       |
+
+## Events
+
+`accounting_entry.posted`, `accounting_entry.reversed`,
+`accounting_period.closed`, `accounting_period.reopened` and
+`fiscal_year.closed`. The [events page](/docs/extending/events) lists their
+payloads.
+
+## Without the client
+
+`db.accounting` is this client. Code that does not go through `bsb.db()`
+builds it with a transport:
+
+```ts
+import { createAccounting } from "better-supabase/blocks/accounting";
+
+const accounting = createAccounting({ transport });
+
+const trial = await accounting.trialBalance(organizationId).orThrow();
+```

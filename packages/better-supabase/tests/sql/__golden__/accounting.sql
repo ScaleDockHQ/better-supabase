@@ -1,0 +1,13332 @@
+-- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block accounting@1 managed
+-- @bsb-hash sha256:673d2782e9471e9f9baa0315d1e2859993b32c961aa97ebf5fdfe97dc4910ecc
+-- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Accounting: a chart of accounts with roles, journals, fiscal periods, and
+-- balanced journal entries in minor units of the organization's functional
+-- currency, with dimensions, exchange rates, tax codes, reports and the
+-- period and year-end close.
+
+create table if not exists "better_supabase"."accounting_settings" (
+  "tenant_id" uuid primary key,
+  -- Every debit and credit is in minor units of this currency.
+  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  -- Nothing posts on or before this date, whatever the period's status.
+  "lock_date" date,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."accounting_settings" enable row level security;
+revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_settings" to authenticated;
+grant all on "better_supabase"."accounting_settings" to service_role;
+drop policy if exists accounting_settings_read on "better_supabase"."accounting_settings";
+create policy accounting_settings_read on "better_supabase"."accounting_settings"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_accounts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "subtype" text,
+  "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- Lines on the account must be in this currency; null takes any.
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "reconcilable" boolean not null default false,
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+alter table "better_supabase"."accounting_accounts" enable row level security;
+revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_accounts" to authenticated;
+grant all on "better_supabase"."accounting_accounts" to service_role;
+drop policy if exists accounting_accounts_read on "better_supabase"."accounting_accounts";
+create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_account_roles" (
+  "tenant_id" uuid not null,
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense')),
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  "updated_at" timestamptz not null default now(),
+  primary key ("tenant_id", "role")
+);
+create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+alter table "better_supabase"."accounting_account_roles" enable row level security;
+revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_account_roles" to authenticated;
+grant all on "better_supabase"."accounting_account_roles" to service_role;
+drop policy if exists accounting_account_roles_read on "better_supabase"."accounting_account_roles";
+create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_journals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  -- The bank or cash account a bank or cash journal posts against.
+  "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+alter table "better_supabase"."accounting_journals" enable row level security;
+revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_journals" to authenticated;
+grant all on "better_supabase"."accounting_journals" to service_role;
+drop policy if exists accounting_journals_read on "better_supabase"."accounting_journals";
+create policy accounting_journals_read on "better_supabase"."accounting_journals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_periods" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  -- The calendar year the fiscal year starts in.
+  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "status" text not null default 'open' check ("status" in ('open', 'closed')),
+  "closed_at" timestamptz,
+  "closed_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "fiscal_year", "number")
+);
+create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+alter table "better_supabase"."accounting_periods" enable row level security;
+revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_periods" to authenticated;
+grant all on "better_supabase"."accounting_periods" to service_role;
+drop policy if exists accounting_periods_read on "better_supabase"."accounting_periods";
+create policy accounting_periods_read on "better_supabase"."accounting_periods"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_entries" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "journal_id" uuid not null references "better_supabase"."accounting_journals" ("id") on delete restrict,
+  "fiscal_year" integer,
+  -- The entry's place in its journal and fiscal year, set when it posts.
+  "sequence" integer,
+  "number" text,
+  "entry_date" date not null,
+  "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
+  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text check ("reference" is null or length("reference") <= 200),
+  -- The document the entry books, such as invoice and its id.
+  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_id" text,
+  "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
+  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "posted_at" timestamptz,
+  "posted_by" uuid,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("source_type" is null) = ("source_id" is null)),
+  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+);
+create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+-- A document books once: a second entry for it waits until the first is reversed.
+create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+alter table "better_supabase"."accounting_entries" enable row level security;
+revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_entries" to authenticated;
+grant all on "better_supabase"."accounting_entries" to service_role;
+drop policy if exists accounting_entries_read on "better_supabase"."accounting_entries";
+create policy accounting_entries_read on "better_supabase"."accounting_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_dimensions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  -- The key lines use in their dimensions object, such as project or department.
+  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "key")
+);
+alter table "better_supabase"."accounting_dimensions" enable row level security;
+revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_dimensions" to authenticated;
+grant all on "better_supabase"."accounting_dimensions" to service_role;
+drop policy if exists accounting_dimensions_read on "better_supabase"."accounting_dimensions";
+create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_dimension_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "archived_at" timestamptz,
+  unique ("dimension_id", "code")
+);
+alter table "better_supabase"."accounting_dimension_values" enable row level security;
+revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_dimension_values" to authenticated;
+grant all on "better_supabase"."accounting_dimension_values" to service_role;
+drop policy if exists accounting_dimension_values_read on "better_supabase"."accounting_dimension_values";
+create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_fx_rates" (
+  "tenant_id" uuid not null,
+  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "on_date" date not null,
+  -- One unit of base costs rate units of quote.
+  "rate" numeric not null check ("rate" > 0),
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "base", "quote", "on_date"),
+  check ("base" <> "quote")
+);
+alter table "better_supabase"."accounting_fx_rates" enable row level security;
+revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_fx_rates" to authenticated;
+grant all on "better_supabase"."accounting_fx_rates" to service_role;
+drop policy if exists accounting_fx_rates_read on "better_supabase"."accounting_fx_rates";
+create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_tax_codes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  -- Basis points: 2100 is 21%.
+  "rate_bps" integer not null check ("rate_bps" >= 0 and "rate_bps" <= 100000),
+  "kind" text not null check ("kind" in ('sales', 'purchase')),
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- The boxes of a tax return the tax and its base count toward.
+  "report_boxes" text[] not null default '{}',
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_tax_codes_account_idx" on "better_supabase"."accounting_tax_codes" ("account_id");
+alter table "better_supabase"."accounting_tax_codes" enable row level security;
+revoke all on "better_supabase"."accounting_tax_codes" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_tax_codes" to authenticated;
+grant all on "better_supabase"."accounting_tax_codes" to service_role;
+drop policy if exists accounting_tax_codes_read on "better_supabase"."accounting_tax_codes";
+create policy accounting_tax_codes_read on "better_supabase"."accounting_tax_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_entry_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "entry_id" uuid not null references "better_supabase"."accounting_entries" ("id") on delete cascade,
+  "position" smallint not null default 0,
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- Minor units of the functional currency; a line has one side.
+  "debit" bigint not null default 0 check ("debit" >= 0),
+  "credit" bigint not null default 0 check ("credit" >= 0),
+  -- The transaction currency and its signed amount (positive is a debit).
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount_currency" bigint not null,
+  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "tax_code_id" uuid references "better_supabase"."accounting_tax_codes" ("id") on delete restrict,
+  -- The customer, supplier or employee the line concerns.
+  "party_id" uuid,
+  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "description" text check ("description" is null or length("description") <= 500),
+  check (("debit" = 0) <> ("credit" = 0))
+);
+create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+alter table "better_supabase"."accounting_entry_lines" enable row level security;
+revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_entry_lines" to authenticated;
+grant all on "better_supabase"."accounting_entry_lines" to service_role;
+drop policy if exists accounting_entry_lines_read on "better_supabase"."accounting_entry_lines";
+create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- A posted entry changes only from posted to reversed; its lines never change.
+create or replace function "better_supabase"."accounting_entry_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and old."status" = 'draft' then
+    return new;
+  end if;
+  if tg_op = 'DELETE' and old."status" = 'draft' then
+    return old;
+  end if;
+  if tg_op = 'UPDATE' and old."status" = 'posted' and new."status" = 'reversed'
+    and (to_jsonb(new) - 'status' - 'updated_at')
+      = (to_jsonb(old) - 'status' - 'updated_at') then
+    return new;
+  end if;
+  raise exception 'a posted entry can''t be changed or deleted; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
+create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
+  for each row execute function "better_supabase"."accounting_entry_guard"('tenant_id');
+
+create or replace function "better_supabase"."accounting_entry_line_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_entry uuid := case when tg_op = 'DELETE' then old."entry_id" else new."entry_id" end;
+begin
+  if exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = v_entry and y."status" <> 'draft')
+    or (tg_op = 'UPDATE' and exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = old."entry_id" and y."status" <> 'draft')) then
+    raise exception 'the lines of a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
+create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
+  for each row execute function "better_supabase"."accounting_entry_line_guard"('tenant_id');
+
+-- Sets up accounting for an organization: its functional currency and the
+-- month its fiscal year starts, then the generic chart, its account roles and the default journals when it has none.
+-- Neither setting changes once entries post or periods exist.
+create or replace function "better_supabase"."setup_accounting"(tenant uuid, functional_currency text default null, fiscal_year_start_month integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_settings"%rowtype;
+  v_currency text := upper(coalesce(nullif(trim(setup_accounting.functional_currency), ''), 'EUR'));
+  v_month integer := coalesce(setup_accounting.fiscal_year_start_month, 1);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', setup_accounting.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  if v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the functional currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  if v_month < 1 or v_month > 12 then
+    raise exception 'the fiscal year starts in a month from 1 to 12' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."accounting_settings" y where y."tenant_id" = setup_accounting.tenant for update;
+  if found then
+    if setup_accounting.functional_currency is not null and v_row."functional_currency" <> v_currency
+      and exists (select 1 from "better_supabase"."accounting_entries" y where y."tenant_id" = setup_accounting.tenant and y."status" <> 'draft') then
+      raise exception 'the functional currency can''t change once entries are posted' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    if setup_accounting.fiscal_year_start_month is not null and v_row."fiscal_year_start_month" <> v_month
+      and exists (select 1 from "better_supabase"."accounting_periods" y where y."tenant_id" = setup_accounting.tenant) then
+      raise exception 'the fiscal year start can''t change once periods exist' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    update "better_supabase"."accounting_settings" y set
+      "functional_currency" = case when setup_accounting.functional_currency is null then y."functional_currency" else v_currency end,
+      "fiscal_year_start_month" = case when setup_accounting.fiscal_year_start_month is null then y."fiscal_year_start_month" else v_month end,
+      "updated_at" = now()
+    where y."tenant_id" = setup_accounting.tenant
+    returning * into v_row;
+  else
+    insert into "better_supabase"."accounting_settings" ("tenant_id", "functional_currency", "fiscal_year_start_month")
+    values (setup_accounting.tenant, v_currency, v_month)
+    returning * into v_row;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+    values
+      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true),
+      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
+      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
+      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true),
+      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false),
+      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false),
+      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false),
+      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false),
+      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false),
+      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false),
+      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false);
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select setup_accounting.tenant, c.role, y."id"
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('cogs', '5000'), ('depreciation_expense', '6800'), ('fx_loss', '6900')) c (role, code)
+    join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
+    on conflict ("tenant_id", "role") do nothing;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select setup_accounting.tenant, c.code, c.name, c.type,
+      (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
+    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+  end if;
+  return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."setup_accounting"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."setup_accounting"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_settings"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('organizationId', x."tenant_id", 'functionalCurrency', x."functional_currency", 'fiscalYearStartMonth', x."fiscal_year_start_month", 'lockDate', x."lock_date", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."accounting_settings" x where x."tenant_id" = get_accounting_settings.tenant
+$$;
+revoke execute on function "better_supabase"."get_accounting_settings"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_settings"(uuid) to authenticated, service_role;
+
+-- Nothing posts on or before the lock date; null unlocks.
+create or replace function "better_supabase"."set_accounting_lock_date"(tenant uuid, lock_date date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_lock_date.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = set_accounting_lock_date.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  update "better_supabase"."accounting_settings" y set "lock_date" = set_accounting_lock_date.lock_date, "updated_at" = now()
+  where y."tenant_id" = set_accounting_lock_date.tenant
+  returning * into v_settings;
+  return jsonb_build_object('organizationId', v_settings."tenant_id", 'functionalCurrency', v_settings."functional_currency", 'fiscalYearStartMonth', v_settings."fiscal_year_start_month", 'lockDate', v_settings."lock_date", 'createdAt', v_settings."created_at", 'updatedAt', v_settings."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) to authenticated, service_role;
+
+-- Creates an account, or changes one (account_id, or the account with the code).
+-- An account with posted lines keeps its type.
+create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+  v_id uuid := save_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+    raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+    raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+    raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_accounts" y
+    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+  end if;
+  if save_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+      raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if v_id is not null and exists (
+      with recursive up (id) as (
+        select save_accounting_account.parent_id
+        union
+        select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
+      )
+      select 1 from up where up.id = v_id
+    ) then
+      raise exception 'an account can''t be its own parent' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+    end if;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable")
+    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
+      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    if not found then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if exists (
+      select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+      where y."account_id" = v_id and z."status" <> 'draft'
+        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+    ) then
+      raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+    end if;
+    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
+      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false), "updated_at" = now()
+    where y."id" = v_id
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) to authenticated, service_role;
+
+-- Archives an account (nothing posts to it), or restores it. An account
+-- mapped to a role, a journal or a tax code stays.
+create or replace function "better_supabase"."archive_accounting_account"(account_id uuid, archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = archive_accounting_account.account_id for update;
+  if not found then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if coalesce(archive_accounting_account.archived, true) and (
+    exists (select 1 from "better_supabase"."accounting_account_roles" y where y."account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_journals" y where y."default_account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_tax_codes" y where y."account_id" = v_row."id" and y."archived_at" is null)
+  ) then
+    raise exception 'the account is mapped to a role, a journal or a tax code' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+  end if;
+  update "better_supabase"."accounting_accounts" y set "archived_at" = case when coalesce(archive_accounting_account.archived, true) then coalesce(y."archived_at", now()) end,
+    "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) to authenticated, service_role;
+
+-- Maps a role (receivable, bank, retained_earnings) to an account; null unmaps it.
+create or replace function "better_supabase"."set_accounting_account_role"(tenant uuid, role text, account_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense') then
+    raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
+  end if;
+  if set_accounting_account_role.account_id is null then
+    delete from "better_supabase"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant and y."role" = set_accounting_account_role.role;
+  else
+    if not exists (
+      select 1 from "better_supabase"."accounting_accounts" y where y."id" = set_accounting_account_role.account_id
+        and y."tenant_id" = set_accounting_account_role.tenant and y."archived_at" is null
+    ) then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    values (set_accounting_account_role.tenant, set_accounting_account_role.role, set_accounting_account_role.account_id)
+    on conflict ("tenant_id", "role") do update set "account_id" = excluded."account_id", "updated_at" = now();
+  end if;
+  return coalesce((
+    select jsonb_object_agg(y."role", y."account_id") from "better_supabase"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant
+  ), '{}'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_accounts"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'subtype', x."subtype", 'parentId', x."parent_id", 'currency', x."currency", 'reconcilable', x."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = x."id"), '[]'::jsonb), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_accounts" x
+  where x."tenant_id" = list_accounting_accounts.tenant
+    and (coalesce(list_accounting_accounts.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
+
+-- Creates a journal, or changes one (journal_id, or the journal with the code).
+create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_journals"%rowtype;
+  v_id uuid := save_accounting_journal.journal_id;
+  v_code text := upper(trim(save_accounting_journal.code));
+  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
+  end if;
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+    raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+    raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
+      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency")
+    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency)
+    returning * into v_row;
+  else
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
+      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    returning * into v_row;
+    if not found then
+      raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'defaultAccountId', x."default_account_id", 'currency', x."currency", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_journals" x
+  where x."tenant_id" = list_accounting_journals.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_journals"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_journals"(uuid) to authenticated, service_role;
+
+-- Creates the twelve monthly periods of a fiscal year, from the start month of
+-- the calendar year fiscal_year. Periods that exist stay as they are.
+create or replace function "better_supabase"."open_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_start date;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_fiscal_year.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if open_fiscal_year.fiscal_year is null or open_fiscal_year.fiscal_year < 1900 or open_fiscal_year.fiscal_year > 9998 then
+    raise exception 'the fiscal year is a calendar year such as 2026' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = open_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  v_start := make_date(open_fiscal_year.fiscal_year, v_settings."fiscal_year_start_month", 1);
+  insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+  select open_fiscal_year.tenant, open_fiscal_year.fiscal_year, n,
+    (v_start + make_interval(months => n - 1))::date,
+    (v_start + make_interval(months => n) - interval '1 day')::date
+  from generate_series(1, 12) n
+  on conflict ("tenant_id", "fiscal_year", "number") do nothing;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'number', y."number", 'startsOn', y."starts_on", 'endsOn', y."ends_on", 'status', y."status", 'closedAt', y."closed_at", 'closedBy', y."closed_by") order by y."number") from "better_supabase"."accounting_periods" y
+    where y."tenant_id" = open_fiscal_year.tenant and y."fiscal_year" = open_fiscal_year.fiscal_year
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."open_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_periods"(tenant uuid, fiscal_year integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'fiscalYear', x."fiscal_year", 'number', x."number", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'status', x."status", 'closedAt', x."closed_at", 'closedBy', x."closed_by") order by x."starts_on"), '[]'::jsonb)
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = list_accounting_periods.tenant
+    and (list_accounting_periods.fiscal_year is null or x."fiscal_year" = list_accounting_periods.fiscal_year)
+$$;
+revoke execute on function "better_supabase"."list_accounting_periods"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
+
+-- Creates or renames a dimension (project, department, cost center) by key.
+create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+    raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  on conflict ("tenant_id", "key") do update set "name" = excluded."name"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+
+-- Adds or renames a value of a dimension by code; archived values take no new lines.
+create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_dimension "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  if not found then
+    raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+    raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
+  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
+    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  on conflict ("dimension_id", "code") do update
+    set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
+  return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = x."id"), '[]'::jsonb), 'createdAt', x."created_at") order by x."key"), '[]'::jsonb)
+  from "better_supabase"."accounting_dimensions" x
+  where x."tenant_id" = list_accounting_dimensions.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_dimensions"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_dimensions"(uuid) to authenticated, service_role;
+
+-- Creates or changes a tax code by code. rate_bps is basis points (2100 is 21%).
+create or replace function "better_supabase"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_tax_codes"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_tax_code.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage tax codes' using errcode = '42501', hint = 'ACCOUNTING_TAX_CODE_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_tax_code.code), '') is null or nullif(trim(save_accounting_tax_code.name), '') is null
+    or save_accounting_tax_code.rate_bps is null or save_accounting_tax_code.rate_bps < 0 or save_accounting_tax_code.rate_bps > 100000
+    or save_accounting_tax_code.kind is null or save_accounting_tax_code.kind not in ('sales', 'purchase') then
+    raise exception 'a tax code needs a code, a name, a rate in basis points and a kind (sales or purchase)' using errcode = '22023', hint = 'ACCOUNTING_TAX_CODE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_tax_code.account_id
+      and y."tenant_id" = save_accounting_tax_code.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."accounting_tax_codes" ("tenant_id", "code", "name", "rate_bps", "kind", "account_id", "report_boxes", "archived_at")
+  values (save_accounting_tax_code.tenant, trim(save_accounting_tax_code.code), trim(save_accounting_tax_code.name), save_accounting_tax_code.rate_bps,
+    save_accounting_tax_code.kind, save_accounting_tax_code.account_id, coalesce(save_accounting_tax_code.report_boxes, '{}'),
+    case when coalesce(save_accounting_tax_code.archived, false) then now() end)
+  on conflict ("tenant_id", "code") do update
+    set "name" = excluded."name", "rate_bps" = excluded."rate_bps", "kind" = excluded."kind",
+      "account_id" = excluded."account_id", "report_boxes" = excluded."report_boxes", "archived_at" = excluded."archived_at",
+      "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'rateBps', v_row."rate_bps", 'kind', v_row."kind", 'accountId', v_row."account_id", 'reportBoxes', to_jsonb(v_row."report_boxes"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'rateBps', x."rate_bps", 'kind', x."kind", 'accountId', x."account_id", 'reportBoxes', to_jsonb(x."report_boxes"), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_tax_codes" x
+  where x."tenant_id" = list_accounting_tax_codes.tenant
+    and (coalesce(list_accounting_tax_codes.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
+
+-- Records what one unit of base costs in quote on a date.
+create or replace function "better_supabase"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(set_accounting_fx_rate.base));
+  v_quote text := upper(trim(set_accounting_fx_rate.quote));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_fx_rate.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage exchange rates' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if coalesce(v_base, '') !~ '^[A-Z]{3}$' or coalesce(v_quote, '') !~ '^[A-Z]{3}$' or v_base = v_quote
+    or set_accounting_fx_rate.on_date is null or coalesce(set_accounting_fx_rate.rate, 0) <= 0 then
+    raise exception 'a rate needs two different ISO 4217 codes, a date and a positive rate' using errcode = '22023', hint = 'ACCOUNTING_FX_RATE_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_fx_rates" ("tenant_id", "base", "quote", "on_date", "rate")
+  values (set_accounting_fx_rate.tenant, v_base, v_quote, set_accounting_fx_rate.on_date, set_accounting_fx_rate.rate)
+  on conflict ("tenant_id", "base", "quote", "on_date") do update set "rate" = excluded."rate";
+  return jsonb_build_object('organizationId', set_accounting_fx_rate.tenant, 'base', v_base, 'quote', v_quote,
+    'onDate', set_accounting_fx_rate.on_date, 'rate', set_accounting_fx_rate.rate::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) from public, anon;
+grant execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) to authenticated, service_role;
+
+-- The rate on the date or the latest before it, or the inverse of the
+-- opposite pair's; ACCOUNTING_FX_RATE_MISSING when neither has one.
+create or replace function "better_supabase"."accounting_fx_rate"(tenant uuid, base text, quote text, on_date date)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(accounting_fx_rate.base));
+  v_quote text := upper(trim(accounting_fx_rate.quote));
+  v_rate numeric;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accounting_fx_rate.tenant, 'accounting.read'), false)) then
+    raise exception 'not allowed to read accounting' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if v_base = v_quote then
+    return 1;
+  end if;
+  select y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+  where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_base and y."quote" = v_quote and y."on_date" <= accounting_fx_rate.on_date
+  order by y."on_date" desc limit 1;
+  if v_rate is null then
+    select 1 / y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+    where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_quote and y."quote" = v_base and y."on_date" <= accounting_fx_rate.on_date
+    order by y."on_date" desc limit 1;
+  end if;
+  if v_rate is null then
+    raise exception 'no exchange rate for the currency pair on or before the date' using errcode = 'P0002', hint = 'ACCOUNTING_FX_RATE_MISSING';
+  end if;
+  return v_rate;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) from public, anon;
+grant execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) to authenticated, service_role;
+
+-- Posts a draft entry: balanced in the functional currency, dated in an open
+-- period after the lock date, with known dimension values; then numbers it per
+-- journal and fiscal year. Called by the posting, reversal and year close
+-- functions; closing skips the period and lock date checks.
+create or replace function "better_supabase"."accounting_post"(entry_id uuid, closing boolean default false)
+returns "better_supabase"."accounting_entries"
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_total numeric;
+  v_credits numeric;
+  v_count integer;
+  v_sequence integer;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = accounting_post.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_row."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(y."debit"), 0), coalesce(sum(y."credit"), 0) into v_count, v_total, v_credits
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  if v_count < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if v_total <> v_credits then
+    raise exception 'the debits and credits of the entry differ in the functional currency' using errcode = '23514', hint = 'ACCOUNTING_ENTRY_UNBALANCED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_accounts" z on z."id" = y."account_id"
+    where y."entry_id" = v_row."id" and z."archived_at" is not null
+  ) then
+    raise exception 'an account of the entry is archived' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y, jsonb_each(y."dimensions") dim
+    where y."entry_id" = v_row."id"
+      and (jsonb_typeof(dim.value) <> 'string' or not exists (
+        select 1 from "better_supabase"."accounting_dimensions" z join "better_supabase"."accounting_dimension_values" w on w."dimension_id" = z."id"
+        where z."tenant_id" = v_row."tenant_id" and z."key" = dim.key
+          and w."code" = dim.value #>> '{}' and w."archived_at" is null
+      ))
+  ) then
+    raise exception 'a line names a dimension or value that doesn''t exist or is archived' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y
+  where y."tenant_id" = v_row."tenant_id" and v_row."entry_date" >= y."starts_on" and v_row."entry_date" <= y."ends_on";
+  if not found then
+    raise exception 'no period covers the entry date; open its fiscal year first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not coalesce(accounting_post.closing, false) and (
+    v_period."status" = 'closed'
+    or (v_settings."lock_date" is not null and v_row."entry_date" <= v_settings."lock_date")
+  ) then
+    raise exception 'the entry date is in a closed period or on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = v_row."journal_id";
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_journal."id"::text || ':' || v_period."fiscal_year"::text, 0));
+  select coalesce(max(y."sequence"), 0) + 1 into v_sequence from "better_supabase"."accounting_entries" y
+  where y."journal_id" = v_journal."id" and y."fiscal_year" = v_period."fiscal_year";
+  update "better_supabase"."accounting_entries" y set "status" = 'posted', "fiscal_year" = v_period."fiscal_year", "sequence" = v_sequence,
+    "number" = v_journal."code" || '-' || v_period."fiscal_year"::text || '-' || lpad(v_sequence::text, 5, '0'),
+    "period_id" = v_period."id", "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) from public, anon, authenticated;
+
+-- Creates a draft entry, or replaces a draft's header and lines (entry_id).
+-- Each line names an account (accountId or accountCode) and a debit or a
+-- credit in minor units of the functional currency. A line in another
+-- currency gives amountCurrency (signed, positive is a debit) and either the
+-- functional amount or an fxRate; without both, the rate on the entry date
+-- converts it.
+drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_line record;
+  v_account "better_supabase"."accounting_accounts"%rowtype;
+  v_currency text;
+  v_debit bigint;
+  v_credit bigint;
+  v_amount bigint;
+  v_rate numeric;
+  v_functional bigint;
+  v_tax uuid;
+  v_party uuid;
+  v_dimensions jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  if not found then
+    raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_journal."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_journal."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if save_accounting_entry.entry_date is null then
+    raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
+    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+    raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if save_accounting_entry.source_type is not null and exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
+      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from save_accounting_entry.entry_id
+  ) then
+    raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
+  end if;
+  if save_accounting_entry.entry_id is null then
+    insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
+    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
+      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    if not found then
+      raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+    end if;
+    if v_row."status" <> 'draft' then
+      raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+    end if;
+    delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
+      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
+      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''),
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+      "updated_at" = now()
+    where y."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+    if jsonb_typeof(v_line.value) is distinct from 'object' then
+      raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_journal."tenant_id";
+    else
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_journal."tenant_id";
+    end if;
+    if v_account."id" is null or v_account."archived_at" is not null then
+      raise exception 'a line''s account doesn''t exist here or is archived' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if coalesce(v_line.value ->> 'debit', '0') !~ '^[0-9]{1,18}$' or coalesce(v_line.value ->> 'credit', '0') !~ '^[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'amountCurrency', '0') !~ '^-?[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'fxRate', '1') !~ '^[0-9]+(\.[0-9]+)?$' then
+      raise exception 'debit and credit are non-negative integers, amountCurrency an integer and fxRate a positive decimal' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_debit := coalesce((v_line.value ->> 'debit')::bigint, 0);
+    v_credit := coalesce((v_line.value ->> 'credit')::bigint, 0);
+    v_currency := upper(coalesce(nullif(v_line.value ->> 'currency', ''), v_settings."functional_currency"));
+    if v_currency !~ '^[A-Z]{3}$' then
+      raise exception 'a line''s currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if v_account."currency" is not null and v_account."currency" <> v_currency then
+      raise exception 'the account takes lines in its own currency only' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_rate := null;
+    if v_currency = v_settings."functional_currency" then
+      v_amount := v_debit - v_credit;
+    else
+      v_amount := (v_line.value ->> 'amountCurrency')::bigint;
+      if v_amount is null or v_amount = 0 then
+        raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
+        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+      if v_rate <= 0 then
+        raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      if v_debit = 0 and v_credit = 0 then
+        v_functional := round(abs(v_amount) * v_rate)::bigint;
+        if v_amount > 0 then
+          v_debit := v_functional;
+        else
+          v_credit := v_functional;
+        end if;
+      elsif (v_amount > 0) <> (v_debit > 0) then
+        raise exception 'amountCurrency and the functional amount must be on the same side' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+    end if;
+    if (v_debit = 0) = (v_credit = 0) then
+      raise exception 'every line has either a debit or a credit' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_tax := null;
+    if v_line.value ->> 'taxCodeId' is not null then
+      select y."id" into v_tax from "better_supabase"."accounting_tax_codes" y
+      where y."id"::text = v_line.value ->> 'taxCodeId' and y."tenant_id" = v_journal."tenant_id";
+      if v_tax is null then
+        raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
+      end if;
+    end if;
+    if coalesce(v_line.value ->> 'partyId', '00000000-0000-0000-0000-000000000000') !~ '^[0-9a-fA-F-]{36}$' then
+      raise exception 'partyId must be a uuid' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_party := (v_line.value ->> 'partyId')::uuid;
+    v_dimensions := coalesce(v_line.value -> 'dimensions', '{}'::jsonb);
+    if jsonb_typeof(v_dimensions) = 'null' then
+      v_dimensions := '{}'::jsonb;
+    end if;
+    if jsonb_typeof(v_dimensions) <> 'object' then
+      raise exception 'a line''s dimensions are an object of dimension keys to value codes' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+    end if;
+    insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+      "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+    values (v_journal."tenant_id", v_row."id", v_line.ordinality, v_account."id", v_debit, v_credit, v_currency,
+      v_amount, v_rate, v_tax, v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
+  end loop;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = post_accounting_entry.entry_id;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  v_row := "better_supabase"."accounting_post"(v_row."id");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."post_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Reverses a posted entry with a new entry of opposite lines, dated
+-- entry_date (default the original's date), and marks the original reversed.
+create or replace function "better_supabase"."reverse_accounting_entry"(entry_id uuid, entry_date date default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_reversal "better_supabase"."accounting_entries"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = reverse_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" = 'reversed' then
+    raise exception 'the entry is already reversed' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_REVERSED';
+  end if;
+  if v_row."status" <> 'posted' then
+    raise exception 'only a posted entry can be reversed; delete a draft instead' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "reverses_id", "memo", "created_by")
+  values (v_row."tenant_id", v_row."journal_id", coalesce(reverse_accounting_entry.entry_date, v_row."entry_date"), v_row."number",
+    v_row."id", 'Reversal of ' || v_row."number", auth.uid())
+  returning * into v_reversal;
+  insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+    "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+  select y."tenant_id", v_reversal."id", y."position", y."account_id", y."credit", y."debit", y."currency",
+    -y."amount_currency", y."fx_rate", y."tax_code_id", y."party_id", y."dimensions", y."description"
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  v_reversal := "better_supabase"."accounting_post"(v_reversal."id");
+  update "better_supabase"."accounting_entries" y set "status" = 'reversed', "updated_at" = now() where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object('id', v_reversal."id", 'organizationId', v_reversal."tenant_id", 'journalId', v_reversal."journal_id", 'number', v_reversal."number", 'fiscalYear', v_reversal."fiscal_year", 'entryDate', v_reversal."entry_date", 'periodId', v_reversal."period_id", 'status', v_reversal."status", 'reference', v_reversal."reference", 'sourceType', v_reversal."source_type", 'sourceId', v_reversal."source_id", 'reversesId', v_reversal."reverses_id", 'memo', v_reversal."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_reversal."id"), 0)::text, 'postedAt', v_reversal."posted_at", 'postedBy', v_reversal."posted_by", 'createdBy', v_reversal."created_by", 'createdAt', v_reversal."created_at", 'updatedAt', v_reversal."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_reversal."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_json jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = delete_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  v_json := jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+  delete from "better_supabase"."accounting_entries" y where y."id" = v_row."id";
+  return v_json;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = x."id"), '[]'::jsonb)) from "better_supabase"."accounting_entries" x where x."id" = get_accounting_entry.entry_id
+$$;
+revoke execute on function "better_supabase"."get_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Entries, the newest first, without their lines.
+create or replace function "better_supabase"."list_accounting_entries"(tenant uuid, journal_id uuid default null, status text default null, since date default null, until date default null, page_size integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.entry order by z.entry_date desc, z.created_at desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as entry, x."entry_date" as entry_date, x."created_at" as created_at
+    from "better_supabase"."accounting_entries" x
+    where x."tenant_id" = list_accounting_entries.tenant
+      and (list_accounting_entries.journal_id is null or x."journal_id" = list_accounting_entries.journal_id)
+      and (list_accounting_entries.status is null or x."status" = list_accounting_entries.status)
+      and (list_accounting_entries.since is null or x."entry_date" >= list_accounting_entries.since)
+      and (list_accounting_entries.until is null or x."entry_date" <= list_accounting_entries.until)
+    order by x."entry_date" desc, x."created_at" desc
+    limit least(greatest(coalesce(list_accounting_entries.page_size, 50), 1), 500)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) to authenticated, service_role;
+
+-- What keeps a period from closing: draft entries dated in it.
+create or replace function "better_supabase"."accounting_period_close_blockers"(period_id uuid)
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(array_remove(array[
+    case when exists (
+      select 1 from "better_supabase"."accounting_entries" y
+      where y."tenant_id" = x."tenant_id" and y."status" = 'draft'
+        and y."entry_date" >= x."starts_on" and y."entry_date" <= x."ends_on"
+    ) then 'draft_entries' end
+  ], null), '{}'::text[])
+  from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id
+$$;
+revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
+grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
+
+-- Closes a period: nothing posts into it until it reopens. Closing a closed
+-- period returns it unchanged.
+create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_blockers text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = close_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if v_period."status" = 'closed' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(v_period."id");
+  if cardinality(v_blockers) > 0 then
+    raise exception 'the period can''t close yet: %', array_to_string(v_blockers, ', ') using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
+
+-- Reopens a closed period with a reason. A period on or before the lock date
+-- stays closed; move the lock date first.
+create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = reopen_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to reopen accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if nullif(trim(reopen_accounting_period.reason), '') is null then
+    raise exception 'reopening a period needs a reason' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  if v_period."status" = 'open' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_period."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if v_settings."lock_date" is not null and v_period."starts_on" <= v_settings."lock_date" then
+    raise exception 'the period is on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'open', "closed_at" = null, "closed_by" = null
+  where y."id" = v_period."id"
+  returning * into v_period;
+  null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."reopen_accounting_period"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."reopen_accounting_period"(uuid, text) to authenticated, service_role;
+
+-- Closes a fiscal year: one closing entry in the first general journal moves
+-- every income and expense balance to the retained earnings account, then
+-- every period of the year closes. Reverse the closing entry to redo it.
+create or replace function "better_supabase"."close_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_starts date;
+  v_ends date;
+  v_open integer;
+  v_retained uuid;
+  v_journal uuid;
+  v_entry "better_supabase"."accounting_entries"%rowtype;
+  v_net numeric;
+  v_count integer;
+  v_closing uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_fiscal_year.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close fiscal years' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = close_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select min(y."starts_on"), max(y."ends_on"), count(*) filter (where y."status" = 'open')
+  into v_starts, v_ends, v_open
+  from "better_supabase"."accounting_periods" y where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year;
+  if v_starts is null then
+    raise exception 'the fiscal year has no periods; open it first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(close_fiscal_year.tenant::text || ':fiscal_year:' || close_fiscal_year.fiscal_year::text, 0));
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
+      and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
+  ) then
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."status" = 'draft'
+      and y."entry_date" >= v_starts and y."entry_date" <= v_ends
+  ) then
+    raise exception 'the fiscal year can''t close yet: draft_entries' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  select y."account_id" into v_retained from "better_supabase"."accounting_account_roles" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."role" = 'retained_earnings';
+  if v_retained is null then
+    raise exception 'no account has the retained_earnings role' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_ROLE_MISSING';
+  end if;
+  select y."id" into v_journal from "better_supabase"."accounting_journals" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."type" = 'general'
+  order by y."code" limit 1;
+  if v_journal is null then
+    raise exception 'the year-end close needs a general journal' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(c.net), 0) into v_count, v_net from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c;
+  if v_count > 0 then
+    insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "source_type", "source_id", "memo", "created_by")
+    values (close_fiscal_year.tenant, v_journal, v_ends, 'fiscal_year', close_fiscal_year.fiscal_year::text,
+      'Closing of fiscal year ' || close_fiscal_year.fiscal_year::text, auth.uid())
+    returning * into v_entry;
+    insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+    select close_fiscal_year.tenant, v_entry."id", (row_number() over (order by w."code"))::smallint, c.account,
+      greatest(-c.net, 0)::bigint, greatest(c.net, 0)::bigint, v_settings."functional_currency", (-c.net)::bigint
+    from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c join "better_supabase"."accounting_accounts" w on w."id" = c.account;
+    if v_net <> 0 then
+      insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+      values (close_fiscal_year.tenant, v_entry."id", 32767, v_retained,
+        greatest(v_net, 0)::bigint, greatest(-v_net, 0)::bigint, v_settings."functional_currency", v_net::bigint);
+    end if;
+    v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
+    v_closing := v_entry."id";
+  elsif v_open = 0 then
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  for v_period in
+    select * from "better_supabase"."accounting_periods" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year and y."status" = 'open'
+    order by y."number"
+    for update
+  loop
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  end loop;
+  null;
+  return jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing);
+end;
+$$;
+revoke execute on function "better_supabase"."close_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."close_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+-- Per account: the balance before since, the debits and credits from since
+-- through until, and the closing balance; debit balances are positive. Lines
+-- match when their dimensions contain the dimensions filter.
+create or replace function "better_supabase"."accounting_trial_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account,
+      sum(case when z."entry_date" < accounting_trial_balance.since then y."debit" - y."credit" else 0 end) as opening,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."debit" else 0 end) as debit,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."credit" else 0 end) as credit
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_trial_balance.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_trial_balance.dimensions, '{}'::jsonb)
+      and (accounting_trial_balance.until is null or z."entry_date" <= accounting_trial_balance.until)
+    group by y."account_id"
+  )
+  select jsonb_build_object(
+    'accounts', coalesce(jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type",
+      'opening', c.opening::text, 'debit', c.debit::text, 'credit', c.credit::text, 'closing', (c.opening + c.debit - c.credit)::text) order by w."code"), '[]'::jsonb),
+    'totals', jsonb_build_object('opening', coalesce(sum(c.opening), 0)::text, 'debit', coalesce(sum(c.debit), 0)::text, 'credit', coalesce(sum(c.credit), 0)::text,
+      'closing', coalesce(sum(c.opening + c.debit - c.credit), 0)::text)
+  )
+  from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+$$;
+revoke execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Income and expenses from since through until, without year-end closing
+-- entries. Income counts credits, expenses debits.
+create or replace function "better_supabase"."accounting_profit_and_loss"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."credit") - sum(y."debit") as credit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_profit_and_loss.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_profit_and_loss.dimensions, '{}'::jsonb)
+      and z."source_type" is distinct from 'fiscal_year'
+      and (accounting_profit_and_loss.since is null or z."entry_date" >= accounting_profit_and_loss.since)
+      and (accounting_profit_and_loss.until is null or z."entry_date" <= accounting_profit_and_loss.until)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.credit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where w."type" in ('income', 'expense') and c.credit_balance <> 0
+  )
+  select jsonb_build_object(
+    'income', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.credit_balance)::text) order by w."code") from kept w where w."type" = 'income'), '[]'::jsonb),
+    'expenses', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.credit_balance)::text) order by w."code") from kept w where w."type" = 'expense'), '[]'::jsonb),
+    'totalIncome', coalesce((select sum(w.credit_balance) from kept w where w."type" = 'income'), 0)::text,
+    'totalExpenses', coalesce((select -sum(w.credit_balance) from kept w where w."type" = 'expense'), 0)::text,
+    'netIncome', coalesce((select sum(w.credit_balance) from kept w), 0)::text
+  )
+$$;
+revoke execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Assets, liabilities and equity on as_of. Income and expenses not yet
+-- closed into retained earnings count as current earnings under equity.
+create or replace function "better_supabase"."accounting_balance_sheet"(tenant uuid, as_of date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."debit") - sum(y."credit") as debit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_balance_sheet.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_balance_sheet.dimensions, '{}'::jsonb)
+      and z."entry_date" <= coalesce(accounting_balance_sheet.as_of, current_date)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.debit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where c.debit_balance <> 0
+  ),
+  totals as (
+    select
+      coalesce(sum(w.debit_balance) filter (where w."type" = 'asset'), 0) as assets,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'liability'), 0) as liabilities,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'equity'), 0) as equity,
+      coalesce(-sum(w.debit_balance) filter (where w."type" in ('income', 'expense')), 0) as earnings
+    from kept w
+  )
+  select jsonb_build_object(
+    'asOf', coalesce(accounting_balance_sheet.as_of, current_date),
+    'assets', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.debit_balance)::text) order by w."code") from kept w where w."type" = 'asset'), '[]'::jsonb),
+    'liabilities', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'liability'), '[]'::jsonb),
+    'equity', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'equity'), '[]'::jsonb),
+    'currentEarnings', t.earnings::text,
+    'totalAssets', t.assets::text,
+    'totalLiabilities', t.liabilities::text,
+    'totalEquity', (t.equity + t.earnings)::text,
+    'balanced', t.assets = t.liabilities + t.equity + t.earnings
+  )
+  from totals t
+$$;
+revoke execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) to authenticated, service_role;
+
+-- One account's posted lines from since through until with a running
+-- balance; debit balances are positive.
+create or replace function "better_supabase"."accounting_general_ledger"(account_id uuid, since date default null, until date default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with account as (
+    select w.* from "better_supabase"."accounting_accounts" w where w."id" = accounting_general_ledger.account_id
+  ),
+  booked as (
+    select y.*, z."entry_date" as entry_date, z."number" as entry_number, z."journal_id" as journal_id, z."memo" as memo
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where y."account_id" = accounting_general_ledger.account_id and z."status" in ('posted', 'reversed')
+      and (accounting_general_ledger.until is null or z."entry_date" <= accounting_general_ledger.until)
+  ),
+  opening as (
+    select coalesce(sum(b."debit" - b."credit"), 0) as amount from booked b
+    where b.entry_date < accounting_general_ledger.since
+  ),
+  period as (
+    select b.*, (select o.amount from opening o) + sum(b."debit" - b."credit") over (order by b.entry_date, b.entry_number, b."position", b."id") as balance
+    from booked b
+    where accounting_general_ledger.since is null or b.entry_date >= accounting_general_ledger.since
+  )
+  select jsonb_build_object(
+    'account', jsonb_build_object('id', w."id", 'code', w."code", 'name', w."name", 'type', w."type"),
+    'opening', (select o.amount from opening o)::text,
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('entryId', b."entry_id", 'number', b.entry_number, 'entryDate', b.entry_date, 'journalId', b.journal_id,
+      'description', coalesce(b."description", b.memo), 'partyId', b."party_id", 'debit', b."debit"::text, 'credit', b."credit"::text, 'balance', b.balance::text)
+      order by b.entry_date, b.entry_number, b."position", b."id") from period b), '[]'::jsonb),
+    'closing', ((select o.amount from opening o) + coalesce((select sum(b."debit" - b."credit") from period b), 0))::text
+  )
+  from account w
+$$;
+revoke execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) from public, anon;
+grant execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from public, anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block-data accounting
+-- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('accounting', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block accounting@1 managed
+-- @bsb-hash sha256:a9ebd120da8397ea97644972b27bf2650002e19979a43f61a7b2e106a8baf67d
+-- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Accounting: a chart of accounts with roles, journals, fiscal periods, and
+-- balanced journal entries in minor units of the organization's functional
+-- currency, with dimensions, exchange rates, tax codes, reports and the
+-- period and year-end close.
+
+create table if not exists "better_supabase"."accounting_settings" (
+  "tenant_id" uuid primary key,
+  -- Every debit and credit is in minor units of this currency.
+  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  -- Nothing posts on or before this date, whatever the period's status.
+  "lock_date" date,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."accounting_settings" enable row level security;
+revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_settings" to authenticated;
+grant all on "better_supabase"."accounting_settings" to service_role;
+drop policy if exists accounting_settings_read on "better_supabase"."accounting_settings";
+create policy accounting_settings_read on "better_supabase"."accounting_settings"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_accounts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "subtype" text,
+  "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- Lines on the account must be in this currency; null takes any.
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "reconcilable" boolean not null default false,
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+alter table "better_supabase"."accounting_accounts" enable row level security;
+revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_accounts" to authenticated;
+grant all on "better_supabase"."accounting_accounts" to service_role;
+drop policy if exists accounting_accounts_read on "better_supabase"."accounting_accounts";
+create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_account_roles" (
+  "tenant_id" uuid not null,
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense')),
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  "updated_at" timestamptz not null default now(),
+  primary key ("tenant_id", "role")
+);
+create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+alter table "better_supabase"."accounting_account_roles" enable row level security;
+revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_account_roles" to authenticated;
+grant all on "better_supabase"."accounting_account_roles" to service_role;
+drop policy if exists accounting_account_roles_read on "better_supabase"."accounting_account_roles";
+create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_journals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  -- The bank or cash account a bank or cash journal posts against.
+  "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+alter table "better_supabase"."accounting_journals" enable row level security;
+revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_journals" to authenticated;
+grant all on "better_supabase"."accounting_journals" to service_role;
+drop policy if exists accounting_journals_read on "better_supabase"."accounting_journals";
+create policy accounting_journals_read on "better_supabase"."accounting_journals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_periods" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  -- The calendar year the fiscal year starts in.
+  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "status" text not null default 'open' check ("status" in ('open', 'closed')),
+  "closed_at" timestamptz,
+  "closed_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "fiscal_year", "number")
+);
+create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+alter table "better_supabase"."accounting_periods" enable row level security;
+revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_periods" to authenticated;
+grant all on "better_supabase"."accounting_periods" to service_role;
+drop policy if exists accounting_periods_read on "better_supabase"."accounting_periods";
+create policy accounting_periods_read on "better_supabase"."accounting_periods"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_entries" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "journal_id" uuid not null references "better_supabase"."accounting_journals" ("id") on delete restrict,
+  "fiscal_year" integer,
+  -- The entry's place in its journal and fiscal year, set when it posts.
+  "sequence" integer,
+  "number" text,
+  "entry_date" date not null,
+  "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
+  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text check ("reference" is null or length("reference") <= 200),
+  -- The document the entry books, such as invoice and its id.
+  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_id" text,
+  "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
+  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "posted_at" timestamptz,
+  "posted_by" uuid,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("source_type" is null) = ("source_id" is null)),
+  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+);
+create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+-- A document books once: a second entry for it waits until the first is reversed.
+create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+alter table "better_supabase"."accounting_entries" enable row level security;
+revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_entries" to authenticated;
+grant all on "better_supabase"."accounting_entries" to service_role;
+drop policy if exists accounting_entries_read on "better_supabase"."accounting_entries";
+create policy accounting_entries_read on "better_supabase"."accounting_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_dimensions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  -- The key lines use in their dimensions object, such as project or department.
+  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "key")
+);
+alter table "better_supabase"."accounting_dimensions" enable row level security;
+revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_dimensions" to authenticated;
+grant all on "better_supabase"."accounting_dimensions" to service_role;
+drop policy if exists accounting_dimensions_read on "better_supabase"."accounting_dimensions";
+create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_dimension_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "archived_at" timestamptz,
+  unique ("dimension_id", "code")
+);
+alter table "better_supabase"."accounting_dimension_values" enable row level security;
+revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_dimension_values" to authenticated;
+grant all on "better_supabase"."accounting_dimension_values" to service_role;
+drop policy if exists accounting_dimension_values_read on "better_supabase"."accounting_dimension_values";
+create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_fx_rates" (
+  "tenant_id" uuid not null,
+  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "on_date" date not null,
+  -- One unit of base costs rate units of quote.
+  "rate" numeric not null check ("rate" > 0),
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "base", "quote", "on_date"),
+  check ("base" <> "quote")
+);
+alter table "better_supabase"."accounting_fx_rates" enable row level security;
+revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_fx_rates" to authenticated;
+grant all on "better_supabase"."accounting_fx_rates" to service_role;
+drop policy if exists accounting_fx_rates_read on "better_supabase"."accounting_fx_rates";
+create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_tax_codes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  -- Basis points: 2100 is 21%.
+  "rate_bps" integer not null check ("rate_bps" >= 0 and "rate_bps" <= 100000),
+  "kind" text not null check ("kind" in ('sales', 'purchase')),
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- The boxes of a tax return the tax and its base count toward.
+  "report_boxes" text[] not null default '{}',
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_tax_codes_account_idx" on "better_supabase"."accounting_tax_codes" ("account_id");
+alter table "better_supabase"."accounting_tax_codes" enable row level security;
+revoke all on "better_supabase"."accounting_tax_codes" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_tax_codes" to authenticated;
+grant all on "better_supabase"."accounting_tax_codes" to service_role;
+drop policy if exists accounting_tax_codes_read on "better_supabase"."accounting_tax_codes";
+create policy accounting_tax_codes_read on "better_supabase"."accounting_tax_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_entry_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "entry_id" uuid not null references "better_supabase"."accounting_entries" ("id") on delete cascade,
+  "position" smallint not null default 0,
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- Minor units of the functional currency; a line has one side.
+  "debit" bigint not null default 0 check ("debit" >= 0),
+  "credit" bigint not null default 0 check ("credit" >= 0),
+  -- The transaction currency and its signed amount (positive is a debit).
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount_currency" bigint not null,
+  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "tax_code_id" uuid references "better_supabase"."accounting_tax_codes" ("id") on delete restrict,
+  -- The customer, supplier or employee the line concerns.
+  "party_id" uuid,
+  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "description" text check ("description" is null or length("description") <= 500),
+  check (("debit" = 0) <> ("credit" = 0))
+);
+create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+alter table "better_supabase"."accounting_entry_lines" enable row level security;
+revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_entry_lines" to authenticated;
+grant all on "better_supabase"."accounting_entry_lines" to service_role;
+drop policy if exists accounting_entry_lines_read on "better_supabase"."accounting_entry_lines";
+create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- A posted entry changes only from posted to reversed; its lines never change.
+create or replace function "better_supabase"."accounting_entry_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'DELETE' and current_setting('better_supabase.purge_tenant', true) = to_jsonb(old) ->> tg_argv[0] then
+    if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
+      select 1 from "better_supabase"."organization_deletions" x
+      where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+    ) then
+      return old;
+    end if;
+  end if;
+  if tg_op = 'UPDATE' and old."status" = 'draft' then
+    return new;
+  end if;
+  if tg_op = 'DELETE' and old."status" = 'draft' then
+    return old;
+  end if;
+  if tg_op = 'UPDATE' and old."status" = 'posted' and new."status" = 'reversed'
+    and (to_jsonb(new) - 'status' - 'updated_at')
+      = (to_jsonb(old) - 'status' - 'updated_at') then
+    return new;
+  end if;
+  raise exception 'a posted entry can''t be changed or deleted; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
+create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
+  for each row execute function "better_supabase"."accounting_entry_guard"('tenant_id');
+
+create or replace function "better_supabase"."accounting_entry_line_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_entry uuid := case when tg_op = 'DELETE' then old."entry_id" else new."entry_id" end;
+begin
+  if tg_op = 'DELETE' and current_setting('better_supabase.purge_tenant', true) = to_jsonb(old) ->> tg_argv[0] then
+    if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
+      select 1 from "better_supabase"."organization_deletions" x
+      where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
+        and x."cancelled_at" is null and x."purged_at" is null and x."purge_after" <= now()
+    ) then
+      return old;
+    end if;
+  end if;
+  if exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = v_entry and y."status" <> 'draft')
+    or (tg_op = 'UPDATE' and exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = old."entry_id" and y."status" <> 'draft')) then
+    raise exception 'the lines of a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
+create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
+  for each row execute function "better_supabase"."accounting_entry_line_guard"('tenant_id');
+
+-- Sets up accounting for an organization: its functional currency and the
+-- month its fiscal year starts, then the generic chart, its account roles and the default journals when it has none.
+-- Neither setting changes once entries post or periods exist.
+create or replace function "better_supabase"."setup_accounting"(tenant uuid, functional_currency text default null, fiscal_year_start_month integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_settings"%rowtype;
+  v_currency text := upper(coalesce(nullif(trim(setup_accounting.functional_currency), ''), 'EUR'));
+  v_month integer := coalesce(setup_accounting.fiscal_year_start_month, 1);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', setup_accounting.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  if v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the functional currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  if v_month < 1 or v_month > 12 then
+    raise exception 'the fiscal year starts in a month from 1 to 12' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."accounting_settings" y where y."tenant_id" = setup_accounting.tenant for update;
+  if found then
+    if setup_accounting.functional_currency is not null and v_row."functional_currency" <> v_currency
+      and exists (select 1 from "better_supabase"."accounting_entries" y where y."tenant_id" = setup_accounting.tenant and y."status" <> 'draft') then
+      raise exception 'the functional currency can''t change once entries are posted' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    if setup_accounting.fiscal_year_start_month is not null and v_row."fiscal_year_start_month" <> v_month
+      and exists (select 1 from "better_supabase"."accounting_periods" y where y."tenant_id" = setup_accounting.tenant) then
+      raise exception 'the fiscal year start can''t change once periods exist' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    update "better_supabase"."accounting_settings" y set
+      "functional_currency" = case when setup_accounting.functional_currency is null then y."functional_currency" else v_currency end,
+      "fiscal_year_start_month" = case when setup_accounting.fiscal_year_start_month is null then y."fiscal_year_start_month" else v_month end,
+      "updated_at" = now()
+    where y."tenant_id" = setup_accounting.tenant
+    returning * into v_row;
+  else
+    insert into "better_supabase"."accounting_settings" ("tenant_id", "functional_currency", "fiscal_year_start_month")
+    values (setup_accounting.tenant, v_currency, v_month)
+    returning * into v_row;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+    values
+      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true),
+      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
+      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
+      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true),
+      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false),
+      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false),
+      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false),
+      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false),
+      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false),
+      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false),
+      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false);
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select setup_accounting.tenant, c.role, y."id"
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('cogs', '5000'), ('depreciation_expense', '6800'), ('fx_loss', '6900')) c (role, code)
+    join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
+    on conflict ("tenant_id", "role") do nothing;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select setup_accounting.tenant, c.code, c.name, c.type,
+      (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
+    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+  end if;
+  return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."setup_accounting"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."setup_accounting"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_settings"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('organizationId', x."tenant_id", 'functionalCurrency', x."functional_currency", 'fiscalYearStartMonth', x."fiscal_year_start_month", 'lockDate', x."lock_date", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."accounting_settings" x where x."tenant_id" = get_accounting_settings.tenant
+$$;
+revoke execute on function "better_supabase"."get_accounting_settings"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_settings"(uuid) to authenticated, service_role;
+
+-- Nothing posts on or before the lock date; null unlocks.
+create or replace function "better_supabase"."set_accounting_lock_date"(tenant uuid, lock_date date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_lock_date.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = set_accounting_lock_date.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  update "better_supabase"."accounting_settings" y set "lock_date" = set_accounting_lock_date.lock_date, "updated_at" = now()
+  where y."tenant_id" = set_accounting_lock_date.tenant
+  returning * into v_settings;
+  return jsonb_build_object('organizationId', v_settings."tenant_id", 'functionalCurrency', v_settings."functional_currency", 'fiscalYearStartMonth', v_settings."fiscal_year_start_month", 'lockDate', v_settings."lock_date", 'createdAt', v_settings."created_at", 'updatedAt', v_settings."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) to authenticated, service_role;
+
+-- Creates an account, or changes one (account_id, or the account with the code).
+-- An account with posted lines keeps its type.
+create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+  v_id uuid := save_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+    raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+    raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+    raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_accounts" y
+    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+  end if;
+  if save_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+      raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if v_id is not null and exists (
+      with recursive up (id) as (
+        select save_accounting_account.parent_id
+        union
+        select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
+      )
+      select 1 from up where up.id = v_id
+    ) then
+      raise exception 'an account can''t be its own parent' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+    end if;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable")
+    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
+      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    if not found then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if exists (
+      select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+      where y."account_id" = v_id and z."status" <> 'draft'
+        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+    ) then
+      raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+    end if;
+    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
+      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false), "updated_at" = now()
+    where y."id" = v_id
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) to authenticated, service_role;
+
+-- Archives an account (nothing posts to it), or restores it. An account
+-- mapped to a role, a journal or a tax code stays.
+create or replace function "better_supabase"."archive_accounting_account"(account_id uuid, archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = archive_accounting_account.account_id for update;
+  if not found then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if coalesce(archive_accounting_account.archived, true) and (
+    exists (select 1 from "better_supabase"."accounting_account_roles" y where y."account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_journals" y where y."default_account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_tax_codes" y where y."account_id" = v_row."id" and y."archived_at" is null)
+  ) then
+    raise exception 'the account is mapped to a role, a journal or a tax code' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+  end if;
+  update "better_supabase"."accounting_accounts" y set "archived_at" = case when coalesce(archive_accounting_account.archived, true) then coalesce(y."archived_at", now()) end,
+    "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) to authenticated, service_role;
+
+-- Maps a role (receivable, bank, retained_earnings) to an account; null unmaps it.
+create or replace function "better_supabase"."set_accounting_account_role"(tenant uuid, role text, account_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense') then
+    raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
+  end if;
+  if set_accounting_account_role.account_id is null then
+    delete from "better_supabase"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant and y."role" = set_accounting_account_role.role;
+  else
+    if not exists (
+      select 1 from "better_supabase"."accounting_accounts" y where y."id" = set_accounting_account_role.account_id
+        and y."tenant_id" = set_accounting_account_role.tenant and y."archived_at" is null
+    ) then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    values (set_accounting_account_role.tenant, set_accounting_account_role.role, set_accounting_account_role.account_id)
+    on conflict ("tenant_id", "role") do update set "account_id" = excluded."account_id", "updated_at" = now();
+  end if;
+  return coalesce((
+    select jsonb_object_agg(y."role", y."account_id") from "better_supabase"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant
+  ), '{}'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_accounts"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'subtype', x."subtype", 'parentId', x."parent_id", 'currency', x."currency", 'reconcilable', x."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = x."id"), '[]'::jsonb), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_accounts" x
+  where x."tenant_id" = list_accounting_accounts.tenant
+    and (coalesce(list_accounting_accounts.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
+
+-- Creates a journal, or changes one (journal_id, or the journal with the code).
+create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_journals"%rowtype;
+  v_id uuid := save_accounting_journal.journal_id;
+  v_code text := upper(trim(save_accounting_journal.code));
+  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
+  end if;
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+    raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+    raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
+      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency")
+    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency)
+    returning * into v_row;
+  else
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
+      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    returning * into v_row;
+    if not found then
+      raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'defaultAccountId', x."default_account_id", 'currency', x."currency", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_journals" x
+  where x."tenant_id" = list_accounting_journals.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_journals"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_journals"(uuid) to authenticated, service_role;
+
+-- Creates the twelve monthly periods of a fiscal year, from the start month of
+-- the calendar year fiscal_year. Periods that exist stay as they are.
+create or replace function "better_supabase"."open_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_start date;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_fiscal_year.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if open_fiscal_year.fiscal_year is null or open_fiscal_year.fiscal_year < 1900 or open_fiscal_year.fiscal_year > 9998 then
+    raise exception 'the fiscal year is a calendar year such as 2026' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = open_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  v_start := make_date(open_fiscal_year.fiscal_year, v_settings."fiscal_year_start_month", 1);
+  insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+  select open_fiscal_year.tenant, open_fiscal_year.fiscal_year, n,
+    (v_start + make_interval(months => n - 1))::date,
+    (v_start + make_interval(months => n) - interval '1 day')::date
+  from generate_series(1, 12) n
+  on conflict ("tenant_id", "fiscal_year", "number") do nothing;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'number', y."number", 'startsOn', y."starts_on", 'endsOn', y."ends_on", 'status', y."status", 'closedAt', y."closed_at", 'closedBy', y."closed_by") order by y."number") from "better_supabase"."accounting_periods" y
+    where y."tenant_id" = open_fiscal_year.tenant and y."fiscal_year" = open_fiscal_year.fiscal_year
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."open_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_periods"(tenant uuid, fiscal_year integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'fiscalYear', x."fiscal_year", 'number', x."number", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'status', x."status", 'closedAt', x."closed_at", 'closedBy', x."closed_by") order by x."starts_on"), '[]'::jsonb)
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = list_accounting_periods.tenant
+    and (list_accounting_periods.fiscal_year is null or x."fiscal_year" = list_accounting_periods.fiscal_year)
+$$;
+revoke execute on function "better_supabase"."list_accounting_periods"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
+
+-- Creates or renames a dimension (project, department, cost center) by key.
+create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+    raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  on conflict ("tenant_id", "key") do update set "name" = excluded."name"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+
+-- Adds or renames a value of a dimension by code; archived values take no new lines.
+create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_dimension "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  if not found then
+    raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+    raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
+  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
+    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  on conflict ("dimension_id", "code") do update
+    set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
+  return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = x."id"), '[]'::jsonb), 'createdAt', x."created_at") order by x."key"), '[]'::jsonb)
+  from "better_supabase"."accounting_dimensions" x
+  where x."tenant_id" = list_accounting_dimensions.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_dimensions"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_dimensions"(uuid) to authenticated, service_role;
+
+-- Creates or changes a tax code by code. rate_bps is basis points (2100 is 21%).
+create or replace function "better_supabase"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_tax_codes"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_tax_code.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage tax codes' using errcode = '42501', hint = 'ACCOUNTING_TAX_CODE_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_tax_code.code), '') is null or nullif(trim(save_accounting_tax_code.name), '') is null
+    or save_accounting_tax_code.rate_bps is null or save_accounting_tax_code.rate_bps < 0 or save_accounting_tax_code.rate_bps > 100000
+    or save_accounting_tax_code.kind is null or save_accounting_tax_code.kind not in ('sales', 'purchase') then
+    raise exception 'a tax code needs a code, a name, a rate in basis points and a kind (sales or purchase)' using errcode = '22023', hint = 'ACCOUNTING_TAX_CODE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_tax_code.account_id
+      and y."tenant_id" = save_accounting_tax_code.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."accounting_tax_codes" ("tenant_id", "code", "name", "rate_bps", "kind", "account_id", "report_boxes", "archived_at")
+  values (save_accounting_tax_code.tenant, trim(save_accounting_tax_code.code), trim(save_accounting_tax_code.name), save_accounting_tax_code.rate_bps,
+    save_accounting_tax_code.kind, save_accounting_tax_code.account_id, coalesce(save_accounting_tax_code.report_boxes, '{}'),
+    case when coalesce(save_accounting_tax_code.archived, false) then now() end)
+  on conflict ("tenant_id", "code") do update
+    set "name" = excluded."name", "rate_bps" = excluded."rate_bps", "kind" = excluded."kind",
+      "account_id" = excluded."account_id", "report_boxes" = excluded."report_boxes", "archived_at" = excluded."archived_at",
+      "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'rateBps', v_row."rate_bps", 'kind', v_row."kind", 'accountId', v_row."account_id", 'reportBoxes', to_jsonb(v_row."report_boxes"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'rateBps', x."rate_bps", 'kind', x."kind", 'accountId', x."account_id", 'reportBoxes', to_jsonb(x."report_boxes"), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_tax_codes" x
+  where x."tenant_id" = list_accounting_tax_codes.tenant
+    and (coalesce(list_accounting_tax_codes.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
+
+-- Records what one unit of base costs in quote on a date.
+create or replace function "better_supabase"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(set_accounting_fx_rate.base));
+  v_quote text := upper(trim(set_accounting_fx_rate.quote));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_fx_rate.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage exchange rates' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if coalesce(v_base, '') !~ '^[A-Z]{3}$' or coalesce(v_quote, '') !~ '^[A-Z]{3}$' or v_base = v_quote
+    or set_accounting_fx_rate.on_date is null or coalesce(set_accounting_fx_rate.rate, 0) <= 0 then
+    raise exception 'a rate needs two different ISO 4217 codes, a date and a positive rate' using errcode = '22023', hint = 'ACCOUNTING_FX_RATE_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_fx_rates" ("tenant_id", "base", "quote", "on_date", "rate")
+  values (set_accounting_fx_rate.tenant, v_base, v_quote, set_accounting_fx_rate.on_date, set_accounting_fx_rate.rate)
+  on conflict ("tenant_id", "base", "quote", "on_date") do update set "rate" = excluded."rate";
+  return jsonb_build_object('organizationId', set_accounting_fx_rate.tenant, 'base', v_base, 'quote', v_quote,
+    'onDate', set_accounting_fx_rate.on_date, 'rate', set_accounting_fx_rate.rate::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) from public, anon;
+grant execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) to authenticated, service_role;
+
+-- The rate on the date or the latest before it, or the inverse of the
+-- opposite pair's; ACCOUNTING_FX_RATE_MISSING when neither has one.
+create or replace function "better_supabase"."accounting_fx_rate"(tenant uuid, base text, quote text, on_date date)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(accounting_fx_rate.base));
+  v_quote text := upper(trim(accounting_fx_rate.quote));
+  v_rate numeric;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accounting_fx_rate.tenant, 'accounting.read'), false)) then
+    raise exception 'not allowed to read accounting' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if v_base = v_quote then
+    return 1;
+  end if;
+  select y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+  where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_base and y."quote" = v_quote and y."on_date" <= accounting_fx_rate.on_date
+  order by y."on_date" desc limit 1;
+  if v_rate is null then
+    select 1 / y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+    where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_quote and y."quote" = v_base and y."on_date" <= accounting_fx_rate.on_date
+    order by y."on_date" desc limit 1;
+  end if;
+  if v_rate is null then
+    raise exception 'no exchange rate for the currency pair on or before the date' using errcode = 'P0002', hint = 'ACCOUNTING_FX_RATE_MISSING';
+  end if;
+  return v_rate;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) from public, anon;
+grant execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) to authenticated, service_role;
+
+-- Posts a draft entry: balanced in the functional currency, dated in an open
+-- period after the lock date, with known dimension values; then numbers it per
+-- journal and fiscal year. Called by the posting, reversal and year close
+-- functions; closing skips the period and lock date checks.
+create or replace function "better_supabase"."accounting_post"(entry_id uuid, closing boolean default false)
+returns "better_supabase"."accounting_entries"
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_total numeric;
+  v_credits numeric;
+  v_count integer;
+  v_sequence integer;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = accounting_post.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_row."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(y."debit"), 0), coalesce(sum(y."credit"), 0) into v_count, v_total, v_credits
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  if v_count < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if v_total <> v_credits then
+    raise exception 'the debits and credits of the entry differ in the functional currency' using errcode = '23514', hint = 'ACCOUNTING_ENTRY_UNBALANCED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_accounts" z on z."id" = y."account_id"
+    where y."entry_id" = v_row."id" and z."archived_at" is not null
+  ) then
+    raise exception 'an account of the entry is archived' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y, jsonb_each(y."dimensions") dim
+    where y."entry_id" = v_row."id"
+      and (jsonb_typeof(dim.value) <> 'string' or not exists (
+        select 1 from "better_supabase"."accounting_dimensions" z join "better_supabase"."accounting_dimension_values" w on w."dimension_id" = z."id"
+        where z."tenant_id" = v_row."tenant_id" and z."key" = dim.key
+          and w."code" = dim.value #>> '{}' and w."archived_at" is null
+      ))
+  ) then
+    raise exception 'a line names a dimension or value that doesn''t exist or is archived' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y
+  where y."tenant_id" = v_row."tenant_id" and v_row."entry_date" >= y."starts_on" and v_row."entry_date" <= y."ends_on";
+  if not found then
+    raise exception 'no period covers the entry date; open its fiscal year first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not coalesce(accounting_post.closing, false) and (
+    v_period."status" = 'closed'
+    or (v_settings."lock_date" is not null and v_row."entry_date" <= v_settings."lock_date")
+  ) then
+    raise exception 'the entry date is in a closed period or on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = v_row."journal_id";
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_journal."id"::text || ':' || v_period."fiscal_year"::text, 0));
+  select coalesce(max(y."sequence"), 0) + 1 into v_sequence from "better_supabase"."accounting_entries" y
+  where y."journal_id" = v_journal."id" and y."fiscal_year" = v_period."fiscal_year";
+  update "better_supabase"."accounting_entries" y set "status" = 'posted', "fiscal_year" = v_period."fiscal_year", "sequence" = v_sequence,
+    "number" = v_journal."code" || '-' || v_period."fiscal_year"::text || '-' || lpad(v_sequence::text, 5, '0'),
+    "period_id" = v_period."id", "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('accounting_entry.posted', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'journalId', v_row."journal_id", 'number', v_row."number", 'entryDate', v_row."entry_date", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'total', v_total::text), 'accounting-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/accounting');
+  perform better_supabase.audit_event(
+    event_type => 'accounting_entry.posted',
+    category => 'data',
+    target_type => 'accounting_entry',
+    record_id => v_row."id"::text,
+    target_label => v_row."number",
+    summary => 'posted entry ' || v_row."number",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'journalId', v_row."journal_id", 'number', v_row."number", 'entryDate', v_row."entry_date", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'total', v_total::text)
+  );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) from public, anon, authenticated;
+
+-- Creates a draft entry, or replaces a draft's header and lines (entry_id).
+-- Each line names an account (accountId or accountCode) and a debit or a
+-- credit in minor units of the functional currency. A line in another
+-- currency gives amountCurrency (signed, positive is a debit) and either the
+-- functional amount or an fxRate; without both, the rate on the entry date
+-- converts it.
+drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_line record;
+  v_account "better_supabase"."accounting_accounts"%rowtype;
+  v_currency text;
+  v_debit bigint;
+  v_credit bigint;
+  v_amount bigint;
+  v_rate numeric;
+  v_functional bigint;
+  v_tax uuid;
+  v_party uuid;
+  v_dimensions jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  if not found then
+    raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_journal."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_journal."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if save_accounting_entry.entry_date is null then
+    raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
+    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+    raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if save_accounting_entry.source_type is not null and exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
+      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from save_accounting_entry.entry_id
+  ) then
+    raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
+  end if;
+  if save_accounting_entry.entry_id is null then
+    insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
+    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
+      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    if not found then
+      raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+    end if;
+    if v_row."status" <> 'draft' then
+      raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+    end if;
+    delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
+      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
+      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''),
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+      "updated_at" = now()
+    where y."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+    if jsonb_typeof(v_line.value) is distinct from 'object' then
+      raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_journal."tenant_id";
+    else
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_journal."tenant_id";
+    end if;
+    if v_account."id" is null or v_account."archived_at" is not null then
+      raise exception 'a line''s account doesn''t exist here or is archived' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if coalesce(v_line.value ->> 'debit', '0') !~ '^[0-9]{1,18}$' or coalesce(v_line.value ->> 'credit', '0') !~ '^[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'amountCurrency', '0') !~ '^-?[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'fxRate', '1') !~ '^[0-9]+(\.[0-9]+)?$' then
+      raise exception 'debit and credit are non-negative integers, amountCurrency an integer and fxRate a positive decimal' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_debit := coalesce((v_line.value ->> 'debit')::bigint, 0);
+    v_credit := coalesce((v_line.value ->> 'credit')::bigint, 0);
+    v_currency := upper(coalesce(nullif(v_line.value ->> 'currency', ''), v_settings."functional_currency"));
+    if v_currency !~ '^[A-Z]{3}$' then
+      raise exception 'a line''s currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if v_account."currency" is not null and v_account."currency" <> v_currency then
+      raise exception 'the account takes lines in its own currency only' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_rate := null;
+    if v_currency = v_settings."functional_currency" then
+      v_amount := v_debit - v_credit;
+    else
+      v_amount := (v_line.value ->> 'amountCurrency')::bigint;
+      if v_amount is null or v_amount = 0 then
+        raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
+        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+      if v_rate <= 0 then
+        raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      if v_debit = 0 and v_credit = 0 then
+        v_functional := round(abs(v_amount) * v_rate)::bigint;
+        if v_amount > 0 then
+          v_debit := v_functional;
+        else
+          v_credit := v_functional;
+        end if;
+      elsif (v_amount > 0) <> (v_debit > 0) then
+        raise exception 'amountCurrency and the functional amount must be on the same side' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+    end if;
+    if (v_debit = 0) = (v_credit = 0) then
+      raise exception 'every line has either a debit or a credit' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_tax := null;
+    if v_line.value ->> 'taxCodeId' is not null then
+      select y."id" into v_tax from "better_supabase"."accounting_tax_codes" y
+      where y."id"::text = v_line.value ->> 'taxCodeId' and y."tenant_id" = v_journal."tenant_id";
+      if v_tax is null then
+        raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
+      end if;
+    end if;
+    if coalesce(v_line.value ->> 'partyId', '00000000-0000-0000-0000-000000000000') !~ '^[0-9a-fA-F-]{36}$' then
+      raise exception 'partyId must be a uuid' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_party := (v_line.value ->> 'partyId')::uuid;
+    v_dimensions := coalesce(v_line.value -> 'dimensions', '{}'::jsonb);
+    if jsonb_typeof(v_dimensions) = 'null' then
+      v_dimensions := '{}'::jsonb;
+    end if;
+    if jsonb_typeof(v_dimensions) <> 'object' then
+      raise exception 'a line''s dimensions are an object of dimension keys to value codes' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+    end if;
+    insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+      "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+    values (v_journal."tenant_id", v_row."id", v_line.ordinality, v_account."id", v_debit, v_credit, v_currency,
+      v_amount, v_rate, v_tax, v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
+  end loop;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = post_accounting_entry.entry_id;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  v_row := "better_supabase"."accounting_post"(v_row."id");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."post_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Reverses a posted entry with a new entry of opposite lines, dated
+-- entry_date (default the original's date), and marks the original reversed.
+create or replace function "better_supabase"."reverse_accounting_entry"(entry_id uuid, entry_date date default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_reversal "better_supabase"."accounting_entries"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = reverse_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" = 'reversed' then
+    raise exception 'the entry is already reversed' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_REVERSED';
+  end if;
+  if v_row."status" <> 'posted' then
+    raise exception 'only a posted entry can be reversed; delete a draft instead' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "reverses_id", "memo", "created_by")
+  values (v_row."tenant_id", v_row."journal_id", coalesce(reverse_accounting_entry.entry_date, v_row."entry_date"), v_row."number",
+    v_row."id", 'Reversal of ' || v_row."number", auth.uid())
+  returning * into v_reversal;
+  insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+    "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+  select y."tenant_id", v_reversal."id", y."position", y."account_id", y."credit", y."debit", y."currency",
+    -y."amount_currency", y."fx_rate", y."tax_code_id", y."party_id", y."dimensions", y."description"
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  v_reversal := "better_supabase"."accounting_post"(v_reversal."id");
+  update "better_supabase"."accounting_entries" y set "status" = 'reversed', "updated_at" = now() where y."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('accounting_entry.reversed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'journalId', v_row."journal_id", 'number', v_row."number", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversalId', v_reversal."id"), 'accounting-entries/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/accounting');
+  perform better_supabase.audit_event(
+    event_type => 'accounting_entry.reversed',
+    category => 'data',
+    target_type => 'accounting_entry',
+    record_id => v_row."id"::text,
+    target_label => v_row."number",
+    summary => 'reversed entry ' || v_row."number" || ' with ' || v_reversal."number",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'journalId', v_row."journal_id", 'number', v_row."number", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversalId', v_reversal."id")
+  );
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object('id', v_reversal."id", 'organizationId', v_reversal."tenant_id", 'journalId', v_reversal."journal_id", 'number', v_reversal."number", 'fiscalYear', v_reversal."fiscal_year", 'entryDate', v_reversal."entry_date", 'periodId', v_reversal."period_id", 'status', v_reversal."status", 'reference', v_reversal."reference", 'sourceType', v_reversal."source_type", 'sourceId', v_reversal."source_id", 'reversesId', v_reversal."reverses_id", 'memo', v_reversal."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_reversal."id"), 0)::text, 'postedAt', v_reversal."posted_at", 'postedBy', v_reversal."posted_by", 'createdBy', v_reversal."created_by", 'createdAt', v_reversal."created_at", 'updatedAt', v_reversal."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_reversal."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_json jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = delete_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  v_json := jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+  delete from "better_supabase"."accounting_entries" y where y."id" = v_row."id";
+  return v_json;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = x."id"), '[]'::jsonb)) from "better_supabase"."accounting_entries" x where x."id" = get_accounting_entry.entry_id
+$$;
+revoke execute on function "better_supabase"."get_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Entries, the newest first, without their lines.
+create or replace function "better_supabase"."list_accounting_entries"(tenant uuid, journal_id uuid default null, status text default null, since date default null, until date default null, page_size integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.entry order by z.entry_date desc, z.created_at desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as entry, x."entry_date" as entry_date, x."created_at" as created_at
+    from "better_supabase"."accounting_entries" x
+    where x."tenant_id" = list_accounting_entries.tenant
+      and (list_accounting_entries.journal_id is null or x."journal_id" = list_accounting_entries.journal_id)
+      and (list_accounting_entries.status is null or x."status" = list_accounting_entries.status)
+      and (list_accounting_entries.since is null or x."entry_date" >= list_accounting_entries.since)
+      and (list_accounting_entries.until is null or x."entry_date" <= list_accounting_entries.until)
+    order by x."entry_date" desc, x."created_at" desc
+    limit least(greatest(coalesce(list_accounting_entries.page_size, 50), 1), 500)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) to authenticated, service_role;
+
+-- What keeps a period from closing: draft entries dated in it.
+create or replace function "better_supabase"."accounting_period_close_blockers"(period_id uuid)
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(array_remove(array[
+    case when exists (
+      select 1 from "better_supabase"."accounting_entries" y
+      where y."tenant_id" = x."tenant_id" and y."status" = 'draft'
+        and y."entry_date" >= x."starts_on" and y."entry_date" <= x."ends_on"
+    ) then 'draft_entries' end
+  ], null), '{}'::text[])
+  from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id
+$$;
+revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
+grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
+
+-- Closes a period: nothing posts into it until it reopens. Closing a closed
+-- period returns it unchanged.
+create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_blockers text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = close_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if v_period."status" = 'closed' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(v_period."id");
+  if cardinality(v_blockers) > 0 then
+    raise exception 'the period can''t close yet: %', array_to_string(v_blockers, ', ') using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    perform "better_supabase".emit_event('accounting_period.closed', jsonb_build_object('organizationId', v_period."tenant_id", 'id', v_period."id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on"), 'accounting-periods/' || v_period."id"::text, (v_period."tenant_id")::text, null, 'better-supabase/accounting');
+  perform better_supabase.audit_event(
+    event_type => 'accounting_period.closed',
+    category => 'data',
+    target_type => 'accounting_period',
+    record_id => v_period."id"::text,
+    target_label => v_period."fiscal_year"::text || '-' || lpad(v_period."number"::text, 2, '0'),
+    summary => 'closed period ' || v_period."fiscal_year"::text || '-' || lpad(v_period."number"::text, 2, '0'),
+    tenant => (v_period."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_period."tenant_id", 'id', v_period."id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on")
+  );
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
+
+-- Reopens a closed period with a reason. A period on or before the lock date
+-- stays closed; move the lock date first.
+create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = reopen_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to reopen accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if nullif(trim(reopen_accounting_period.reason), '') is null then
+    raise exception 'reopening a period needs a reason' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  if v_period."status" = 'open' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_period."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if v_settings."lock_date" is not null and v_period."starts_on" <= v_settings."lock_date" then
+    raise exception 'the period is on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'open', "closed_at" = null, "closed_by" = null
+  where y."id" = v_period."id"
+  returning * into v_period;
+  perform "better_supabase".emit_event('accounting_period.reopened', jsonb_build_object('organizationId', v_period."tenant_id", 'id', v_period."id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'reason', trim(reopen_accounting_period.reason)), 'accounting-periods/' || v_period."id"::text, (v_period."tenant_id")::text, null, 'better-supabase/accounting');
+  perform better_supabase.audit_event(
+    event_type => 'accounting_period.reopened',
+    category => 'data',
+    target_type => 'accounting_period',
+    record_id => v_period."id"::text,
+    target_label => v_period."fiscal_year"::text || '-' || lpad(v_period."number"::text, 2, '0'),
+    summary => 'reopened period ' || v_period."fiscal_year"::text || '-' || lpad(v_period."number"::text, 2, '0'),
+    tenant => (v_period."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_period."tenant_id", 'id', v_period."id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'reason', trim(reopen_accounting_period.reason))
+  );
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."reopen_accounting_period"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."reopen_accounting_period"(uuid, text) to authenticated, service_role;
+
+-- Closes a fiscal year: one closing entry in the first general journal moves
+-- every income and expense balance to the retained earnings account, then
+-- every period of the year closes. Reverse the closing entry to redo it.
+create or replace function "better_supabase"."close_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_starts date;
+  v_ends date;
+  v_open integer;
+  v_retained uuid;
+  v_journal uuid;
+  v_entry "better_supabase"."accounting_entries"%rowtype;
+  v_net numeric;
+  v_count integer;
+  v_closing uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_fiscal_year.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close fiscal years' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = close_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select min(y."starts_on"), max(y."ends_on"), count(*) filter (where y."status" = 'open')
+  into v_starts, v_ends, v_open
+  from "better_supabase"."accounting_periods" y where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year;
+  if v_starts is null then
+    raise exception 'the fiscal year has no periods; open it first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(close_fiscal_year.tenant::text || ':fiscal_year:' || close_fiscal_year.fiscal_year::text, 0));
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
+      and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
+  ) then
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."status" = 'draft'
+      and y."entry_date" >= v_starts and y."entry_date" <= v_ends
+  ) then
+    raise exception 'the fiscal year can''t close yet: draft_entries' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  select y."account_id" into v_retained from "better_supabase"."accounting_account_roles" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."role" = 'retained_earnings';
+  if v_retained is null then
+    raise exception 'no account has the retained_earnings role' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_ROLE_MISSING';
+  end if;
+  select y."id" into v_journal from "better_supabase"."accounting_journals" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."type" = 'general'
+  order by y."code" limit 1;
+  if v_journal is null then
+    raise exception 'the year-end close needs a general journal' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(c.net), 0) into v_count, v_net from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c;
+  if v_count > 0 then
+    insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "source_type", "source_id", "memo", "created_by")
+    values (close_fiscal_year.tenant, v_journal, v_ends, 'fiscal_year', close_fiscal_year.fiscal_year::text,
+      'Closing of fiscal year ' || close_fiscal_year.fiscal_year::text, auth.uid())
+    returning * into v_entry;
+    insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+    select close_fiscal_year.tenant, v_entry."id", (row_number() over (order by w."code"))::smallint, c.account,
+      greatest(-c.net, 0)::bigint, greatest(c.net, 0)::bigint, v_settings."functional_currency", (-c.net)::bigint
+    from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c join "better_supabase"."accounting_accounts" w on w."id" = c.account;
+    if v_net <> 0 then
+      insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+      values (close_fiscal_year.tenant, v_entry."id", 32767, v_retained,
+        greatest(v_net, 0)::bigint, greatest(-v_net, 0)::bigint, v_settings."functional_currency", v_net::bigint);
+    end if;
+    v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
+    v_closing := v_entry."id";
+  elsif v_open = 0 then
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  for v_period in
+    select * from "better_supabase"."accounting_periods" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year and y."status" = 'open'
+    order by y."number"
+    for update
+  loop
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    perform "better_supabase".emit_event('accounting_period.closed', jsonb_build_object('organizationId', v_period."tenant_id", 'id', v_period."id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on"), 'accounting-periods/' || v_period."id"::text, (v_period."tenant_id")::text, null, 'better-supabase/accounting');
+  perform better_supabase.audit_event(
+    event_type => 'accounting_period.closed',
+    category => 'data',
+    target_type => 'accounting_period',
+    record_id => v_period."id"::text,
+    target_label => v_period."fiscal_year"::text || '-' || lpad(v_period."number"::text, 2, '0'),
+    summary => 'closed period ' || v_period."fiscal_year"::text || '-' || lpad(v_period."number"::text, 2, '0'),
+    tenant => (v_period."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_period."tenant_id", 'id', v_period."id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on")
+  );
+  end loop;
+  perform "better_supabase".emit_event('fiscal_year.closed', jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing), 'fiscal-years/' || close_fiscal_year.tenant::text || '/' || close_fiscal_year.fiscal_year::text, (close_fiscal_year.tenant)::text, null, 'better-supabase/accounting');
+  perform better_supabase.audit_event(
+    event_type => 'fiscal_year.closed',
+    category => 'data',
+    target_type => 'fiscal_year',
+    record_id => close_fiscal_year.fiscal_year::text,
+    target_label => close_fiscal_year.fiscal_year::text,
+    summary => 'closed fiscal year ' || close_fiscal_year.fiscal_year::text,
+    tenant => (close_fiscal_year.tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing)
+  );
+  return jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing);
+end;
+$$;
+revoke execute on function "better_supabase"."close_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."close_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+-- Per account: the balance before since, the debits and credits from since
+-- through until, and the closing balance; debit balances are positive. Lines
+-- match when their dimensions contain the dimensions filter.
+create or replace function "better_supabase"."accounting_trial_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account,
+      sum(case when z."entry_date" < accounting_trial_balance.since then y."debit" - y."credit" else 0 end) as opening,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."debit" else 0 end) as debit,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."credit" else 0 end) as credit
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_trial_balance.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_trial_balance.dimensions, '{}'::jsonb)
+      and (accounting_trial_balance.until is null or z."entry_date" <= accounting_trial_balance.until)
+    group by y."account_id"
+  )
+  select jsonb_build_object(
+    'accounts', coalesce(jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type",
+      'opening', c.opening::text, 'debit', c.debit::text, 'credit', c.credit::text, 'closing', (c.opening + c.debit - c.credit)::text) order by w."code"), '[]'::jsonb),
+    'totals', jsonb_build_object('opening', coalesce(sum(c.opening), 0)::text, 'debit', coalesce(sum(c.debit), 0)::text, 'credit', coalesce(sum(c.credit), 0)::text,
+      'closing', coalesce(sum(c.opening + c.debit - c.credit), 0)::text)
+  )
+  from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+$$;
+revoke execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Income and expenses from since through until, without year-end closing
+-- entries. Income counts credits, expenses debits.
+create or replace function "better_supabase"."accounting_profit_and_loss"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."credit") - sum(y."debit") as credit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_profit_and_loss.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_profit_and_loss.dimensions, '{}'::jsonb)
+      and z."source_type" is distinct from 'fiscal_year'
+      and (accounting_profit_and_loss.since is null or z."entry_date" >= accounting_profit_and_loss.since)
+      and (accounting_profit_and_loss.until is null or z."entry_date" <= accounting_profit_and_loss.until)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.credit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where w."type" in ('income', 'expense') and c.credit_balance <> 0
+  )
+  select jsonb_build_object(
+    'income', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.credit_balance)::text) order by w."code") from kept w where w."type" = 'income'), '[]'::jsonb),
+    'expenses', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.credit_balance)::text) order by w."code") from kept w where w."type" = 'expense'), '[]'::jsonb),
+    'totalIncome', coalesce((select sum(w.credit_balance) from kept w where w."type" = 'income'), 0)::text,
+    'totalExpenses', coalesce((select -sum(w.credit_balance) from kept w where w."type" = 'expense'), 0)::text,
+    'netIncome', coalesce((select sum(w.credit_balance) from kept w), 0)::text
+  )
+$$;
+revoke execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Assets, liabilities and equity on as_of. Income and expenses not yet
+-- closed into retained earnings count as current earnings under equity.
+create or replace function "better_supabase"."accounting_balance_sheet"(tenant uuid, as_of date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."debit") - sum(y."credit") as debit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_balance_sheet.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_balance_sheet.dimensions, '{}'::jsonb)
+      and z."entry_date" <= coalesce(accounting_balance_sheet.as_of, current_date)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.debit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where c.debit_balance <> 0
+  ),
+  totals as (
+    select
+      coalesce(sum(w.debit_balance) filter (where w."type" = 'asset'), 0) as assets,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'liability'), 0) as liabilities,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'equity'), 0) as equity,
+      coalesce(-sum(w.debit_balance) filter (where w."type" in ('income', 'expense')), 0) as earnings
+    from kept w
+  )
+  select jsonb_build_object(
+    'asOf', coalesce(accounting_balance_sheet.as_of, current_date),
+    'assets', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.debit_balance)::text) order by w."code") from kept w where w."type" = 'asset'), '[]'::jsonb),
+    'liabilities', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'liability'), '[]'::jsonb),
+    'equity', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'equity'), '[]'::jsonb),
+    'currentEarnings', t.earnings::text,
+    'totalAssets', t.assets::text,
+    'totalLiabilities', t.liabilities::text,
+    'totalEquity', (t.equity + t.earnings)::text,
+    'balanced', t.assets = t.liabilities + t.equity + t.earnings
+  )
+  from totals t
+$$;
+revoke execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) to authenticated, service_role;
+
+-- One account's posted lines from since through until with a running
+-- balance; debit balances are positive.
+create or replace function "better_supabase"."accounting_general_ledger"(account_id uuid, since date default null, until date default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with account as (
+    select w.* from "better_supabase"."accounting_accounts" w where w."id" = accounting_general_ledger.account_id
+  ),
+  booked as (
+    select y.*, z."entry_date" as entry_date, z."number" as entry_number, z."journal_id" as journal_id, z."memo" as memo
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where y."account_id" = accounting_general_ledger.account_id and z."status" in ('posted', 'reversed')
+      and (accounting_general_ledger.until is null or z."entry_date" <= accounting_general_ledger.until)
+  ),
+  opening as (
+    select coalesce(sum(b."debit" - b."credit"), 0) as amount from booked b
+    where b.entry_date < accounting_general_ledger.since
+  ),
+  period as (
+    select b.*, (select o.amount from opening o) + sum(b."debit" - b."credit") over (order by b.entry_date, b.entry_number, b."position", b."id") as balance
+    from booked b
+    where accounting_general_ledger.since is null or b.entry_date >= accounting_general_ledger.since
+  )
+  select jsonb_build_object(
+    'account', jsonb_build_object('id', w."id", 'code', w."code", 'name', w."name", 'type', w."type"),
+    'opening', (select o.amount from opening o)::text,
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('entryId', b."entry_id", 'number', b.entry_number, 'entryDate', b.entry_date, 'journalId', b.journal_id,
+      'description', coalesce(b."description", b.memo), 'partyId', b."party_id", 'debit', b."debit"::text, 'credit', b."credit"::text, 'balance', b.balance::text)
+      order by b.entry_date, b.entry_number, b."position", b."id") from period b), '[]'::jsonb),
+    'closing', ((select o.amount from opening o) + coalesce((select sum(b."debit" - b."credit") from period b), 0))::text
+  )
+  from account w
+$$;
+revoke execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) from public, anon;
+grant execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from public, anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block-data accounting
+-- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('accounting', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block accounting@1 managed
+-- @bsb-hash sha256:2993a29392de718234b2c64dde35e82fe243b69b4ae3f08a91a879eb31d19518
+-- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_settings";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_accounts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_account_roles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_journals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_periods";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_entry_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_dimensions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_dimension_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_fx_rates";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_tax_codes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+create schema if not exists "app_private";
+grant usage on schema "app_private" to anon, authenticated, service_role;
+alter default privileges in schema "app_private" revoke all on tables from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on sequences from public, anon, authenticated;
+alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
+-- Accounting: a chart of accounts with roles, journals, fiscal periods, and
+-- balanced journal entries in minor units of the organization's functional
+-- currency, with dimensions, exchange rates, tax codes, reports and the
+-- period and year-end close.
+
+create table if not exists "app_private"."accounting_settings" (
+  "tenant_id" uuid primary key,
+  -- Every debit and credit is in minor units of this currency.
+  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  -- Nothing posts on or before this date, whatever the period's status.
+  "lock_date" date,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "app_private"."accounting_settings" enable row level security;
+revoke all on "app_private"."accounting_settings" from public, anon, authenticated;
+grant select on "app_private"."accounting_settings" to authenticated;
+grant all on "app_private"."accounting_settings" to service_role;
+drop policy if exists accounting_settings_read on "app_private"."accounting_settings";
+create policy accounting_settings_read on "app_private"."accounting_settings"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_accounts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "subtype" text,
+  "parent_id" uuid references "app_private"."accounting_accounts" ("id") on delete restrict,
+  -- Lines on the account must be in this currency; null takes any.
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "reconcilable" boolean not null default false,
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_accounts_parent_idx" on "app_private"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+alter table "app_private"."accounting_accounts" enable row level security;
+revoke all on "app_private"."accounting_accounts" from public, anon, authenticated;
+grant select on "app_private"."accounting_accounts" to authenticated;
+grant all on "app_private"."accounting_accounts" to service_role;
+drop policy if exists accounting_accounts_read on "app_private"."accounting_accounts";
+create policy accounting_accounts_read on "app_private"."accounting_accounts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_account_roles" (
+  "tenant_id" uuid not null,
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense')),
+  "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
+  "updated_at" timestamptz not null default now(),
+  primary key ("tenant_id", "role")
+);
+create index if not exists "accounting_account_roles_account_idx" on "app_private"."accounting_account_roles" ("account_id");
+alter table "app_private"."accounting_account_roles" enable row level security;
+revoke all on "app_private"."accounting_account_roles" from public, anon, authenticated;
+grant select on "app_private"."accounting_account_roles" to authenticated;
+grant all on "app_private"."accounting_account_roles" to service_role;
+drop policy if exists accounting_account_roles_read on "app_private"."accounting_account_roles";
+create policy accounting_account_roles_read on "app_private"."accounting_account_roles"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_journals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  -- The bank or cash account a bank or cash journal posts against.
+  "default_account_id" uuid references "app_private"."accounting_accounts" ("id") on delete restrict,
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_journals_account_idx" on "app_private"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+alter table "app_private"."accounting_journals" enable row level security;
+revoke all on "app_private"."accounting_journals" from public, anon, authenticated;
+grant select on "app_private"."accounting_journals" to authenticated;
+grant all on "app_private"."accounting_journals" to service_role;
+drop policy if exists accounting_journals_read on "app_private"."accounting_journals";
+create policy accounting_journals_read on "app_private"."accounting_journals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_periods" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  -- The calendar year the fiscal year starts in.
+  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "status" text not null default 'open' check ("status" in ('open', 'closed')),
+  "closed_at" timestamptz,
+  "closed_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "fiscal_year", "number")
+);
+create index if not exists "accounting_periods_dates_idx" on "app_private"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+alter table "app_private"."accounting_periods" enable row level security;
+revoke all on "app_private"."accounting_periods" from public, anon, authenticated;
+grant select on "app_private"."accounting_periods" to authenticated;
+grant all on "app_private"."accounting_periods" to service_role;
+drop policy if exists accounting_periods_read on "app_private"."accounting_periods";
+create policy accounting_periods_read on "app_private"."accounting_periods"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_entries" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "journal_id" uuid not null references "app_private"."accounting_journals" ("id") on delete restrict,
+  "fiscal_year" integer,
+  -- The entry's place in its journal and fiscal year, set when it posts.
+  "sequence" integer,
+  "number" text,
+  "entry_date" date not null,
+  "period_id" uuid references "app_private"."accounting_periods" ("id") on delete restrict,
+  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text check ("reference" is null or length("reference") <= 200),
+  -- The document the entry books, such as invoice and its id.
+  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_id" text,
+  "reverses_id" uuid references "app_private"."accounting_entries" ("id") on delete restrict,
+  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "posted_at" timestamptz,
+  "posted_by" uuid,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("source_type" is null) = ("source_id" is null)),
+  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+);
+create unique index if not exists "accounting_entries_number_idx" on "app_private"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+-- A document books once: a second entry for it waits until the first is reversed.
+create unique index if not exists "accounting_entries_source_idx" on "app_private"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index if not exists "accounting_entries_reverses_idx" on "app_private"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index if not exists "accounting_entries_date_idx" on "app_private"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index if not exists "accounting_entries_period_idx" on "app_private"."accounting_entries" ("period_id", "status");
+alter table "app_private"."accounting_entries" enable row level security;
+revoke all on "app_private"."accounting_entries" from public, anon, authenticated;
+grant select on "app_private"."accounting_entries" to authenticated;
+grant all on "app_private"."accounting_entries" to service_role;
+drop policy if exists accounting_entries_read on "app_private"."accounting_entries";
+create policy accounting_entries_read on "app_private"."accounting_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_dimensions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  -- The key lines use in their dimensions object, such as project or department.
+  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "key")
+);
+alter table "app_private"."accounting_dimensions" enable row level security;
+revoke all on "app_private"."accounting_dimensions" from public, anon, authenticated;
+grant select on "app_private"."accounting_dimensions" to authenticated;
+grant all on "app_private"."accounting_dimensions" to service_role;
+drop policy if exists accounting_dimensions_read on "app_private"."accounting_dimensions";
+create policy accounting_dimensions_read on "app_private"."accounting_dimensions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_dimension_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "dimension_id" uuid not null references "app_private"."accounting_dimensions" ("id") on delete cascade,
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "archived_at" timestamptz,
+  unique ("dimension_id", "code")
+);
+alter table "app_private"."accounting_dimension_values" enable row level security;
+revoke all on "app_private"."accounting_dimension_values" from public, anon, authenticated;
+grant select on "app_private"."accounting_dimension_values" to authenticated;
+grant all on "app_private"."accounting_dimension_values" to service_role;
+drop policy if exists accounting_dimension_values_read on "app_private"."accounting_dimension_values";
+create policy accounting_dimension_values_read on "app_private"."accounting_dimension_values"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_fx_rates" (
+  "tenant_id" uuid not null,
+  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "on_date" date not null,
+  -- One unit of base costs rate units of quote.
+  "rate" numeric not null check ("rate" > 0),
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "base", "quote", "on_date"),
+  check ("base" <> "quote")
+);
+alter table "app_private"."accounting_fx_rates" enable row level security;
+revoke all on "app_private"."accounting_fx_rates" from public, anon, authenticated;
+grant select on "app_private"."accounting_fx_rates" to authenticated;
+grant all on "app_private"."accounting_fx_rates" to service_role;
+drop policy if exists accounting_fx_rates_read on "app_private"."accounting_fx_rates";
+create policy accounting_fx_rates_read on "app_private"."accounting_fx_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_tax_codes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  -- Basis points: 2100 is 21%.
+  "rate_bps" integer not null check ("rate_bps" >= 0 and "rate_bps" <= 100000),
+  "kind" text not null check ("kind" in ('sales', 'purchase')),
+  "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
+  -- The boxes of a tax return the tax and its base count toward.
+  "report_boxes" text[] not null default '{}',
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_tax_codes_account_idx" on "app_private"."accounting_tax_codes" ("account_id");
+alter table "app_private"."accounting_tax_codes" enable row level security;
+revoke all on "app_private"."accounting_tax_codes" from public, anon, authenticated;
+grant select on "app_private"."accounting_tax_codes" to authenticated;
+grant all on "app_private"."accounting_tax_codes" to service_role;
+drop policy if exists accounting_tax_codes_read on "app_private"."accounting_tax_codes";
+create policy accounting_tax_codes_read on "app_private"."accounting_tax_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "app_private"."accounting_entry_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "entry_id" uuid not null references "app_private"."accounting_entries" ("id") on delete cascade,
+  "position" smallint not null default 0,
+  "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
+  -- Minor units of the functional currency; a line has one side.
+  "debit" bigint not null default 0 check ("debit" >= 0),
+  "credit" bigint not null default 0 check ("credit" >= 0),
+  -- The transaction currency and its signed amount (positive is a debit).
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount_currency" bigint not null,
+  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "tax_code_id" uuid references "app_private"."accounting_tax_codes" ("id") on delete restrict,
+  -- The customer, supplier or employee the line concerns.
+  "party_id" uuid,
+  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "description" text check ("description" is null or length("description") <= 500),
+  check (("debit" = 0) <> ("credit" = 0))
+);
+create index if not exists "accounting_entry_lines_entry_idx" on "app_private"."accounting_entry_lines" ("entry_id", "position");
+create index if not exists "accounting_entry_lines_account_idx" on "app_private"."accounting_entry_lines" ("account_id");
+create index if not exists "accounting_entry_lines_party_idx" on "app_private"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index if not exists "accounting_entry_lines_tax_idx" on "app_private"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+alter table "app_private"."accounting_entry_lines" enable row level security;
+revoke all on "app_private"."accounting_entry_lines" from public, anon, authenticated;
+grant select on "app_private"."accounting_entry_lines" to authenticated;
+grant all on "app_private"."accounting_entry_lines" to service_role;
+drop policy if exists accounting_entry_lines_read on "app_private"."accounting_entry_lines";
+create policy accounting_entry_lines_read on "app_private"."accounting_entry_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- A posted entry changes only from posted to reversed; its lines never change.
+create or replace function "app_private"."accounting_entry_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and old."status" = 'draft' then
+    return new;
+  end if;
+  if tg_op = 'DELETE' and old."status" = 'draft' then
+    return old;
+  end if;
+  if tg_op = 'UPDATE' and old."status" = 'posted' and new."status" = 'reversed'
+    and (to_jsonb(new) - 'status' - 'updated_at')
+      = (to_jsonb(old) - 'status' - 'updated_at') then
+    return new;
+  end if;
+  raise exception 'a posted entry can''t be changed or deleted; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+end;
+$$;
+revoke execute on function "app_private"."accounting_entry_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entries_guard" on "app_private"."accounting_entries";
+create trigger "bsb_accounting_entries_guard" before update or delete on "app_private"."accounting_entries"
+  for each row execute function "app_private"."accounting_entry_guard"('tenant_id');
+
+create or replace function "app_private"."accounting_entry_line_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_entry uuid := case when tg_op = 'DELETE' then old."entry_id" else new."entry_id" end;
+begin
+  if exists (select 1 from "app_private"."accounting_entries" y where y."id" = v_entry and y."status" <> 'draft')
+    or (tg_op = 'UPDATE' and exists (select 1 from "app_private"."accounting_entries" y where y."id" = old."entry_id" and y."status" <> 'draft')) then
+    raise exception 'the lines of a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+revoke execute on function "app_private"."accounting_entry_line_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entry_lines_guard" on "app_private"."accounting_entry_lines";
+create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "app_private"."accounting_entry_lines"
+  for each row execute function "app_private"."accounting_entry_line_guard"('tenant_id');
+
+-- Sets up accounting for an organization: its functional currency and the
+-- month its fiscal year starts, then the generic chart, its account roles and the default journals when it has none.
+-- Neither setting changes once entries post or periods exist.
+create or replace function "app_private"."setup_accounting"(tenant uuid, functional_currency text default null, fiscal_year_start_month integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_settings"%rowtype;
+  v_currency text := upper(coalesce(nullif(trim(setup_accounting.functional_currency), ''), 'EUR'));
+  v_month integer := coalesce(setup_accounting.fiscal_year_start_month, 1);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', setup_accounting.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  if v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the functional currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  if v_month < 1 or v_month > 12 then
+    raise exception 'the fiscal year starts in a month from 1 to 12' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  select * into v_row from "app_private"."accounting_settings" y where y."tenant_id" = setup_accounting.tenant for update;
+  if found then
+    if setup_accounting.functional_currency is not null and v_row."functional_currency" <> v_currency
+      and exists (select 1 from "app_private"."accounting_entries" y where y."tenant_id" = setup_accounting.tenant and y."status" <> 'draft') then
+      raise exception 'the functional currency can''t change once entries are posted' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    if setup_accounting.fiscal_year_start_month is not null and v_row."fiscal_year_start_month" <> v_month
+      and exists (select 1 from "app_private"."accounting_periods" y where y."tenant_id" = setup_accounting.tenant) then
+      raise exception 'the fiscal year start can''t change once periods exist' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    update "app_private"."accounting_settings" y set
+      "functional_currency" = case when setup_accounting.functional_currency is null then y."functional_currency" else v_currency end,
+      "fiscal_year_start_month" = case when setup_accounting.fiscal_year_start_month is null then y."fiscal_year_start_month" else v_month end,
+      "updated_at" = now()
+    where y."tenant_id" = setup_accounting.tenant
+    returning * into v_row;
+  else
+    insert into "app_private"."accounting_settings" ("tenant_id", "functional_currency", "fiscal_year_start_month")
+    values (setup_accounting.tenant, v_currency, v_month)
+    returning * into v_row;
+  end if;
+  if not exists (select 1 from "app_private"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+    values
+      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true),
+      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
+      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
+      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true),
+      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false),
+      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false),
+      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false),
+      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false),
+      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false),
+      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false),
+      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false);
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select setup_accounting.tenant, c.role, y."id"
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('cogs', '5000'), ('depreciation_expense', '6800'), ('fx_loss', '6900')) c (role, code)
+    join "app_private"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
+    on conflict ("tenant_id", "role") do nothing;
+  end if;
+  if not exists (select 1 from "app_private"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select setup_accounting.tenant, c.code, c.name, c.type,
+      (select y."id" from "app_private"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
+    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+  end if;
+  return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."setup_accounting"(uuid, text, integer) from public, anon;
+grant execute on function "app_private"."setup_accounting"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "app_private"."get_accounting_settings"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('organizationId', x."tenant_id", 'functionalCurrency', x."functional_currency", 'fiscalYearStartMonth', x."fiscal_year_start_month", 'lockDate', x."lock_date", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "app_private"."accounting_settings" x where x."tenant_id" = get_accounting_settings.tenant
+$$;
+revoke execute on function "app_private"."get_accounting_settings"(uuid) from public, anon;
+grant execute on function "app_private"."get_accounting_settings"(uuid) to authenticated, service_role;
+
+-- Nothing posts on or before the lock date; null unlocks.
+create or replace function "app_private"."set_accounting_lock_date"(tenant uuid, lock_date date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "app_private"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_lock_date.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  select * into v_settings from "app_private"."accounting_settings" st where st."tenant_id" = set_accounting_lock_date.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  update "app_private"."accounting_settings" y set "lock_date" = set_accounting_lock_date.lock_date, "updated_at" = now()
+  where y."tenant_id" = set_accounting_lock_date.tenant
+  returning * into v_settings;
+  return jsonb_build_object('organizationId', v_settings."tenant_id", 'functionalCurrency', v_settings."functional_currency", 'fiscalYearStartMonth', v_settings."fiscal_year_start_month", 'lockDate', v_settings."lock_date", 'createdAt', v_settings."created_at", 'updatedAt', v_settings."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."set_accounting_lock_date"(uuid, date) from public, anon;
+grant execute on function "app_private"."set_accounting_lock_date"(uuid, date) to authenticated, service_role;
+
+-- Creates an account, or changes one (account_id, or the account with the code).
+-- An account with posted lines keeps its type.
+create or replace function "app_private"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_accounts"%rowtype;
+  v_id uuid := save_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+    raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+    raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+    raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "app_private"."accounting_accounts" y
+    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+  end if;
+  if save_accounting_account.parent_id is not null then
+    if not exists (select 1 from "app_private"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+      raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if v_id is not null and exists (
+      with recursive up (id) as (
+        select save_accounting_account.parent_id
+        union
+        select y."parent_id" from "app_private"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
+      )
+      select 1 from up where up.id = v_id
+    ) then
+      raise exception 'an account can''t be its own parent' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+    end if;
+  end if;
+  if v_id is null then
+    insert into "app_private"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable")
+    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
+      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false))
+    returning * into v_row;
+  else
+    select * into v_row from "app_private"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    if not found then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if exists (
+      select 1 from "app_private"."accounting_entry_lines" y join "app_private"."accounting_entries" z on z."id" = y."entry_id"
+      where y."account_id" = v_id and z."status" <> 'draft'
+        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+    ) then
+      raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+    end if;
+    update "app_private"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
+      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false), "updated_at" = now()
+    where y."id" = v_id
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "app_private"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) from public, anon;
+grant execute on function "app_private"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) to authenticated, service_role;
+
+-- Archives an account (nothing posts to it), or restores it. An account
+-- mapped to a role, a journal or a tax code stays.
+create or replace function "app_private"."archive_accounting_account"(account_id uuid, archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_accounts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."accounting_accounts" y where y."id" = archive_accounting_account.account_id for update;
+  if not found then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if coalesce(archive_accounting_account.archived, true) and (
+    exists (select 1 from "app_private"."accounting_account_roles" y where y."account_id" = v_row."id")
+    or exists (select 1 from "app_private"."accounting_journals" y where y."default_account_id" = v_row."id")
+    or exists (select 1 from "app_private"."accounting_tax_codes" y where y."account_id" = v_row."id" and y."archived_at" is null)
+  ) then
+    raise exception 'the account is mapped to a role, a journal or a tax code' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+  end if;
+  update "app_private"."accounting_accounts" y set "archived_at" = case when coalesce(archive_accounting_account.archived, true) then coalesce(y."archived_at", now()) end,
+    "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "app_private"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."archive_accounting_account"(uuid, boolean) from public, anon;
+grant execute on function "app_private"."archive_accounting_account"(uuid, boolean) to authenticated, service_role;
+
+-- Maps a role (receivable, bank, retained_earnings) to an account; null unmaps it.
+create or replace function "app_private"."set_accounting_account_role"(tenant uuid, role text, account_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense') then
+    raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
+  end if;
+  if set_accounting_account_role.account_id is null then
+    delete from "app_private"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant and y."role" = set_accounting_account_role.role;
+  else
+    if not exists (
+      select 1 from "app_private"."accounting_accounts" y where y."id" = set_accounting_account_role.account_id
+        and y."tenant_id" = set_accounting_account_role.tenant and y."archived_at" is null
+    ) then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    values (set_accounting_account_role.tenant, set_accounting_account_role.role, set_accounting_account_role.account_id)
+    on conflict ("tenant_id", "role") do update set "account_id" = excluded."account_id", "updated_at" = now();
+  end if;
+  return coalesce((
+    select jsonb_object_agg(y."role", y."account_id") from "app_private"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant
+  ), '{}'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."set_accounting_account_role"(uuid, text, uuid) from public, anon;
+grant execute on function "app_private"."set_accounting_account_role"(uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "app_private"."list_accounting_accounts"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'subtype', x."subtype", 'parentId', x."parent_id", 'currency', x."currency", 'reconcilable', x."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "app_private"."accounting_account_roles" ar where ar."account_id" = x."id"), '[]'::jsonb), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "app_private"."accounting_accounts" x
+  where x."tenant_id" = list_accounting_accounts.tenant
+    and (coalesce(list_accounting_accounts.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "app_private"."list_accounting_accounts"(uuid, boolean) from public, anon;
+grant execute on function "app_private"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
+
+-- Creates a journal, or changes one (journal_id, or the journal with the code).
+create or replace function "app_private"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_journals"%rowtype;
+  v_id uuid := save_accounting_journal.journal_id;
+  v_code text := upper(trim(save_accounting_journal.code));
+  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
+  end if;
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+    raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+    raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "app_private"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
+      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "app_private"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+  end if;
+  if v_id is null then
+    insert into "app_private"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency")
+    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency)
+    returning * into v_row;
+  else
+    update "app_private"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
+      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    returning * into v_row;
+    if not found then
+      raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) from public, anon;
+grant execute on function "app_private"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "app_private"."list_accounting_journals"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'defaultAccountId', x."default_account_id", 'currency', x."currency", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "app_private"."accounting_journals" x
+  where x."tenant_id" = list_accounting_journals.tenant
+$$;
+revoke execute on function "app_private"."list_accounting_journals"(uuid) from public, anon;
+grant execute on function "app_private"."list_accounting_journals"(uuid) to authenticated, service_role;
+
+-- Creates the twelve monthly periods of a fiscal year, from the start month of
+-- the calendar year fiscal_year. Periods that exist stay as they are.
+create or replace function "app_private"."open_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "app_private"."accounting_settings"%rowtype;
+  v_start date;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_fiscal_year.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if open_fiscal_year.fiscal_year is null or open_fiscal_year.fiscal_year < 1900 or open_fiscal_year.fiscal_year > 9998 then
+    raise exception 'the fiscal year is a calendar year such as 2026' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  select * into v_settings from "app_private"."accounting_settings" st where st."tenant_id" = open_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  v_start := make_date(open_fiscal_year.fiscal_year, v_settings."fiscal_year_start_month", 1);
+  insert into "app_private"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+  select open_fiscal_year.tenant, open_fiscal_year.fiscal_year, n,
+    (v_start + make_interval(months => n - 1))::date,
+    (v_start + make_interval(months => n) - interval '1 day')::date
+  from generate_series(1, 12) n
+  on conflict ("tenant_id", "fiscal_year", "number") do nothing;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'number', y."number", 'startsOn', y."starts_on", 'endsOn', y."ends_on", 'status', y."status", 'closedAt', y."closed_at", 'closedBy', y."closed_by") order by y."number") from "app_private"."accounting_periods" y
+    where y."tenant_id" = open_fiscal_year.tenant and y."fiscal_year" = open_fiscal_year.fiscal_year
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "app_private"."open_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "app_private"."open_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+create or replace function "app_private"."list_accounting_periods"(tenant uuid, fiscal_year integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'fiscalYear', x."fiscal_year", 'number', x."number", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'status', x."status", 'closedAt', x."closed_at", 'closedBy', x."closed_by") order by x."starts_on"), '[]'::jsonb)
+  from "app_private"."accounting_periods" x
+  where x."tenant_id" = list_accounting_periods.tenant
+    and (list_accounting_periods.fiscal_year is null or x."fiscal_year" = list_accounting_periods.fiscal_year)
+$$;
+revoke execute on function "app_private"."list_accounting_periods"(uuid, integer) from public, anon;
+grant execute on function "app_private"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
+
+-- Creates or renames a dimension (project, department, cost center) by key.
+create or replace function "app_private"."save_accounting_dimension"(tenant uuid, key text, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+    raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "app_private"."accounting_dimensions" ("tenant_id", "key", "name")
+  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  on conflict ("tenant_id", "key") do update set "name" = excluded."name"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "app_private"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "app_private"."save_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+
+-- Adds or renames a value of a dimension by code; archived values take no new lines.
+create or replace function "app_private"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_dimension "app_private"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_dimension from "app_private"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  if not found then
+    raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+    raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "app_private"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
+  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
+    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  on conflict ("dimension_id", "code") do update
+    set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
+  return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "app_private"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
+end;
+$$;
+revoke execute on function "app_private"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "app_private"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "app_private"."list_accounting_dimensions"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "app_private"."accounting_dimension_values" dv where dv."dimension_id" = x."id"), '[]'::jsonb), 'createdAt', x."created_at") order by x."key"), '[]'::jsonb)
+  from "app_private"."accounting_dimensions" x
+  where x."tenant_id" = list_accounting_dimensions.tenant
+$$;
+revoke execute on function "app_private"."list_accounting_dimensions"(uuid) from public, anon;
+grant execute on function "app_private"."list_accounting_dimensions"(uuid) to authenticated, service_role;
+
+-- Creates or changes a tax code by code. rate_bps is basis points (2100 is 21%).
+create or replace function "app_private"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_tax_codes"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_tax_code.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage tax codes' using errcode = '42501', hint = 'ACCOUNTING_TAX_CODE_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_tax_code.code), '') is null or nullif(trim(save_accounting_tax_code.name), '') is null
+    or save_accounting_tax_code.rate_bps is null or save_accounting_tax_code.rate_bps < 0 or save_accounting_tax_code.rate_bps > 100000
+    or save_accounting_tax_code.kind is null or save_accounting_tax_code.kind not in ('sales', 'purchase') then
+    raise exception 'a tax code needs a code, a name, a rate in basis points and a kind (sales or purchase)' using errcode = '22023', hint = 'ACCOUNTING_TAX_CODE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "app_private"."accounting_accounts" y where y."id" = save_accounting_tax_code.account_id
+      and y."tenant_id" = save_accounting_tax_code.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  insert into "app_private"."accounting_tax_codes" ("tenant_id", "code", "name", "rate_bps", "kind", "account_id", "report_boxes", "archived_at")
+  values (save_accounting_tax_code.tenant, trim(save_accounting_tax_code.code), trim(save_accounting_tax_code.name), save_accounting_tax_code.rate_bps,
+    save_accounting_tax_code.kind, save_accounting_tax_code.account_id, coalesce(save_accounting_tax_code.report_boxes, '{}'),
+    case when coalesce(save_accounting_tax_code.archived, false) then now() end)
+  on conflict ("tenant_id", "code") do update
+    set "name" = excluded."name", "rate_bps" = excluded."rate_bps", "kind" = excluded."kind",
+      "account_id" = excluded."account_id", "report_boxes" = excluded."report_boxes", "archived_at" = excluded."archived_at",
+      "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'rateBps', v_row."rate_bps", 'kind', v_row."kind", 'accountId', v_row."account_id", 'reportBoxes', to_jsonb(v_row."report_boxes"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "app_private"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
+grant execute on function "app_private"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
+
+create or replace function "app_private"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'rateBps', x."rate_bps", 'kind', x."kind", 'accountId', x."account_id", 'reportBoxes', to_jsonb(x."report_boxes"), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "app_private"."accounting_tax_codes" x
+  where x."tenant_id" = list_accounting_tax_codes.tenant
+    and (coalesce(list_accounting_tax_codes.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "app_private"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
+grant execute on function "app_private"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
+
+-- Records what one unit of base costs in quote on a date.
+create or replace function "app_private"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(set_accounting_fx_rate.base));
+  v_quote text := upper(trim(set_accounting_fx_rate.quote));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_fx_rate.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage exchange rates' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if coalesce(v_base, '') !~ '^[A-Z]{3}$' or coalesce(v_quote, '') !~ '^[A-Z]{3}$' or v_base = v_quote
+    or set_accounting_fx_rate.on_date is null or coalesce(set_accounting_fx_rate.rate, 0) <= 0 then
+    raise exception 'a rate needs two different ISO 4217 codes, a date and a positive rate' using errcode = '22023', hint = 'ACCOUNTING_FX_RATE_INVALID';
+  end if;
+  insert into "app_private"."accounting_fx_rates" ("tenant_id", "base", "quote", "on_date", "rate")
+  values (set_accounting_fx_rate.tenant, v_base, v_quote, set_accounting_fx_rate.on_date, set_accounting_fx_rate.rate)
+  on conflict ("tenant_id", "base", "quote", "on_date") do update set "rate" = excluded."rate";
+  return jsonb_build_object('organizationId', set_accounting_fx_rate.tenant, 'base', v_base, 'quote', v_quote,
+    'onDate', set_accounting_fx_rate.on_date, 'rate', set_accounting_fx_rate.rate::text);
+end;
+$$;
+revoke execute on function "app_private"."set_accounting_fx_rate"(uuid, text, text, date, numeric) from public, anon;
+grant execute on function "app_private"."set_accounting_fx_rate"(uuid, text, text, date, numeric) to authenticated, service_role;
+
+-- The rate on the date or the latest before it, or the inverse of the
+-- opposite pair's; ACCOUNTING_FX_RATE_MISSING when neither has one.
+create or replace function "app_private"."accounting_fx_rate"(tenant uuid, base text, quote text, on_date date)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(accounting_fx_rate.base));
+  v_quote text := upper(trim(accounting_fx_rate.quote));
+  v_rate numeric;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accounting_fx_rate.tenant, 'accounting.read'), false)) then
+    raise exception 'not allowed to read accounting' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if v_base = v_quote then
+    return 1;
+  end if;
+  select y."rate" into v_rate from "app_private"."accounting_fx_rates" y
+  where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_base and y."quote" = v_quote and y."on_date" <= accounting_fx_rate.on_date
+  order by y."on_date" desc limit 1;
+  if v_rate is null then
+    select 1 / y."rate" into v_rate from "app_private"."accounting_fx_rates" y
+    where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_quote and y."quote" = v_base and y."on_date" <= accounting_fx_rate.on_date
+    order by y."on_date" desc limit 1;
+  end if;
+  if v_rate is null then
+    raise exception 'no exchange rate for the currency pair on or before the date' using errcode = 'P0002', hint = 'ACCOUNTING_FX_RATE_MISSING';
+  end if;
+  return v_rate;
+end;
+$$;
+revoke execute on function "app_private"."accounting_fx_rate"(uuid, text, text, date) from public, anon;
+grant execute on function "app_private"."accounting_fx_rate"(uuid, text, text, date) to authenticated, service_role;
+
+-- Posts a draft entry: balanced in the functional currency, dated in an open
+-- period after the lock date, with known dimension values; then numbers it per
+-- journal and fiscal year. Called by the posting, reversal and year close
+-- functions; closing skips the period and lock date checks.
+create or replace function "app_private"."accounting_post"(entry_id uuid, closing boolean default false)
+returns "app_private"."accounting_entries"
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_entries"%rowtype;
+  v_settings "app_private"."accounting_settings"%rowtype;
+  v_period "app_private"."accounting_periods"%rowtype;
+  v_journal "app_private"."accounting_journals"%rowtype;
+  v_total numeric;
+  v_credits numeric;
+  v_count integer;
+  v_sequence integer;
+begin
+  select * into v_row from "app_private"."accounting_entries" y where y."id" = accounting_post.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  select * into v_settings from "app_private"."accounting_settings" st where st."tenant_id" = v_row."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(y."debit"), 0), coalesce(sum(y."credit"), 0) into v_count, v_total, v_credits
+  from "app_private"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  if v_count < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if v_total <> v_credits then
+    raise exception 'the debits and credits of the entry differ in the functional currency' using errcode = '23514', hint = 'ACCOUNTING_ENTRY_UNBALANCED';
+  end if;
+  if exists (
+    select 1 from "app_private"."accounting_entry_lines" y join "app_private"."accounting_accounts" z on z."id" = y."account_id"
+    where y."entry_id" = v_row."id" and z."archived_at" is not null
+  ) then
+    raise exception 'an account of the entry is archived' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if exists (
+    select 1 from "app_private"."accounting_entry_lines" y, jsonb_each(y."dimensions") dim
+    where y."entry_id" = v_row."id"
+      and (jsonb_typeof(dim.value) <> 'string' or not exists (
+        select 1 from "app_private"."accounting_dimensions" z join "app_private"."accounting_dimension_values" w on w."dimension_id" = z."id"
+        where z."tenant_id" = v_row."tenant_id" and z."key" = dim.key
+          and w."code" = dim.value #>> '{}' and w."archived_at" is null
+      ))
+  ) then
+    raise exception 'a line names a dimension or value that doesn''t exist or is archived' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  select * into v_period from "app_private"."accounting_periods" y
+  where y."tenant_id" = v_row."tenant_id" and v_row."entry_date" >= y."starts_on" and v_row."entry_date" <= y."ends_on";
+  if not found then
+    raise exception 'no period covers the entry date; open its fiscal year first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not coalesce(accounting_post.closing, false) and (
+    v_period."status" = 'closed'
+    or (v_settings."lock_date" is not null and v_row."entry_date" <= v_settings."lock_date")
+  ) then
+    raise exception 'the entry date is in a closed period or on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  select * into v_journal from "app_private"."accounting_journals" y where y."id" = v_row."journal_id";
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_journal."id"::text || ':' || v_period."fiscal_year"::text, 0));
+  select coalesce(max(y."sequence"), 0) + 1 into v_sequence from "app_private"."accounting_entries" y
+  where y."journal_id" = v_journal."id" and y."fiscal_year" = v_period."fiscal_year";
+  update "app_private"."accounting_entries" y set "status" = 'posted', "fiscal_year" = v_period."fiscal_year", "sequence" = v_sequence,
+    "number" = v_journal."code" || '-' || v_period."fiscal_year"::text || '-' || lpad(v_sequence::text, 5, '0'),
+    "period_id" = v_period."id", "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return v_row;
+end;
+$$;
+revoke execute on function "app_private"."accounting_post"(uuid, boolean) from public, anon, authenticated;
+
+-- Creates a draft entry, or replaces a draft's header and lines (entry_id).
+-- Each line names an account (accountId or accountCode) and a debit or a
+-- credit in minor units of the functional currency. A line in another
+-- currency gives amountCurrency (signed, positive is a debit) and either the
+-- functional amount or an fxRate; without both, the rate on the entry date
+-- converts it.
+drop function if exists "app_private"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+create or replace function "app_private"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_journal "app_private"."accounting_journals"%rowtype;
+  v_settings "app_private"."accounting_settings"%rowtype;
+  v_row "app_private"."accounting_entries"%rowtype;
+  v_line record;
+  v_account "app_private"."accounting_accounts"%rowtype;
+  v_currency text;
+  v_debit bigint;
+  v_credit bigint;
+  v_amount bigint;
+  v_rate numeric;
+  v_functional bigint;
+  v_tax uuid;
+  v_party uuid;
+  v_dimensions jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_journal from "app_private"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  if not found then
+    raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_journal."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  select * into v_settings from "app_private"."accounting_settings" st where st."tenant_id" = v_journal."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if save_accounting_entry.entry_date is null then
+    raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
+    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+    raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if save_accounting_entry.source_type is not null and exists (
+    select 1 from "app_private"."accounting_entries" y
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
+      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from save_accounting_entry.entry_id
+  ) then
+    raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
+  end if;
+  if save_accounting_entry.entry_id is null then
+    insert into "app_private"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
+    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
+      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "app_private"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    returning * into v_row;
+  else
+    select * into v_row from "app_private"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    if not found then
+      raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+    end if;
+    if v_row."status" <> 'draft' then
+      raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+    end if;
+    delete from "app_private"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+    update "app_private"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
+      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
+      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''),
+      "period_id" = (select z."id" from "app_private"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+      "updated_at" = now()
+    where y."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+    if jsonb_typeof(v_line.value) is distinct from 'object' then
+      raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select * into v_account from "app_private"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_journal."tenant_id";
+    else
+      select * into v_account from "app_private"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_journal."tenant_id";
+    end if;
+    if v_account."id" is null or v_account."archived_at" is not null then
+      raise exception 'a line''s account doesn''t exist here or is archived' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if coalesce(v_line.value ->> 'debit', '0') !~ '^[0-9]{1,18}$' or coalesce(v_line.value ->> 'credit', '0') !~ '^[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'amountCurrency', '0') !~ '^-?[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'fxRate', '1') !~ '^[0-9]+(\.[0-9]+)?$' then
+      raise exception 'debit and credit are non-negative integers, amountCurrency an integer and fxRate a positive decimal' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_debit := coalesce((v_line.value ->> 'debit')::bigint, 0);
+    v_credit := coalesce((v_line.value ->> 'credit')::bigint, 0);
+    v_currency := upper(coalesce(nullif(v_line.value ->> 'currency', ''), v_settings."functional_currency"));
+    if v_currency !~ '^[A-Z]{3}$' then
+      raise exception 'a line''s currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if v_account."currency" is not null and v_account."currency" <> v_currency then
+      raise exception 'the account takes lines in its own currency only' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_rate := null;
+    if v_currency = v_settings."functional_currency" then
+      v_amount := v_debit - v_credit;
+    else
+      v_amount := (v_line.value ->> 'amountCurrency')::bigint;
+      if v_amount is null or v_amount = 0 then
+        raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
+        "app_private"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+      if v_rate <= 0 then
+        raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      if v_debit = 0 and v_credit = 0 then
+        v_functional := round(abs(v_amount) * v_rate)::bigint;
+        if v_amount > 0 then
+          v_debit := v_functional;
+        else
+          v_credit := v_functional;
+        end if;
+      elsif (v_amount > 0) <> (v_debit > 0) then
+        raise exception 'amountCurrency and the functional amount must be on the same side' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+    end if;
+    if (v_debit = 0) = (v_credit = 0) then
+      raise exception 'every line has either a debit or a credit' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_tax := null;
+    if v_line.value ->> 'taxCodeId' is not null then
+      select y."id" into v_tax from "app_private"."accounting_tax_codes" y
+      where y."id"::text = v_line.value ->> 'taxCodeId' and y."tenant_id" = v_journal."tenant_id";
+      if v_tax is null then
+        raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
+      end if;
+    end if;
+    if coalesce(v_line.value ->> 'partyId', '00000000-0000-0000-0000-000000000000') !~ '^[0-9a-fA-F-]{36}$' then
+      raise exception 'partyId must be a uuid' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_party := (v_line.value ->> 'partyId')::uuid;
+    v_dimensions := coalesce(v_line.value -> 'dimensions', '{}'::jsonb);
+    if jsonb_typeof(v_dimensions) = 'null' then
+      v_dimensions := '{}'::jsonb;
+    end if;
+    if jsonb_typeof(v_dimensions) <> 'object' then
+      raise exception 'a line''s dimensions are an object of dimension keys to value codes' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+    end if;
+    insert into "app_private"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+      "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+    values (v_journal."tenant_id", v_row."id", v_line.ordinality, v_account."id", v_debit, v_credit, v_currency,
+      v_amount, v_rate, v_tax, v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
+  end loop;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "app_private"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "app_private"."accounting_entry_lines" el join "app_private"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "app_private"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+
+create or replace function "app_private"."post_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_entries"%rowtype;
+begin
+  select * into v_row from "app_private"."accounting_entries" y where y."id" = post_accounting_entry.entry_id;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  v_row := "app_private"."accounting_post"(v_row."id");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "app_private"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "app_private"."accounting_entry_lines" el join "app_private"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."post_accounting_entry"(uuid) from public, anon;
+grant execute on function "app_private"."post_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Reverses a posted entry with a new entry of opposite lines, dated
+-- entry_date (default the original's date), and marks the original reversed.
+create or replace function "app_private"."reverse_accounting_entry"(entry_id uuid, entry_date date default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_entries"%rowtype;
+  v_reversal "app_private"."accounting_entries"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."accounting_entries" y where y."id" = reverse_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" = 'reversed' then
+    raise exception 'the entry is already reversed' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_REVERSED';
+  end if;
+  if v_row."status" <> 'posted' then
+    raise exception 'only a posted entry can be reversed; delete a draft instead' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  insert into "app_private"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "reverses_id", "memo", "created_by")
+  values (v_row."tenant_id", v_row."journal_id", coalesce(reverse_accounting_entry.entry_date, v_row."entry_date"), v_row."number",
+    v_row."id", 'Reversal of ' || v_row."number", auth.uid())
+  returning * into v_reversal;
+  insert into "app_private"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+    "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+  select y."tenant_id", v_reversal."id", y."position", y."account_id", y."credit", y."debit", y."currency",
+    -y."amount_currency", y."fx_rate", y."tax_code_id", y."party_id", y."dimensions", y."description"
+  from "app_private"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  v_reversal := "app_private"."accounting_post"(v_reversal."id");
+  update "app_private"."accounting_entries" y set "status" = 'reversed', "updated_at" = now() where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object('id', v_reversal."id", 'organizationId', v_reversal."tenant_id", 'journalId', v_reversal."journal_id", 'number', v_reversal."number", 'fiscalYear', v_reversal."fiscal_year", 'entryDate', v_reversal."entry_date", 'periodId', v_reversal."period_id", 'status', v_reversal."status", 'reference', v_reversal."reference", 'sourceType', v_reversal."source_type", 'sourceId', v_reversal."source_id", 'reversesId', v_reversal."reverses_id", 'memo', v_reversal."memo", 'total', coalesce((select sum(et."debit") from "app_private"."accounting_entry_lines" et where et."entry_id" = v_reversal."id"), 0)::text, 'postedAt', v_reversal."posted_at", 'postedBy', v_reversal."posted_by", 'createdBy', v_reversal."created_by", 'createdAt', v_reversal."created_at", 'updatedAt', v_reversal."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "app_private"."accounting_entry_lines" el join "app_private"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_reversal."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "app_private"."reverse_accounting_entry"(uuid, date) from public, anon;
+grant execute on function "app_private"."reverse_accounting_entry"(uuid, date) to authenticated, service_role;
+
+create or replace function "app_private"."delete_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "app_private"."accounting_entries"%rowtype;
+  v_json jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."accounting_entries" y where y."id" = delete_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  v_json := jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "app_private"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "app_private"."accounting_entry_lines" el join "app_private"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+  delete from "app_private"."accounting_entries" y where y."id" = v_row."id";
+  return v_json;
+end;
+$$;
+revoke execute on function "app_private"."delete_accounting_entry"(uuid) from public, anon;
+grant execute on function "app_private"."delete_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "app_private"."get_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "app_private"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "app_private"."accounting_entry_lines" el join "app_private"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = x."id"), '[]'::jsonb)) from "app_private"."accounting_entries" x where x."id" = get_accounting_entry.entry_id
+$$;
+revoke execute on function "app_private"."get_accounting_entry"(uuid) from public, anon;
+grant execute on function "app_private"."get_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Entries, the newest first, without their lines.
+create or replace function "app_private"."list_accounting_entries"(tenant uuid, journal_id uuid default null, status text default null, since date default null, until date default null, page_size integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.entry order by z.entry_date desc, z.created_at desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "app_private"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as entry, x."entry_date" as entry_date, x."created_at" as created_at
+    from "app_private"."accounting_entries" x
+    where x."tenant_id" = list_accounting_entries.tenant
+      and (list_accounting_entries.journal_id is null or x."journal_id" = list_accounting_entries.journal_id)
+      and (list_accounting_entries.status is null or x."status" = list_accounting_entries.status)
+      and (list_accounting_entries.since is null or x."entry_date" >= list_accounting_entries.since)
+      and (list_accounting_entries.until is null or x."entry_date" <= list_accounting_entries.until)
+    order by x."entry_date" desc, x."created_at" desc
+    limit least(greatest(coalesce(list_accounting_entries.page_size, 50), 1), 500)
+  ) z
+$$;
+revoke execute on function "app_private"."list_accounting_entries"(uuid, uuid, text, date, date, integer) from public, anon;
+grant execute on function "app_private"."list_accounting_entries"(uuid, uuid, text, date, date, integer) to authenticated, service_role;
+
+-- What keeps a period from closing: draft entries dated in it.
+create or replace function "app_private"."accounting_period_close_blockers"(period_id uuid)
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(array_remove(array[
+    case when exists (
+      select 1 from "app_private"."accounting_entries" y
+      where y."tenant_id" = x."tenant_id" and y."status" = 'draft'
+        and y."entry_date" >= x."starts_on" and y."entry_date" <= x."ends_on"
+    ) then 'draft_entries' end
+  ], null), '{}'::text[])
+  from "app_private"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id
+$$;
+revoke execute on function "app_private"."accounting_period_close_blockers"(uuid) from public, anon;
+grant execute on function "app_private"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
+
+-- Closes a period: nothing posts into it until it reopens. Closing a closed
+-- period returns it unchanged.
+create or replace function "app_private"."close_accounting_period"(period_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "app_private"."accounting_periods"%rowtype;
+  v_blockers text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "app_private"."accounting_periods" y where y."id" = close_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if v_period."status" = 'closed' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  v_blockers := "app_private"."accounting_period_close_blockers"(v_period."id");
+  if cardinality(v_blockers) > 0 then
+    raise exception 'the period can''t close yet: %', array_to_string(v_blockers, ', ') using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  update "app_private"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "app_private"."close_accounting_period"(uuid) from public, anon;
+grant execute on function "app_private"."close_accounting_period"(uuid) to authenticated, service_role;
+
+-- Reopens a closed period with a reason. A period on or before the lock date
+-- stays closed; move the lock date first.
+create or replace function "app_private"."reopen_accounting_period"(period_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "app_private"."accounting_periods"%rowtype;
+  v_settings "app_private"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "app_private"."accounting_periods" y where y."id" = reopen_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to reopen accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if nullif(trim(reopen_accounting_period.reason), '') is null then
+    raise exception 'reopening a period needs a reason' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  if v_period."status" = 'open' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  select * into v_settings from "app_private"."accounting_settings" st where st."tenant_id" = v_period."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if v_settings."lock_date" is not null and v_period."starts_on" <= v_settings."lock_date" then
+    raise exception 'the period is on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  update "app_private"."accounting_periods" y set "status" = 'open', "closed_at" = null, "closed_by" = null
+  where y."id" = v_period."id"
+  returning * into v_period;
+  null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "app_private"."reopen_accounting_period"(uuid, text) from public, anon;
+grant execute on function "app_private"."reopen_accounting_period"(uuid, text) to authenticated, service_role;
+
+-- Closes a fiscal year: one closing entry in the first general journal moves
+-- every income and expense balance to the retained earnings account, then
+-- every period of the year closes. Reverse the closing entry to redo it.
+create or replace function "app_private"."close_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "app_private"."accounting_settings"%rowtype;
+  v_period "app_private"."accounting_periods"%rowtype;
+  v_starts date;
+  v_ends date;
+  v_open integer;
+  v_retained uuid;
+  v_journal uuid;
+  v_entry "app_private"."accounting_entries"%rowtype;
+  v_net numeric;
+  v_count integer;
+  v_closing uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_fiscal_year.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close fiscal years' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  select * into v_settings from "app_private"."accounting_settings" st where st."tenant_id" = close_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select min(y."starts_on"), max(y."ends_on"), count(*) filter (where y."status" = 'open')
+  into v_starts, v_ends, v_open
+  from "app_private"."accounting_periods" y where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year;
+  if v_starts is null then
+    raise exception 'the fiscal year has no periods; open it first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(close_fiscal_year.tenant::text || ':fiscal_year:' || close_fiscal_year.fiscal_year::text, 0));
+  if exists (
+    select 1 from "app_private"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
+      and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
+  ) then
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  if exists (
+    select 1 from "app_private"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."status" = 'draft'
+      and y."entry_date" >= v_starts and y."entry_date" <= v_ends
+  ) then
+    raise exception 'the fiscal year can''t close yet: draft_entries' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  select y."account_id" into v_retained from "app_private"."accounting_account_roles" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."role" = 'retained_earnings';
+  if v_retained is null then
+    raise exception 'no account has the retained_earnings role' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_ROLE_MISSING';
+  end if;
+  select y."id" into v_journal from "app_private"."accounting_journals" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."type" = 'general'
+  order by y."code" limit 1;
+  if v_journal is null then
+    raise exception 'the year-end close needs a general journal' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(c.net), 0) into v_count, v_net from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "app_private"."accounting_entry_lines" y
+    join "app_private"."accounting_entries" z on z."id" = y."entry_id"
+    join "app_private"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c;
+  if v_count > 0 then
+    insert into "app_private"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "source_type", "source_id", "memo", "created_by")
+    values (close_fiscal_year.tenant, v_journal, v_ends, 'fiscal_year', close_fiscal_year.fiscal_year::text,
+      'Closing of fiscal year ' || close_fiscal_year.fiscal_year::text, auth.uid())
+    returning * into v_entry;
+    insert into "app_private"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+    select close_fiscal_year.tenant, v_entry."id", (row_number() over (order by w."code"))::smallint, c.account,
+      greatest(-c.net, 0)::bigint, greatest(c.net, 0)::bigint, v_settings."functional_currency", (-c.net)::bigint
+    from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "app_private"."accounting_entry_lines" y
+    join "app_private"."accounting_entries" z on z."id" = y."entry_id"
+    join "app_private"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c join "app_private"."accounting_accounts" w on w."id" = c.account;
+    if v_net <> 0 then
+      insert into "app_private"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+      values (close_fiscal_year.tenant, v_entry."id", 32767, v_retained,
+        greatest(v_net, 0)::bigint, greatest(-v_net, 0)::bigint, v_settings."functional_currency", v_net::bigint);
+    end if;
+    v_entry := "app_private"."accounting_post"(v_entry."id", true);
+    v_closing := v_entry."id";
+  elsif v_open = 0 then
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  for v_period in
+    select * from "app_private"."accounting_periods" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year and y."status" = 'open'
+    order by y."number"
+    for update
+  loop
+    update "app_private"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  end loop;
+  null;
+  return jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing);
+end;
+$$;
+revoke execute on function "app_private"."close_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "app_private"."close_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+-- Per account: the balance before since, the debits and credits from since
+-- through until, and the closing balance; debit balances are positive. Lines
+-- match when their dimensions contain the dimensions filter.
+create or replace function "app_private"."accounting_trial_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account,
+      sum(case when z."entry_date" < accounting_trial_balance.since then y."debit" - y."credit" else 0 end) as opening,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."debit" else 0 end) as debit,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."credit" else 0 end) as credit
+    from "app_private"."accounting_entry_lines" y join "app_private"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_trial_balance.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_trial_balance.dimensions, '{}'::jsonb)
+      and (accounting_trial_balance.until is null or z."entry_date" <= accounting_trial_balance.until)
+    group by y."account_id"
+  )
+  select jsonb_build_object(
+    'accounts', coalesce(jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type",
+      'opening', c.opening::text, 'debit', c.debit::text, 'credit', c.credit::text, 'closing', (c.opening + c.debit - c.credit)::text) order by w."code"), '[]'::jsonb),
+    'totals', jsonb_build_object('opening', coalesce(sum(c.opening), 0)::text, 'debit', coalesce(sum(c.debit), 0)::text, 'credit', coalesce(sum(c.credit), 0)::text,
+      'closing', coalesce(sum(c.opening + c.debit - c.credit), 0)::text)
+  )
+  from sums c join "app_private"."accounting_accounts" w on w."id" = c.account
+$$;
+revoke execute on function "app_private"."accounting_trial_balance"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "app_private"."accounting_trial_balance"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Income and expenses from since through until, without year-end closing
+-- entries. Income counts credits, expenses debits.
+create or replace function "app_private"."accounting_profit_and_loss"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."credit") - sum(y."debit") as credit_balance
+    from "app_private"."accounting_entry_lines" y join "app_private"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_profit_and_loss.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_profit_and_loss.dimensions, '{}'::jsonb)
+      and z."source_type" is distinct from 'fiscal_year'
+      and (accounting_profit_and_loss.since is null or z."entry_date" >= accounting_profit_and_loss.since)
+      and (accounting_profit_and_loss.until is null or z."entry_date" <= accounting_profit_and_loss.until)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.credit_balance from sums c join "app_private"."accounting_accounts" w on w."id" = c.account
+    where w."type" in ('income', 'expense') and c.credit_balance <> 0
+  )
+  select jsonb_build_object(
+    'income', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.credit_balance)::text) order by w."code") from kept w where w."type" = 'income'), '[]'::jsonb),
+    'expenses', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.credit_balance)::text) order by w."code") from kept w where w."type" = 'expense'), '[]'::jsonb),
+    'totalIncome', coalesce((select sum(w.credit_balance) from kept w where w."type" = 'income'), 0)::text,
+    'totalExpenses', coalesce((select -sum(w.credit_balance) from kept w where w."type" = 'expense'), 0)::text,
+    'netIncome', coalesce((select sum(w.credit_balance) from kept w), 0)::text
+  )
+$$;
+revoke execute on function "app_private"."accounting_profit_and_loss"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "app_private"."accounting_profit_and_loss"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Assets, liabilities and equity on as_of. Income and expenses not yet
+-- closed into retained earnings count as current earnings under equity.
+create or replace function "app_private"."accounting_balance_sheet"(tenant uuid, as_of date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."debit") - sum(y."credit") as debit_balance
+    from "app_private"."accounting_entry_lines" y join "app_private"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_balance_sheet.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_balance_sheet.dimensions, '{}'::jsonb)
+      and z."entry_date" <= coalesce(accounting_balance_sheet.as_of, current_date)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.debit_balance from sums c join "app_private"."accounting_accounts" w on w."id" = c.account
+    where c.debit_balance <> 0
+  ),
+  totals as (
+    select
+      coalesce(sum(w.debit_balance) filter (where w."type" = 'asset'), 0) as assets,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'liability'), 0) as liabilities,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'equity'), 0) as equity,
+      coalesce(-sum(w.debit_balance) filter (where w."type" in ('income', 'expense')), 0) as earnings
+    from kept w
+  )
+  select jsonb_build_object(
+    'asOf', coalesce(accounting_balance_sheet.as_of, current_date),
+    'assets', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.debit_balance)::text) order by w."code") from kept w where w."type" = 'asset'), '[]'::jsonb),
+    'liabilities', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'liability'), '[]'::jsonb),
+    'equity', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'equity'), '[]'::jsonb),
+    'currentEarnings', t.earnings::text,
+    'totalAssets', t.assets::text,
+    'totalLiabilities', t.liabilities::text,
+    'totalEquity', (t.equity + t.earnings)::text,
+    'balanced', t.assets = t.liabilities + t.equity + t.earnings
+  )
+  from totals t
+$$;
+revoke execute on function "app_private"."accounting_balance_sheet"(uuid, date, jsonb) from public, anon;
+grant execute on function "app_private"."accounting_balance_sheet"(uuid, date, jsonb) to authenticated, service_role;
+
+-- One account's posted lines from since through until with a running
+-- balance; debit balances are positive.
+create or replace function "app_private"."accounting_general_ledger"(account_id uuid, since date default null, until date default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with account as (
+    select w.* from "app_private"."accounting_accounts" w where w."id" = accounting_general_ledger.account_id
+  ),
+  booked as (
+    select y.*, z."entry_date" as entry_date, z."number" as entry_number, z."journal_id" as journal_id, z."memo" as memo
+    from "app_private"."accounting_entry_lines" y join "app_private"."accounting_entries" z on z."id" = y."entry_id"
+    where y."account_id" = accounting_general_ledger.account_id and z."status" in ('posted', 'reversed')
+      and (accounting_general_ledger.until is null or z."entry_date" <= accounting_general_ledger.until)
+  ),
+  opening as (
+    select coalesce(sum(b."debit" - b."credit"), 0) as amount from booked b
+    where b.entry_date < accounting_general_ledger.since
+  ),
+  period as (
+    select b.*, (select o.amount from opening o) + sum(b."debit" - b."credit") over (order by b.entry_date, b.entry_number, b."position", b."id") as balance
+    from booked b
+    where accounting_general_ledger.since is null or b.entry_date >= accounting_general_ledger.since
+  )
+  select jsonb_build_object(
+    'account', jsonb_build_object('id', w."id", 'code', w."code", 'name', w."name", 'type', w."type"),
+    'opening', (select o.amount from opening o)::text,
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('entryId', b."entry_id", 'number', b.entry_number, 'entryDate', b.entry_date, 'journalId', b.journal_id,
+      'description', coalesce(b."description", b.memo), 'partyId', b."party_id", 'debit', b."debit"::text, 'credit', b."credit"::text, 'balance', b.balance::text)
+      order by b.entry_date, b.entry_number, b."position", b."id") from period b), '[]'::jsonb),
+    'closing', ((select o.amount from opening o) + coalesce((select sum(b."debit" - b."credit") from period b), 0))::text
+  )
+  from account w
+$$;
+revoke execute on function "app_private"."accounting_general_ledger"(uuid, date, date) from public, anon;
+grant execute on function "app_private"."accounting_general_ledger"(uuid, date, date) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_settings";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_settings";
+create policy bsb_tenant_scope_select on "app_private"."accounting_settings" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_settings";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_settings" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_settings";
+create policy bsb_tenant_scope_update on "app_private"."accounting_settings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_settings";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_settings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_accounts";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_accounts";
+create policy bsb_tenant_scope_select on "app_private"."accounting_accounts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_accounts";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_accounts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_accounts";
+create policy bsb_tenant_scope_update on "app_private"."accounting_accounts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_accounts";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_accounts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_account_roles";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_account_roles";
+create policy bsb_tenant_scope_select on "app_private"."accounting_account_roles" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_account_roles";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_account_roles" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_account_roles";
+create policy bsb_tenant_scope_update on "app_private"."accounting_account_roles" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_account_roles";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_account_roles" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_journals";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_journals";
+create policy bsb_tenant_scope_select on "app_private"."accounting_journals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_journals";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_journals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_journals";
+create policy bsb_tenant_scope_update on "app_private"."accounting_journals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_journals";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_journals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_periods";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_periods";
+create policy bsb_tenant_scope_select on "app_private"."accounting_periods" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_periods";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_periods" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_periods";
+create policy bsb_tenant_scope_update on "app_private"."accounting_periods" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_periods";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_periods" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_entries";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_entries";
+create policy bsb_tenant_scope_select on "app_private"."accounting_entries" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_entries";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_entries" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_entries";
+create policy bsb_tenant_scope_update on "app_private"."accounting_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_entries";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_entry_lines";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_entry_lines";
+create policy bsb_tenant_scope_select on "app_private"."accounting_entry_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_entry_lines";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_entry_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_entry_lines";
+create policy bsb_tenant_scope_update on "app_private"."accounting_entry_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_entry_lines";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_entry_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_dimensions";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_dimensions";
+create policy bsb_tenant_scope_select on "app_private"."accounting_dimensions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_dimensions";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_dimensions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_dimensions";
+create policy bsb_tenant_scope_update on "app_private"."accounting_dimensions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_dimensions";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_dimensions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_dimension_values";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_dimension_values";
+create policy bsb_tenant_scope_select on "app_private"."accounting_dimension_values" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_dimension_values";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_dimension_values" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_dimension_values";
+create policy bsb_tenant_scope_update on "app_private"."accounting_dimension_values" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_dimension_values";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_dimension_values" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_fx_rates";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_fx_rates";
+create policy bsb_tenant_scope_select on "app_private"."accounting_fx_rates" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_fx_rates";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_fx_rates" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_fx_rates";
+create policy bsb_tenant_scope_update on "app_private"."accounting_fx_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_fx_rates";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_fx_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."accounting_tax_codes";
+drop policy if exists bsb_tenant_scope_select on "app_private"."accounting_tax_codes";
+create policy bsb_tenant_scope_select on "app_private"."accounting_tax_codes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."accounting_tax_codes";
+create policy bsb_tenant_scope_insert on "app_private"."accounting_tax_codes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."accounting_tax_codes";
+create policy bsb_tenant_scope_update on "app_private"."accounting_tax_codes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."accounting_tax_codes";
+create policy bsb_tenant_scope_delete on "app_private"."accounting_tax_codes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from public, anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block-data accounting
+-- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('accounting', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block accounting@1 managed
+-- @bsb-hash sha256:f361054407d62ac72ca6cc65ef462f0347ae643bf31e4a15fd45dfa2774d82cd
+-- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Accounting: a chart of accounts with roles, journals, fiscal periods, and
+-- balanced journal entries in minor units of the organization's functional
+-- currency, with dimensions, exchange rates, tax codes, reports and the
+-- period and year-end close.
+
+create table if not exists "better_supabase"."accounting_settings" (
+  "tenant_id" uuid primary key,
+  -- Every debit and credit is in minor units of this currency.
+  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  -- Nothing posts on or before this date, whatever the period's status.
+  "lock_date" date,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."accounting_settings" enable row level security;
+revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_settings" to authenticated;
+grant all on "better_supabase"."accounting_settings" to service_role;
+drop policy if exists accounting_settings_read on "better_supabase"."accounting_settings";
+create policy accounting_settings_read on "better_supabase"."accounting_settings"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_accounts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "subtype" text,
+  "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- Lines on the account must be in this currency; null takes any.
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "reconcilable" boolean not null default false,
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+alter table "better_supabase"."accounting_accounts" enable row level security;
+revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_accounts" to authenticated;
+grant all on "better_supabase"."accounting_accounts" to service_role;
+drop policy if exists accounting_accounts_read on "better_supabase"."accounting_accounts";
+create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_account_roles" (
+  "tenant_id" uuid not null,
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense')),
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  "updated_at" timestamptz not null default now(),
+  primary key ("tenant_id", "role")
+);
+create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+alter table "better_supabase"."accounting_account_roles" enable row level security;
+revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_account_roles" to authenticated;
+grant all on "better_supabase"."accounting_account_roles" to service_role;
+drop policy if exists accounting_account_roles_read on "better_supabase"."accounting_account_roles";
+create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_journals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  -- The bank or cash account a bank or cash journal posts against.
+  "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+alter table "better_supabase"."accounting_journals" enable row level security;
+revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_journals" to authenticated;
+grant all on "better_supabase"."accounting_journals" to service_role;
+drop policy if exists accounting_journals_read on "better_supabase"."accounting_journals";
+create policy accounting_journals_read on "better_supabase"."accounting_journals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_periods" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  -- The calendar year the fiscal year starts in.
+  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "status" text not null default 'open' check ("status" in ('open', 'closed')),
+  "closed_at" timestamptz,
+  "closed_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("tenant_id", "fiscal_year", "number")
+);
+create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+alter table "better_supabase"."accounting_periods" enable row level security;
+revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_periods" to authenticated;
+grant all on "better_supabase"."accounting_periods" to service_role;
+drop policy if exists accounting_periods_read on "better_supabase"."accounting_periods";
+create policy accounting_periods_read on "better_supabase"."accounting_periods"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_entries" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "journal_id" uuid not null references "better_supabase"."accounting_journals" ("id") on delete restrict,
+  "fiscal_year" integer,
+  -- The entry's place in its journal and fiscal year, set when it posts.
+  "sequence" integer,
+  "number" text,
+  "entry_date" date not null,
+  "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
+  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text check ("reference" is null or length("reference") <= 200),
+  -- The document the entry books, such as invoice and its id.
+  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_id" text,
+  "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
+  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "posted_at" timestamptz,
+  "posted_by" uuid,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("source_type" is null) = ("source_id" is null)),
+  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+);
+create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+-- A document books once: a second entry for it waits until the first is reversed.
+create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+alter table "better_supabase"."accounting_entries" enable row level security;
+revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_entries" to authenticated;
+grant all on "better_supabase"."accounting_entries" to service_role;
+drop policy if exists accounting_entries_read on "better_supabase"."accounting_entries";
+create policy accounting_entries_read on "better_supabase"."accounting_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_dimensions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  -- The key lines use in their dimensions object, such as project or department.
+  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "key")
+);
+alter table "better_supabase"."accounting_dimensions" enable row level security;
+revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_dimensions" to authenticated;
+grant all on "better_supabase"."accounting_dimensions" to service_role;
+drop policy if exists accounting_dimensions_read on "better_supabase"."accounting_dimensions";
+create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_dimension_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "archived_at" timestamptz,
+  unique ("dimension_id", "code")
+);
+alter table "better_supabase"."accounting_dimension_values" enable row level security;
+revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_dimension_values" to authenticated;
+grant all on "better_supabase"."accounting_dimension_values" to service_role;
+drop policy if exists accounting_dimension_values_read on "better_supabase"."accounting_dimension_values";
+create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_fx_rates" (
+  "tenant_id" uuid not null,
+  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "on_date" date not null,
+  -- One unit of base costs rate units of quote.
+  "rate" numeric not null check ("rate" > 0),
+  "created_at" timestamptz not null default now(),
+  primary key ("tenant_id", "base", "quote", "on_date"),
+  check ("base" <> "quote")
+);
+alter table "better_supabase"."accounting_fx_rates" enable row level security;
+revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_fx_rates" to authenticated;
+grant all on "better_supabase"."accounting_fx_rates" to service_role;
+drop policy if exists accounting_fx_rates_read on "better_supabase"."accounting_fx_rates";
+create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_tax_codes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  -- Basis points: 2100 is 21%.
+  "rate_bps" integer not null check ("rate_bps" >= 0 and "rate_bps" <= 100000),
+  "kind" text not null check ("kind" in ('sales', 'purchase')),
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- The boxes of a tax return the tax and its base count toward.
+  "report_boxes" text[] not null default '{}',
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("tenant_id", "code")
+);
+create index if not exists "accounting_tax_codes_account_idx" on "better_supabase"."accounting_tax_codes" ("account_id");
+alter table "better_supabase"."accounting_tax_codes" enable row level security;
+revoke all on "better_supabase"."accounting_tax_codes" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_tax_codes" to authenticated;
+grant all on "better_supabase"."accounting_tax_codes" to service_role;
+drop policy if exists accounting_tax_codes_read on "better_supabase"."accounting_tax_codes";
+create policy accounting_tax_codes_read on "better_supabase"."accounting_tax_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_entry_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "entry_id" uuid not null references "better_supabase"."accounting_entries" ("id") on delete cascade,
+  "position" smallint not null default 0,
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- Minor units of the functional currency; a line has one side.
+  "debit" bigint not null default 0 check ("debit" >= 0),
+  "credit" bigint not null default 0 check ("credit" >= 0),
+  -- The transaction currency and its signed amount (positive is a debit).
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount_currency" bigint not null,
+  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "tax_code_id" uuid references "better_supabase"."accounting_tax_codes" ("id") on delete restrict,
+  -- The customer, supplier or employee the line concerns.
+  "party_id" uuid,
+  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "description" text check ("description" is null or length("description") <= 500),
+  check (("debit" = 0) <> ("credit" = 0))
+);
+create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+alter table "better_supabase"."accounting_entry_lines" enable row level security;
+revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_entry_lines" to authenticated;
+grant all on "better_supabase"."accounting_entry_lines" to service_role;
+drop policy if exists accounting_entry_lines_read on "better_supabase"."accounting_entry_lines";
+create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- A posted entry changes only from posted to reversed; its lines never change.
+create or replace function "better_supabase"."accounting_entry_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and old."status" = 'draft' then
+    return new;
+  end if;
+  if tg_op = 'DELETE' and old."status" = 'draft' then
+    return old;
+  end if;
+  if tg_op = 'UPDATE' and old."status" = 'posted' and new."status" = 'reversed'
+    and (to_jsonb(new) - 'status' - 'updated_at')
+      = (to_jsonb(old) - 'status' - 'updated_at') then
+    return new;
+  end if;
+  raise exception 'a posted entry can''t be changed or deleted; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
+create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
+  for each row execute function "better_supabase"."accounting_entry_guard"('tenant_id');
+
+create or replace function "better_supabase"."accounting_entry_line_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_entry uuid := case when tg_op = 'DELETE' then old."entry_id" else new."entry_id" end;
+begin
+  if exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = v_entry and y."status" <> 'draft')
+    or (tg_op = 'UPDATE' and exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = old."entry_id" and y."status" <> 'draft')) then
+    raise exception 'the lines of a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
+create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
+  for each row execute function "better_supabase"."accounting_entry_line_guard"('tenant_id');
+
+-- Sets up accounting for an organization: its functional currency and the
+-- month its fiscal year starts, then the generic chart, its account roles and the default journals when it has none.
+-- Neither setting changes once entries post or periods exist.
+create or replace function "better_supabase"."setup_accounting"(tenant uuid, functional_currency text default null, fiscal_year_start_month integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_settings"%rowtype;
+  v_currency text := upper(coalesce(nullif(trim(setup_accounting.functional_currency), ''), 'EUR'));
+  v_month integer := coalesce(setup_accounting.fiscal_year_start_month, 1);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', setup_accounting.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  if v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the functional currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  if v_month < 1 or v_month > 12 then
+    raise exception 'the fiscal year starts in a month from 1 to 12' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."accounting_settings" y where y."tenant_id" = setup_accounting.tenant for update;
+  if found then
+    if setup_accounting.functional_currency is not null and v_row."functional_currency" <> v_currency
+      and exists (select 1 from "better_supabase"."accounting_entries" y where y."tenant_id" = setup_accounting.tenant and y."status" <> 'draft') then
+      raise exception 'the functional currency can''t change once entries are posted' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    if setup_accounting.fiscal_year_start_month is not null and v_row."fiscal_year_start_month" <> v_month
+      and exists (select 1 from "better_supabase"."accounting_periods" y where y."tenant_id" = setup_accounting.tenant) then
+      raise exception 'the fiscal year start can''t change once periods exist' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    update "better_supabase"."accounting_settings" y set
+      "functional_currency" = case when setup_accounting.functional_currency is null then y."functional_currency" else v_currency end,
+      "fiscal_year_start_month" = case when setup_accounting.fiscal_year_start_month is null then y."fiscal_year_start_month" else v_month end,
+      "updated_at" = now()
+    where y."tenant_id" = setup_accounting.tenant
+    returning * into v_row;
+  else
+    insert into "better_supabase"."accounting_settings" ("tenant_id", "functional_currency", "fiscal_year_start_month")
+    values (setup_accounting.tenant, v_currency, v_month)
+    returning * into v_row;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+    values
+      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true),
+      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
+      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
+      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true),
+      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false),
+      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false),
+      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false),
+      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false),
+      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false),
+      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false),
+      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false);
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select setup_accounting.tenant, c.role, y."id"
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('cogs', '5000'), ('depreciation_expense', '6800'), ('fx_loss', '6900')) c (role, code)
+    join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
+    on conflict ("tenant_id", "role") do nothing;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select setup_accounting.tenant, c.code, c.name, c.type,
+      (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
+    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+  end if;
+  return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."setup_accounting"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."setup_accounting"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_settings"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('organizationId', x."tenant_id", 'functionalCurrency', x."functional_currency", 'fiscalYearStartMonth', x."fiscal_year_start_month", 'lockDate', x."lock_date", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."accounting_settings" x where x."tenant_id" = get_accounting_settings.tenant
+$$;
+revoke execute on function "better_supabase"."get_accounting_settings"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_settings"(uuid) to authenticated, service_role;
+
+-- Nothing posts on or before the lock date; null unlocks.
+create or replace function "better_supabase"."set_accounting_lock_date"(tenant uuid, lock_date date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_lock_date.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = set_accounting_lock_date.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  update "better_supabase"."accounting_settings" y set "lock_date" = set_accounting_lock_date.lock_date, "updated_at" = now()
+  where y."tenant_id" = set_accounting_lock_date.tenant
+  returning * into v_settings;
+  return jsonb_build_object('organizationId', v_settings."tenant_id", 'functionalCurrency', v_settings."functional_currency", 'fiscalYearStartMonth', v_settings."fiscal_year_start_month", 'lockDate', v_settings."lock_date", 'createdAt', v_settings."created_at", 'updatedAt', v_settings."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) to authenticated, service_role;
+
+-- Creates an account, or changes one (account_id, or the account with the code).
+-- An account with posted lines keeps its type.
+create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+  v_id uuid := save_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+    raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+    raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+    raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_accounts" y
+    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+  end if;
+  if save_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+      raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if v_id is not null and exists (
+      with recursive up (id) as (
+        select save_accounting_account.parent_id
+        union
+        select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
+      )
+      select 1 from up where up.id = v_id
+    ) then
+      raise exception 'an account can''t be its own parent' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+    end if;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable")
+    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
+      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    if not found then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if exists (
+      select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+      where y."account_id" = v_id and z."status" <> 'draft'
+        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+    ) then
+      raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+    end if;
+    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
+      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false), "updated_at" = now()
+    where y."id" = v_id
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) to authenticated, service_role;
+
+-- Archives an account (nothing posts to it), or restores it. An account
+-- mapped to a role, a journal or a tax code stays.
+create or replace function "better_supabase"."archive_accounting_account"(account_id uuid, archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = archive_accounting_account.account_id for update;
+  if not found then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if coalesce(archive_accounting_account.archived, true) and (
+    exists (select 1 from "better_supabase"."accounting_account_roles" y where y."account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_journals" y where y."default_account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_tax_codes" y where y."account_id" = v_row."id" and y."archived_at" is null)
+  ) then
+    raise exception 'the account is mapped to a role, a journal or a tax code' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+  end if;
+  update "better_supabase"."accounting_accounts" y set "archived_at" = case when coalesce(archive_accounting_account.archived, true) then coalesce(y."archived_at", now()) end,
+    "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) to authenticated, service_role;
+
+-- Maps a role (receivable, bank, retained_earnings) to an account; null unmaps it.
+create or replace function "better_supabase"."set_accounting_account_role"(tenant uuid, role text, account_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense') then
+    raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
+  end if;
+  if set_accounting_account_role.account_id is null then
+    delete from "better_supabase"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant and y."role" = set_accounting_account_role.role;
+  else
+    if not exists (
+      select 1 from "better_supabase"."accounting_accounts" y where y."id" = set_accounting_account_role.account_id
+        and y."tenant_id" = set_accounting_account_role.tenant and y."archived_at" is null
+    ) then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    values (set_accounting_account_role.tenant, set_accounting_account_role.role, set_accounting_account_role.account_id)
+    on conflict ("tenant_id", "role") do update set "account_id" = excluded."account_id", "updated_at" = now();
+  end if;
+  return coalesce((
+    select jsonb_object_agg(y."role", y."account_id") from "better_supabase"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant
+  ), '{}'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_accounts"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'subtype', x."subtype", 'parentId', x."parent_id", 'currency', x."currency", 'reconcilable', x."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = x."id"), '[]'::jsonb), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_accounts" x
+  where x."tenant_id" = list_accounting_accounts.tenant
+    and (coalesce(list_accounting_accounts.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
+
+-- Creates a journal, or changes one (journal_id, or the journal with the code).
+create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_journals"%rowtype;
+  v_id uuid := save_accounting_journal.journal_id;
+  v_code text := upper(trim(save_accounting_journal.code));
+  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
+  end if;
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+    raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+    raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
+      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency")
+    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency)
+    returning * into v_row;
+  else
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
+      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    returning * into v_row;
+    if not found then
+      raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'defaultAccountId', x."default_account_id", 'currency', x."currency", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_journals" x
+  where x."tenant_id" = list_accounting_journals.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_journals"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_journals"(uuid) to authenticated, service_role;
+
+-- Creates the twelve monthly periods of a fiscal year, from the start month of
+-- the calendar year fiscal_year. Periods that exist stay as they are.
+create or replace function "better_supabase"."open_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_start date;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_fiscal_year.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if open_fiscal_year.fiscal_year is null or open_fiscal_year.fiscal_year < 1900 or open_fiscal_year.fiscal_year > 9998 then
+    raise exception 'the fiscal year is a calendar year such as 2026' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = open_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  v_start := make_date(open_fiscal_year.fiscal_year, v_settings."fiscal_year_start_month", 1);
+  insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+  select open_fiscal_year.tenant, open_fiscal_year.fiscal_year, n,
+    (v_start + make_interval(months => n - 1))::date,
+    (v_start + make_interval(months => n) - interval '1 day')::date
+  from generate_series(1, 12) n
+  on conflict ("tenant_id", "fiscal_year", "number") do nothing;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'number', y."number", 'startsOn', y."starts_on", 'endsOn', y."ends_on", 'status', y."status", 'closedAt', y."closed_at", 'closedBy', y."closed_by") order by y."number") from "better_supabase"."accounting_periods" y
+    where y."tenant_id" = open_fiscal_year.tenant and y."fiscal_year" = open_fiscal_year.fiscal_year
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."open_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_periods"(tenant uuid, fiscal_year integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'fiscalYear', x."fiscal_year", 'number', x."number", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'status', x."status", 'closedAt', x."closed_at", 'closedBy', x."closed_by") order by x."starts_on"), '[]'::jsonb)
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = list_accounting_periods.tenant
+    and (list_accounting_periods.fiscal_year is null or x."fiscal_year" = list_accounting_periods.fiscal_year)
+$$;
+revoke execute on function "better_supabase"."list_accounting_periods"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
+
+-- Creates or renames a dimension (project, department, cost center) by key.
+create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+    raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  on conflict ("tenant_id", "key") do update set "name" = excluded."name"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+
+-- Adds or renames a value of a dimension by code; archived values take no new lines.
+create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_dimension "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  if not found then
+    raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+    raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
+  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
+    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  on conflict ("dimension_id", "code") do update
+    set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
+  return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = x."id"), '[]'::jsonb), 'createdAt', x."created_at") order by x."key"), '[]'::jsonb)
+  from "better_supabase"."accounting_dimensions" x
+  where x."tenant_id" = list_accounting_dimensions.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_dimensions"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_dimensions"(uuid) to authenticated, service_role;
+
+-- Creates or changes a tax code by code. rate_bps is basis points (2100 is 21%).
+create or replace function "better_supabase"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_tax_codes"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_tax_code.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage tax codes' using errcode = '42501', hint = 'ACCOUNTING_TAX_CODE_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_tax_code.code), '') is null or nullif(trim(save_accounting_tax_code.name), '') is null
+    or save_accounting_tax_code.rate_bps is null or save_accounting_tax_code.rate_bps < 0 or save_accounting_tax_code.rate_bps > 100000
+    or save_accounting_tax_code.kind is null or save_accounting_tax_code.kind not in ('sales', 'purchase') then
+    raise exception 'a tax code needs a code, a name, a rate in basis points and a kind (sales or purchase)' using errcode = '22023', hint = 'ACCOUNTING_TAX_CODE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_tax_code.account_id
+      and y."tenant_id" = save_accounting_tax_code.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."accounting_tax_codes" ("tenant_id", "code", "name", "rate_bps", "kind", "account_id", "report_boxes", "archived_at")
+  values (save_accounting_tax_code.tenant, trim(save_accounting_tax_code.code), trim(save_accounting_tax_code.name), save_accounting_tax_code.rate_bps,
+    save_accounting_tax_code.kind, save_accounting_tax_code.account_id, coalesce(save_accounting_tax_code.report_boxes, '{}'),
+    case when coalesce(save_accounting_tax_code.archived, false) then now() end)
+  on conflict ("tenant_id", "code") do update
+    set "name" = excluded."name", "rate_bps" = excluded."rate_bps", "kind" = excluded."kind",
+      "account_id" = excluded."account_id", "report_boxes" = excluded."report_boxes", "archived_at" = excluded."archived_at",
+      "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'rateBps', v_row."rate_bps", 'kind', v_row."kind", 'accountId', v_row."account_id", 'reportBoxes', to_jsonb(v_row."report_boxes"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'rateBps', x."rate_bps", 'kind', x."kind", 'accountId', x."account_id", 'reportBoxes', to_jsonb(x."report_boxes"), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_tax_codes" x
+  where x."tenant_id" = list_accounting_tax_codes.tenant
+    and (coalesce(list_accounting_tax_codes.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
+
+-- Records what one unit of base costs in quote on a date.
+create or replace function "better_supabase"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(set_accounting_fx_rate.base));
+  v_quote text := upper(trim(set_accounting_fx_rate.quote));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_fx_rate.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage exchange rates' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if coalesce(v_base, '') !~ '^[A-Z]{3}$' or coalesce(v_quote, '') !~ '^[A-Z]{3}$' or v_base = v_quote
+    or set_accounting_fx_rate.on_date is null or coalesce(set_accounting_fx_rate.rate, 0) <= 0 then
+    raise exception 'a rate needs two different ISO 4217 codes, a date and a positive rate' using errcode = '22023', hint = 'ACCOUNTING_FX_RATE_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_fx_rates" ("tenant_id", "base", "quote", "on_date", "rate")
+  values (set_accounting_fx_rate.tenant, v_base, v_quote, set_accounting_fx_rate.on_date, set_accounting_fx_rate.rate)
+  on conflict ("tenant_id", "base", "quote", "on_date") do update set "rate" = excluded."rate";
+  return jsonb_build_object('organizationId', set_accounting_fx_rate.tenant, 'base', v_base, 'quote', v_quote,
+    'onDate', set_accounting_fx_rate.on_date, 'rate', set_accounting_fx_rate.rate::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) from public, anon;
+grant execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) to authenticated, service_role;
+
+-- The rate on the date or the latest before it, or the inverse of the
+-- opposite pair's; ACCOUNTING_FX_RATE_MISSING when neither has one.
+create or replace function "better_supabase"."accounting_fx_rate"(tenant uuid, base text, quote text, on_date date)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(accounting_fx_rate.base));
+  v_quote text := upper(trim(accounting_fx_rate.quote));
+  v_rate numeric;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accounting_fx_rate.tenant, 'accounting.read'), false)) then
+    raise exception 'not allowed to read accounting' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if v_base = v_quote then
+    return 1;
+  end if;
+  select y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+  where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_base and y."quote" = v_quote and y."on_date" <= accounting_fx_rate.on_date
+  order by y."on_date" desc limit 1;
+  if v_rate is null then
+    select 1 / y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+    where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_quote and y."quote" = v_base and y."on_date" <= accounting_fx_rate.on_date
+    order by y."on_date" desc limit 1;
+  end if;
+  if v_rate is null then
+    raise exception 'no exchange rate for the currency pair on or before the date' using errcode = 'P0002', hint = 'ACCOUNTING_FX_RATE_MISSING';
+  end if;
+  return v_rate;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) from public, anon;
+grant execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) to authenticated, service_role;
+
+-- Posts a draft entry: balanced in the functional currency, dated in an open
+-- period after the lock date, with known dimension values; then numbers it per
+-- journal and fiscal year. Called by the posting, reversal and year close
+-- functions; closing skips the period and lock date checks.
+create or replace function "better_supabase"."accounting_post"(entry_id uuid, closing boolean default false)
+returns "better_supabase"."accounting_entries"
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_total numeric;
+  v_credits numeric;
+  v_count integer;
+  v_sequence integer;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = accounting_post.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_row."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(y."debit"), 0), coalesce(sum(y."credit"), 0) into v_count, v_total, v_credits
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  if v_count < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if v_total <> v_credits then
+    raise exception 'the debits and credits of the entry differ in the functional currency' using errcode = '23514', hint = 'ACCOUNTING_ENTRY_UNBALANCED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_accounts" z on z."id" = y."account_id"
+    where y."entry_id" = v_row."id" and z."archived_at" is not null
+  ) then
+    raise exception 'an account of the entry is archived' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y, jsonb_each(y."dimensions") dim
+    where y."entry_id" = v_row."id"
+      and (jsonb_typeof(dim.value) <> 'string' or not exists (
+        select 1 from "better_supabase"."accounting_dimensions" z join "better_supabase"."accounting_dimension_values" w on w."dimension_id" = z."id"
+        where z."tenant_id" = v_row."tenant_id" and z."key" = dim.key
+          and w."code" = dim.value #>> '{}' and w."archived_at" is null
+      ))
+  ) then
+    raise exception 'a line names a dimension or value that doesn''t exist or is archived' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y
+  where y."tenant_id" = v_row."tenant_id" and v_row."entry_date" >= y."starts_on" and v_row."entry_date" <= y."ends_on";
+  if not found then
+    raise exception 'no period covers the entry date; open its fiscal year first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not coalesce(accounting_post.closing, false) and (
+    v_period."status" = 'closed'
+    or (v_settings."lock_date" is not null and v_row."entry_date" <= v_settings."lock_date")
+  ) then
+    raise exception 'the entry date is in a closed period or on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = v_row."journal_id";
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_journal."id"::text || ':' || v_period."fiscal_year"::text, 0));
+  select coalesce(max(y."sequence"), 0) + 1 into v_sequence from "better_supabase"."accounting_entries" y
+  where y."journal_id" = v_journal."id" and y."fiscal_year" = v_period."fiscal_year";
+  update "better_supabase"."accounting_entries" y set "status" = 'posted', "fiscal_year" = v_period."fiscal_year", "sequence" = v_sequence,
+    "number" = v_journal."code" || '-' || v_period."fiscal_year"::text || '-' || lpad(v_sequence::text, 5, '0'),
+    "period_id" = v_period."id", "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) from public, anon, authenticated;
+
+-- Creates a draft entry, or replaces a draft's header and lines (entry_id).
+-- Each line names an account (accountId or accountCode) and a debit or a
+-- credit in minor units of the functional currency. A line in another
+-- currency gives amountCurrency (signed, positive is a debit) and either the
+-- functional amount or an fxRate; without both, the rate on the entry date
+-- converts it.
+drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_line record;
+  v_account "better_supabase"."accounting_accounts"%rowtype;
+  v_currency text;
+  v_debit bigint;
+  v_credit bigint;
+  v_amount bigint;
+  v_rate numeric;
+  v_functional bigint;
+  v_tax uuid;
+  v_party uuid;
+  v_dimensions jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  if not found then
+    raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_journal."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_journal."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if save_accounting_entry.entry_date is null then
+    raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
+    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+    raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if save_accounting_entry.source_type is not null and exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
+      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from save_accounting_entry.entry_id
+  ) then
+    raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
+  end if;
+  if save_accounting_entry.entry_id is null then
+    insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
+    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
+      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    if not found then
+      raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+    end if;
+    if v_row."status" <> 'draft' then
+      raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+    end if;
+    delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
+      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
+      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''),
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+      "updated_at" = now()
+    where y."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+    if jsonb_typeof(v_line.value) is distinct from 'object' then
+      raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_journal."tenant_id";
+    else
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_journal."tenant_id";
+    end if;
+    if v_account."id" is null or v_account."archived_at" is not null then
+      raise exception 'a line''s account doesn''t exist here or is archived' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if coalesce(v_line.value ->> 'debit', '0') !~ '^[0-9]{1,18}$' or coalesce(v_line.value ->> 'credit', '0') !~ '^[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'amountCurrency', '0') !~ '^-?[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'fxRate', '1') !~ '^[0-9]+(\.[0-9]+)?$' then
+      raise exception 'debit and credit are non-negative integers, amountCurrency an integer and fxRate a positive decimal' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_debit := coalesce((v_line.value ->> 'debit')::bigint, 0);
+    v_credit := coalesce((v_line.value ->> 'credit')::bigint, 0);
+    v_currency := upper(coalesce(nullif(v_line.value ->> 'currency', ''), v_settings."functional_currency"));
+    if v_currency !~ '^[A-Z]{3}$' then
+      raise exception 'a line''s currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if v_account."currency" is not null and v_account."currency" <> v_currency then
+      raise exception 'the account takes lines in its own currency only' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_rate := null;
+    if v_currency = v_settings."functional_currency" then
+      v_amount := v_debit - v_credit;
+    else
+      v_amount := (v_line.value ->> 'amountCurrency')::bigint;
+      if v_amount is null or v_amount = 0 then
+        raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
+        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+      if v_rate <= 0 then
+        raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      if v_debit = 0 and v_credit = 0 then
+        v_functional := round(abs(v_amount) * v_rate)::bigint;
+        if v_amount > 0 then
+          v_debit := v_functional;
+        else
+          v_credit := v_functional;
+        end if;
+      elsif (v_amount > 0) <> (v_debit > 0) then
+        raise exception 'amountCurrency and the functional amount must be on the same side' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+    end if;
+    if (v_debit = 0) = (v_credit = 0) then
+      raise exception 'every line has either a debit or a credit' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_tax := null;
+    if v_line.value ->> 'taxCodeId' is not null then
+      select y."id" into v_tax from "better_supabase"."accounting_tax_codes" y
+      where y."id"::text = v_line.value ->> 'taxCodeId' and y."tenant_id" = v_journal."tenant_id";
+      if v_tax is null then
+        raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
+      end if;
+    end if;
+    if coalesce(v_line.value ->> 'partyId', '00000000-0000-0000-0000-000000000000') !~ '^[0-9a-fA-F-]{36}$' then
+      raise exception 'partyId must be a uuid' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_party := (v_line.value ->> 'partyId')::uuid;
+    v_dimensions := coalesce(v_line.value -> 'dimensions', '{}'::jsonb);
+    if jsonb_typeof(v_dimensions) = 'null' then
+      v_dimensions := '{}'::jsonb;
+    end if;
+    if jsonb_typeof(v_dimensions) <> 'object' then
+      raise exception 'a line''s dimensions are an object of dimension keys to value codes' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+    end if;
+    insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+      "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+    values (v_journal."tenant_id", v_row."id", v_line.ordinality, v_account."id", v_debit, v_credit, v_currency,
+      v_amount, v_rate, v_tax, v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
+  end loop;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = post_accounting_entry.entry_id;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  v_row := "better_supabase"."accounting_post"(v_row."id");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."post_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Reverses a posted entry with a new entry of opposite lines, dated
+-- entry_date (default the original's date), and marks the original reversed.
+create or replace function "better_supabase"."reverse_accounting_entry"(entry_id uuid, entry_date date default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_reversal "better_supabase"."accounting_entries"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = reverse_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" = 'reversed' then
+    raise exception 'the entry is already reversed' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_REVERSED';
+  end if;
+  if v_row."status" <> 'posted' then
+    raise exception 'only a posted entry can be reversed; delete a draft instead' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "reverses_id", "memo", "created_by")
+  values (v_row."tenant_id", v_row."journal_id", coalesce(reverse_accounting_entry.entry_date, v_row."entry_date"), v_row."number",
+    v_row."id", 'Reversal of ' || v_row."number", auth.uid())
+  returning * into v_reversal;
+  insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+    "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+  select y."tenant_id", v_reversal."id", y."position", y."account_id", y."credit", y."debit", y."currency",
+    -y."amount_currency", y."fx_rate", y."tax_code_id", y."party_id", y."dimensions", y."description"
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  v_reversal := "better_supabase"."accounting_post"(v_reversal."id");
+  update "better_supabase"."accounting_entries" y set "status" = 'reversed', "updated_at" = now() where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object('id', v_reversal."id", 'organizationId', v_reversal."tenant_id", 'journalId', v_reversal."journal_id", 'number', v_reversal."number", 'fiscalYear', v_reversal."fiscal_year", 'entryDate', v_reversal."entry_date", 'periodId', v_reversal."period_id", 'status', v_reversal."status", 'reference', v_reversal."reference", 'sourceType', v_reversal."source_type", 'sourceId', v_reversal."source_id", 'reversesId', v_reversal."reverses_id", 'memo', v_reversal."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_reversal."id"), 0)::text, 'postedAt', v_reversal."posted_at", 'postedBy', v_reversal."posted_by", 'createdBy', v_reversal."created_by", 'createdAt', v_reversal."created_at", 'updatedAt', v_reversal."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_reversal."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_json jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = delete_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  v_json := jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+  delete from "better_supabase"."accounting_entries" y where y."id" = v_row."id";
+  return v_json;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = x."id"), '[]'::jsonb)) from "better_supabase"."accounting_entries" x where x."id" = get_accounting_entry.entry_id
+$$;
+revoke execute on function "better_supabase"."get_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Entries, the newest first, without their lines.
+create or replace function "better_supabase"."list_accounting_entries"(tenant uuid, journal_id uuid default null, status text default null, since date default null, until date default null, page_size integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.entry order by z.entry_date desc, z.created_at desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as entry, x."entry_date" as entry_date, x."created_at" as created_at
+    from "better_supabase"."accounting_entries" x
+    where x."tenant_id" = list_accounting_entries.tenant
+      and (list_accounting_entries.journal_id is null or x."journal_id" = list_accounting_entries.journal_id)
+      and (list_accounting_entries.status is null or x."status" = list_accounting_entries.status)
+      and (list_accounting_entries.since is null or x."entry_date" >= list_accounting_entries.since)
+      and (list_accounting_entries.until is null or x."entry_date" <= list_accounting_entries.until)
+    order by x."entry_date" desc, x."created_at" desc
+    limit least(greatest(coalesce(list_accounting_entries.page_size, 50), 1), 500)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) to authenticated, service_role;
+
+-- What keeps a period from closing: draft entries dated in it.
+create or replace function "better_supabase"."accounting_period_close_blockers"(period_id uuid)
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(array_remove(array[
+    case when exists (
+      select 1 from "better_supabase"."accounting_entries" y
+      where y."tenant_id" = x."tenant_id" and y."status" = 'draft'
+        and y."entry_date" >= x."starts_on" and y."entry_date" <= x."ends_on"
+    ) then 'draft_entries' end
+  ], null), '{}'::text[])
+  from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id
+$$;
+revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
+grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
+
+-- Closes a period: nothing posts into it until it reopens. Closing a closed
+-- period returns it unchanged.
+create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_blockers text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = close_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if v_period."status" = 'closed' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(v_period."id");
+  if cardinality(v_blockers) > 0 then
+    raise exception 'the period can''t close yet: %', array_to_string(v_blockers, ', ') using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
+
+-- Reopens a closed period with a reason. A period on or before the lock date
+-- stays closed; move the lock date first.
+create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = reopen_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to reopen accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if nullif(trim(reopen_accounting_period.reason), '') is null then
+    raise exception 'reopening a period needs a reason' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  if v_period."status" = 'open' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_period."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if v_settings."lock_date" is not null and v_period."starts_on" <= v_settings."lock_date" then
+    raise exception 'the period is on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'open', "closed_at" = null, "closed_by" = null
+  where y."id" = v_period."id"
+  returning * into v_period;
+  null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."reopen_accounting_period"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."reopen_accounting_period"(uuid, text) to authenticated, service_role;
+
+-- Closes a fiscal year: one closing entry in the first general journal moves
+-- every income and expense balance to the retained earnings account, then
+-- every period of the year closes. Reverse the closing entry to redo it.
+create or replace function "better_supabase"."close_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_starts date;
+  v_ends date;
+  v_open integer;
+  v_retained uuid;
+  v_journal uuid;
+  v_entry "better_supabase"."accounting_entries"%rowtype;
+  v_net numeric;
+  v_count integer;
+  v_closing uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_fiscal_year.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close fiscal years' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = close_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select min(y."starts_on"), max(y."ends_on"), count(*) filter (where y."status" = 'open')
+  into v_starts, v_ends, v_open
+  from "better_supabase"."accounting_periods" y where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year;
+  if v_starts is null then
+    raise exception 'the fiscal year has no periods; open it first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(close_fiscal_year.tenant::text || ':fiscal_year:' || close_fiscal_year.fiscal_year::text, 0));
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
+      and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
+  ) then
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."status" = 'draft'
+      and y."entry_date" >= v_starts and y."entry_date" <= v_ends
+  ) then
+    raise exception 'the fiscal year can''t close yet: draft_entries' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  select y."account_id" into v_retained from "better_supabase"."accounting_account_roles" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."role" = 'retained_earnings';
+  if v_retained is null then
+    raise exception 'no account has the retained_earnings role' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_ROLE_MISSING';
+  end if;
+  select y."id" into v_journal from "better_supabase"."accounting_journals" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."type" = 'general'
+  order by y."code" limit 1;
+  if v_journal is null then
+    raise exception 'the year-end close needs a general journal' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(c.net), 0) into v_count, v_net from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c;
+  if v_count > 0 then
+    insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "source_type", "source_id", "memo", "created_by")
+    values (close_fiscal_year.tenant, v_journal, v_ends, 'fiscal_year', close_fiscal_year.fiscal_year::text,
+      'Closing of fiscal year ' || close_fiscal_year.fiscal_year::text, auth.uid())
+    returning * into v_entry;
+    insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+    select close_fiscal_year.tenant, v_entry."id", (row_number() over (order by w."code"))::smallint, c.account,
+      greatest(-c.net, 0)::bigint, greatest(c.net, 0)::bigint, v_settings."functional_currency", (-c.net)::bigint
+    from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c join "better_supabase"."accounting_accounts" w on w."id" = c.account;
+    if v_net <> 0 then
+      insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+      values (close_fiscal_year.tenant, v_entry."id", 32767, v_retained,
+        greatest(v_net, 0)::bigint, greatest(-v_net, 0)::bigint, v_settings."functional_currency", v_net::bigint);
+    end if;
+    v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
+    v_closing := v_entry."id";
+  elsif v_open = 0 then
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  for v_period in
+    select * from "better_supabase"."accounting_periods" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year and y."status" = 'open'
+    order by y."number"
+    for update
+  loop
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  end loop;
+  null;
+  return jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing);
+end;
+$$;
+revoke execute on function "better_supabase"."close_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."close_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+-- Per account: the balance before since, the debits and credits from since
+-- through until, and the closing balance; debit balances are positive. Lines
+-- match when their dimensions contain the dimensions filter.
+create or replace function "better_supabase"."accounting_trial_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account,
+      sum(case when z."entry_date" < accounting_trial_balance.since then y."debit" - y."credit" else 0 end) as opening,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."debit" else 0 end) as debit,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."credit" else 0 end) as credit
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_trial_balance.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_trial_balance.dimensions, '{}'::jsonb)
+      and (accounting_trial_balance.until is null or z."entry_date" <= accounting_trial_balance.until)
+    group by y."account_id"
+  )
+  select jsonb_build_object(
+    'accounts', coalesce(jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type",
+      'opening', c.opening::text, 'debit', c.debit::text, 'credit', c.credit::text, 'closing', (c.opening + c.debit - c.credit)::text) order by w."code"), '[]'::jsonb),
+    'totals', jsonb_build_object('opening', coalesce(sum(c.opening), 0)::text, 'debit', coalesce(sum(c.debit), 0)::text, 'credit', coalesce(sum(c.credit), 0)::text,
+      'closing', coalesce(sum(c.opening + c.debit - c.credit), 0)::text)
+  )
+  from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+$$;
+revoke execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Income and expenses from since through until, without year-end closing
+-- entries. Income counts credits, expenses debits.
+create or replace function "better_supabase"."accounting_profit_and_loss"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."credit") - sum(y."debit") as credit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_profit_and_loss.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_profit_and_loss.dimensions, '{}'::jsonb)
+      and z."source_type" is distinct from 'fiscal_year'
+      and (accounting_profit_and_loss.since is null or z."entry_date" >= accounting_profit_and_loss.since)
+      and (accounting_profit_and_loss.until is null or z."entry_date" <= accounting_profit_and_loss.until)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.credit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where w."type" in ('income', 'expense') and c.credit_balance <> 0
+  )
+  select jsonb_build_object(
+    'income', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.credit_balance)::text) order by w."code") from kept w where w."type" = 'income'), '[]'::jsonb),
+    'expenses', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.credit_balance)::text) order by w."code") from kept w where w."type" = 'expense'), '[]'::jsonb),
+    'totalIncome', coalesce((select sum(w.credit_balance) from kept w where w."type" = 'income'), 0)::text,
+    'totalExpenses', coalesce((select -sum(w.credit_balance) from kept w where w."type" = 'expense'), 0)::text,
+    'netIncome', coalesce((select sum(w.credit_balance) from kept w), 0)::text
+  )
+$$;
+revoke execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Assets, liabilities and equity on as_of. Income and expenses not yet
+-- closed into retained earnings count as current earnings under equity.
+create or replace function "better_supabase"."accounting_balance_sheet"(tenant uuid, as_of date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."debit") - sum(y."credit") as debit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_balance_sheet.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_balance_sheet.dimensions, '{}'::jsonb)
+      and z."entry_date" <= coalesce(accounting_balance_sheet.as_of, current_date)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.debit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where c.debit_balance <> 0
+  ),
+  totals as (
+    select
+      coalesce(sum(w.debit_balance) filter (where w."type" = 'asset'), 0) as assets,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'liability'), 0) as liabilities,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'equity'), 0) as equity,
+      coalesce(-sum(w.debit_balance) filter (where w."type" in ('income', 'expense')), 0) as earnings
+    from kept w
+  )
+  select jsonb_build_object(
+    'asOf', coalesce(accounting_balance_sheet.as_of, current_date),
+    'assets', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.debit_balance)::text) order by w."code") from kept w where w."type" = 'asset'), '[]'::jsonb),
+    'liabilities', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'liability'), '[]'::jsonb),
+    'equity', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'equity'), '[]'::jsonb),
+    'currentEarnings', t.earnings::text,
+    'totalAssets', t.assets::text,
+    'totalLiabilities', t.liabilities::text,
+    'totalEquity', (t.equity + t.earnings)::text,
+    'balanced', t.assets = t.liabilities + t.equity + t.earnings
+  )
+  from totals t
+$$;
+revoke execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) to authenticated, service_role;
+
+-- One account's posted lines from since through until with a running
+-- balance; debit balances are positive.
+create or replace function "better_supabase"."accounting_general_ledger"(account_id uuid, since date default null, until date default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with account as (
+    select w.* from "better_supabase"."accounting_accounts" w where w."id" = accounting_general_ledger.account_id
+  ),
+  booked as (
+    select y.*, z."entry_date" as entry_date, z."number" as entry_number, z."journal_id" as journal_id, z."memo" as memo
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where y."account_id" = accounting_general_ledger.account_id and z."status" in ('posted', 'reversed')
+      and (accounting_general_ledger.until is null or z."entry_date" <= accounting_general_ledger.until)
+  ),
+  opening as (
+    select coalesce(sum(b."debit" - b."credit"), 0) as amount from booked b
+    where b.entry_date < accounting_general_ledger.since
+  ),
+  period as (
+    select b.*, (select o.amount from opening o) + sum(b."debit" - b."credit") over (order by b.entry_date, b.entry_number, b."position", b."id") as balance
+    from booked b
+    where accounting_general_ledger.since is null or b.entry_date >= accounting_general_ledger.since
+  )
+  select jsonb_build_object(
+    'account', jsonb_build_object('id', w."id", 'code', w."code", 'name', w."name", 'type', w."type"),
+    'opening', (select o.amount from opening o)::text,
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('entryId', b."entry_id", 'number', b.entry_number, 'entryDate', b.entry_date, 'journalId', b.journal_id,
+      'description', coalesce(b."description", b.memo), 'partyId', b."party_id", 'debit', b."debit"::text, 'credit', b."credit"::text, 'balance', b.balance::text)
+      order by b.entry_date, b.entry_number, b."position", b."id") from period b), '[]'::jsonb),
+    'closing', ((select o.amount from opening o) + coalesce((select sum(b."debit" - b."credit") from period b), 0))::text
+  )
+  from account w
+$$;
+revoke execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) from public, anon;
+grant execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+-- blocks.accounting.api: entry points for the Data API.
+create schema if not exists "api";
+grant usage on schema "api" to anon, authenticated, service_role;
+
+drop function if exists "api"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+
+create or replace function "api"."actor_may_write"()
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."actor_may_write"() $$;
+revoke execute on function "api"."actor_may_write"() from public;
+grant execute on function "api"."actor_may_write"() to anon, authenticated, service_role;
+
+create or replace function "api"."raise_actor_readonly"()
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."raise_actor_readonly"() $$;
+revoke execute on function "api"."raise_actor_readonly"() from public;
+grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
+
+create or replace function "api"."setup_accounting"(tenant uuid, functional_currency text default null, fiscal_year_start_month integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."setup_accounting"($1, $2, $3) $$;
+revoke execute on function "api"."setup_accounting"(uuid, text, integer) from public, anon;
+grant execute on function "api"."setup_accounting"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "api"."get_accounting_settings"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_accounting_settings"($1) $$;
+revoke execute on function "api"."get_accounting_settings"(uuid) from public, anon;
+grant execute on function "api"."get_accounting_settings"(uuid) to authenticated, service_role;
+
+create or replace function "api"."set_accounting_lock_date"(tenant uuid, lock_date date)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_accounting_lock_date"($1, $2) $$;
+revoke execute on function "api"."set_accounting_lock_date"(uuid, date) from public, anon;
+grant execute on function "api"."set_accounting_lock_date"(uuid, date) to authenticated, service_role;
+
+create or replace function "api"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_accounting_account"($1, $2, $3, $4, $5, $6, $7, $8, $9) $$;
+revoke execute on function "api"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) from public, anon;
+grant execute on function "api"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) to authenticated, service_role;
+
+create or replace function "api"."archive_accounting_account"(account_id uuid, archived boolean default true)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."archive_accounting_account"($1, $2) $$;
+revoke execute on function "api"."archive_accounting_account"(uuid, boolean) from public, anon;
+grant execute on function "api"."archive_accounting_account"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."set_accounting_account_role"(tenant uuid, role text, account_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_accounting_account_role"($1, $2, $3) $$;
+revoke execute on function "api"."set_accounting_account_role"(uuid, text, uuid) from public, anon;
+grant execute on function "api"."set_accounting_account_role"(uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "api"."list_accounting_accounts"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_accounting_accounts"($1, $2) $$;
+revoke execute on function "api"."list_accounting_accounts"(uuid, boolean) from public, anon;
+grant execute on function "api"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_accounting_journal"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) from public, anon;
+grant execute on function "api"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "api"."list_accounting_journals"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_accounting_journals"($1) $$;
+revoke execute on function "api"."list_accounting_journals"(uuid) from public, anon;
+grant execute on function "api"."list_accounting_journals"(uuid) to authenticated, service_role;
+
+create or replace function "api"."open_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."open_fiscal_year"($1, $2) $$;
+revoke execute on function "api"."open_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "api"."open_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."list_accounting_periods"(tenant uuid, fiscal_year integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_accounting_periods"($1, $2) $$;
+revoke execute on function "api"."list_accounting_periods"(uuid, integer) from public, anon;
+grant execute on function "api"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."save_accounting_dimension"(tenant uuid, key text, name text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_accounting_dimension"($1, $2, $3) $$;
+revoke execute on function "api"."save_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "api"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_accounting_dimension_value"($1, $2, $3, $4) $$;
+revoke execute on function "api"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "api"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "api"."list_accounting_dimensions"(tenant uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_accounting_dimensions"($1) $$;
+revoke execute on function "api"."list_accounting_dimensions"(uuid) from public, anon;
+grant execute on function "api"."list_accounting_dimensions"(uuid) to authenticated, service_role;
+
+create or replace function "api"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_accounting_tax_code"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
+grant execute on function "api"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
+
+create or replace function "api"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_accounting_tax_codes"($1, $2) $$;
+revoke execute on function "api"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
+grant execute on function "api"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
+
+create or replace function "api"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."set_accounting_fx_rate"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."set_accounting_fx_rate"(uuid, text, text, date, numeric) from public, anon;
+grant execute on function "api"."set_accounting_fx_rate"(uuid, text, text, date, numeric) to authenticated, service_role;
+
+create or replace function "api"."accounting_fx_rate"(tenant uuid, base text, quote text, on_date date)
+returns numeric
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accounting_fx_rate"($1, $2, $3, $4) $$;
+revoke execute on function "api"."accounting_fx_rate"(uuid, text, text, date) from public, anon;
+grant execute on function "api"."accounting_fx_rate"(uuid, text, text, date) to authenticated, service_role;
+
+create or replace function "api"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."save_accounting_entry"($1, $2, $3, $4, $5, $6, $7, $8) $$;
+revoke execute on function "api"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "api"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+
+create or replace function "api"."post_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."post_accounting_entry"($1) $$;
+revoke execute on function "api"."post_accounting_entry"(uuid) from public, anon;
+grant execute on function "api"."post_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "api"."reverse_accounting_entry"(entry_id uuid, entry_date date default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reverse_accounting_entry"($1, $2) $$;
+revoke execute on function "api"."reverse_accounting_entry"(uuid, date) from public, anon;
+grant execute on function "api"."reverse_accounting_entry"(uuid, date) to authenticated, service_role;
+
+create or replace function "api"."delete_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_accounting_entry"($1) $$;
+revoke execute on function "api"."delete_accounting_entry"(uuid) from public, anon;
+grant execute on function "api"."delete_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "api"."get_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."get_accounting_entry"($1) $$;
+revoke execute on function "api"."get_accounting_entry"(uuid) from public, anon;
+grant execute on function "api"."get_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "api"."list_accounting_entries"(tenant uuid, journal_id uuid default null, status text default null, since date default null, until date default null, page_size integer default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_accounting_entries"($1, $2, $3, $4, $5, $6) $$;
+revoke execute on function "api"."list_accounting_entries"(uuid, uuid, text, date, date, integer) from public, anon;
+grant execute on function "api"."list_accounting_entries"(uuid, uuid, text, date, date, integer) to authenticated, service_role;
+
+create or replace function "api"."accounting_period_close_blockers"(period_id uuid)
+returns text[]
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accounting_period_close_blockers"($1) $$;
+revoke execute on function "api"."accounting_period_close_blockers"(uuid) from public, anon;
+grant execute on function "api"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
+
+create or replace function "api"."close_accounting_period"(period_id uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."close_accounting_period"($1) $$;
+revoke execute on function "api"."close_accounting_period"(uuid) from public, anon;
+grant execute on function "api"."close_accounting_period"(uuid) to authenticated, service_role;
+
+create or replace function "api"."reopen_accounting_period"(period_id uuid, reason text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."reopen_accounting_period"($1, $2) $$;
+revoke execute on function "api"."reopen_accounting_period"(uuid, text) from public, anon;
+grant execute on function "api"."reopen_accounting_period"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."close_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."close_fiscal_year"($1, $2) $$;
+revoke execute on function "api"."close_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "api"."close_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+create or replace function "api"."accounting_trial_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accounting_trial_balance"($1, $2, $3, $4) $$;
+revoke execute on function "api"."accounting_trial_balance"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "api"."accounting_trial_balance"(uuid, date, date, jsonb) to authenticated, service_role;
+
+create or replace function "api"."accounting_profit_and_loss"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accounting_profit_and_loss"($1, $2, $3, $4) $$;
+revoke execute on function "api"."accounting_profit_and_loss"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "api"."accounting_profit_and_loss"(uuid, date, date, jsonb) to authenticated, service_role;
+
+create or replace function "api"."accounting_balance_sheet"(tenant uuid, as_of date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accounting_balance_sheet"($1, $2, $3) $$;
+revoke execute on function "api"."accounting_balance_sheet"(uuid, date, jsonb) from public, anon;
+grant execute on function "api"."accounting_balance_sheet"(uuid, date, jsonb) to authenticated, service_role;
+
+create or replace function "api"."accounting_general_ledger"(account_id uuid, since date default null, until date default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."accounting_general_ledger"($1, $2, $3) $$;
+revoke execute on function "api"."accounting_general_ledger"(uuid, date, date) from public, anon;
+grant execute on function "api"."accounting_general_ledger"(uuid, date, date) to authenticated, service_role;
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from public, anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block-data accounting
+-- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('accounting', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block accounting@1 managed
+-- @bsb-hash sha256:89f208989288d7cebca6d9f7831b80de39a941f1882f069d6136c32f00107611
+-- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Accounting: a chart of accounts with roles, journals, fiscal periods, and
+-- balanced journal entries in minor units of the organization's functional
+-- currency, with dimensions, exchange rates, tax codes, reports and the
+-- period and year-end close.
+
+-- better_supabase.accounting_settings is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_settings" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_settings" add column if not exists "functional_currency" text check ("functional_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_settings" add column if not exists "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12);
+alter table "better_supabase"."accounting_settings" add column if not exists "lock_date" date;
+alter table "better_supabase"."accounting_settings" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."accounting_settings" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "accounting_settings_tenant_id_key" on "better_supabase"."accounting_settings" ("tenant_id");
+alter table "better_supabase"."accounting_settings" enable row level security;
+grant select on "better_supabase"."accounting_settings" to authenticated;
+grant all on "better_supabase"."accounting_settings" to service_role;
+drop policy if exists bsb_accounting_settings_select on "better_supabase"."accounting_settings";
+create policy bsb_accounting_settings_select on "better_supabase"."accounting_settings"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_accounts is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_accounts" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_accounts" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_accounts" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."accounting_accounts" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_accounts" add column if not exists "type" text check ("type" in ('asset', 'liability', 'equity', 'income', 'expense'));
+alter table "better_supabase"."accounting_accounts" add column if not exists "subtype" text;
+alter table "better_supabase"."accounting_accounts" add column if not exists "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
+alter table "better_supabase"."accounting_accounts" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_accounts" add column if not exists "reconcilable" boolean not null default false;
+alter table "better_supabase"."accounting_accounts" add column if not exists "archived_at" timestamptz;
+alter table "better_supabase"."accounting_accounts" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."accounting_accounts" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "accounting_accounts_tenant_id_code_key" on "better_supabase"."accounting_accounts" ("tenant_id", "code");
+create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+alter table "better_supabase"."accounting_accounts" enable row level security;
+grant select on "better_supabase"."accounting_accounts" to authenticated;
+grant all on "better_supabase"."accounting_accounts" to service_role;
+drop policy if exists bsb_accounting_accounts_select on "better_supabase"."accounting_accounts";
+create policy bsb_accounting_accounts_select on "better_supabase"."accounting_accounts"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_account_roles is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_account_roles" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense'));
+alter table "better_supabase"."accounting_account_roles" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
+alter table "better_supabase"."accounting_account_roles" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "accounting_account_roles_tenant_id_role_key" on "better_supabase"."accounting_account_roles" ("tenant_id", "role");
+create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+alter table "better_supabase"."accounting_account_roles" enable row level security;
+grant select on "better_supabase"."accounting_account_roles" to authenticated;
+grant all on "better_supabase"."accounting_account_roles" to service_role;
+drop policy if exists bsb_accounting_account_roles_select on "better_supabase"."accounting_account_roles";
+create policy bsb_accounting_account_roles_select on "better_supabase"."accounting_account_roles"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_journals is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_journals" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_journals" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_journals" add column if not exists "code" text check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$');
+alter table "better_supabase"."accounting_journals" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_journals" add column if not exists "type" text check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general'));
+alter table "better_supabase"."accounting_journals" add column if not exists "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
+alter table "better_supabase"."accounting_journals" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_journals" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."accounting_journals" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "accounting_journals_tenant_id_code_key" on "better_supabase"."accounting_journals" ("tenant_id", "code");
+create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+alter table "better_supabase"."accounting_journals" enable row level security;
+grant select on "better_supabase"."accounting_journals" to authenticated;
+grant all on "better_supabase"."accounting_journals" to service_role;
+drop policy if exists bsb_accounting_journals_select on "better_supabase"."accounting_journals";
+create policy bsb_accounting_journals_select on "better_supabase"."accounting_journals"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_periods is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_periods" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_periods" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_periods" add column if not exists "fiscal_year" integer check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
+alter table "better_supabase"."accounting_periods" add column if not exists "number" smallint check ("number" >= 1 and "number" <= 12);
+alter table "better_supabase"."accounting_periods" add column if not exists "starts_on" date;
+alter table "better_supabase"."accounting_periods" add column if not exists "ends_on" date;
+alter table "better_supabase"."accounting_periods" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'closed'));
+alter table "better_supabase"."accounting_periods" add column if not exists "closed_at" timestamptz;
+alter table "better_supabase"."accounting_periods" add column if not exists "closed_by" uuid;
+alter table "better_supabase"."accounting_periods" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "accounting_periods_tenant_id_fiscal_year_number_key" on "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number");
+create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
+alter table "better_supabase"."accounting_periods" enable row level security;
+grant select on "better_supabase"."accounting_periods" to authenticated;
+grant all on "better_supabase"."accounting_periods" to service_role;
+drop policy if exists bsb_accounting_periods_select on "better_supabase"."accounting_periods";
+create policy bsb_accounting_periods_select on "better_supabase"."accounting_periods"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_entries is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_entries" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_entries" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_entries" add column if not exists "journal_id" uuid references "better_supabase"."accounting_journals" ("id") on delete restrict;
+alter table "better_supabase"."accounting_entries" add column if not exists "fiscal_year" integer;
+alter table "better_supabase"."accounting_entries" add column if not exists "sequence" integer;
+alter table "better_supabase"."accounting_entries" add column if not exists "number" text;
+alter table "better_supabase"."accounting_entries" add column if not exists "entry_date" date;
+alter table "better_supabase"."accounting_entries" add column if not exists "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict;
+alter table "better_supabase"."accounting_entries" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed'));
+alter table "better_supabase"."accounting_entries" add column if not exists "reference" text check ("reference" is null or length("reference") <= 200);
+alter table "better_supabase"."accounting_entries" add column if not exists "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."accounting_entries" add column if not exists "source_id" text;
+alter table "better_supabase"."accounting_entries" add column if not exists "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict;
+alter table "better_supabase"."accounting_entries" add column if not exists "memo" text check ("memo" is null or length("memo") <= 2000);
+alter table "better_supabase"."accounting_entries" add column if not exists "posted_at" timestamptz;
+alter table "better_supabase"."accounting_entries" add column if not exists "posted_by" uuid;
+alter table "better_supabase"."accounting_entries" add column if not exists "created_by" uuid;
+alter table "better_supabase"."accounting_entries" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."accounting_entries" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+-- A document books once: a second entry for it waits until the first is reversed.
+create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("tenant_id", "entry_date" desc);
+create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+alter table "better_supabase"."accounting_entries" enable row level security;
+grant select on "better_supabase"."accounting_entries" to authenticated;
+grant all on "better_supabase"."accounting_entries" to service_role;
+drop policy if exists bsb_accounting_entries_select on "better_supabase"."accounting_entries";
+create policy bsb_accounting_entries_select on "better_supabase"."accounting_entries"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_dimensions is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_dimensions" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_dimensions" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_dimensions" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."accounting_dimensions" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_dimensions" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "accounting_dimensions_tenant_id_key_key" on "better_supabase"."accounting_dimensions" ("tenant_id", "key");
+alter table "better_supabase"."accounting_dimensions" enable row level security;
+grant select on "better_supabase"."accounting_dimensions" to authenticated;
+grant all on "better_supabase"."accounting_dimensions" to service_role;
+drop policy if exists bsb_accounting_dimensions_select on "better_supabase"."accounting_dimensions";
+create policy bsb_accounting_dimensions_select on "better_supabase"."accounting_dimensions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_dimension_values is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "dimension_id" uuid references "better_supabase"."accounting_dimensions" ("id") on delete cascade;
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 100);
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "archived_at" timestamptz;
+create unique index if not exists "accounting_dimension_values_dimension_id_code_key" on "better_supabase"."accounting_dimension_values" ("dimension_id", "code");
+alter table "better_supabase"."accounting_dimension_values" enable row level security;
+grant select on "better_supabase"."accounting_dimension_values" to authenticated;
+grant all on "better_supabase"."accounting_dimension_values" to service_role;
+drop policy if exists bsb_accounting_dimension_values_select on "better_supabase"."accounting_dimension_values";
+create policy bsb_accounting_dimension_values_select on "better_supabase"."accounting_dimension_values"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_fx_rates is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "base" text check ("base" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "quote" text check ("quote" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "on_date" date;
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "rate" numeric check ("rate" > 0);
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "accounting_fx_rates_tenant_id_base_quote_on_date_key" on "better_supabase"."accounting_fx_rates" ("tenant_id", "base", "quote", "on_date");
+alter table "better_supabase"."accounting_fx_rates" enable row level security;
+grant select on "better_supabase"."accounting_fx_rates" to authenticated;
+grant all on "better_supabase"."accounting_fx_rates" to service_role;
+drop policy if exists bsb_accounting_fx_rates_select on "better_supabase"."accounting_fx_rates";
+create policy bsb_accounting_fx_rates_select on "better_supabase"."accounting_fx_rates"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_tax_codes is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 100000);
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "kind" text check ("kind" in ('sales', 'purchase'));
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "report_boxes" text[] not null default '{}';
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "archived_at" timestamptz;
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "created_at" timestamptz not null default now();
+alter table "better_supabase"."accounting_tax_codes" add column if not exists "updated_at" timestamptz not null default now();
+create unique index if not exists "accounting_tax_codes_tenant_id_code_key" on "better_supabase"."accounting_tax_codes" ("tenant_id", "code");
+create index if not exists "accounting_tax_codes_account_idx" on "better_supabase"."accounting_tax_codes" ("account_id");
+alter table "better_supabase"."accounting_tax_codes" enable row level security;
+grant select on "better_supabase"."accounting_tax_codes" to authenticated;
+grant all on "better_supabase"."accounting_tax_codes" to service_role;
+drop policy if exists bsb_accounting_tax_codes_select on "better_supabase"."accounting_tax_codes";
+create policy bsb_accounting_tax_codes_select on "better_supabase"."accounting_tax_codes"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- better_supabase.accounting_entry_lines is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "entry_id" uuid references "better_supabase"."accounting_entries" ("id") on delete cascade;
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "position" smallint not null default 0;
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "debit" bigint not null default 0 check ("debit" >= 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "credit" bigint not null default 0 check ("credit" >= 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "amount_currency" bigint;
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "tax_code_id" uuid references "better_supabase"."accounting_tax_codes" ("id") on delete restrict;
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "party_id" uuid;
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "description" text check ("description" is null or length("description") <= 500);
+create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
+create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+alter table "better_supabase"."accounting_entry_lines" enable row level security;
+grant select on "better_supabase"."accounting_entry_lines" to authenticated;
+grant all on "better_supabase"."accounting_entry_lines" to service_role;
+drop policy if exists bsb_accounting_entry_lines_select on "better_supabase"."accounting_entry_lines";
+create policy bsb_accounting_entry_lines_select on "better_supabase"."accounting_entry_lines"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- A posted entry changes only from posted to reversed; its lines never change.
+create or replace function "better_supabase"."accounting_entry_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and old."status" = 'draft' then
+    return new;
+  end if;
+  if tg_op = 'DELETE' and old."status" = 'draft' then
+    return old;
+  end if;
+  if tg_op = 'UPDATE' and old."status" = 'posted' and new."status" = 'reversed'
+    and (to_jsonb(new) - 'status' - 'updated_at')
+      = (to_jsonb(old) - 'status' - 'updated_at') then
+    return new;
+  end if;
+  raise exception 'a posted entry can''t be changed or deleted; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
+create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
+  for each row execute function "better_supabase"."accounting_entry_guard"('tenant_id');
+
+create or replace function "better_supabase"."accounting_entry_line_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_entry uuid := case when tg_op = 'DELETE' then old."entry_id" else new."entry_id" end;
+begin
+  if exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = v_entry and y."status" <> 'draft')
+    or (tg_op = 'UPDATE' and exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = old."entry_id" and y."status" <> 'draft')) then
+    raise exception 'the lines of a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
+create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
+  for each row execute function "better_supabase"."accounting_entry_line_guard"('tenant_id');
+
+-- Sets up accounting for an organization: its functional currency and the
+-- month its fiscal year starts, then the generic chart, its account roles and the default journals when it has none.
+-- Neither setting changes once entries post or periods exist.
+create or replace function "better_supabase"."setup_accounting"(tenant uuid, functional_currency text default null, fiscal_year_start_month integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_settings"%rowtype;
+  v_currency text := upper(coalesce(nullif(trim(setup_accounting.functional_currency), ''), 'EUR'));
+  v_month integer := coalesce(setup_accounting.fiscal_year_start_month, 1);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', setup_accounting.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  if v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the functional currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  if v_month < 1 or v_month > 12 then
+    raise exception 'the fiscal year starts in a month from 1 to 12' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."accounting_settings" y where y."tenant_id" = setup_accounting.tenant for update;
+  if found then
+    if setup_accounting.functional_currency is not null and v_row."functional_currency" <> v_currency
+      and exists (select 1 from "better_supabase"."accounting_entries" y where y."tenant_id" = setup_accounting.tenant and y."status" <> 'draft') then
+      raise exception 'the functional currency can''t change once entries are posted' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    if setup_accounting.fiscal_year_start_month is not null and v_row."fiscal_year_start_month" <> v_month
+      and exists (select 1 from "better_supabase"."accounting_periods" y where y."tenant_id" = setup_accounting.tenant) then
+      raise exception 'the fiscal year start can''t change once periods exist' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    update "better_supabase"."accounting_settings" y set
+      "functional_currency" = case when setup_accounting.functional_currency is null then y."functional_currency" else v_currency end,
+      "fiscal_year_start_month" = case when setup_accounting.fiscal_year_start_month is null then y."fiscal_year_start_month" else v_month end,
+      "updated_at" = now()
+    where y."tenant_id" = setup_accounting.tenant
+    returning * into v_row;
+  else
+    insert into "better_supabase"."accounting_settings" ("tenant_id", "functional_currency", "fiscal_year_start_month")
+    values (setup_accounting.tenant, v_currency, v_month)
+    returning * into v_row;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "reconcilable")
+    values
+      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true),
+      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
+      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
+      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true),
+      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false),
+      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false),
+      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false),
+      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false),
+      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false),
+      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false),
+      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false);
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    select setup_accounting.tenant, c.role, y."id"
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('cogs', '5000'), ('depreciation_expense', '6800'), ('fx_loss', '6900')) c (role, code)
+    join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
+    on conflict ("tenant_id", "role") do nothing;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."tenant_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id")
+    select setup_accounting.tenant, c.code, c.name, c.type,
+      (select y."id" from "better_supabase"."accounting_accounts" y where y."tenant_id" = setup_accounting.tenant and y."code" = c.account)
+    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+  end if;
+  return jsonb_build_object('organizationId', v_row."tenant_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."setup_accounting"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."setup_accounting"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_settings"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('organizationId', x."tenant_id", 'functionalCurrency', x."functional_currency", 'fiscalYearStartMonth', x."fiscal_year_start_month", 'lockDate', x."lock_date", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."accounting_settings" x where x."tenant_id" = get_accounting_settings.tenant
+$$;
+revoke execute on function "better_supabase"."get_accounting_settings"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_settings"(uuid) to authenticated, service_role;
+
+-- Nothing posts on or before the lock date; null unlocks.
+create or replace function "better_supabase"."set_accounting_lock_date"(tenant uuid, lock_date date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_lock_date.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = set_accounting_lock_date.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  update "better_supabase"."accounting_settings" y set "lock_date" = set_accounting_lock_date.lock_date, "updated_at" = now()
+  where y."tenant_id" = set_accounting_lock_date.tenant
+  returning * into v_settings;
+  return jsonb_build_object('organizationId', v_settings."tenant_id", 'functionalCurrency', v_settings."functional_currency", 'fiscalYearStartMonth', v_settings."fiscal_year_start_month", 'lockDate', v_settings."lock_date", 'createdAt', v_settings."created_at", 'updatedAt', v_settings."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) to authenticated, service_role;
+
+-- Creates an account, or changes one (account_id, or the account with the code).
+-- An account with posted lines keeps its type.
+create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+  v_id uuid := save_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+    raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+    raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+    raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_accounts" y
+    where y."tenant_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+  end if;
+  if save_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."tenant_id" = save_accounting_account.tenant) then
+      raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if v_id is not null and exists (
+      with recursive up (id) as (
+        select save_accounting_account.parent_id
+        union
+        select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
+      )
+      select 1 from up where up.id = v_id
+    ) then
+      raise exception 'an account can''t be its own parent' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+    end if;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_accounts" ("tenant_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable")
+    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
+      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."tenant_id" = save_accounting_account.tenant for update;
+    if not found then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if exists (
+      select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+      where y."account_id" = v_id and z."status" <> 'draft'
+        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+    ) then
+      raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+    end if;
+    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
+      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false), "updated_at" = now()
+    where y."id" = v_id
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) to authenticated, service_role;
+
+-- Archives an account (nothing posts to it), or restores it. An account
+-- mapped to a role, a journal or a tax code stays.
+create or replace function "better_supabase"."archive_accounting_account"(account_id uuid, archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = archive_accounting_account.account_id for update;
+  if not found then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if coalesce(archive_accounting_account.archived, true) and (
+    exists (select 1 from "better_supabase"."accounting_account_roles" y where y."account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_journals" y where y."default_account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_tax_codes" y where y."account_id" = v_row."id" and y."archived_at" is null)
+  ) then
+    raise exception 'the account is mapped to a role, a journal or a tax code' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+  end if;
+  update "better_supabase"."accounting_accounts" y set "archived_at" = case when coalesce(archive_accounting_account.archived, true) then coalesce(y."archived_at", now()) end,
+    "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) to authenticated, service_role;
+
+-- Maps a role (receivable, bank, retained_earnings) to an account; null unmaps it.
+create or replace function "better_supabase"."set_accounting_account_role"(tenant uuid, role text, account_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense') then
+    raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
+  end if;
+  if set_accounting_account_role.account_id is null then
+    delete from "better_supabase"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant and y."role" = set_accounting_account_role.role;
+  else
+    if not exists (
+      select 1 from "better_supabase"."accounting_accounts" y where y."id" = set_accounting_account_role.account_id
+        and y."tenant_id" = set_accounting_account_role.tenant and y."archived_at" is null
+    ) then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
+    values (set_accounting_account_role.tenant, set_accounting_account_role.role, set_accounting_account_role.account_id)
+    on conflict ("tenant_id", "role") do update set "account_id" = excluded."account_id", "updated_at" = now();
+  end if;
+  return coalesce((
+    select jsonb_object_agg(y."role", y."account_id") from "better_supabase"."accounting_account_roles" y where y."tenant_id" = set_accounting_account_role.tenant
+  ), '{}'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_accounts"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'subtype', x."subtype", 'parentId', x."parent_id", 'currency', x."currency", 'reconcilable', x."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = x."id"), '[]'::jsonb), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_accounts" x
+  where x."tenant_id" = list_accounting_accounts.tenant
+    and (coalesce(list_accounting_accounts.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
+
+-- Creates a journal, or changes one (journal_id, or the journal with the code).
+create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_journals"%rowtype;
+  v_id uuid := save_accounting_journal.journal_id;
+  v_code text := upper(trim(save_accounting_journal.code));
+  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
+  end if;
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+    raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+    raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
+      and y."tenant_id" = save_accounting_journal.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."tenant_id" = save_accounting_journal.tenant and y."code" = v_code;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_journals" ("tenant_id", "code", "name", "type", "default_account_id", "currency")
+    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency)
+    returning * into v_row;
+  else
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
+      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency, "updated_at" = now()
+    where y."id" = v_id and y."tenant_id" = save_accounting_journal.tenant
+    returning * into v_row;
+    if not found then
+      raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'type', x."type", 'defaultAccountId', x."default_account_id", 'currency', x."currency", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_journals" x
+  where x."tenant_id" = list_accounting_journals.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_journals"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_journals"(uuid) to authenticated, service_role;
+
+-- Creates the twelve monthly periods of a fiscal year, from the start month of
+-- the calendar year fiscal_year. Periods that exist stay as they are.
+create or replace function "better_supabase"."open_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_start date;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_fiscal_year.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if open_fiscal_year.fiscal_year is null or open_fiscal_year.fiscal_year < 1900 or open_fiscal_year.fiscal_year > 9998 then
+    raise exception 'the fiscal year is a calendar year such as 2026' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = open_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  v_start := make_date(open_fiscal_year.fiscal_year, v_settings."fiscal_year_start_month", 1);
+  insert into "better_supabase"."accounting_periods" ("tenant_id", "fiscal_year", "number", "starts_on", "ends_on")
+  select open_fiscal_year.tenant, open_fiscal_year.fiscal_year, n,
+    (v_start + make_interval(months => n - 1))::date,
+    (v_start + make_interval(months => n) - interval '1 day')::date
+  from generate_series(1, 12) n
+  on conflict ("tenant_id", "fiscal_year", "number") do nothing;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'fiscalYear', y."fiscal_year", 'number', y."number", 'startsOn', y."starts_on", 'endsOn', y."ends_on", 'status', y."status", 'closedAt', y."closed_at", 'closedBy', y."closed_by") order by y."number") from "better_supabase"."accounting_periods" y
+    where y."tenant_id" = open_fiscal_year.tenant and y."fiscal_year" = open_fiscal_year.fiscal_year
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."open_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_periods"(tenant uuid, fiscal_year integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'fiscalYear', x."fiscal_year", 'number', x."number", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'status', x."status", 'closedAt', x."closed_at", 'closedBy', x."closed_by") order by x."starts_on"), '[]'::jsonb)
+  from "better_supabase"."accounting_periods" x
+  where x."tenant_id" = list_accounting_periods.tenant
+    and (list_accounting_periods.fiscal_year is null or x."fiscal_year" = list_accounting_periods.fiscal_year)
+$$;
+revoke execute on function "better_supabase"."list_accounting_periods"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
+
+-- Creates or renames a dimension (project, department, cost center) by key.
+create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+    raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimensions" ("tenant_id", "key", "name")
+  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  on conflict ("tenant_id", "key") do update set "name" = excluded."name"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+
+-- Adds or renames a value of a dimension by code; archived values take no new lines.
+create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_dimension "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  if not found then
+    raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."tenant_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+    raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimension_values" as y ("tenant_id", "dimension_id", "code", "name", "archived_at")
+  values (v_dimension."tenant_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
+    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  on conflict ("dimension_id", "code") do update
+    set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
+  return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."tenant_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'key', x."key", 'name', x."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = x."id"), '[]'::jsonb), 'createdAt', x."created_at") order by x."key"), '[]'::jsonb)
+  from "better_supabase"."accounting_dimensions" x
+  where x."tenant_id" = list_accounting_dimensions.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_dimensions"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_dimensions"(uuid) to authenticated, service_role;
+
+-- Creates or changes a tax code by code. rate_bps is basis points (2100 is 21%).
+create or replace function "better_supabase"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_tax_codes"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_tax_code.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage tax codes' using errcode = '42501', hint = 'ACCOUNTING_TAX_CODE_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_tax_code.code), '') is null or nullif(trim(save_accounting_tax_code.name), '') is null
+    or save_accounting_tax_code.rate_bps is null or save_accounting_tax_code.rate_bps < 0 or save_accounting_tax_code.rate_bps > 100000
+    or save_accounting_tax_code.kind is null or save_accounting_tax_code.kind not in ('sales', 'purchase') then
+    raise exception 'a tax code needs a code, a name, a rate in basis points and a kind (sales or purchase)' using errcode = '22023', hint = 'ACCOUNTING_TAX_CODE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_tax_code.account_id
+      and y."tenant_id" = save_accounting_tax_code.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."accounting_tax_codes" ("tenant_id", "code", "name", "rate_bps", "kind", "account_id", "report_boxes", "archived_at")
+  values (save_accounting_tax_code.tenant, trim(save_accounting_tax_code.code), trim(save_accounting_tax_code.name), save_accounting_tax_code.rate_bps,
+    save_accounting_tax_code.kind, save_accounting_tax_code.account_id, coalesce(save_accounting_tax_code.report_boxes, '{}'),
+    case when coalesce(save_accounting_tax_code.archived, false) then now() end)
+  on conflict ("tenant_id", "code") do update
+    set "name" = excluded."name", "rate_bps" = excluded."rate_bps", "kind" = excluded."kind",
+      "account_id" = excluded."account_id", "report_boxes" = excluded."report_boxes", "archived_at" = excluded."archived_at",
+      "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'code', v_row."code", 'name', v_row."name", 'rateBps', v_row."rate_bps", 'kind', v_row."kind", 'accountId', v_row."account_id", 'reportBoxes', to_jsonb(v_row."report_boxes"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'code', x."code", 'name', x."name", 'rateBps', x."rate_bps", 'kind', x."kind", 'accountId', x."account_id", 'reportBoxes', to_jsonb(x."report_boxes"), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_tax_codes" x
+  where x."tenant_id" = list_accounting_tax_codes.tenant
+    and (coalesce(list_accounting_tax_codes.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
+
+-- Records what one unit of base costs in quote on a date.
+create or replace function "better_supabase"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(set_accounting_fx_rate.base));
+  v_quote text := upper(trim(set_accounting_fx_rate.quote));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_fx_rate.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage exchange rates' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if coalesce(v_base, '') !~ '^[A-Z]{3}$' or coalesce(v_quote, '') !~ '^[A-Z]{3}$' or v_base = v_quote
+    or set_accounting_fx_rate.on_date is null or coalesce(set_accounting_fx_rate.rate, 0) <= 0 then
+    raise exception 'a rate needs two different ISO 4217 codes, a date and a positive rate' using errcode = '22023', hint = 'ACCOUNTING_FX_RATE_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_fx_rates" ("tenant_id", "base", "quote", "on_date", "rate")
+  values (set_accounting_fx_rate.tenant, v_base, v_quote, set_accounting_fx_rate.on_date, set_accounting_fx_rate.rate)
+  on conflict ("tenant_id", "base", "quote", "on_date") do update set "rate" = excluded."rate";
+  return jsonb_build_object('organizationId', set_accounting_fx_rate.tenant, 'base', v_base, 'quote', v_quote,
+    'onDate', set_accounting_fx_rate.on_date, 'rate', set_accounting_fx_rate.rate::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) from public, anon;
+grant execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) to authenticated, service_role;
+
+-- The rate on the date or the latest before it, or the inverse of the
+-- opposite pair's; ACCOUNTING_FX_RATE_MISSING when neither has one.
+create or replace function "better_supabase"."accounting_fx_rate"(tenant uuid, base text, quote text, on_date date)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(accounting_fx_rate.base));
+  v_quote text := upper(trim(accounting_fx_rate.quote));
+  v_rate numeric;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accounting_fx_rate.tenant, 'accounting.read'), false)) then
+    raise exception 'not allowed to read accounting' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if v_base = v_quote then
+    return 1;
+  end if;
+  select y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+  where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_base and y."quote" = v_quote and y."on_date" <= accounting_fx_rate.on_date
+  order by y."on_date" desc limit 1;
+  if v_rate is null then
+    select 1 / y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+    where y."tenant_id" = accounting_fx_rate.tenant and y."base" = v_quote and y."quote" = v_base and y."on_date" <= accounting_fx_rate.on_date
+    order by y."on_date" desc limit 1;
+  end if;
+  if v_rate is null then
+    raise exception 'no exchange rate for the currency pair on or before the date' using errcode = 'P0002', hint = 'ACCOUNTING_FX_RATE_MISSING';
+  end if;
+  return v_rate;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) from public, anon;
+grant execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) to authenticated, service_role;
+
+-- Posts a draft entry: balanced in the functional currency, dated in an open
+-- period after the lock date, with known dimension values; then numbers it per
+-- journal and fiscal year. Called by the posting, reversal and year close
+-- functions; closing skips the period and lock date checks.
+create or replace function "better_supabase"."accounting_post"(entry_id uuid, closing boolean default false)
+returns "better_supabase"."accounting_entries"
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_total numeric;
+  v_credits numeric;
+  v_count integer;
+  v_sequence integer;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = accounting_post.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_row."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(y."debit"), 0), coalesce(sum(y."credit"), 0) into v_count, v_total, v_credits
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  if v_count < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if v_total <> v_credits then
+    raise exception 'the debits and credits of the entry differ in the functional currency' using errcode = '23514', hint = 'ACCOUNTING_ENTRY_UNBALANCED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_accounts" z on z."id" = y."account_id"
+    where y."entry_id" = v_row."id" and z."archived_at" is not null
+  ) then
+    raise exception 'an account of the entry is archived' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y, jsonb_each(y."dimensions") dim
+    where y."entry_id" = v_row."id"
+      and (jsonb_typeof(dim.value) <> 'string' or not exists (
+        select 1 from "better_supabase"."accounting_dimensions" z join "better_supabase"."accounting_dimension_values" w on w."dimension_id" = z."id"
+        where z."tenant_id" = v_row."tenant_id" and z."key" = dim.key
+          and w."code" = dim.value #>> '{}' and w."archived_at" is null
+      ))
+  ) then
+    raise exception 'a line names a dimension or value that doesn''t exist or is archived' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y
+  where y."tenant_id" = v_row."tenant_id" and v_row."entry_date" >= y."starts_on" and v_row."entry_date" <= y."ends_on";
+  if not found then
+    raise exception 'no period covers the entry date; open its fiscal year first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not coalesce(accounting_post.closing, false) and (
+    v_period."status" = 'closed'
+    or (v_settings."lock_date" is not null and v_row."entry_date" <= v_settings."lock_date")
+  ) then
+    raise exception 'the entry date is in a closed period or on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = v_row."journal_id";
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_journal."id"::text || ':' || v_period."fiscal_year"::text, 0));
+  select coalesce(max(y."sequence"), 0) + 1 into v_sequence from "better_supabase"."accounting_entries" y
+  where y."journal_id" = v_journal."id" and y."fiscal_year" = v_period."fiscal_year";
+  update "better_supabase"."accounting_entries" y set "status" = 'posted', "fiscal_year" = v_period."fiscal_year", "sequence" = v_sequence,
+    "number" = v_journal."code" || '-' || v_period."fiscal_year"::text || '-' || lpad(v_sequence::text, 5, '0'),
+    "period_id" = v_period."id", "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) from public, anon, authenticated;
+
+-- Creates a draft entry, or replaces a draft's header and lines (entry_id).
+-- Each line names an account (accountId or accountCode) and a debit or a
+-- credit in minor units of the functional currency. A line in another
+-- currency gives amountCurrency (signed, positive is a debit) and either the
+-- functional amount or an fxRate; without both, the rate on the entry date
+-- converts it.
+drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_line record;
+  v_account "better_supabase"."accounting_accounts"%rowtype;
+  v_currency text;
+  v_debit bigint;
+  v_credit bigint;
+  v_amount bigint;
+  v_rate numeric;
+  v_functional bigint;
+  v_tax uuid;
+  v_party uuid;
+  v_dimensions jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  if not found then
+    raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_journal."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_journal."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if save_accounting_entry.entry_date is null then
+    raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
+    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+    raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if save_accounting_entry.source_type is not null and exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = v_journal."tenant_id" and y."source_type" = save_accounting_entry.source_type
+      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from save_accounting_entry.entry_id
+  ) then
+    raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
+  end if;
+  if save_accounting_entry.entry_id is null then
+    insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
+    values (v_journal."tenant_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
+      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."tenant_id" = v_journal."tenant_id" for update;
+    if not found then
+      raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+    end if;
+    if v_row."status" <> 'draft' then
+      raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+    end if;
+    delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
+      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
+      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''),
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."tenant_id" = v_journal."tenant_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+      "updated_at" = now()
+    where y."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+    if jsonb_typeof(v_line.value) is distinct from 'object' then
+      raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."tenant_id" = v_journal."tenant_id";
+    else
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."tenant_id" = v_journal."tenant_id";
+    end if;
+    if v_account."id" is null or v_account."archived_at" is not null then
+      raise exception 'a line''s account doesn''t exist here or is archived' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if coalesce(v_line.value ->> 'debit', '0') !~ '^[0-9]{1,18}$' or coalesce(v_line.value ->> 'credit', '0') !~ '^[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'amountCurrency', '0') !~ '^-?[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'fxRate', '1') !~ '^[0-9]+(\.[0-9]+)?$' then
+      raise exception 'debit and credit are non-negative integers, amountCurrency an integer and fxRate a positive decimal' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_debit := coalesce((v_line.value ->> 'debit')::bigint, 0);
+    v_credit := coalesce((v_line.value ->> 'credit')::bigint, 0);
+    v_currency := upper(coalesce(nullif(v_line.value ->> 'currency', ''), v_settings."functional_currency"));
+    if v_currency !~ '^[A-Z]{3}$' then
+      raise exception 'a line''s currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if v_account."currency" is not null and v_account."currency" <> v_currency then
+      raise exception 'the account takes lines in its own currency only' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_rate := null;
+    if v_currency = v_settings."functional_currency" then
+      v_amount := v_debit - v_credit;
+    else
+      v_amount := (v_line.value ->> 'amountCurrency')::bigint;
+      if v_amount is null or v_amount = 0 then
+        raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
+        "better_supabase"."accounting_fx_rate"(v_journal."tenant_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+      if v_rate <= 0 then
+        raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      if v_debit = 0 and v_credit = 0 then
+        v_functional := round(abs(v_amount) * v_rate)::bigint;
+        if v_amount > 0 then
+          v_debit := v_functional;
+        else
+          v_credit := v_functional;
+        end if;
+      elsif (v_amount > 0) <> (v_debit > 0) then
+        raise exception 'amountCurrency and the functional amount must be on the same side' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+    end if;
+    if (v_debit = 0) = (v_credit = 0) then
+      raise exception 'every line has either a debit or a credit' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_tax := null;
+    if v_line.value ->> 'taxCodeId' is not null then
+      select y."id" into v_tax from "better_supabase"."accounting_tax_codes" y
+      where y."id"::text = v_line.value ->> 'taxCodeId' and y."tenant_id" = v_journal."tenant_id";
+      if v_tax is null then
+        raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
+      end if;
+    end if;
+    if coalesce(v_line.value ->> 'partyId', '00000000-0000-0000-0000-000000000000') !~ '^[0-9a-fA-F-]{36}$' then
+      raise exception 'partyId must be a uuid' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_party := (v_line.value ->> 'partyId')::uuid;
+    v_dimensions := coalesce(v_line.value -> 'dimensions', '{}'::jsonb);
+    if jsonb_typeof(v_dimensions) = 'null' then
+      v_dimensions := '{}'::jsonb;
+    end if;
+    if jsonb_typeof(v_dimensions) <> 'object' then
+      raise exception 'a line''s dimensions are an object of dimension keys to value codes' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+    end if;
+    insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+      "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+    values (v_journal."tenant_id", v_row."id", v_line.ordinality, v_account."id", v_debit, v_credit, v_currency,
+      v_amount, v_rate, v_tax, v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
+  end loop;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = post_accounting_entry.entry_id;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  v_row := "better_supabase"."accounting_post"(v_row."id");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."post_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Reverses a posted entry with a new entry of opposite lines, dated
+-- entry_date (default the original's date), and marks the original reversed.
+create or replace function "better_supabase"."reverse_accounting_entry"(entry_id uuid, entry_date date default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_reversal "better_supabase"."accounting_entries"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = reverse_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" = 'reversed' then
+    raise exception 'the entry is already reversed' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_REVERSED';
+  end if;
+  if v_row."status" <> 'posted' then
+    raise exception 'only a posted entry can be reversed; delete a draft instead' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "reference", "reverses_id", "memo", "created_by")
+  values (v_row."tenant_id", v_row."journal_id", coalesce(reverse_accounting_entry.entry_date, v_row."entry_date"), v_row."number",
+    v_row."id", 'Reversal of ' || v_row."number", auth.uid())
+  returning * into v_reversal;
+  insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+    "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+  select y."tenant_id", v_reversal."id", y."position", y."account_id", y."credit", y."debit", y."currency",
+    -y."amount_currency", y."fx_rate", y."tax_code_id", y."party_id", y."dimensions", y."description"
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  v_reversal := "better_supabase"."accounting_post"(v_reversal."id");
+  update "better_supabase"."accounting_entries" y set "status" = 'reversed', "updated_at" = now() where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object('id', v_reversal."id", 'organizationId', v_reversal."tenant_id", 'journalId', v_reversal."journal_id", 'number', v_reversal."number", 'fiscalYear', v_reversal."fiscal_year", 'entryDate', v_reversal."entry_date", 'periodId', v_reversal."period_id", 'status', v_reversal."status", 'reference', v_reversal."reference", 'sourceType', v_reversal."source_type", 'sourceId', v_reversal."source_id", 'reversesId', v_reversal."reverses_id", 'memo', v_reversal."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_reversal."id"), 0)::text, 'postedAt', v_reversal."posted_at", 'postedBy', v_reversal."posted_by", 'createdBy', v_reversal."created_by", 'createdAt', v_reversal."created_at", 'updatedAt', v_reversal."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_reversal."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_json jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = delete_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  v_json := jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+  delete from "better_supabase"."accounting_entries" y where y."id" = v_row."id";
+  return v_json;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = x."id"), '[]'::jsonb)) from "better_supabase"."accounting_entries" x where x."id" = get_accounting_entry.entry_id
+$$;
+revoke execute on function "better_supabase"."get_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Entries, the newest first, without their lines.
+create or replace function "better_supabase"."list_accounting_entries"(tenant uuid, journal_id uuid default null, status text default null, since date default null, until date default null, page_size integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.entry order by z.entry_date desc, z.created_at desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as entry, x."entry_date" as entry_date, x."created_at" as created_at
+    from "better_supabase"."accounting_entries" x
+    where x."tenant_id" = list_accounting_entries.tenant
+      and (list_accounting_entries.journal_id is null or x."journal_id" = list_accounting_entries.journal_id)
+      and (list_accounting_entries.status is null or x."status" = list_accounting_entries.status)
+      and (list_accounting_entries.since is null or x."entry_date" >= list_accounting_entries.since)
+      and (list_accounting_entries.until is null or x."entry_date" <= list_accounting_entries.until)
+    order by x."entry_date" desc, x."created_at" desc
+    limit least(greatest(coalesce(list_accounting_entries.page_size, 50), 1), 500)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) to authenticated, service_role;
+
+-- What keeps a period from closing: draft entries dated in it.
+create or replace function "better_supabase"."accounting_period_close_blockers"(period_id uuid)
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(array_remove(array[
+    case when exists (
+      select 1 from "better_supabase"."accounting_entries" y
+      where y."tenant_id" = x."tenant_id" and y."status" = 'draft'
+        and y."entry_date" >= x."starts_on" and y."entry_date" <= x."ends_on"
+    ) then 'draft_entries' end
+  ], null), '{}'::text[])
+  from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id
+$$;
+revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
+grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
+
+-- Closes a period: nothing posts into it until it reopens. Closing a closed
+-- period returns it unchanged.
+create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_blockers text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = close_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if v_period."status" = 'closed' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(v_period."id");
+  if cardinality(v_blockers) > 0 then
+    raise exception 'the period can''t close yet: %', array_to_string(v_blockers, ', ') using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
+
+-- Reopens a closed period with a reason. A period on or before the lock date
+-- stays closed; move the lock date first.
+create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = reopen_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."tenant_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to reopen accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if nullif(trim(reopen_accounting_period.reason), '') is null then
+    raise exception 'reopening a period needs a reason' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  if v_period."status" = 'open' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = v_period."tenant_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if v_settings."lock_date" is not null and v_period."starts_on" <= v_settings."lock_date" then
+    raise exception 'the period is on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'open', "closed_at" = null, "closed_by" = null
+  where y."id" = v_period."id"
+  returning * into v_period;
+  null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."tenant_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."reopen_accounting_period"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."reopen_accounting_period"(uuid, text) to authenticated, service_role;
+
+-- Closes a fiscal year: one closing entry in the first general journal moves
+-- every income and expense balance to the retained earnings account, then
+-- every period of the year closes. Reverse the closing entry to redo it.
+create or replace function "better_supabase"."close_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_starts date;
+  v_ends date;
+  v_open integer;
+  v_retained uuid;
+  v_journal uuid;
+  v_entry "better_supabase"."accounting_entries"%rowtype;
+  v_net numeric;
+  v_count integer;
+  v_closing uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_fiscal_year.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close fiscal years' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."tenant_id" = close_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select min(y."starts_on"), max(y."ends_on"), count(*) filter (where y."status" = 'open')
+  into v_starts, v_ends, v_open
+  from "better_supabase"."accounting_periods" y where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year;
+  if v_starts is null then
+    raise exception 'the fiscal year has no periods; open it first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(close_fiscal_year.tenant::text || ':fiscal_year:' || close_fiscal_year.fiscal_year::text, 0));
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
+      and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
+  ) then
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."status" = 'draft'
+      and y."entry_date" >= v_starts and y."entry_date" <= v_ends
+  ) then
+    raise exception 'the fiscal year can''t close yet: draft_entries' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  select y."account_id" into v_retained from "better_supabase"."accounting_account_roles" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."role" = 'retained_earnings';
+  if v_retained is null then
+    raise exception 'no account has the retained_earnings role' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_ROLE_MISSING';
+  end if;
+  select y."id" into v_journal from "better_supabase"."accounting_journals" y
+  where y."tenant_id" = close_fiscal_year.tenant and y."type" = 'general'
+  order by y."code" limit 1;
+  if v_journal is null then
+    raise exception 'the year-end close needs a general journal' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(c.net), 0) into v_count, v_net from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c;
+  if v_count > 0 then
+    insert into "better_supabase"."accounting_entries" ("tenant_id", "journal_id", "entry_date", "source_type", "source_id", "memo", "created_by")
+    values (close_fiscal_year.tenant, v_journal, v_ends, 'fiscal_year', close_fiscal_year.fiscal_year::text,
+      'Closing of fiscal year ' || close_fiscal_year.fiscal_year::text, auth.uid())
+    returning * into v_entry;
+    insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+    select close_fiscal_year.tenant, v_entry."id", (row_number() over (order by w."code"))::smallint, c.account,
+      greatest(-c.net, 0)::bigint, greatest(c.net, 0)::bigint, v_settings."functional_currency", (-c.net)::bigint
+    from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."tenant_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c join "better_supabase"."accounting_accounts" w on w."id" = c.account;
+    if v_net <> 0 then
+      insert into "better_supabase"."accounting_entry_lines" ("tenant_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+      values (close_fiscal_year.tenant, v_entry."id", 32767, v_retained,
+        greatest(v_net, 0)::bigint, greatest(-v_net, 0)::bigint, v_settings."functional_currency", v_net::bigint);
+    end if;
+    v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
+    v_closing := v_entry."id";
+  elsif v_open = 0 then
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  for v_period in
+    select * from "better_supabase"."accounting_periods" y
+    where y."tenant_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year and y."status" = 'open'
+    order by y."number"
+    for update
+  loop
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  end loop;
+  null;
+  return jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing);
+end;
+$$;
+revoke execute on function "better_supabase"."close_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."close_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+-- Per account: the balance before since, the debits and credits from since
+-- through until, and the closing balance; debit balances are positive. Lines
+-- match when their dimensions contain the dimensions filter.
+create or replace function "better_supabase"."accounting_trial_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account,
+      sum(case when z."entry_date" < accounting_trial_balance.since then y."debit" - y."credit" else 0 end) as opening,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."debit" else 0 end) as debit,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."credit" else 0 end) as credit
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_trial_balance.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_trial_balance.dimensions, '{}'::jsonb)
+      and (accounting_trial_balance.until is null or z."entry_date" <= accounting_trial_balance.until)
+    group by y."account_id"
+  )
+  select jsonb_build_object(
+    'accounts', coalesce(jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type",
+      'opening', c.opening::text, 'debit', c.debit::text, 'credit', c.credit::text, 'closing', (c.opening + c.debit - c.credit)::text) order by w."code"), '[]'::jsonb),
+    'totals', jsonb_build_object('opening', coalesce(sum(c.opening), 0)::text, 'debit', coalesce(sum(c.debit), 0)::text, 'credit', coalesce(sum(c.credit), 0)::text,
+      'closing', coalesce(sum(c.opening + c.debit - c.credit), 0)::text)
+  )
+  from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+$$;
+revoke execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Income and expenses from since through until, without year-end closing
+-- entries. Income counts credits, expenses debits.
+create or replace function "better_supabase"."accounting_profit_and_loss"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."credit") - sum(y."debit") as credit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_profit_and_loss.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_profit_and_loss.dimensions, '{}'::jsonb)
+      and z."source_type" is distinct from 'fiscal_year'
+      and (accounting_profit_and_loss.since is null or z."entry_date" >= accounting_profit_and_loss.since)
+      and (accounting_profit_and_loss.until is null or z."entry_date" <= accounting_profit_and_loss.until)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.credit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where w."type" in ('income', 'expense') and c.credit_balance <> 0
+  )
+  select jsonb_build_object(
+    'income', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.credit_balance)::text) order by w."code") from kept w where w."type" = 'income'), '[]'::jsonb),
+    'expenses', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.credit_balance)::text) order by w."code") from kept w where w."type" = 'expense'), '[]'::jsonb),
+    'totalIncome', coalesce((select sum(w.credit_balance) from kept w where w."type" = 'income'), 0)::text,
+    'totalExpenses', coalesce((select -sum(w.credit_balance) from kept w where w."type" = 'expense'), 0)::text,
+    'netIncome', coalesce((select sum(w.credit_balance) from kept w), 0)::text
+  )
+$$;
+revoke execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Assets, liabilities and equity on as_of. Income and expenses not yet
+-- closed into retained earnings count as current earnings under equity.
+create or replace function "better_supabase"."accounting_balance_sheet"(tenant uuid, as_of date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."debit") - sum(y."credit") as debit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."tenant_id" = accounting_balance_sheet.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_balance_sheet.dimensions, '{}'::jsonb)
+      and z."entry_date" <= coalesce(accounting_balance_sheet.as_of, current_date)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.debit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where c.debit_balance <> 0
+  ),
+  totals as (
+    select
+      coalesce(sum(w.debit_balance) filter (where w."type" = 'asset'), 0) as assets,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'liability'), 0) as liabilities,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'equity'), 0) as equity,
+      coalesce(-sum(w.debit_balance) filter (where w."type" in ('income', 'expense')), 0) as earnings
+    from kept w
+  )
+  select jsonb_build_object(
+    'asOf', coalesce(accounting_balance_sheet.as_of, current_date),
+    'assets', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.debit_balance)::text) order by w."code") from kept w where w."type" = 'asset'), '[]'::jsonb),
+    'liabilities', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'liability'), '[]'::jsonb),
+    'equity', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'equity'), '[]'::jsonb),
+    'currentEarnings', t.earnings::text,
+    'totalAssets', t.assets::text,
+    'totalLiabilities', t.liabilities::text,
+    'totalEquity', (t.equity + t.earnings)::text,
+    'balanced', t.assets = t.liabilities + t.equity + t.earnings
+  )
+  from totals t
+$$;
+revoke execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) to authenticated, service_role;
+
+-- One account's posted lines from since through until with a running
+-- balance; debit balances are positive.
+create or replace function "better_supabase"."accounting_general_ledger"(account_id uuid, since date default null, until date default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with account as (
+    select w.* from "better_supabase"."accounting_accounts" w where w."id" = accounting_general_ledger.account_id
+  ),
+  booked as (
+    select y.*, z."entry_date" as entry_date, z."number" as entry_number, z."journal_id" as journal_id, z."memo" as memo
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where y."account_id" = accounting_general_ledger.account_id and z."status" in ('posted', 'reversed')
+      and (accounting_general_ledger.until is null or z."entry_date" <= accounting_general_ledger.until)
+  ),
+  opening as (
+    select coalesce(sum(b."debit" - b."credit"), 0) as amount from booked b
+    where b.entry_date < accounting_general_ledger.since
+  ),
+  period as (
+    select b.*, (select o.amount from opening o) + sum(b."debit" - b."credit") over (order by b.entry_date, b.entry_number, b."position", b."id") as balance
+    from booked b
+    where accounting_general_ledger.since is null or b.entry_date >= accounting_general_ledger.since
+  )
+  select jsonb_build_object(
+    'account', jsonb_build_object('id', w."id", 'code', w."code", 'name', w."name", 'type', w."type"),
+    'opening', (select o.amount from opening o)::text,
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('entryId', b."entry_id", 'number', b.entry_number, 'entryDate', b.entry_date, 'journalId', b.journal_id,
+      'description', coalesce(b."description", b.memo), 'partyId', b."party_id", 'debit', b."debit"::text, 'credit', b."credit"::text, 'balance', b.balance::text)
+      order by b.entry_date, b.entry_number, b."position", b."id") from period b), '[]'::jsonb),
+    'closing', ((select o.amount from opening o) + coalesce((select sum(b."debit" - b."credit") from period b), 0))::text
+  )
+  from account w
+$$;
+revoke execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) from public, anon;
+grant execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from public, anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block-data accounting
+-- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('accounting', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();
+
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block accounting@1 managed
+-- @bsb-hash sha256:a6b0f67e703372a21eb202ce81013e68a198a0515c04bb88dede2f0b127288a7
+-- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create or replace function better_supabase.actor_may_write()
+returns boolean
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select case
+    when auth.jwt() is null then true
+    when auth.jwt() -> 'act' ->> 'kind' = 'support'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only' = 'false'::jsonb, false)
+    when auth.jwt() -> 'act' ->> 'kind' = 'agent'
+      then coalesce(auth.jwt() -> 'act' -> 'read_only', 'false'::jsonb) = 'false'::jsonb
+    when auth.jwt() -> 'act' ->> 'kind' is not null then false
+    when auth.jwt() -> 'act' ->> 'session_id' is not null
+      and auth.jwt() -> 'act' ->> 'kind' is null then false
+    else true
+  end
+$$;
+revoke execute on function better_supabase.actor_may_write() from public;
+grant execute on function better_supabase.actor_may_write() to anon, authenticated, service_role;
+
+create or replace function better_supabase.raise_actor_readonly()
+returns void
+language plpgsql
+volatile
+set search_path = ''
+as $$
+begin
+  raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+end;
+$$;
+revoke execute on function better_supabase.raise_actor_readonly() from public;
+grant execute on function better_supabase.raise_actor_readonly() to anon, authenticated, service_role;
+-- The tenant scope policies call the module's functions, so they go before
+-- the module drops or replaces one and come back at the end.
+do $$
+begin
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+end $$;
+
+create schema if not exists better_supabase;
+grant usage on schema better_supabase to anon, authenticated, service_role;
+-- Accounting: a chart of accounts with roles, journals, fiscal periods, and
+-- balanced journal entries in minor units of the organization's functional
+-- currency, with dimensions, exchange rates, tax codes, reports and the
+-- period and year-end close.
+
+create table if not exists "better_supabase"."accounting_settings" (
+  "org_id" uuid primary key,
+  -- Every debit and credit is in minor units of this currency.
+  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  -- Nothing posts on or before this date, whatever the period's status.
+  "lock_date" date,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+alter table "better_supabase"."accounting_settings" enable row level security;
+revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_settings" to authenticated;
+grant all on "better_supabase"."accounting_settings" to service_role;
+drop policy if exists accounting_settings_read on "better_supabase"."accounting_settings";
+create policy accounting_settings_read on "better_supabase"."accounting_settings"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_accounts" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "subtype" text,
+  "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- Lines on the account must be in this currency; null takes any.
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "reconcilable" boolean not null default false,
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("org_id", "code")
+);
+create index if not exists "accounting_accounts_parent_idx" on "better_supabase"."accounting_accounts" ("parent_id") where "parent_id" is not null;
+alter table "better_supabase"."accounting_accounts" enable row level security;
+revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_accounts" to authenticated;
+grant all on "better_supabase"."accounting_accounts" to service_role;
+drop policy if exists accounting_accounts_read on "better_supabase"."accounting_accounts";
+create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_account_roles" (
+  "org_id" uuid not null,
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense')),
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  "updated_at" timestamptz not null default now(),
+  primary key ("org_id", "role")
+);
+create index if not exists "accounting_account_roles_account_idx" on "better_supabase"."accounting_account_roles" ("account_id");
+alter table "better_supabase"."accounting_account_roles" enable row level security;
+revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_account_roles" to authenticated;
+grant all on "better_supabase"."accounting_account_roles" to service_role;
+drop policy if exists accounting_account_roles_read on "better_supabase"."accounting_account_roles";
+create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_journals" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  -- The bank or cash account a bank or cash journal posts against.
+  "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("org_id", "code")
+);
+create index if not exists "accounting_journals_account_idx" on "better_supabase"."accounting_journals" ("default_account_id") where "default_account_id" is not null;
+alter table "better_supabase"."accounting_journals" enable row level security;
+revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_journals" to authenticated;
+grant all on "better_supabase"."accounting_journals" to service_role;
+drop policy if exists accounting_journals_read on "better_supabase"."accounting_journals";
+create policy accounting_journals_read on "better_supabase"."accounting_journals"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_periods" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  -- The calendar year the fiscal year starts in.
+  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "starts_on" date not null,
+  "ends_on" date not null,
+  "status" text not null default 'open' check ("status" in ('open', 'closed')),
+  "closed_at" timestamptz,
+  "closed_by" uuid,
+  "created_at" timestamptz not null default now(),
+  check ("ends_on" >= "starts_on"),
+  unique ("org_id", "fiscal_year", "number")
+);
+create index if not exists "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("org_id", "starts_on", "ends_on");
+alter table "better_supabase"."accounting_periods" enable row level security;
+revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_periods" to authenticated;
+grant all on "better_supabase"."accounting_periods" to service_role;
+drop policy if exists accounting_periods_read on "better_supabase"."accounting_periods";
+create policy accounting_periods_read on "better_supabase"."accounting_periods"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_entries" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "journal_id" uuid not null references "better_supabase"."accounting_journals" ("id") on delete restrict,
+  "fiscal_year" integer,
+  -- The entry's place in its journal and fiscal year, set when it posts.
+  "sequence" integer,
+  "number" text,
+  "entry_date" date not null,
+  "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
+  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text check ("reference" is null or length("reference") <= 200),
+  -- The document the entry books, such as invoice and its id.
+  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_id" text,
+  "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
+  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "posted_at" timestamptz,
+  "posted_by" uuid,
+  "created_by" uuid,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  check (("source_type" is null) = ("source_id" is null)),
+  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+);
+create unique index if not exists "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
+-- A document books once: a second entry for it waits until the first is reversed.
+create unique index if not exists "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("org_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';
+create unique index if not exists "accounting_entries_reverses_idx" on "better_supabase"."accounting_entries" ("reverses_id") where "reverses_id" is not null;
+create index if not exists "accounting_entries_date_idx" on "better_supabase"."accounting_entries" ("org_id", "entry_date" desc);
+create index if not exists "accounting_entries_period_idx" on "better_supabase"."accounting_entries" ("period_id", "status");
+alter table "better_supabase"."accounting_entries" enable row level security;
+revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_entries" to authenticated;
+grant all on "better_supabase"."accounting_entries" to service_role;
+drop policy if exists accounting_entries_read on "better_supabase"."accounting_entries";
+create policy accounting_entries_read on "better_supabase"."accounting_entries"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_dimensions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  -- The key lines use in their dimensions object, such as project or department.
+  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "created_at" timestamptz not null default now(),
+  unique ("org_id", "key")
+);
+alter table "better_supabase"."accounting_dimensions" enable row level security;
+revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_dimensions" to authenticated;
+grant all on "better_supabase"."accounting_dimensions" to service_role;
+drop policy if exists accounting_dimensions_read on "better_supabase"."accounting_dimensions";
+create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_dimension_values" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
+  "code" text not null check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "archived_at" timestamptz,
+  unique ("dimension_id", "code")
+);
+alter table "better_supabase"."accounting_dimension_values" enable row level security;
+revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_dimension_values" to authenticated;
+grant all on "better_supabase"."accounting_dimension_values" to service_role;
+drop policy if exists accounting_dimension_values_read on "better_supabase"."accounting_dimension_values";
+create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_fx_rates" (
+  "org_id" uuid not null,
+  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "on_date" date not null,
+  -- One unit of base costs rate units of quote.
+  "rate" numeric not null check ("rate" > 0),
+  "created_at" timestamptz not null default now(),
+  primary key ("org_id", "base", "quote", "on_date"),
+  check ("base" <> "quote")
+);
+alter table "better_supabase"."accounting_fx_rates" enable row level security;
+revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_fx_rates" to authenticated;
+grant all on "better_supabase"."accounting_fx_rates" to service_role;
+drop policy if exists accounting_fx_rates_read on "better_supabase"."accounting_fx_rates";
+create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_tax_codes" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "code" text not null check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  -- Basis points: 2100 is 21%.
+  "rate_bps" integer not null check ("rate_bps" >= 0 and "rate_bps" <= 100000),
+  "kind" text not null check ("kind" in ('sales', 'purchase')),
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- The boxes of a tax return the tax and its base count toward.
+  "report_boxes" text[] not null default '{}',
+  "archived_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now(),
+  unique ("org_id", "code")
+);
+create index if not exists "accounting_tax_codes_account_idx" on "better_supabase"."accounting_tax_codes" ("account_id");
+alter table "better_supabase"."accounting_tax_codes" enable row level security;
+revoke all on "better_supabase"."accounting_tax_codes" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_tax_codes" to authenticated;
+grant all on "better_supabase"."accounting_tax_codes" to service_role;
+drop policy if exists accounting_tax_codes_read on "better_supabase"."accounting_tax_codes";
+create policy accounting_tax_codes_read on "better_supabase"."accounting_tax_codes"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+create table if not exists "better_supabase"."accounting_entry_lines" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "entry_id" uuid not null references "better_supabase"."accounting_entries" ("id") on delete cascade,
+  "position" smallint not null default 0,
+  "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
+  -- Minor units of the functional currency; a line has one side.
+  "debit" bigint not null default 0 check ("debit" >= 0),
+  "credit" bigint not null default 0 check ("credit" >= 0),
+  -- The transaction currency and its signed amount (positive is a debit).
+  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount_currency" bigint not null,
+  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "tax_code_id" uuid references "better_supabase"."accounting_tax_codes" ("id") on delete restrict,
+  -- The customer, supplier or employee the line concerns.
+  "party_id" uuid,
+  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "description" text check ("description" is null or length("description") <= 500),
+  check (("debit" = 0) <> ("credit" = 0))
+);
+create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
+create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
+create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("org_id", "party_id") where "party_id" is not null;
+create index if not exists "accounting_entry_lines_tax_idx" on "better_supabase"."accounting_entry_lines" ("tax_code_id") where "tax_code_id" is not null;
+alter table "better_supabase"."accounting_entry_lines" enable row level security;
+revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
+grant select on "better_supabase"."accounting_entry_lines" to authenticated;
+grant all on "better_supabase"."accounting_entry_lines" to service_role;
+drop policy if exists accounting_entry_lines_read on "better_supabase"."accounting_entry_lines";
+create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
+
+-- A posted entry changes only from posted to reversed; its lines never change.
+create or replace function "better_supabase"."accounting_entry_guard"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if tg_op = 'UPDATE' and old."status" = 'draft' then
+    return new;
+  end if;
+  if tg_op = 'DELETE' and old."status" = 'draft' then
+    return old;
+  end if;
+  if tg_op = 'UPDATE' and old."status" = 'posted' and new."status" = 'reversed'
+    and (to_jsonb(new) - 'status' - 'updated_at')
+      = (to_jsonb(old) - 'status' - 'updated_at') then
+    return new;
+  end if;
+  raise exception 'a posted entry can''t be changed or deleted; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entries_guard" on "better_supabase"."accounting_entries";
+create trigger "bsb_accounting_entries_guard" before update or delete on "better_supabase"."accounting_entries"
+  for each row execute function "better_supabase"."accounting_entry_guard"('org_id');
+
+create or replace function "better_supabase"."accounting_entry_line_guard"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_entry uuid := case when tg_op = 'DELETE' then old."entry_id" else new."entry_id" end;
+begin
+  if exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = v_entry and y."status" <> 'draft')
+    or (tg_op = 'UPDATE' and exists (select 1 from "better_supabase"."accounting_entries" y where y."id" = old."entry_id" and y."status" <> 'draft')) then
+    raise exception 'the lines of a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_entry_line_guard"() from public, anon, authenticated;
+drop trigger if exists "bsb_accounting_entry_lines_guard" on "better_supabase"."accounting_entry_lines";
+create trigger "bsb_accounting_entry_lines_guard" before insert or update or delete on "better_supabase"."accounting_entry_lines"
+  for each row execute function "better_supabase"."accounting_entry_line_guard"('org_id');
+
+-- Sets up accounting for an organization: its functional currency and the
+-- month its fiscal year starts, then the generic chart, its account roles and the default journals when it has none.
+-- Neither setting changes once entries post or periods exist.
+create or replace function "better_supabase"."setup_accounting"(tenant uuid, functional_currency text default null, fiscal_year_start_month integer default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_settings"%rowtype;
+  v_currency text := upper(coalesce(nullif(trim(setup_accounting.functional_currency), ''), 'EUR'));
+  v_month integer := coalesce(setup_accounting.fiscal_year_start_month, 1);
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', setup_accounting.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  if v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the functional currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  if v_month < 1 or v_month > 12 then
+    raise exception 'the fiscal year starts in a month from 1 to 12' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."accounting_settings" y where y."org_id" = setup_accounting.tenant for update;
+  if found then
+    if setup_accounting.functional_currency is not null and v_row."functional_currency" <> v_currency
+      and exists (select 1 from "better_supabase"."accounting_entries" y where y."org_id" = setup_accounting.tenant and y."status" <> 'draft') then
+      raise exception 'the functional currency can''t change once entries are posted' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    if setup_accounting.fiscal_year_start_month is not null and v_row."fiscal_year_start_month" <> v_month
+      and exists (select 1 from "better_supabase"."accounting_periods" y where y."org_id" = setup_accounting.tenant) then
+      raise exception 'the fiscal year start can''t change once periods exist' using errcode = '22023', hint = 'ACCOUNTING_SETTING_INVALID';
+    end if;
+    update "better_supabase"."accounting_settings" y set
+      "functional_currency" = case when setup_accounting.functional_currency is null then y."functional_currency" else v_currency end,
+      "fiscal_year_start_month" = case when setup_accounting.fiscal_year_start_month is null then y."fiscal_year_start_month" else v_month end,
+      "updated_at" = now()
+    where y."org_id" = setup_accounting.tenant
+    returning * into v_row;
+  else
+    insert into "better_supabase"."accounting_settings" ("org_id", "functional_currency", "fiscal_year_start_month")
+    values (setup_accounting.tenant, v_currency, v_month)
+    returning * into v_row;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."org_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "reconcilable")
+    values
+      (setup_accounting.tenant, '1000', 'Bank', 'asset', 'bank', true),
+      (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
+      (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
+      (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
+      (setup_accounting.tenant, '1900', 'Suspense', 'asset', 'current_asset', false),
+      (setup_accounting.tenant, '2000', 'Accounts payable', 'liability', 'payable', true),
+      (setup_accounting.tenant, '2100', 'Tax payable', 'liability', 'tax', false),
+      (setup_accounting.tenant, '3000', 'Share capital', 'equity', 'equity', false),
+      (setup_accounting.tenant, '3900', 'Retained earnings', 'equity', 'equity', false),
+      (setup_accounting.tenant, '4000', 'Revenue', 'income', 'revenue', false),
+      (setup_accounting.tenant, '4900', 'Exchange gains', 'income', 'other_income', false),
+      (setup_accounting.tenant, '5000', 'Cost of goods sold', 'expense', 'cogs', false),
+      (setup_accounting.tenant, '6000', 'Operating expenses', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6800', 'Depreciation', 'expense', 'operating_expense', false),
+      (setup_accounting.tenant, '6900', 'Exchange losses', 'expense', 'other_expense', false);
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    select setup_accounting.tenant, c.role, y."id"
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('cogs', '5000'), ('depreciation_expense', '6800'), ('fx_loss', '6900')) c (role, code)
+    join "better_supabase"."accounting_accounts" y on y."org_id" = setup_accounting.tenant and y."code" = c.code
+    on conflict ("org_id", "role") do nothing;
+  end if;
+  if not exists (select 1 from "better_supabase"."accounting_journals" y where y."org_id" = setup_accounting.tenant) then
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id")
+    select setup_accounting.tenant, c.code, c.name, c.type,
+      (select y."id" from "better_supabase"."accounting_accounts" y where y."org_id" = setup_accounting.tenant and y."code" = c.account)
+    from (values ('SAL', 'Sales', 'sales', null::text), ('PUR', 'Purchases', 'purchase', null::text), ('BNK', 'Bank', 'bank', '1000'), ('CSH', 'Cash', 'cash', '1100'), ('GEN', 'General', 'general', null::text)) c (code, name, type, account);
+  end if;
+  return jsonb_build_object('organizationId', v_row."org_id", 'functionalCurrency', v_row."functional_currency", 'fiscalYearStartMonth', v_row."fiscal_year_start_month", 'lockDate', v_row."lock_date", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."setup_accounting"(uuid, text, integer) from public, anon;
+grant execute on function "better_supabase"."setup_accounting"(uuid, text, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_settings"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('organizationId', x."org_id", 'functionalCurrency', x."functional_currency", 'fiscalYearStartMonth', x."fiscal_year_start_month", 'lockDate', x."lock_date", 'createdAt', x."created_at", 'updatedAt', x."updated_at") from "better_supabase"."accounting_settings" x where x."org_id" = get_accounting_settings.tenant
+$$;
+revoke execute on function "better_supabase"."get_accounting_settings"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_settings"(uuid) to authenticated, service_role;
+
+-- Nothing posts on or before the lock date; null unlocks.
+create or replace function "better_supabase"."set_accounting_lock_date"(tenant uuid, lock_date date)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_lock_date.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_SETTING_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."org_id" = set_accounting_lock_date.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  update "better_supabase"."accounting_settings" y set "lock_date" = set_accounting_lock_date.lock_date, "updated_at" = now()
+  where y."org_id" = set_accounting_lock_date.tenant
+  returning * into v_settings;
+  return jsonb_build_object('organizationId', v_settings."org_id", 'functionalCurrency', v_settings."functional_currency", 'fiscalYearStartMonth', v_settings."fiscal_year_start_month", 'lockDate', v_settings."lock_date", 'createdAt', v_settings."created_at", 'updatedAt', v_settings."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."set_accounting_lock_date"(uuid, date) to authenticated, service_role;
+
+-- Creates an account, or changes one (account_id, or the account with the code).
+-- An account with posted lines keeps its type.
+create or replace function "better_supabase"."save_accounting_account"(tenant uuid, code text, name text, type text, subtype text default null, parent_id uuid default null, currency text default null, reconcilable boolean default false, account_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+  v_id uuid := save_accounting_account.account_id;
+  v_currency text := upper(nullif(trim(save_accounting_account.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_account.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_account.code), '') is null or nullif(trim(save_accounting_account.name), '') is null then
+    raise exception 'an account needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.type is null or save_accounting_account.type not in ('asset', 'liability', 'equity', 'income', 'expense') then
+    raise exception 'the account type is asset, liability, equity, income or expense' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if save_accounting_account.subtype is not null and save_accounting_account.subtype not in ('bank', 'cash', 'receivable', 'inventory', 'current_asset', 'fixed_asset', 'payable', 'tax', 'current_liability', 'long_term_liability', 'equity', 'revenue', 'other_income', 'cogs', 'operating_expense', 'other_expense') then
+    raise exception 'the subtype isn''t one of blocks.accounting.options.subtypes' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_accounts" y
+    where y."org_id" = save_accounting_account.tenant and y."code" = trim(save_accounting_account.code);
+  end if;
+  if save_accounting_account.parent_id is not null then
+    if not exists (select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_account.parent_id and y."org_id" = save_accounting_account.tenant) then
+      raise exception 'parent account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if v_id is not null and exists (
+      with recursive up (id) as (
+        select save_accounting_account.parent_id
+        union
+        select y."parent_id" from "better_supabase"."accounting_accounts" y join up on y."id" = up.id where y."parent_id" is not null
+      )
+      select 1 from up where up.id = v_id
+    ) then
+      raise exception 'an account can''t be its own parent' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+    end if;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_accounts" ("org_id", "code", "name", "type", "subtype", "parent_id", "currency", "reconcilable")
+    values (save_accounting_account.tenant, trim(save_accounting_account.code), trim(save_accounting_account.name), save_accounting_account.type,
+      save_accounting_account.subtype, save_accounting_account.parent_id, v_currency, coalesce(save_accounting_account.reconcilable, false))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = v_id and y."org_id" = save_accounting_account.tenant for update;
+    if not found then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if exists (
+      select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+      where y."account_id" = v_id and z."status" <> 'draft'
+        and (v_row."type" <> save_accounting_account.type or (v_currency is not null and y."currency" <> v_currency))
+    ) then
+      raise exception 'the account has posted lines, so its type and currency stay' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+    end if;
+    update "better_supabase"."accounting_accounts" y set "code" = trim(save_accounting_account.code), "name" = trim(save_accounting_account.name),
+      "type" = save_accounting_account.type, "subtype" = save_accounting_account.subtype, "parent_id" = save_accounting_account.parent_id,
+      "currency" = v_currency, "reconcilable" = coalesce(save_accounting_account.reconcilable, false), "updated_at" = now()
+    where y."id" = v_id
+    returning * into v_row;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_account"(uuid, text, text, text, text, uuid, text, boolean, uuid) to authenticated, service_role;
+
+-- Archives an account (nothing posts to it), or restores it. An account
+-- mapped to a role, a journal or a tax code stays.
+create or replace function "better_supabase"."archive_accounting_account"(account_id uuid, archived boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_accounts"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_accounts" y where y."id" = archive_accounting_account.account_id for update;
+  if not found then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if coalesce(archive_accounting_account.archived, true) and (
+    exists (select 1 from "better_supabase"."accounting_account_roles" y where y."account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_journals" y where y."default_account_id" = v_row."id")
+    or exists (select 1 from "better_supabase"."accounting_tax_codes" y where y."account_id" = v_row."id" and y."archived_at" is null)
+  ) then
+    raise exception 'the account is mapped to a role, a journal or a tax code' using errcode = '55000', hint = 'ACCOUNTING_ACCOUNT_IN_USE';
+  end if;
+  update "better_supabase"."accounting_accounts" y set "archived_at" = case when coalesce(archive_accounting_account.archived, true) then coalesce(y."archived_at", now()) end,
+    "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'subtype', v_row."subtype", 'parentId', v_row."parent_id", 'currency', v_row."currency", 'reconcilable', v_row."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = v_row."id"), '[]'::jsonb), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."archive_accounting_account"(uuid, boolean) to authenticated, service_role;
+
+-- Maps a role (receivable, bank, retained_earnings) to an account; null unmaps it.
+create or replace function "better_supabase"."set_accounting_account_role"(tenant uuid, role text, account_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
+  end if;
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'suspense') then
+    raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
+  end if;
+  if set_accounting_account_role.account_id is null then
+    delete from "better_supabase"."accounting_account_roles" y where y."org_id" = set_accounting_account_role.tenant and y."role" = set_accounting_account_role.role;
+  else
+    if not exists (
+      select 1 from "better_supabase"."accounting_accounts" y where y."id" = set_accounting_account_role.account_id
+        and y."org_id" = set_accounting_account_role.tenant and y."archived_at" is null
+    ) then
+      raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
+    values (set_accounting_account_role.tenant, set_accounting_account_role.role, set_accounting_account_role.account_id)
+    on conflict ("org_id", "role") do update set "account_id" = excluded."account_id", "updated_at" = now();
+  end if;
+  return coalesce((
+    select jsonb_object_agg(y."role", y."account_id") from "better_supabase"."accounting_account_roles" y where y."org_id" = set_accounting_account_role.tenant
+  ), '{}'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."set_accounting_account_role"(uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_accounts"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'code', x."code", 'name', x."name", 'type', x."type", 'subtype', x."subtype", 'parentId', x."parent_id", 'currency', x."currency", 'reconcilable', x."reconcilable", 'roles', coalesce((select jsonb_agg(ar."role" order by ar."role") from "better_supabase"."accounting_account_roles" ar where ar."account_id" = x."id"), '[]'::jsonb), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_accounts" x
+  where x."org_id" = list_accounting_accounts.tenant
+    and (coalesce(list_accounting_accounts.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_accounts"(uuid, boolean) to authenticated, service_role;
+
+-- Creates a journal, or changes one (journal_id, or the journal with the code).
+create or replace function "better_supabase"."save_accounting_journal"(tenant uuid, code text, name text, type text, default_account_id uuid default null, currency text default null, journal_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_journals"%rowtype;
+  v_id uuid := save_accounting_journal.journal_id;
+  v_code text := upper(trim(save_accounting_journal.code));
+  v_currency text := upper(nullif(trim(save_accounting_journal.currency), ''));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_journal.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage journals' using errcode = '42501', hint = 'ACCOUNTING_JOURNAL_FORBIDDEN';
+  end if;
+  if v_code is null or v_code !~ '^[A-Z0-9][A-Z0-9_-]{0,15}$' or nullif(trim(save_accounting_journal.name), '') is null then
+    raise exception 'a journal needs a short code (letters, digits, - and _) and a name' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.type is null or save_accounting_journal.type not in ('sales', 'purchase', 'bank', 'cash', 'general') then
+    raise exception 'the journal type is sales, purchase, bank, cash or general' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if v_currency is not null and v_currency !~ '^[A-Z]{3}$' then
+    raise exception 'the currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_JOURNAL_INVALID';
+  end if;
+  if save_accounting_journal.default_account_id is not null and not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_journal.default_account_id
+      and y."org_id" = save_accounting_journal.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  if v_id is null then
+    select y."id" into v_id from "better_supabase"."accounting_journals" y where y."org_id" = save_accounting_journal.tenant and y."code" = v_code;
+  end if;
+  if v_id is null then
+    insert into "better_supabase"."accounting_journals" ("org_id", "code", "name", "type", "default_account_id", "currency")
+    values (save_accounting_journal.tenant, v_code, trim(save_accounting_journal.name), save_accounting_journal.type, save_accounting_journal.default_account_id, v_currency)
+    returning * into v_row;
+  else
+    update "better_supabase"."accounting_journals" y set "code" = v_code, "name" = trim(save_accounting_journal.name), "type" = save_accounting_journal.type,
+      "default_account_id" = save_accounting_journal.default_account_id, "currency" = v_currency, "updated_at" = now()
+    where y."id" = v_id and y."org_id" = save_accounting_journal.tenant
+    returning * into v_row;
+    if not found then
+      raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+    end if;
+  end if;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'code', v_row."code", 'name', v_row."name", 'type', v_row."type", 'defaultAccountId', v_row."default_account_id", 'currency', v_row."currency", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_journal"(uuid, text, text, text, uuid, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_journals"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'code', x."code", 'name', x."name", 'type', x."type", 'defaultAccountId', x."default_account_id", 'currency', x."currency", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_journals" x
+  where x."org_id" = list_accounting_journals.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_journals"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_journals"(uuid) to authenticated, service_role;
+
+-- Creates the twelve monthly periods of a fiscal year, from the start month of
+-- the calendar year fiscal_year. Periods that exist stay as they are.
+create or replace function "better_supabase"."open_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_start date;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', open_fiscal_year.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if open_fiscal_year.fiscal_year is null or open_fiscal_year.fiscal_year < 1900 or open_fiscal_year.fiscal_year > 9998 then
+    raise exception 'the fiscal year is a calendar year such as 2026' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."org_id" = open_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  v_start := make_date(open_fiscal_year.fiscal_year, v_settings."fiscal_year_start_month", 1);
+  insert into "better_supabase"."accounting_periods" ("org_id", "fiscal_year", "number", "starts_on", "ends_on")
+  select open_fiscal_year.tenant, open_fiscal_year.fiscal_year, n,
+    (v_start + make_interval(months => n - 1))::date,
+    (v_start + make_interval(months => n) - interval '1 day')::date
+  from generate_series(1, 12) n
+  on conflict ("org_id", "fiscal_year", "number") do nothing;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."org_id", 'fiscalYear', y."fiscal_year", 'number', y."number", 'startsOn', y."starts_on", 'endsOn', y."ends_on", 'status', y."status", 'closedAt', y."closed_at", 'closedBy', y."closed_by") order by y."number") from "better_supabase"."accounting_periods" y
+    where y."org_id" = open_fiscal_year.tenant and y."fiscal_year" = open_fiscal_year.fiscal_year
+  ), '[]'::jsonb);
+end;
+$$;
+revoke execute on function "better_supabase"."open_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."open_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_periods"(tenant uuid, fiscal_year integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'fiscalYear', x."fiscal_year", 'number', x."number", 'startsOn', x."starts_on", 'endsOn', x."ends_on", 'status', x."status", 'closedAt', x."closed_at", 'closedBy', x."closed_by") order by x."starts_on"), '[]'::jsonb)
+  from "better_supabase"."accounting_periods" x
+  where x."org_id" = list_accounting_periods.tenant
+    and (list_accounting_periods.fiscal_year is null or x."fiscal_year" = list_accounting_periods.fiscal_year)
+$$;
+revoke execute on function "better_supabase"."list_accounting_periods"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_periods"(uuid, integer) to authenticated, service_role;
+
+-- Creates or renames a dimension (project, department, cost center) by key.
+create or replace function "better_supabase"."save_accounting_dimension"(tenant uuid, key text, name text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_dimension.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if coalesce(save_accounting_dimension.key, '') !~ '^[a-z][a-z0-9_]{0,62}$' or nullif(trim(save_accounting_dimension.name), '') is null then
+    raise exception 'a dimension needs a lower-case key and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimensions" ("org_id", "key", "name")
+  values (save_accounting_dimension.tenant, save_accounting_dimension.key, trim(save_accounting_dimension.name))
+  on conflict ("org_id", "key") do update set "name" = excluded."name"
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_row."id"), '[]'::jsonb), 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension"(uuid, text, text) to authenticated, service_role;
+
+-- Adds or renames a value of a dimension by code; archived values take no new lines.
+create or replace function "better_supabase"."save_accounting_dimension_value"(dimension_id uuid, code text, name text, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_dimension "better_supabase"."accounting_dimensions"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_dimension from "better_supabase"."accounting_dimensions" y where y."id" = save_accounting_dimension_value.dimension_id;
+  if not found then
+    raise exception 'dimension not found' using errcode = 'P0002', hint = 'ACCOUNTING_DIMENSION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_dimension."org_id", 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage dimensions' using errcode = '42501', hint = 'ACCOUNTING_DIMENSION_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_dimension_value.code), '') is null or nullif(trim(save_accounting_dimension_value.name), '') is null then
+    raise exception 'a dimension value needs a code and a name' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_dimension_values" as y ("org_id", "dimension_id", "code", "name", "archived_at")
+  values (v_dimension."org_id", v_dimension."id", trim(save_accounting_dimension_value.code), trim(save_accounting_dimension_value.name),
+    case when coalesce(save_accounting_dimension_value.archived, false) then now() end)
+  on conflict ("dimension_id", "code") do update
+    set "name" = excluded."name", "archived_at" = case when excluded."archived_at" is null then null else coalesce(y."archived_at", excluded."archived_at") end;
+  return jsonb_build_object('id', v_dimension."id", 'organizationId', v_dimension."org_id", 'key', v_dimension."key", 'name', v_dimension."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = v_dimension."id"), '[]'::jsonb), 'createdAt', v_dimension."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_dimension_value"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_dimensions"(tenant uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'key', x."key", 'name', x."name", 'values', coalesce((select jsonb_agg(jsonb_build_object('id', dv."id", 'code', dv."code", 'name', dv."name", 'archivedAt', dv."archived_at") order by dv."code") from "better_supabase"."accounting_dimension_values" dv where dv."dimension_id" = x."id"), '[]'::jsonb), 'createdAt', x."created_at") order by x."key"), '[]'::jsonb)
+  from "better_supabase"."accounting_dimensions" x
+  where x."org_id" = list_accounting_dimensions.tenant
+$$;
+revoke execute on function "better_supabase"."list_accounting_dimensions"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_accounting_dimensions"(uuid) to authenticated, service_role;
+
+-- Creates or changes a tax code by code. rate_bps is basis points (2100 is 21%).
+create or replace function "better_supabase"."save_accounting_tax_code"(tenant uuid, code text, name text, rate_bps integer, kind text, account_id uuid, report_boxes text[] default null, archived boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_tax_codes"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_accounting_tax_code.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage tax codes' using errcode = '42501', hint = 'ACCOUNTING_TAX_CODE_FORBIDDEN';
+  end if;
+  if nullif(trim(save_accounting_tax_code.code), '') is null or nullif(trim(save_accounting_tax_code.name), '') is null
+    or save_accounting_tax_code.rate_bps is null or save_accounting_tax_code.rate_bps < 0 or save_accounting_tax_code.rate_bps > 100000
+    or save_accounting_tax_code.kind is null or save_accounting_tax_code.kind not in ('sales', 'purchase') then
+    raise exception 'a tax code needs a code, a name, a rate in basis points and a kind (sales or purchase)' using errcode = '22023', hint = 'ACCOUNTING_TAX_CODE_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."accounting_accounts" y where y."id" = save_accounting_tax_code.account_id
+      and y."org_id" = save_accounting_tax_code.tenant and y."archived_at" is null
+  ) then
+    raise exception 'account not found' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+  end if;
+  insert into "better_supabase"."accounting_tax_codes" ("org_id", "code", "name", "rate_bps", "kind", "account_id", "report_boxes", "archived_at")
+  values (save_accounting_tax_code.tenant, trim(save_accounting_tax_code.code), trim(save_accounting_tax_code.name), save_accounting_tax_code.rate_bps,
+    save_accounting_tax_code.kind, save_accounting_tax_code.account_id, coalesce(save_accounting_tax_code.report_boxes, '{}'),
+    case when coalesce(save_accounting_tax_code.archived, false) then now() end)
+  on conflict ("org_id", "code") do update
+    set "name" = excluded."name", "rate_bps" = excluded."rate_bps", "kind" = excluded."kind",
+      "account_id" = excluded."account_id", "report_boxes" = excluded."report_boxes", "archived_at" = excluded."archived_at",
+      "updated_at" = now()
+  returning * into v_row;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'code', v_row."code", 'name', v_row."name", 'rateBps', v_row."rate_bps", 'kind', v_row."kind", 'accountId', v_row."account_id", 'reportBoxes', to_jsonb(v_row."report_boxes"), 'archivedAt', v_row."archived_at", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) from public, anon;
+grant execute on function "better_supabase"."save_accounting_tax_code"(uuid, text, text, integer, text, uuid, text[], boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."list_accounting_tax_codes"(tenant uuid, include_archived boolean default false)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'code', x."code", 'name', x."name", 'rateBps', x."rate_bps", 'kind', x."kind", 'accountId', x."account_id", 'reportBoxes', to_jsonb(x."report_boxes"), 'archivedAt', x."archived_at", 'createdAt', x."created_at", 'updatedAt', x."updated_at") order by x."code"), '[]'::jsonb)
+  from "better_supabase"."accounting_tax_codes" x
+  where x."org_id" = list_accounting_tax_codes.tenant
+    and (coalesce(list_accounting_tax_codes.include_archived, false) or x."archived_at" is null)
+$$;
+revoke execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) from public, anon;
+grant execute on function "better_supabase"."list_accounting_tax_codes"(uuid, boolean) to authenticated, service_role;
+
+-- Records what one unit of base costs in quote on a date.
+create or replace function "better_supabase"."set_accounting_fx_rate"(tenant uuid, base text, quote text, on_date date, rate numeric)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(set_accounting_fx_rate.base));
+  v_quote text := upper(trim(set_accounting_fx_rate.quote));
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_fx_rate.tenant, 'accounting.manage'), false)) then
+    raise exception 'not allowed to manage exchange rates' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if coalesce(v_base, '') !~ '^[A-Z]{3}$' or coalesce(v_quote, '') !~ '^[A-Z]{3}$' or v_base = v_quote
+    or set_accounting_fx_rate.on_date is null or coalesce(set_accounting_fx_rate.rate, 0) <= 0 then
+    raise exception 'a rate needs two different ISO 4217 codes, a date and a positive rate' using errcode = '22023', hint = 'ACCOUNTING_FX_RATE_INVALID';
+  end if;
+  insert into "better_supabase"."accounting_fx_rates" ("org_id", "base", "quote", "on_date", "rate")
+  values (set_accounting_fx_rate.tenant, v_base, v_quote, set_accounting_fx_rate.on_date, set_accounting_fx_rate.rate)
+  on conflict ("org_id", "base", "quote", "on_date") do update set "rate" = excluded."rate";
+  return jsonb_build_object('organizationId', set_accounting_fx_rate.tenant, 'base', v_base, 'quote', v_quote,
+    'onDate', set_accounting_fx_rate.on_date, 'rate', set_accounting_fx_rate.rate::text);
+end;
+$$;
+revoke execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) from public, anon;
+grant execute on function "better_supabase"."set_accounting_fx_rate"(uuid, text, text, date, numeric) to authenticated, service_role;
+
+-- The rate on the date or the latest before it, or the inverse of the
+-- opposite pair's; ACCOUNTING_FX_RATE_MISSING when neither has one.
+create or replace function "better_supabase"."accounting_fx_rate"(tenant uuid, base text, quote text, on_date date)
+returns numeric
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_base text := upper(trim(accounting_fx_rate.base));
+  v_quote text := upper(trim(accounting_fx_rate.quote));
+  v_rate numeric;
+begin
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', accounting_fx_rate.tenant, 'accounting.read'), false)) then
+    raise exception 'not allowed to read accounting' using errcode = '42501', hint = 'ACCOUNTING_FX_RATE_FORBIDDEN';
+  end if;
+  if v_base = v_quote then
+    return 1;
+  end if;
+  select y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+  where y."org_id" = accounting_fx_rate.tenant and y."base" = v_base and y."quote" = v_quote and y."on_date" <= accounting_fx_rate.on_date
+  order by y."on_date" desc limit 1;
+  if v_rate is null then
+    select 1 / y."rate" into v_rate from "better_supabase"."accounting_fx_rates" y
+    where y."org_id" = accounting_fx_rate.tenant and y."base" = v_quote and y."quote" = v_base and y."on_date" <= accounting_fx_rate.on_date
+    order by y."on_date" desc limit 1;
+  end if;
+  if v_rate is null then
+    raise exception 'no exchange rate for the currency pair on or before the date' using errcode = 'P0002', hint = 'ACCOUNTING_FX_RATE_MISSING';
+  end if;
+  return v_rate;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) from public, anon;
+grant execute on function "better_supabase"."accounting_fx_rate"(uuid, text, text, date) to authenticated, service_role;
+
+-- Posts a draft entry: balanced in the functional currency, dated in an open
+-- period after the lock date, with known dimension values; then numbers it per
+-- journal and fiscal year. Called by the posting, reversal and year close
+-- functions; closing skips the period and lock date checks.
+create or replace function "better_supabase"."accounting_post"(entry_id uuid, closing boolean default false)
+returns "better_supabase"."accounting_entries"
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_total numeric;
+  v_credits numeric;
+  v_count integer;
+  v_sequence integer;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = accounting_post.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."org_id" = v_row."org_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(y."debit"), 0), coalesce(sum(y."credit"), 0) into v_count, v_total, v_credits
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  if v_count < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if v_total <> v_credits then
+    raise exception 'the debits and credits of the entry differ in the functional currency' using errcode = '23514', hint = 'ACCOUNTING_ENTRY_UNBALANCED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_accounts" z on z."id" = y."account_id"
+    where y."entry_id" = v_row."id" and z."archived_at" is not null
+  ) then
+    raise exception 'an account of the entry is archived' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_INVALID';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entry_lines" y, jsonb_each(y."dimensions") dim
+    where y."entry_id" = v_row."id"
+      and (jsonb_typeof(dim.value) <> 'string' or not exists (
+        select 1 from "better_supabase"."accounting_dimensions" z join "better_supabase"."accounting_dimension_values" w on w."dimension_id" = z."id"
+        where z."org_id" = v_row."org_id" and z."key" = dim.key
+          and w."code" = dim.value #>> '{}' and w."archived_at" is null
+      ))
+  ) then
+    raise exception 'a line names a dimension or value that doesn''t exist or is archived' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y
+  where y."org_id" = v_row."org_id" and v_row."entry_date" >= y."starts_on" and v_row."entry_date" <= y."ends_on";
+  if not found then
+    raise exception 'no period covers the entry date; open its fiscal year first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not coalesce(accounting_post.closing, false) and (
+    v_period."status" = 'closed'
+    or (v_settings."lock_date" is not null and v_row."entry_date" <= v_settings."lock_date")
+  ) then
+    raise exception 'the entry date is in a closed period or on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = v_row."journal_id";
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(v_journal."id"::text || ':' || v_period."fiscal_year"::text, 0));
+  select coalesce(max(y."sequence"), 0) + 1 into v_sequence from "better_supabase"."accounting_entries" y
+  where y."journal_id" = v_journal."id" and y."fiscal_year" = v_period."fiscal_year";
+  update "better_supabase"."accounting_entries" y set "status" = 'posted', "fiscal_year" = v_period."fiscal_year", "sequence" = v_sequence,
+    "number" = v_journal."code" || '-' || v_period."fiscal_year"::text || '-' || lpad(v_sequence::text, 5, '0'),
+    "period_id" = v_period."id", "posted_at" = now(), "posted_by" = auth.uid(), "updated_at" = now()
+  where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_post"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."accounting_post"(uuid, boolean) from public, anon, authenticated;
+
+-- Creates a draft entry, or replaces a draft's header and lines (entry_id).
+-- Each line names an account (accountId or accountCode) and a debit or a
+-- credit in minor units of the functional currency. A line in another
+-- currency gives amountCurrency (signed, positive is a debit) and either the
+-- functional amount or an fxRate; without both, the rate on the entry date
+-- converts it.
+drop function if exists "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid, jsonb);
+create or replace function "better_supabase"."save_accounting_entry"(journal_id uuid, entry_date date, lines jsonb, memo text default null, reference text default null, source_type text default null, source_id text default null, entry_id uuid default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_journal "better_supabase"."accounting_journals"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_line record;
+  v_account "better_supabase"."accounting_accounts"%rowtype;
+  v_currency text;
+  v_debit bigint;
+  v_credit bigint;
+  v_amount bigint;
+  v_rate numeric;
+  v_functional bigint;
+  v_tax uuid;
+  v_party uuid;
+  v_dimensions jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_journal from "better_supabase"."accounting_journals" y where y."id" = save_accounting_entry.journal_id;
+  if not found then
+    raise exception 'journal not found' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_journal."org_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."org_id" = v_journal."org_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if save_accounting_entry.entry_date is null then
+    raise exception 'an entry needs a date' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if jsonb_typeof(save_accounting_entry.lines) is distinct from 'array' or jsonb_array_length(save_accounting_entry.lines) < 2 then
+    raise exception 'an entry needs at least two lines' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if (save_accounting_entry.source_type is null) <> (save_accounting_entry.source_id is null)
+    or coalesce(save_accounting_entry.source_type, 'x') !~ '^[a-z][a-z0-9_]{0,62}$' then
+    raise exception 'source_type (lower-case) and source_id go together' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  if save_accounting_entry.source_type is not null and exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."org_id" = v_journal."org_id" and y."source_type" = save_accounting_entry.source_type
+      and y."source_id" = save_accounting_entry.source_id and y."status" <> 'reversed'
+      and y."id" is distinct from save_accounting_entry.entry_id
+  ) then
+    raise exception 'the source already has an entry; reverse it first' using errcode = '23505', hint = 'ACCOUNTING_ENTRY_DUPLICATE';
+  end if;
+  if save_accounting_entry.entry_id is null then
+    insert into "better_supabase"."accounting_entries" ("org_id", "journal_id", "entry_date", "reference", "source_type", "source_id", "memo", "created_by", "period_id")
+    values (v_journal."org_id", v_journal."id", save_accounting_entry.entry_date, nullif(trim(save_accounting_entry.reference), ''),
+      save_accounting_entry.source_type, save_accounting_entry.source_id, nullif(trim(save_accounting_entry.memo), ''), auth.uid(),
+      (select y."id" from "better_supabase"."accounting_periods" y where y."org_id" = v_journal."org_id" and save_accounting_entry.entry_date >= y."starts_on" and save_accounting_entry.entry_date <= y."ends_on"))
+    returning * into v_row;
+  else
+    select * into v_row from "better_supabase"."accounting_entries" y where y."id" = save_accounting_entry.entry_id and y."org_id" = v_journal."org_id" for update;
+    if not found then
+      raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+    end if;
+    if v_row."status" <> 'draft' then
+      raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+    end if;
+    delete from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+    update "better_supabase"."accounting_entries" y set "journal_id" = v_journal."id", "entry_date" = save_accounting_entry.entry_date,
+      "reference" = nullif(trim(save_accounting_entry.reference), ''), "source_type" = save_accounting_entry.source_type,
+      "source_id" = save_accounting_entry.source_id, "memo" = nullif(trim(save_accounting_entry.memo), ''),
+      "period_id" = (select z."id" from "better_supabase"."accounting_periods" z where z."org_id" = v_journal."org_id" and save_accounting_entry.entry_date >= z."starts_on" and save_accounting_entry.entry_date <= z."ends_on"),
+      "updated_at" = now()
+    where y."id" = v_row."id"
+    returning * into v_row;
+  end if;
+  for v_line in select q.value, q.ordinality from jsonb_array_elements(save_accounting_entry.lines) with ordinality q loop
+    if jsonb_typeof(v_line.value) is distinct from 'object' then
+      raise exception 'every line is an object' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if coalesce(v_line.value ->> 'accountId', '') ~ '^[0-9a-fA-F-]{36}$' then
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."id" = (v_line.value ->> 'accountId')::uuid and y."org_id" = v_journal."org_id";
+    else
+      select * into v_account from "better_supabase"."accounting_accounts" y where y."code" = v_line.value ->> 'accountCode' and y."org_id" = v_journal."org_id";
+    end if;
+    if v_account."id" is null or v_account."archived_at" is not null then
+      raise exception 'a line''s account doesn''t exist here or is archived' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_NOT_FOUND';
+    end if;
+    if coalesce(v_line.value ->> 'debit', '0') !~ '^[0-9]{1,18}$' or coalesce(v_line.value ->> 'credit', '0') !~ '^[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'amountCurrency', '0') !~ '^-?[0-9]{1,18}$'
+      or coalesce(v_line.value ->> 'fxRate', '1') !~ '^[0-9]+(\.[0-9]+)?$' then
+      raise exception 'debit and credit are non-negative integers, amountCurrency an integer and fxRate a positive decimal' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_debit := coalesce((v_line.value ->> 'debit')::bigint, 0);
+    v_credit := coalesce((v_line.value ->> 'credit')::bigint, 0);
+    v_currency := upper(coalesce(nullif(v_line.value ->> 'currency', ''), v_settings."functional_currency"));
+    if v_currency !~ '^[A-Z]{3}$' then
+      raise exception 'a line''s currency must be an ISO 4217 code such as EUR' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    if v_account."currency" is not null and v_account."currency" <> v_currency then
+      raise exception 'the account takes lines in its own currency only' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_rate := null;
+    if v_currency = v_settings."functional_currency" then
+      v_amount := v_debit - v_credit;
+    else
+      v_amount := (v_line.value ->> 'amountCurrency')::bigint;
+      if v_amount is null or v_amount = 0 then
+        raise exception 'a line in another currency needs a non-zero amountCurrency' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      v_rate := coalesce((v_line.value ->> 'fxRate')::numeric,
+        "better_supabase"."accounting_fx_rate"(v_journal."org_id", v_currency, v_settings."functional_currency", save_accounting_entry.entry_date));
+      if v_rate <= 0 then
+        raise exception 'fxRate must be positive' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+      if v_debit = 0 and v_credit = 0 then
+        v_functional := round(abs(v_amount) * v_rate)::bigint;
+        if v_amount > 0 then
+          v_debit := v_functional;
+        else
+          v_credit := v_functional;
+        end if;
+      elsif (v_amount > 0) <> (v_debit > 0) then
+        raise exception 'amountCurrency and the functional amount must be on the same side' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+      end if;
+    end if;
+    if (v_debit = 0) = (v_credit = 0) then
+      raise exception 'every line has either a debit or a credit' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_tax := null;
+    if v_line.value ->> 'taxCodeId' is not null then
+      select y."id" into v_tax from "better_supabase"."accounting_tax_codes" y
+      where y."id"::text = v_line.value ->> 'taxCodeId' and y."org_id" = v_journal."org_id";
+      if v_tax is null then
+        raise exception 'tax code not found' using errcode = 'P0002', hint = 'ACCOUNTING_TAX_CODE_NOT_FOUND';
+      end if;
+    end if;
+    if coalesce(v_line.value ->> 'partyId', '00000000-0000-0000-0000-000000000000') !~ '^[0-9a-fA-F-]{36}$' then
+      raise exception 'partyId must be a uuid' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+    end if;
+    v_party := (v_line.value ->> 'partyId')::uuid;
+    v_dimensions := coalesce(v_line.value -> 'dimensions', '{}'::jsonb);
+    if jsonb_typeof(v_dimensions) = 'null' then
+      v_dimensions := '{}'::jsonb;
+    end if;
+    if jsonb_typeof(v_dimensions) <> 'object' then
+      raise exception 'a line''s dimensions are an object of dimension keys to value codes' using errcode = '22023', hint = 'ACCOUNTING_DIMENSION_INVALID';
+    end if;
+    insert into "better_supabase"."accounting_entry_lines" ("org_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+      "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+    values (v_journal."org_id", v_row."id", v_line.ordinality, v_account."id", v_debit, v_credit, v_currency,
+      v_amount, v_rate, v_tax, v_party, v_dimensions, nullif(trim(v_line.value ->> 'description'), ''));
+  end loop;
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."save_accounting_entry"(uuid, date, jsonb, text, text, text, text, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."post_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+begin
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = post_accounting_entry.entry_id;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  v_row := "better_supabase"."accounting_post"(v_row."id");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."post_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."post_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Reverses a posted entry with a new entry of opposite lines, dated
+-- entry_date (default the original's date), and marks the original reversed.
+create or replace function "better_supabase"."reverse_accounting_entry"(entry_id uuid, entry_date date default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_reversal "better_supabase"."accounting_entries"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = reverse_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'accounting.post'), false)) then
+    raise exception 'not allowed to post accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" = 'reversed' then
+    raise exception 'the entry is already reversed' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_REVERSED';
+  end if;
+  if v_row."status" <> 'posted' then
+    raise exception 'only a posted entry can be reversed; delete a draft instead' using errcode = '22023', hint = 'ACCOUNTING_ENTRY_INVALID';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  insert into "better_supabase"."accounting_entries" ("org_id", "journal_id", "entry_date", "reference", "reverses_id", "memo", "created_by")
+  values (v_row."org_id", v_row."journal_id", coalesce(reverse_accounting_entry.entry_date, v_row."entry_date"), v_row."number",
+    v_row."id", 'Reversal of ' || v_row."number", auth.uid())
+  returning * into v_reversal;
+  insert into "better_supabase"."accounting_entry_lines" ("org_id", "entry_id", "position", "account_id", "debit", "credit", "currency",
+    "amount_currency", "fx_rate", "tax_code_id", "party_id", "dimensions", "description")
+  select y."org_id", v_reversal."id", y."position", y."account_id", y."credit", y."debit", y."currency",
+    -y."amount_currency", y."fx_rate", y."tax_code_id", y."party_id", y."dimensions", y."description"
+  from "better_supabase"."accounting_entry_lines" y where y."entry_id" = v_row."id";
+  v_reversal := "better_supabase"."accounting_post"(v_reversal."id");
+  update "better_supabase"."accounting_entries" y set "status" = 'reversed', "updated_at" = now() where y."id" = v_row."id"
+  returning * into v_row;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_accounting_entry_reverse"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return jsonb_build_object('id', v_reversal."id", 'organizationId', v_reversal."org_id", 'journalId', v_reversal."journal_id", 'number', v_reversal."number", 'fiscalYear', v_reversal."fiscal_year", 'entryDate', v_reversal."entry_date", 'periodId', v_reversal."period_id", 'status', v_reversal."status", 'reference', v_reversal."reference", 'sourceType', v_reversal."source_type", 'sourceId', v_reversal."source_id", 'reversesId', v_reversal."reverses_id", 'memo', v_reversal."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_reversal."id"), 0)::text, 'postedAt', v_reversal."posted_at", 'postedBy', v_reversal."posted_by", 'createdBy', v_reversal."created_by", 'createdAt', v_reversal."created_at", 'updatedAt', v_reversal."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_reversal."id"), '[]'::jsonb));
+end;
+$$;
+revoke execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) from public, anon;
+grant execute on function "better_supabase"."reverse_accounting_entry"(uuid, date) to authenticated, service_role;
+
+create or replace function "better_supabase"."delete_accounting_entry"(entry_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."accounting_entries"%rowtype;
+  v_json jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."accounting_entries" y where y."id" = delete_accounting_entry.entry_id for update;
+  if not found then
+    raise exception 'entry not found' using errcode = 'P0002', hint = 'ACCOUNTING_ENTRY_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'accounting.write'), false)) then
+    raise exception 'not allowed to write accounting entries' using errcode = '42501', hint = 'ACCOUNTING_ENTRY_FORBIDDEN';
+  end if;
+  if v_row."status" <> 'draft' then
+    raise exception 'a posted entry can''t change; reverse it' using errcode = '55000', hint = 'ACCOUNTING_ENTRY_POSTED';
+  end if;
+  v_json := jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'journalId', v_row."journal_id", 'number', v_row."number", 'fiscalYear', v_row."fiscal_year", 'entryDate', v_row."entry_date", 'periodId', v_row."period_id", 'status', v_row."status", 'reference', v_row."reference", 'sourceType', v_row."source_type", 'sourceId', v_row."source_id", 'reversesId', v_row."reverses_id", 'memo', v_row."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = v_row."id"), 0)::text, 'postedAt', v_row."posted_at", 'postedBy', v_row."posted_by", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = v_row."id"), '[]'::jsonb));
+  delete from "better_supabase"."accounting_entries" y where y."id" = v_row."id";
+  return v_json;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_accounting_entry"(uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."get_accounting_entry"(entry_id uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'lines', coalesce((select jsonb_agg(jsonb_build_object('id', el."id", 'accountId', el."account_id", 'accountCode', ea."code", 'accountName', ea."name", 'debit', el."debit"::text, 'credit', el."credit"::text, 'currency', el."currency", 'amountCurrency', el."amount_currency"::text, 'fxRate', el."fx_rate"::text, 'taxCodeId', el."tax_code_id", 'partyId', el."party_id", 'dimensions', el."dimensions", 'description', el."description") order by el."position", el."id") from "better_supabase"."accounting_entry_lines" el join "better_supabase"."accounting_accounts" ea on ea."id" = el."account_id" where el."entry_id" = x."id"), '[]'::jsonb)) from "better_supabase"."accounting_entries" x where x."id" = get_accounting_entry.entry_id
+$$;
+revoke execute on function "better_supabase"."get_accounting_entry"(uuid) from public, anon;
+grant execute on function "better_supabase"."get_accounting_entry"(uuid) to authenticated, service_role;
+
+-- Entries, the newest first, without their lines.
+create or replace function "better_supabase"."list_accounting_entries"(tenant uuid, journal_id uuid default null, status text default null, since date default null, until date default null, page_size integer default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(z.entry order by z.entry_date desc, z.created_at desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'journalId', x."journal_id", 'number', x."number", 'fiscalYear', x."fiscal_year", 'entryDate', x."entry_date", 'periodId', x."period_id", 'status', x."status", 'reference', x."reference", 'sourceType', x."source_type", 'sourceId', x."source_id", 'reversesId', x."reverses_id", 'memo', x."memo", 'total', coalesce((select sum(et."debit") from "better_supabase"."accounting_entry_lines" et where et."entry_id" = x."id"), 0)::text, 'postedAt', x."posted_at", 'postedBy', x."posted_by", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as entry, x."entry_date" as entry_date, x."created_at" as created_at
+    from "better_supabase"."accounting_entries" x
+    where x."org_id" = list_accounting_entries.tenant
+      and (list_accounting_entries.journal_id is null or x."journal_id" = list_accounting_entries.journal_id)
+      and (list_accounting_entries.status is null or x."status" = list_accounting_entries.status)
+      and (list_accounting_entries.since is null or x."entry_date" >= list_accounting_entries.since)
+      and (list_accounting_entries.until is null or x."entry_date" <= list_accounting_entries.until)
+    order by x."entry_date" desc, x."created_at" desc
+    limit least(greatest(coalesce(list_accounting_entries.page_size, 50), 1), 500)
+  ) z
+$$;
+revoke execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) from public, anon;
+grant execute on function "better_supabase"."list_accounting_entries"(uuid, uuid, text, date, date, integer) to authenticated, service_role;
+
+-- What keeps a period from closing: draft entries dated in it.
+create or replace function "better_supabase"."accounting_period_close_blockers"(period_id uuid)
+returns text[]
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(array_remove(array[
+    case when exists (
+      select 1 from "better_supabase"."accounting_entries" y
+      where y."org_id" = x."org_id" and y."status" = 'draft'
+        and y."entry_date" >= x."starts_on" and y."entry_date" <= x."ends_on"
+    ) then 'draft_entries' end
+  ], null), '{}'::text[])
+  from "better_supabase"."accounting_periods" x where x."id" = accounting_period_close_blockers.period_id
+$$;
+revoke execute on function "better_supabase"."accounting_period_close_blockers"(uuid) from public, anon;
+grant execute on function "better_supabase"."accounting_period_close_blockers"(uuid) to authenticated, service_role;
+
+-- Closes a period: nothing posts into it until it reopens. Closing a closed
+-- period returns it unchanged.
+create or replace function "better_supabase"."close_accounting_period"(period_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_blockers text[];
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = close_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."org_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to close accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if v_period."status" = 'closed' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."org_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  v_blockers := "better_supabase"."accounting_period_close_blockers"(v_period."id");
+  if cardinality(v_blockers) > 0 then
+    raise exception 'the period can''t close yet: %', array_to_string(v_blockers, ', ') using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."org_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."close_accounting_period"(uuid) from public, anon;
+grant execute on function "better_supabase"."close_accounting_period"(uuid) to authenticated, service_role;
+
+-- Reopens a closed period with a reason. A period on or before the lock date
+-- stays closed; move the lock date first.
+create or replace function "better_supabase"."reopen_accounting_period"(period_id uuid, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_period from "better_supabase"."accounting_periods" y where y."id" = reopen_accounting_period.period_id for update;
+  if not found then
+    raise exception 'period not found' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_period."org_id", 'accounting.close'), false)) then
+    raise exception 'not allowed to reopen accounting periods' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  if nullif(trim(reopen_accounting_period.reason), '') is null then
+    raise exception 'reopening a period needs a reason' using errcode = '22023', hint = 'ACCOUNTING_PERIOD_INVALID';
+  end if;
+  if v_period."status" = 'open' then
+    return jsonb_build_object('id', v_period."id", 'organizationId', v_period."org_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."org_id" = v_period."org_id";
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  if v_settings."lock_date" is not null and v_period."starts_on" <= v_settings."lock_date" then
+    raise exception 'the period is on or before the lock date' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSED';
+  end if;
+  update "better_supabase"."accounting_periods" y set "status" = 'open', "closed_at" = null, "closed_by" = null
+  where y."id" = v_period."id"
+  returning * into v_period;
+  null;
+  return jsonb_build_object('id', v_period."id", 'organizationId', v_period."org_id", 'fiscalYear', v_period."fiscal_year", 'number', v_period."number", 'startsOn', v_period."starts_on", 'endsOn', v_period."ends_on", 'status', v_period."status", 'closedAt', v_period."closed_at", 'closedBy', v_period."closed_by");
+end;
+$$;
+revoke execute on function "better_supabase"."reopen_accounting_period"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."reopen_accounting_period"(uuid, text) to authenticated, service_role;
+
+-- Closes a fiscal year: one closing entry in the first general journal moves
+-- every income and expense balance to the retained earnings account, then
+-- every period of the year closes. Reverse the closing entry to redo it.
+create or replace function "better_supabase"."close_fiscal_year"(tenant uuid, fiscal_year integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_settings "better_supabase"."accounting_settings"%rowtype;
+  v_period "better_supabase"."accounting_periods"%rowtype;
+  v_starts date;
+  v_ends date;
+  v_open integer;
+  v_retained uuid;
+  v_journal uuid;
+  v_entry "better_supabase"."accounting_entries"%rowtype;
+  v_net numeric;
+  v_count integer;
+  v_closing uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', close_fiscal_year.tenant, 'accounting.close'), false)) then
+    raise exception 'not allowed to close fiscal years' using errcode = '42501', hint = 'ACCOUNTING_PERIOD_FORBIDDEN';
+  end if;
+  select * into v_settings from "better_supabase"."accounting_settings" st where st."org_id" = close_fiscal_year.tenant;
+  if not found then
+    raise exception 'accounting isn''t set up for this organization; call setup_accounting first' using errcode = 'P0002', hint = 'ACCOUNTING_SETTING_NOT_FOUND';
+  end if;
+  select min(y."starts_on"), max(y."ends_on"), count(*) filter (where y."status" = 'open')
+  into v_starts, v_ends, v_open
+  from "better_supabase"."accounting_periods" y where y."org_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year;
+  if v_starts is null then
+    raise exception 'the fiscal year has no periods; open it first' using errcode = 'P0002', hint = 'ACCOUNTING_PERIOD_NOT_FOUND';
+  end if;
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(close_fiscal_year.tenant::text || ':fiscal_year:' || close_fiscal_year.fiscal_year::text, 0));
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."org_id" = close_fiscal_year.tenant and y."source_type" = 'fiscal_year'
+      and y."source_id" = close_fiscal_year.fiscal_year::text and y."status" <> 'reversed'
+  ) then
+    raise exception 'the fiscal year is already closed; reverse its closing entry to close it again' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  if exists (
+    select 1 from "better_supabase"."accounting_entries" y
+    where y."org_id" = close_fiscal_year.tenant and y."status" = 'draft'
+      and y."entry_date" >= v_starts and y."entry_date" <= v_ends
+  ) then
+    raise exception 'the fiscal year can''t close yet: draft_entries' using errcode = '55000', hint = 'ACCOUNTING_PERIOD_CLOSE_BLOCKED';
+  end if;
+  select y."account_id" into v_retained from "better_supabase"."accounting_account_roles" y
+  where y."org_id" = close_fiscal_year.tenant and y."role" = 'retained_earnings';
+  if v_retained is null then
+    raise exception 'no account has the retained_earnings role' using errcode = 'P0002', hint = 'ACCOUNTING_ACCOUNT_ROLE_MISSING';
+  end if;
+  select y."id" into v_journal from "better_supabase"."accounting_journals" y
+  where y."org_id" = close_fiscal_year.tenant and y."type" = 'general'
+  order by y."code" limit 1;
+  if v_journal is null then
+    raise exception 'the year-end close needs a general journal' using errcode = 'P0002', hint = 'ACCOUNTING_JOURNAL_NOT_FOUND';
+  end if;
+  select count(*), coalesce(sum(c.net), 0) into v_count, v_net from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."org_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c;
+  if v_count > 0 then
+    insert into "better_supabase"."accounting_entries" ("org_id", "journal_id", "entry_date", "source_type", "source_id", "memo", "created_by")
+    values (close_fiscal_year.tenant, v_journal, v_ends, 'fiscal_year', close_fiscal_year.fiscal_year::text,
+      'Closing of fiscal year ' || close_fiscal_year.fiscal_year::text, auth.uid())
+    returning * into v_entry;
+    insert into "better_supabase"."accounting_entry_lines" ("org_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+    select close_fiscal_year.tenant, v_entry."id", (row_number() over (order by w."code"))::smallint, c.account,
+      greatest(-c.net, 0)::bigint, greatest(c.net, 0)::bigint, v_settings."functional_currency", (-c.net)::bigint
+    from (select y."account_id" as account, sum(y."debit") - sum(y."credit") as net
+    from "better_supabase"."accounting_entry_lines" y
+    join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    join "better_supabase"."accounting_accounts" w on w."id" = y."account_id"
+    where z."org_id" = close_fiscal_year.tenant and z."fiscal_year" = close_fiscal_year.fiscal_year
+      and z."status" in ('posted', 'reversed') and w."type" in ('income', 'expense')
+    group by y."account_id"
+    having sum(y."debit") <> sum(y."credit")) c join "better_supabase"."accounting_accounts" w on w."id" = c.account;
+    if v_net <> 0 then
+      insert into "better_supabase"."accounting_entry_lines" ("org_id", "entry_id", "position", "account_id", "debit", "credit", "currency", "amount_currency")
+      values (close_fiscal_year.tenant, v_entry."id", 32767, v_retained,
+        greatest(v_net, 0)::bigint, greatest(-v_net, 0)::bigint, v_settings."functional_currency", v_net::bigint);
+    end if;
+    v_entry := "better_supabase"."accounting_post"(v_entry."id", true);
+    v_closing := v_entry."id";
+  elsif v_open = 0 then
+    raise exception 'the fiscal year is already closed' using errcode = '55000', hint = 'FISCAL_YEAR_CLOSED';
+  end if;
+  for v_period in
+    select * from "better_supabase"."accounting_periods" y
+    where y."org_id" = close_fiscal_year.tenant and y."fiscal_year" = close_fiscal_year.fiscal_year and y."status" = 'open'
+    order by y."number"
+    for update
+  loop
+    update "better_supabase"."accounting_periods" y set "status" = 'closed', "closed_at" = now(), "closed_by" = auth.uid()
+    where y."id" = v_period."id"
+    returning * into v_period;
+    null;
+  end loop;
+  null;
+  return jsonb_build_object('organizationId', close_fiscal_year.tenant, 'fiscalYear', close_fiscal_year.fiscal_year, 'closingEntryId', v_closing);
+end;
+$$;
+revoke execute on function "better_supabase"."close_fiscal_year"(uuid, integer) from public, anon;
+grant execute on function "better_supabase"."close_fiscal_year"(uuid, integer) to authenticated, service_role;
+
+-- Per account: the balance before since, the debits and credits from since
+-- through until, and the closing balance; debit balances are positive. Lines
+-- match when their dimensions contain the dimensions filter.
+create or replace function "better_supabase"."accounting_trial_balance"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account,
+      sum(case when z."entry_date" < accounting_trial_balance.since then y."debit" - y."credit" else 0 end) as opening,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."debit" else 0 end) as debit,
+      sum(case when accounting_trial_balance.since is null or z."entry_date" >= accounting_trial_balance.since then y."credit" else 0 end) as credit
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."org_id" = accounting_trial_balance.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_trial_balance.dimensions, '{}'::jsonb)
+      and (accounting_trial_balance.until is null or z."entry_date" <= accounting_trial_balance.until)
+    group by y."account_id"
+  )
+  select jsonb_build_object(
+    'accounts', coalesce(jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type",
+      'opening', c.opening::text, 'debit', c.debit::text, 'credit', c.credit::text, 'closing', (c.opening + c.debit - c.credit)::text) order by w."code"), '[]'::jsonb),
+    'totals', jsonb_build_object('opening', coalesce(sum(c.opening), 0)::text, 'debit', coalesce(sum(c.debit), 0)::text, 'credit', coalesce(sum(c.credit), 0)::text,
+      'closing', coalesce(sum(c.opening + c.debit - c.credit), 0)::text)
+  )
+  from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+$$;
+revoke execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_trial_balance"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Income and expenses from since through until, without year-end closing
+-- entries. Income counts credits, expenses debits.
+create or replace function "better_supabase"."accounting_profit_and_loss"(tenant uuid, since date default null, until date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."credit") - sum(y."debit") as credit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."org_id" = accounting_profit_and_loss.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_profit_and_loss.dimensions, '{}'::jsonb)
+      and z."source_type" is distinct from 'fiscal_year'
+      and (accounting_profit_and_loss.since is null or z."entry_date" >= accounting_profit_and_loss.since)
+      and (accounting_profit_and_loss.until is null or z."entry_date" <= accounting_profit_and_loss.until)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.credit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where w."type" in ('income', 'expense') and c.credit_balance <> 0
+  )
+  select jsonb_build_object(
+    'income', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.credit_balance)::text) order by w."code") from kept w where w."type" = 'income'), '[]'::jsonb),
+    'expenses', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.credit_balance)::text) order by w."code") from kept w where w."type" = 'expense'), '[]'::jsonb),
+    'totalIncome', coalesce((select sum(w.credit_balance) from kept w where w."type" = 'income'), 0)::text,
+    'totalExpenses', coalesce((select -sum(w.credit_balance) from kept w where w."type" = 'expense'), 0)::text,
+    'netIncome', coalesce((select sum(w.credit_balance) from kept w), 0)::text
+  )
+$$;
+revoke execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_profit_and_loss"(uuid, date, date, jsonb) to authenticated, service_role;
+
+-- Assets, liabilities and equity on as_of. Income and expenses not yet
+-- closed into retained earnings count as current earnings under equity.
+create or replace function "better_supabase"."accounting_balance_sheet"(tenant uuid, as_of date default null, dimensions jsonb default '{}'::jsonb)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with sums as (
+    select y."account_id" as account, sum(y."debit") - sum(y."credit") as debit_balance
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where z."org_id" = accounting_balance_sheet.tenant and z."status" in ('posted', 'reversed')
+      and y."dimensions" @> coalesce(accounting_balance_sheet.dimensions, '{}'::jsonb)
+      and z."entry_date" <= coalesce(accounting_balance_sheet.as_of, current_date)
+    group by y."account_id"
+  ),
+  kept as (
+    select w.*, c.debit_balance from sums c join "better_supabase"."accounting_accounts" w on w."id" = c.account
+    where c.debit_balance <> 0
+  ),
+  totals as (
+    select
+      coalesce(sum(w.debit_balance) filter (where w."type" = 'asset'), 0) as assets,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'liability'), 0) as liabilities,
+      coalesce(-sum(w.debit_balance) filter (where w."type" = 'equity'), 0) as equity,
+      coalesce(-sum(w.debit_balance) filter (where w."type" in ('income', 'expense')), 0) as earnings
+    from kept w
+  )
+  select jsonb_build_object(
+    'asOf', coalesce(accounting_balance_sheet.as_of, current_date),
+    'assets', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (w.debit_balance)::text) order by w."code") from kept w where w."type" = 'asset'), '[]'::jsonb),
+    'liabilities', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'liability'), '[]'::jsonb),
+    'equity', coalesce((select jsonb_agg(jsonb_build_object('accountId', w."id", 'code', w."code", 'name', w."name", 'type', w."type", 'subtype', w."subtype", 'amount', (-w.debit_balance)::text) order by w."code") from kept w where w."type" = 'equity'), '[]'::jsonb),
+    'currentEarnings', t.earnings::text,
+    'totalAssets', t.assets::text,
+    'totalLiabilities', t.liabilities::text,
+    'totalEquity', (t.equity + t.earnings)::text,
+    'balanced', t.assets = t.liabilities + t.equity + t.earnings
+  )
+  from totals t
+$$;
+revoke execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) from public, anon;
+grant execute on function "better_supabase"."accounting_balance_sheet"(uuid, date, jsonb) to authenticated, service_role;
+
+-- One account's posted lines from since through until with a running
+-- balance; debit balances are positive.
+create or replace function "better_supabase"."accounting_general_ledger"(account_id uuid, since date default null, until date default null)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  with account as (
+    select w.* from "better_supabase"."accounting_accounts" w where w."id" = accounting_general_ledger.account_id
+  ),
+  booked as (
+    select y.*, z."entry_date" as entry_date, z."number" as entry_number, z."journal_id" as journal_id, z."memo" as memo
+    from "better_supabase"."accounting_entry_lines" y join "better_supabase"."accounting_entries" z on z."id" = y."entry_id"
+    where y."account_id" = accounting_general_ledger.account_id and z."status" in ('posted', 'reversed')
+      and (accounting_general_ledger.until is null or z."entry_date" <= accounting_general_ledger.until)
+  ),
+  opening as (
+    select coalesce(sum(b."debit" - b."credit"), 0) as amount from booked b
+    where b.entry_date < accounting_general_ledger.since
+  ),
+  period as (
+    select b.*, (select o.amount from opening o) + sum(b."debit" - b."credit") over (order by b.entry_date, b.entry_number, b."position", b."id") as balance
+    from booked b
+    where accounting_general_ledger.since is null or b.entry_date >= accounting_general_ledger.since
+  )
+  select jsonb_build_object(
+    'account', jsonb_build_object('id', w."id", 'code', w."code", 'name', w."name", 'type', w."type"),
+    'opening', (select o.amount from opening o)::text,
+    'lines', coalesce((select jsonb_agg(jsonb_build_object('entryId', b."entry_id", 'number', b.entry_number, 'entryDate', b.entry_date, 'journalId', b.journal_id,
+      'description', coalesce(b."description", b.memo), 'partyId', b."party_id", 'debit', b."debit"::text, 'credit', b."credit"::text, 'balance', b.balance::text)
+      order by b.entry_date, b.entry_number, b."position", b."id") from period b), '[]'::jsonb),
+    'closing', ((select o.amount from opening o) + coalesce((select sum(b."debit" - b."credit") from period b), 0))::text
+  )
+  from account w
+$$;
+revoke execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) from public, anon;
+grant execute on function "better_supabase"."accounting_general_ledger"(uuid, date, date) to authenticated, service_role;
+
+-- Tenant isolation (ADR 0099): permissive policies combine with or, so one
+-- the app adds would widen the block's. These restrictive policies keep each
+-- table to the caller's organizations and what the block's policies grant.
+-- Until memberships installs, the caller is a member of no organization.
+do $$
+begin
+  if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then
+    create function better_supabase.member_organization_ids(roles text[] default null)
+    returns setof uuid
+    language sql
+    stable
+    set search_path = ''
+    as $members$ select null::uuid where false $members$;
+  end if;
+end $$;
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_settings";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_settings" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_settings" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_settings" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_settings";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_settings" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_accounts";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_accounts" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_accounts" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_accounts" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_accounts";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_accounts" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_account_roles";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_account_roles" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_account_roles" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_account_roles" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_account_roles" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_journals";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_journals" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_journals" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_journals" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_journals";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_journals" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_periods";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_periods" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_periods" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_periods" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_periods";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_periods" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entries";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entries" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entries" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entries" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entries";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entries" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_entry_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_entry_lines" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_entry_lines" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_entry_lines" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_entry_lines" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimensions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimensions" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimensions" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimensions" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimensions" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_dimension_values";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_dimension_values" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_dimension_values" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_dimension_values" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_dimension_values" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_fx_rates";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_fx_rates" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_fx_rates" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_fx_rates" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_fx_rates" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."accounting_tax_codes";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_select on "better_supabase"."accounting_tax_codes" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_insert on "better_supabase"."accounting_tax_codes" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_update on "better_supabase"."accounting_tax_codes" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes";
+create policy bsb_tenant_scope_delete on "better_supabase"."accounting_tax_codes" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
+
+create schema if not exists better_supabase;
+create table if not exists better_supabase.blocks (
+  name text primary key,
+  block text,
+  version integer not null,
+  mode text not null,
+  installed_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+alter table better_supabase.blocks enable row level security;
+revoke all on better_supabase.blocks from public, anon, authenticated;
+grant select on better_supabase.blocks to service_role;
+
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_146_accounting.sql
+-- better-supabase module: accounting
+-- @bsb-block-data accounting
+-- @bsb-hash sha256:948394974132bc5e31dd69b8aaf23dfd52ebf1ebea4b596ea1c10252f5d02144
+-- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
+-- after the schema migration to put them in a migration.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+insert into better_supabase.blocks (name, version, mode)
+values ('accounting', 1, 'managed')
+on conflict (name) do update
+  set version = excluded.version, mode = excluded.mode, updated_at = now();

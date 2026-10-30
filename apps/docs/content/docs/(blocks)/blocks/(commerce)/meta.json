@@ -8,6 +8,7 @@
     "catalog",
     "inventory",
     "ledger",
+    "accounting",
     "orders",
     "promotions",
     "invoices",

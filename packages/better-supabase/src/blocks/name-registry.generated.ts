@@ -15,6 +15,33 @@ export interface BlockNameRegistry {
     };
     readonly primary: "request";
   };
+  readonly "accounting": {
+    readonly tables: {
+      readonly "settings": "tenant" | "functionalCurrency" | "fiscalYearStartMonth" | "lockDate" | "createdAt" | "updatedAt";
+      readonly "accounts": "id" | "tenant" | "code" | "name" | "type" | "subtype" | "parent" | "currency" | "reconcilable" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "roles": "tenant" | "role" | "account" | "updatedAt";
+      readonly "journals": "id" | "tenant" | "code" | "name" | "type" | "defaultAccount" | "currency" | "createdAt" | "updatedAt";
+      readonly "periods": "id" | "tenant" | "fiscalYear" | "number" | "startsOn" | "endsOn" | "status" | "closedAt" | "closedBy" | "createdAt";
+      readonly "entries": "id" | "tenant" | "journal" | "fiscalYear" | "sequence" | "number" | "entryDate" | "period" | "status" | "reference" | "sourceType" | "sourceId" | "reverses" | "memo" | "postedAt" | "postedBy" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "lines": "id" | "tenant" | "entry" | "position" | "account" | "debit" | "credit" | "currency" | "amountCurrency" | "fxRate" | "taxCode" | "party" | "dimensions" | "description";
+      readonly "dimensions": "id" | "tenant" | "key" | "name" | "createdAt";
+      readonly "dimensionValues": "id" | "tenant" | "dimension" | "code" | "name" | "archivedAt";
+      readonly "fxRates": "tenant" | "base" | "quote" | "onDate" | "rate" | "createdAt";
+      readonly "taxCodes": "id" | "tenant" | "code" | "name" | "rateBps" | "kind" | "account" | "reportBoxes" | "archivedAt" | "createdAt" | "updatedAt";
+    };
+    readonly functions: "accounting_balance_sheet" | "accounting_entry_guard" | "accounting_entry_line_guard" | "accounting_fx_rate" | "accounting_general_ledger" | "accounting_period_close_blockers" | "accounting_post" | "accounting_profit_and_loss" | "accounting_trial_balance" | "archive_accounting_account" | "close_accounting_period" | "close_fiscal_year" | "delete_accounting_entry" | "get_accounting_entry" | "get_accounting_settings" | "list_accounting_accounts" | "list_accounting_dimensions" | "list_accounting_entries" | "list_accounting_journals" | "list_accounting_periods" | "list_accounting_tax_codes" | "open_fiscal_year" | "post_accounting_entry" | "reopen_accounting_period" | "reverse_accounting_entry" | "save_accounting_account" | "save_accounting_dimension" | "save_accounting_dimension_value" | "save_accounting_entry" | "save_accounting_journal" | "save_accounting_tax_code" | "set_accounting_account_role" | "set_accounting_fx_rate" | "set_accounting_lock_date" | "setup_accounting";
+    readonly actions: "read" | "write" | "post" | "close" | "manage";
+    readonly hooks: "before_accounting_entry_post" | "after_accounting_entry_post" | "before_accounting_entry_reverse" | "after_accounting_entry_reverse";
+    readonly entities: {
+      readonly "accounting_account": "id" | "tenant_id" | "code" | "name" | "type" | "subtype" | "parent_id" | "currency" | "reconcilable" | "archived_at" | "created_at" | "updated_at";
+      readonly "accounting_journal": "id" | "tenant_id" | "code" | "name" | "type" | "default_account_id" | "currency" | "created_at" | "updated_at";
+      readonly "accounting_period": "id" | "tenant_id" | "fiscal_year" | "number" | "starts_on" | "ends_on" | "status" | "closed_at" | "closed_by" | "created_at";
+      readonly "accounting_entry": "id" | "tenant_id" | "journal_id" | "fiscal_year" | "sequence" | "number" | "entry_date" | "period_id" | "status" | "reference" | "source_type" | "source_id" | "reverses_id" | "memo" | "posted_at" | "posted_by" | "created_by" | "created_at" | "updated_at";
+      readonly "accounting_dimension": "id" | "tenant_id" | "key" | "name" | "created_at";
+      readonly "accounting_tax_code": "id" | "tenant_id" | "code" | "name" | "rate_bps" | "kind" | "account_id" | "report_boxes" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "accounting_account";
+  };
   readonly "activities": {
     readonly tables: {
       readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt";

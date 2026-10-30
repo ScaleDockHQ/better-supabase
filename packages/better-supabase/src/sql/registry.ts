@@ -11,6 +11,7 @@ import { renamedBlock } from "./block-renames.ts";
 import { migrationOptionUses } from "./migration-options.ts";
 import { bindModuleRegistry, moduleContext } from "./module-context.ts";
 import { ACCESS_REQUESTS } from "./modules/access-requests.ts";
+import { ACCOUNTING } from "./modules/accounting.ts";
 import { ENGAGEMENTS } from "./modules/activities.ts";
 import { AGENTS_MODULE } from "./modules/agents.ts";
 import { AI_CACHE } from "./modules/ai-cache.ts";
@@ -386,6 +387,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(QUALIFICATIONS),
       built(RISKS),
       built(SHIFTS),
+      built(ACCOUNTING),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

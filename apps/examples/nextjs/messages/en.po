@@ -275,6 +275,16 @@ msgctxt "field.7grP0Y"
 msgid "Track packages from label to delivery."
 msgstr "Track packages from label to delivery."
 
+#: src/app/[locale]/(app)/finance/page.tsx
+msgctxt "accounting.Fm3M-y"
+msgid "Finance"
+msgstr "Finance"
+
+#: src/app/[locale]/(app)/finance/page.tsx
+msgctxt "accounting.d-8-KQ"
+msgid "The balance sheet totals, this year's net income and the trial balance of the posted entries."
+msgstr "The balance sheet totals, this year's net income and the trial balance of the posted entries."
+
 #: src/app/[locale]/(app)/forbidden.tsx
 msgctxt "app.yO2v_w"
 msgid "You don't have access"
@@ -980,6 +990,101 @@ msgstr "You"
 msgctxt "accessRequests.AnykoJ"
 msgid "Until {date}"
 msgstr "Until {date}"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.2rqS5n"
+msgid "The books didn't load"
+msgstr "The books didn't load"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.uzuzZB"
+msgid "No entries in the books yet"
+msgstr "No entries in the books yet"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.k26w6p"
+msgid "Set up the books with a chart of accounts, open a fiscal year, then post the first entry."
+msgstr "Set up the books with a chart of accounts, open a fiscal year, then post the first entry."
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.5QskD1"
+msgid "Read the accounting guide"
+msgstr "Read the accounting guide"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.d1uESJ"
+msgid "Assets"
+msgstr "Assets"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.MZe-he"
+msgid "Liabilities and equity"
+msgstr "Liabilities and equity"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.r0q_a1"
+msgid "Balanced"
+msgstr "Balanced"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.xGY0Zr"
+msgid "Out of balance"
+msgstr "Out of balance"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.aeMDVR"
+msgid "Net income this year"
+msgstr "Net income this year"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.EXhKBi"
+msgid "Trial balance"
+msgstr "Trial balance"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.uMg1My"
+msgid "Posted entries through {date}."
+msgstr "Posted entries through {date}."
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.h2vipu"
+msgid "Code"
+msgstr "Code"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.TwyMau"
+msgid "Account"
+msgstr "Account"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.MxD6vP"
+msgid "Debit"
+msgstr "Debit"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.mLvz-r"
+msgid "Credit"
+msgstr "Credit"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.H5-NAX"
+msgid "Balance"
+msgstr "Balance"
+
+#: src/features/accounting/components/trial-balance.tsx
+msgctxt "accounting.MJ2jZQ"
+msgid "Total"
+msgstr "Total"
 
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.or3Lzc"
@@ -8138,6 +8243,11 @@ msgstr "Risks"
 msgctxt "navigation.poLbhw"
 msgid "Shifts"
 msgstr "Shifts"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.Fm3M-y"
+msgid "Finance"
+msgstr "Finance"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"

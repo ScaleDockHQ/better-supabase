@@ -7,10 +7,10 @@ import { moduleContext } from "./module-context.ts";
 import {
   hasPlatformRoles,
   isOperationModule,
-  MODULE_PERMISSION_SCOPES,
   moduleOperations,
   modulePermissionKey,
 } from "./modules/permissions-model.ts";
+import { MODULE_PERMISSION_SCOPES } from "./modules/permissions-scopes.ts";
 import { OPTIONAL_MODULE_PERMISSIONS } from "./optional-permissions.ts";
 import { SQL_MODULES, checkModules, resolveBlocks } from "./registry.ts";
 

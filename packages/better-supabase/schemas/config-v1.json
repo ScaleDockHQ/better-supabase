@@ -1593,6 +1593,7 @@
           "items": {
             "enum": [
               "access-requests",
+              "accounting",
               "activities",
               "agents",
               "ai-cache",
@@ -1751,6 +1752,7 @@
               "block": {
                 "enum": [
                   "access-requests",
+                  "accounting",
                   "activities",
                   "agents",
                   "ai-cache",
@@ -1903,6 +1905,9 @@
           "properties": {
             "access-requests": {
               "$ref": "#/$defs/blocks/access-requests"
+            },
+            "accounting": {
+              "$ref": "#/$defs/blocks/accounting"
             },
             "activities": {
               "$ref": "#/$defs/blocks/activities"
@@ -3510,6 +3515,42 @@
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "accounting": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              },
+              "chart": {
+                "type": "string",
+                "default": "generic"
+              },
+              "functionalCurrency": {
+                "type": "string",
+                "default": "EUR"
+              },
+              "fiscalYearStartMonth": {
+                "type": "number",
+                "default": 1
+              },
+              "subtypes": {
+                "type": "array",
+                "items": {
                   "type": "string"
                 }
               }

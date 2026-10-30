@@ -7241,6 +7241,160 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "accounting",
+      "title": "Accounting",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions"
+      ],
+      "integrates": [
+        "outbox",
+        "audit",
+        "data-lifecycle"
+      ],
+      "manifest": "accounting",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "entries",
+      "entities": {
+        "specs": {
+          "accounting_account": {
+            "table": "accounts",
+            "singular": "accounting_account",
+            "primary": true
+          },
+          "accounting_journal": {
+            "table": "journals",
+            "singular": "accounting_journal"
+          },
+          "accounting_period": {
+            "table": "periods",
+            "singular": "accounting_period"
+          },
+          "accounting_entry": {
+            "table": "entries",
+            "singular": "accounting_entry",
+            "plural": "accounting_entries"
+          },
+          "accounting_dimension": {
+            "table": "dimensions",
+            "singular": "accounting_dimension"
+          },
+          "accounting_tax_code": {
+            "table": "taxCodes",
+            "singular": "accounting_tax_code"
+          }
+        },
+        "tables": {
+          "accounts": {
+            "name": "accounting_accounts",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "code": "code",
+              "name": "name",
+              "type": "type",
+              "subtype": "subtype",
+              "parent": "parent_id",
+              "currency": "currency",
+              "reconcilable": "reconcilable",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "journals": {
+            "name": "accounting_journals",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "code": "code",
+              "name": "name",
+              "type": "type",
+              "defaultAccount": "default_account_id",
+              "currency": "currency",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "periods": {
+            "name": "accounting_periods",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "fiscalYear": "fiscal_year",
+              "number": "number",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "status": "status",
+              "closedAt": "closed_at",
+              "closedBy": "closed_by",
+              "createdAt": "created_at"
+            }
+          },
+          "entries": {
+            "name": "accounting_entries",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "journal": "journal_id",
+              "fiscalYear": "fiscal_year",
+              "sequence": "sequence",
+              "number": "number",
+              "entryDate": "entry_date",
+              "period": "period_id",
+              "status": "status",
+              "reference": "reference",
+              "sourceType": "source_type",
+              "sourceId": "source_id",
+              "reverses": "reverses_id",
+              "memo": "memo",
+              "postedAt": "posted_at",
+              "postedBy": "posted_by",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "dimensions": {
+            "name": "accounting_dimensions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "createdAt": "created_at"
+            }
+          },
+          "taxCodes": {
+            "name": "accounting_tax_codes",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "code": "code",
+              "name": "name",
+              "rateBps": "rate_bps",
+              "kind": "kind",
+              "account": "account_id",
+              "reportBoxes": "report_boxes",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "accounting.read",
+          "write": "accounting.write",
+          "post": "accounting.post",
+          "close": "accounting.close",
+          "manage": "accounting.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -7305,6 +7459,462 @@ export const PRESET_CATALOG: PresetCatalog = {
           "access.requested",
           "access.request_approved",
           "access.ended"
+        ]
+      }
+    },
+    {
+      "name": "accounting",
+      "sql": [
+        "accounting"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "accountingBlock",
+        "subpath": "better-supabase/blocks/accounting"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "AccountingAccount"
+        },
+        {
+          "name": "AccountingAccountInput"
+        },
+        {
+          "name": "AccountingDimension"
+        },
+        {
+          "name": "AccountingDimensionValueInput"
+        },
+        {
+          "name": "AccountingEntry",
+          "fields": true
+        },
+        {
+          "name": "AccountingEntryInput",
+          "fields": true
+        },
+        {
+          "name": "AccountingEntryListOptions"
+        },
+        {
+          "name": "AccountingEntryPostedEventData"
+        },
+        {
+          "name": "AccountingEntryReversedEventData"
+        },
+        {
+          "name": "AccountingEntryStatus"
+        },
+        {
+          "name": "AccountingJournal"
+        },
+        {
+          "name": "AccountingJournalInput"
+        },
+        {
+          "name": "AccountingPeriod"
+        },
+        {
+          "name": "AccountingPeriodEventData"
+        },
+        {
+          "name": "AccountingPeriodReopenedEventData"
+        },
+        {
+          "name": "AccountingPeriodStatus"
+        },
+        {
+          "name": "AccountingTaxCode"
+        },
+        {
+          "name": "AccountingTaxCodeInput"
+        }
+      ],
+      "entitySchemas": {
+        "accounting_account": {
+          "input": {
+            "title": "AccountingAccountInput",
+            "fields": {
+              "code": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "asset",
+                  "liability",
+                  "equity",
+                  "income",
+                  "expense"
+                ]
+              },
+              "subtype": {
+                "kind": "string",
+                "optional": true
+              },
+              "parentId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "currency": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 3,
+                "optional": true
+              },
+              "reconcilable": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "accountId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AccountingAccountInput",
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "asset",
+                    "liability",
+                    "equity",
+                    "income",
+                    "expense"
+                  ]
+                },
+                "subtype": {
+                  "type": "string"
+                },
+                "parentId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3
+                },
+                "reconcilable": {
+                  "type": "boolean"
+                },
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "code",
+                "name",
+                "type"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "accounting_journal": {
+          "input": {
+            "title": "AccountingJournalInput",
+            "fields": {
+              "code": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 16
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "type": {
+                "kind": "enum",
+                "values": [
+                  "sales",
+                  "purchase",
+                  "bank",
+                  "cash",
+                  "general"
+                ]
+              },
+              "defaultAccountId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "currency": {
+                "kind": "string",
+                "minLength": 3,
+                "maxLength": 3,
+                "optional": true
+              },
+              "journalId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AccountingJournalInput",
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 16
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "sales",
+                    "purchase",
+                    "bank",
+                    "cash",
+                    "general"
+                  ]
+                },
+                "defaultAccountId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "currency": {
+                  "type": "string",
+                  "minLength": 3,
+                  "maxLength": 3
+                },
+                "journalId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "code",
+                "name",
+                "type"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "accounting_entry": {
+          "input": {
+            "title": "AccountingEntryInput",
+            "fields": {
+              "journalId": {
+                "kind": "uuid"
+              },
+              "entryDate": {
+                "kind": "plainDate"
+              },
+              "lines": {
+                "kind": "json",
+                "array": true,
+                "description": "At least two lines, each with an account (accountId or accountCode) and a debit or a credit in minor units."
+              },
+              "memo": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 2000
+              },
+              "reference": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 200
+              },
+              "sourceType": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 63
+              },
+              "sourceId": {
+                "kind": "string",
+                "optional": true
+              },
+              "entryId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AccountingEntryInput",
+              "type": "object",
+              "properties": {
+                "journalId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "entryDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "lines": {
+                  "type": "array",
+                  "items": {},
+                  "description": "At least two lines, each with an account (accountId or accountCode) and a debit or a credit in minor units."
+                },
+                "memo": {
+                  "type": "string",
+                  "maxLength": 2000
+                },
+                "reference": {
+                  "type": "string",
+                  "maxLength": 200
+                },
+                "sourceType": {
+                  "type": "string",
+                  "maxLength": 63
+                },
+                "sourceId": {
+                  "type": "string"
+                },
+                "entryId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "journalId",
+                "entryDate",
+                "lines"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "accounting_tax_code": {
+          "input": {
+            "title": "AccountingTaxCodeInput",
+            "fields": {
+              "code": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 50
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "rateBps": {
+                "kind": "integer",
+                "minimum": 0,
+                "maximum": 100000
+              },
+              "kind": {
+                "kind": "enum",
+                "values": [
+                  "sales",
+                  "purchase"
+                ]
+              },
+              "accountId": {
+                "kind": "uuid"
+              },
+              "reportBoxes": {
+                "kind": "string",
+                "optional": true,
+                "array": true
+              },
+              "archived": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "AccountingTaxCodeInput",
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 50
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "rateBps": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100000
+                },
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "sales",
+                    "purchase"
+                  ]
+                },
+                "accountId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reportBoxes": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "archived": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "code",
+                "name",
+                "rateBps",
+                "kind",
+                "accountId"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "AccountingEvents",
+        "types": [
+          "accounting_entry.posted",
+          "accounting_entry.reversed",
+          "accounting_period.closed",
+          "accounting_period.reopened",
+          "fiscal_year.closed"
         ]
       }
     },
