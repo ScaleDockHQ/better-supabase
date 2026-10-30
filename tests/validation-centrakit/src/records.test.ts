@@ -49,7 +49,7 @@ const EXTRA: Extra = {
       search: { title: "name", body: ["identifier", "note"] },
     },
     work_item: {
-      table: "better_supabase.work_items",
+      table: "better_supabase.tasks",
       idType: "uuid",
       tenant: "tenant_id",
       title: "title",
@@ -159,7 +159,7 @@ describe.skipIf(!live)("CRM and work records on CentraKit", () => {
 
         expect(task.identifier).toBe("TASK-1");
         await s.client.query(
-          "update better_supabase.work_items set customer_id = $1 where id = $2",
+          "update better_supabase.tasks set customer_id = $1 where id = $2",
           [customer, task.id],
         );
         const [read] = await items.list(org, { search: "boiler" }).orThrow();
