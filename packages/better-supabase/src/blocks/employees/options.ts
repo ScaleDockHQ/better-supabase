@@ -19,10 +19,18 @@ export type EmployeesSqlOptions = {
   /** Whether the app's salary column holds minor or major units. */
   readonly salaryUnits?: "minor" | "major";
   /**
-   * With editable contracts, `allow` adds a contract without the overlap check
-   * and leaves the previous one as it is.
+   * `end` (the default) ends the previous contract the day before a new one
+   * starts. With editable contracts, `allow` adds a contract without the
+   * overlap check and leaves the previous one as it is. `deny` refuses a
+   * contract whose dates overlap another one, when it is added or changed.
    */
-  readonly contractOverlap?: "end" | "allow";
+  readonly contractOverlap?: "end" | "allow" | "deny";
+  /**
+   * `reports: "manager"` (the default) moves the reports of an offboarded or
+   * deleted employee to that employee's manager. `"keep"` leaves them under the
+   * offboarded employee, and without a manager when the employee is deleted.
+   */
+  readonly offboarding?: { readonly reports?: "keep" | "manager" };
 };
 
 export const employeesSqlOptions: BlockOptionsSchema<EmployeesSqlOptions> =
@@ -35,5 +43,8 @@ export const employeesSqlOptions: BlockOptionsSchema<EmployeesSqlOptions> =
     privateDetails: option.string<"json" | "flat">({ default: "json" }),
     contracts: option.string<"append" | "editable">({ default: "append" }),
     salaryUnits: option.string<"minor" | "major">({ default: "minor" }),
-    contractOverlap: option.string<"end" | "allow">({ default: "end" }),
+    contractOverlap: option.string<"end" | "allow" | "deny">({
+      default: "end",
+    }),
+    offboarding: option.unknown<{ readonly reports?: "keep" | "manager" }>(),
   });

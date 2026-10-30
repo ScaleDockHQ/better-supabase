@@ -360,6 +360,139 @@ describe.skipIf(!live)("employees", () => {
     }
   });
 
+  it("checks stale and atomic edits, denies overlaps, keeps reports and deletes", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      await s.install(MODULES, {
+        ...layout,
+        modules: {
+          employees: {
+            options: {
+              contractOverlap: "deny",
+              offboarding: { reports: "keep" },
+            },
+          },
+          hiring: {
+            options: { applicationExtraColumns: { referral: "text" } },
+          },
+        },
+      });
+      const org = await s.organization(owner);
+      const transport = sqlTransport(s.sql);
+      const employees = createEmployees({ transport });
+      const hiring = createHiring({ transport });
+
+      await s.as(owner);
+
+      const lead = await employees.create(org, { name: "Lead" }).orThrow();
+
+      const sam = await employees
+        .create(org, { name: "Sam", managerId: lead.id })
+        .orThrow();
+
+      const read = sam.updatedAt;
+
+      if (read === undefined) {
+        throw new Error("employees return updatedAt");
+      }
+
+      const fresh = await employees
+        .update([
+          {
+            employeeId: sam.id,
+            field: "jobTitle",
+            value: "Designer",
+            expectedUpdatedAt: read,
+          },
+        ])
+        .orThrow();
+
+      expect(fresh.accepted).toHaveLength(1);
+
+      // The session is one transaction, so updated_at stays put; an older
+      // read stands in for an edit made in another one.
+      const stale = await employees
+        .update([
+          {
+            employeeId: sam.id,
+            field: "jobTitle",
+            value: "Writer",
+            expectedUpdatedAt: read.subtract({ seconds: 1 }),
+          },
+        ])
+        .orThrow();
+
+      expect(stale.rejected.map((change) => change.hint)).toEqual([
+        "EMPLOYEE_STALE",
+      ]);
+
+      expect(
+        hint(
+          await employees.update(
+            [
+              { employeeId: sam.id, field: "jobTitle", value: "Writer" },
+              { employeeId: sam.id, field: "status", value: "offboarded" },
+            ],
+            { atomic: true },
+          ),
+        ),
+      ).toBe("EMPLOYEE_STATUS_INVALID");
+      expect(
+        await s.value<string>(
+          "(select job_title from better_supabase.employees where id = $1)",
+          [sam.id],
+        ),
+      ).toBe("Designer");
+
+      await employees
+        .addContract(sam.id, { startsOn: date("2024-01-01") })
+        .orThrow();
+      expect(
+        hint(
+          await employees.addContract(sam.id, { startsOn: date("2025-01-01") }),
+        ),
+      ).toBe("EMPLOYEE_CONTRACT_OVERLAP");
+
+      await employees.offboard(lead.id).orThrow();
+      expect(
+        (await employees.reportsOf(lead.id).orThrow()).map((r) => r.name),
+      ).toEqual(["Sam"]);
+
+      const deleted = await employees.delete(lead.id).orThrow();
+      expect(deleted.id).toBe(lead.id);
+      expect(
+        await s.value<string | null>(
+          "(select manager_id::text from better_supabase.employees where id = $1)",
+          [sam.id],
+        ),
+      ).toBeNull();
+      expect(
+        await s.value<number>(
+          "(select count(*)::int from better_supabase.outbox_events where type = 'employee.deleted' and organization_id = $1)",
+          [org],
+        ),
+      ).toBe(1);
+
+      const job = await hiring
+        .saveJob(org, { title: "Writer", status: "open" })
+        .orThrow();
+
+      const ada = await createContacts({ transport })
+        .savePerson(org, { name: "Ada" })
+        .orThrow();
+
+      const application = await hiring
+        .apply(job.id, { id: ada.id }, { fields: { referral: "Sam" } })
+        .orThrow();
+
+      expect(application.fields).toEqual({ referral: "Sam" });
+    } finally {
+      await s.close();
+    }
+  });
+
   it("makes one employee from a hired application", async () => {
     const s = await BlockSession.open(pool);
 

@@ -93,7 +93,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   drive:
     "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_path drive_release_hold drive_rename drive_set_download_blocked drive_share drive_shared drive_transfer_ownership drive_unlock drive_unshare",
   employees:
-    "add_employee_contract create_employee employee_contracts employee_private_details offboard_employee org_chart reports_of save_employee_private_details update_employees",
+    "add_employee_contract create_employee delete_employee employee_contracts employee_private_details offboard_employee org_chart reports_of save_employee_private_details update_employees",
   enrichment:
     "enrichment_due enrichment_target enrichments_of record_enrichment",
   enrollments:

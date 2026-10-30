@@ -48,5 +48,6 @@ export const employeeChangeSchema: EntitySchema<EmployeeChange> =
       employeeId: { kind: "uuid" },
       field: { kind: "string", minLength: 1 },
       value: { kind: "unknown", description: "`null` clears the field." },
+      expectedUpdatedAt: { kind: "instant", optional: true },
     },
   });

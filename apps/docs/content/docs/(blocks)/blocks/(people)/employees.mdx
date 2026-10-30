@@ -77,6 +77,31 @@ const { accepted, rejected } = await employees
 // rejected[0].hint === "EMPLOYEE_MANAGER_CYCLE" when the lead manages Mia
 ```
 
+Pass `{ atomic: true }` as the second argument to apply the batch as one
+unit: the first change that fails returns its error and no change stays. To
+catch an edit made against a stale row, send the employee's `updatedAt` as
+`expectedUpdatedAt` on the change. When another edit has changed the employee
+since, the change fails with `EMPLOYEE_STALE`. A batch that edits one
+employee more than once compares each change with the row as it was before
+the batch. The check needs the `updated_at` column; on a table that maps it to
+`null`, a change with `expectedUpdatedAt` fails with `EMPLOYEE_CHANGES_INVALID`.
+
+```ts
+await employees
+  .update(
+    [
+      {
+        employeeId: mia.id,
+        field: "jobTitle",
+        value: "Lead designer",
+        expectedUpdatedAt: mia.updatedAt,
+      },
+    ],
+    { atomic: true },
+  )
+  .orThrow();
+```
+
 `options.extraColumns` adds columns to the employees table. Pass a Standard Schema as `fields` to type them, parse them on reads and validate them on writes:
 
 ```ts
@@ -108,7 +133,14 @@ employee keeps `employee_id` null.
 
 ## Offboarding
 
-`offboard(employeeId, { endDate, reason })` sets the status to `offboarded`, the end date (today by default) and the reason, and moves the employee's reports to their manager. Offboarding again returns the employee unchanged.
+`offboard(employeeId, { endDate, reason })` sets the status to `offboarded`, the end date (today by default) and the reason, and moves the employee's reports to their manager. Offboarding again returns the employee unchanged. Set `options.offboarding: { reports: "keep" }` to leave the reports with the offboarded employee, for an app that reassigns them itself.
+
+`delete(employeeId)` removes an employee that was created by mistake
+(`delete_employee` in SQL). It needs `employees.write`, moves the reports as
+offboarding does (with `reports: "keep"` they get no manager), records
+`employee.deleted`, and fails with `EMPLOYEE_IN_USE` while another row, such
+as a time entry, still points at the employee. Offboard employees who
+worked for the organization instead, so their history stays.
 
 ## From a hired application
 
@@ -164,7 +196,11 @@ record `employee.updated` with `fields: ["contract"]`, and fail with
 `EMPLOYEE_CONTRACT_NOT_FOUND` for a contract the caller can't change. With
 `options.contractOverlap: "allow"` next to it, `addContract` skips the
 overlap check and leaves the previous contract as it is, for apps that keep
-contracts side by side. An
+contracts side by side. With `options.contractOverlap: "deny"`, `addContract`
+leaves the previous contract as it is too, and `addContract` and
+`updateContract` fail with `EMPLOYEE_CONTRACT_OVERLAP` when the contract's
+dates overlap another contract of the employee; end the previous contract
+first. An
 app's own salary period column maps its labels through
 [`values`](/docs/blocks/own-schemas#your-columns-values), as in
 `values: { contracts: { salaryPeriod: { hour: "hourly", month: "monthly" } } }`.
@@ -243,6 +279,7 @@ blocks: {
 | `employee.created`                        | `organizationId`, `employeeId`, `subjectType`, `subjectId`, `name`, `userId`, `managerId`, `status`                    |
 | `employee.updated`, `employee.offboarded` | the same without `managerId` and `status`, with `fields` (the changed fields, or `contract`) or `endDate` and `reason` |
 | `employee.manager_changed`                | the same, with `fromManagerId` and `toManagerId`; offboarding records one for each report that moves                   |
+| `employee.deleted`                        | the same as `employee.updated`, without `fields`                                                                       |
 
 Every employee event carries `userId`, the employee's user account, or `null`
 for an employee without one. A sink on `employee.offboarded` can use it to
@@ -250,29 +287,31 @@ hand over the user's files or end their sessions.
 
 ## Hooks
 
-`before_employee_create`, `after_employee_create`, `before_employee_update`, `after_employee_update`, `before_employee_offboard` and `after_employee_offboard` run in the same transaction as the change. See [extending blocks](/docs/extending/blocks).
+`before_employee_create`, `after_employee_create`, `before_employee_update`, `after_employee_update`, `before_employee_offboard`, `after_employee_offboard`, `before_employee_delete` and `after_employee_delete` run in the same transaction as the change. See [extending blocks](/docs/extending/blocks).
 
 ## Errors
 
-| Hint                             | Cause                                                           |
-| -------------------------------- | --------------------------------------------------------------- |
-| `EMPLOYEE_FORBIDDEN`             | the caller lacks `employees.write`, or can't read the org chart |
-| `EMPLOYEE_NOT_FOUND`             | no employee the caller can change or whose details they can see |
-| `EMPLOYEE_ATTRS_INVALID`         | a missing name or a field with an invalid value                 |
-| `EMPLOYEE_TYPE_INVALID`          | an employment type outside `options.employmentTypes`            |
-| `EMPLOYEE_STATUS_INVALID`        | a status other than preboarding, active or on_leave             |
-| `EMPLOYEE_USER_NOT_MEMBER`       | the user isn't a member of the organization                     |
-| `EMPLOYEE_USER_TAKEN`            | the user is already an employee of the organization             |
-| `EMPLOYEE_MANAGER_NOT_FOUND`     | the manager isn't an employee of the organization               |
-| `EMPLOYEE_MANAGER_CYCLE`         | the manager reports to the employee                             |
-| `EMPLOYEE_FIELD_UNKNOWN`         | a change names a field that can't be written                    |
-| `EMPLOYEE_CHANGES_INVALID`       | changes isn't a list                                            |
-| `EMPLOYEE_ORIGIN_NOT_FOUND`      | no application the caller can turn into an employee             |
-| `EMPLOYEE_APPLICATION_NOT_HIRED` | the application isn't hired                                     |
-| `EMPLOYEE_PRIVATE_INVALID`       | a private detail has an invalid value, such as a malformed IBAN |
-| `EMPLOYEE_CONTRACT_INVALID`      | a contract without a start date, or with an invalid value       |
-| `EMPLOYEE_CONTRACT_OVERLAP`      | the contract starts on or before the latest one                 |
-| `EMPLOYEE_CONTRACT_NOT_FOUND`    | no contract the caller can change (editable contracts)          |
+| Hint                             | Cause                                                                                               |
+| -------------------------------- | --------------------------------------------------------------------------------------------------- |
+| `EMPLOYEE_FORBIDDEN`             | the caller lacks `employees.write`, or can't read the org chart                                     |
+| `EMPLOYEE_NOT_FOUND`             | no employee the caller can change or whose details they can see                                     |
+| `EMPLOYEE_ATTRS_INVALID`         | a missing name or a field with an invalid value                                                     |
+| `EMPLOYEE_TYPE_INVALID`          | an employment type outside `options.employmentTypes`                                                |
+| `EMPLOYEE_STATUS_INVALID`        | a status other than preboarding, active or on_leave                                                 |
+| `EMPLOYEE_USER_NOT_MEMBER`       | the user isn't a member of the organization                                                         |
+| `EMPLOYEE_USER_TAKEN`            | the user is already an employee of the organization                                                 |
+| `EMPLOYEE_MANAGER_NOT_FOUND`     | the manager isn't an employee of the organization                                                   |
+| `EMPLOYEE_MANAGER_CYCLE`         | the manager reports to the employee                                                                 |
+| `EMPLOYEE_FIELD_UNKNOWN`         | a change names a field that can't be written                                                        |
+| `EMPLOYEE_CHANGES_INVALID`       | changes isn't a list, or sends `expectedUpdatedAt` without `updated_at`                             |
+| `EMPLOYEE_STALE`                 | the employee changed since the `expectedUpdatedAt` the change sent                                  |
+| `EMPLOYEE_IN_USE`                | another row still points at the employee being deleted                                              |
+| `EMPLOYEE_ORIGIN_NOT_FOUND`      | no application the caller can turn into an employee                                                 |
+| `EMPLOYEE_APPLICATION_NOT_HIRED` | the application isn't hired                                                                         |
+| `EMPLOYEE_PRIVATE_INVALID`       | a private detail has an invalid value, such as a malformed IBAN                                     |
+| `EMPLOYEE_CONTRACT_INVALID`      | a contract without a start date, or with an invalid value                                           |
+| `EMPLOYEE_CONTRACT_OVERLAP`      | the contract starts on or before the latest one, or overlaps another with `contractOverlap: "deny"` |
+| `EMPLOYEE_CONTRACT_NOT_FOUND`    | no contract the caller can change (editable contracts)                                              |
 
 ## Without the client
 

@@ -18626,6 +18626,10 @@ export const PRESET_CATALOG: PresetCatalog = {
               "value": {
                 "kind": "unknown",
                 "description": "`null` clears the field."
+              },
+              "expectedUpdatedAt": {
+                "kind": "instant",
+                "optional": true
               }
             },
             "jsonSchema": {
@@ -18643,6 +18647,10 @@ export const PRESET_CATALOG: PresetCatalog = {
                 },
                 "value": {
                   "description": "`null` clears the field."
+                },
+                "expectedUpdatedAt": {
+                  "type": "string",
+                  "format": "date-time"
                 }
               },
               "required": [
@@ -18661,7 +18669,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "employee.created",
           "employee.updated",
           "employee.offboarded",
-          "employee.manager_changed"
+          "employee.manager_changed",
+          "employee.deleted"
         ]
       },
       "actions": [
