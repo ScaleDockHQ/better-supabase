@@ -44,6 +44,16 @@ const REVIEW_0_47: readonly ReviewHint[] = [
         ", ",
       )}. Old types still resolve until 0.48; rename the ones that name a block's subject`,
   },
+  {
+    pattern: /\bactionItems\b|\baction_items\b/,
+    message:
+      "Postmortem `actionItems` are deprecated and removed in 0.48: with the tasks block, write them with `addPostmortemAction` and read the postmortem's `actions`",
+  },
+  {
+    pattern: /\bai_document_versions\b/,
+    message:
+      "AI document versions moved to the versions table (`subject_type = 'ai_document'`, the text in `content`): read them through `documents.versions(documentId)`",
+  },
 ];
 
 const SQL_HINT = new RegExp(
@@ -89,7 +99,7 @@ function renameSql(source: string): CodemodResult {
 export const CODEMOD_0_47: Codemod = {
   name: ENTITY_RENAMES_CODEMOD,
   description:
-    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, renames event types to <entity>.<past verb> (work_item.created to task.created, rule.removed to automation.deleted, ...) in config, code and the app's SQL, and lists ACTIVITY_FORBIDDEN, the renamed subject types, the split event types such as agent.saved, the support.*, workflow.*, leave.* and waitlist.* patterns and the drive.* and organization.* patterns for review",
+    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, renames event types to <entity>.<past verb> (work_item.created to task.created, rule.removed to automation.deleted, ...) in config, code and the app's SQL, and lists ACTIVITY_FORBIDDEN, the renamed subject types, the split event types such as agent.saved, the support.*, workflow.*, leave.* and waitlist.* patterns and the drive.* and organization.* patterns, postmortem actionItems and ai_document_versions for review",
   subpathImports: {
     "blocks/tasks": { workItemChecklistBinding: "taskChecklistBinding" },
   },

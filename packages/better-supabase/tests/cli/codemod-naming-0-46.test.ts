@@ -69,19 +69,4 @@ select better_supabase.tenant_ids_with('ai.read');
       { line: 3, message: expect.stringContaining("one area per AI block") },
     ]);
   });
-
-  it("lists postmortem action items and AI document versions for review", () => {
-    const source = `await incidents.savePostmortem(id, { actionItems });
-const notes = 1;
-select * from better_supabase.ai_document_versions;
-`;
-
-    const result = applyCodemod(v046, source, "src/postmortems.ts");
-
-    expect(result.text).toBe(source);
-    expect(result.review).toEqual([
-      { line: 1, message: expect.stringContaining("addPostmortemAction") },
-      { line: 3, message: expect.stringContaining("versions table") },
-    ]);
-  });
 });

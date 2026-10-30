@@ -63,16 +63,6 @@ const REVIEW_0_46: readonly ReviewHint[] = [
     message:
       "Data exports check `data_lifecycle.export` now, not `organization.export`: grant it where a role grants `organization.*`",
   },
-  {
-    pattern: /\bactionItems\b|\baction_items\b/,
-    message:
-      "Postmortem `actionItems` are deprecated: with the tasks block, write them with `addPostmortemAction` and read the postmortem's `actions`",
-  },
-  {
-    pattern: /\bai_document_versions\b/,
-    message:
-      "AI document versions moved to the versions table (`subject_type = 'ai_document'`, the text in `content`): read them through `documents.versions(documentId)`",
-  },
 ];
 
 const SQL_KEY = new RegExp(
@@ -130,7 +120,7 @@ const OAUTH_SERVER_IMPORTS: Readonly<
 export const CODEMOD_0_46: Codemod = {
   name: RENAMES_CODEMOD,
   description:
-    "Renames createOAuthServer and the oauth-server block's OAuth types to Oauth, renames permission keys to the block-name areas and the read, write and manage verbs (parties.read to contacts.read, rules.edit to automations.write, support.start to impersonation.start, ...) in config, code and the app's SQL, and lists the ai.* keys, the split workflow.* keys, the support.* and workflow.* wildcards, members.invite for the waitlist, organization.export, postmortem actionItems and ai_document_versions for review",
+    "Renames createOAuthServer and the oauth-server block's OAuth types to Oauth, renames permission keys to the block-name areas and the read, write and manage verbs (parties.read to contacts.read, rules.edit to automations.write, support.start to impersonation.start, ...) in config, code and the app's SQL, and lists the ai.* keys, the split workflow.* keys, the support.* and workflow.* wildcards, members.invite for the waitlist and organization.export for review",
   subpathImports: OAUTH_SERVER_IMPORTS,
   strings: PERMISSION_STRINGS,
   sqlFile: renameSqlKeys,
