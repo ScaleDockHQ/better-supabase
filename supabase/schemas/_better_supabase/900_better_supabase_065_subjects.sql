@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:8c4e733a299cdbc70e22518bfbefa7a20ff389a24218c9b6299206dab0632479
+-- @bsb-hash sha256:03ff6dd59c03cc7c9b70c32c498e278a7a49f61bbaa6983ae12e118772b594d6
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,7 +149,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,care_plan,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,case,inspection,inspection_program,inspection_finding,form,care_plan,incident,content_entry,document,customer,drive_node,application,change_request,project,task}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -229,14 +229,20 @@ begin
       return (select s."title"::text from "better_supabase"."risks" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'case' then
       return (select s."title"::text from "better_supabase"."cases" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'inspection' then
+      return (select s."title"::text from "better_supabase"."inspections" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'inspection_program' then
+      return (select s."name"::text from "better_supabase"."inspection_programs" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
+    when 'inspection_finding' then
+      return (select s."title"::text from "better_supabase"."inspection_findings" s where s."id" = (subject_title.subject_id)::uuid);
+    when 'form' then
+      return (select s."title"::text from "better_supabase"."forms" s where s."id" = (subject_title.subject_id)::uuid);
     when 'care_plan' then
       return (select s."title"::text from "better_supabase"."care_plans" s where s."id" = (subject_title.subject_id)::uuid);
     when 'incident' then
       return (select s."title"::text from "better_supabase"."incidents" s where s."id" = (subject_title.subject_id)::uuid);
     when 'content_entry' then
       return (select s."title"::text from "better_supabase"."content_entries" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'form' then
-      return (select s."title"::text from "better_supabase"."forms" s where s."id" = (subject_title.subject_id)::uuid);
     when 'document' then
       return (select s."name"::text from "better_supabase"."documents" s where s."id" = (subject_title.subject_id)::uuid);
     when 'customer' then
@@ -519,6 +525,30 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'case')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
+      'type', 'inspection', 'id', s."id"::text,
+      'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."inspections" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'inspection')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'inspection_program', 'id', s."id"::text,
+      'title', s."name"::text, 'url', null::text))
+    from "better_supabase"."inspection_programs" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'inspection_program')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'inspection_finding', 'id', s."id"::text,
+      'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."inspection_findings" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'inspection_finding')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
+      'type', 'form', 'id', s."id"::text,
+      'title', s."title"::text, 'url', null::text))
+    from "better_supabase"."forms" s
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'form')::uuid[])), '[]'::jsonb);
+  found := found || coalesce((
+    select jsonb_agg(jsonb_build_object(
       'type', 'care_plan', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."care_plans" s
@@ -535,12 +565,6 @@ begin
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."content_entries" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'content_entry')::uuid[])), '[]'::jsonb);
-  found := found || coalesce((
-    select jsonb_agg(jsonb_build_object(
-      'type', 'form', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."forms" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'form')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'document', 'id', s."id"::text,
@@ -939,6 +963,46 @@ begin
           else true
         end)
       );
+    when 'inspection' then
+      return exists (
+        select 1 from "better_supabase"."inspections" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'inspections.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'inspections.write'), false)
+          else true
+        end)
+      );
+    when 'inspection_program' then
+      return exists (
+        select 1 from "better_supabase"."inspection_programs" s
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'inspections.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'inspections.manage'), false)
+          else true
+        end)
+      );
+    when 'inspection_finding' then
+      return exists (
+        select 1 from "better_supabase"."inspection_findings" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'inspections.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'inspections.write'), false)
+          else true
+        end)
+      );
+    when 'form' then
+      return exists (
+        select 1 from "better_supabase"."forms" s
+        where s."id" = (can_subject.subject_id)::uuid
+          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'forms.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'forms.manage'), false)
+          else true
+        end)
+      );
     when 'care_plan' then
       return exists (
         select 1 from "better_supabase"."care_plans" s
@@ -966,16 +1030,6 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'content.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'content.write'), false)
-          else true
-        end)
-      );
-    when 'form' then
-      return exists (
-        select 1 from "better_supabase"."forms" s
-        where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'forms.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'forms.manage'), false)
           else true
         end)
       );
@@ -1462,6 +1516,46 @@ begin
           else false
         end
       );
+    when 'inspection' then
+      return exists (
+        select 1 from "better_supabase"."inspections" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'inspections.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'inspections.write'), false)
+          else false
+        end
+      );
+    when 'inspection_program' then
+      return exists (
+        select 1 from "better_supabase"."inspection_programs" s
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'inspections.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'inspections.manage'), false)
+          else false
+        end
+      );
+    when 'inspection_finding' then
+      return exists (
+        select 1 from "better_supabase"."inspection_findings" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'inspections.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'inspections.write'), false)
+          else false
+        end
+      );
+    when 'form' then
+      return exists (
+        select 1 from "better_supabase"."forms" s
+        where s."id" = (can_subject_for.subject_id)::uuid
+          and case can_subject_for.action
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'forms.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'forms.manage'), false)
+          else false
+        end
+      );
     when 'care_plan' then
       return exists (
         select 1 from "better_supabase"."care_plans" s
@@ -1489,16 +1583,6 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'content.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'content.write'), false)
-          else false
-        end
-      );
-    when 'form' then
-      return exists (
-        select 1 from "better_supabase"."forms" s
-        where s."id" = (can_subject_for.subject_id)::uuid
-          and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'forms.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'forms.manage'), false)
           else false
         end
       );

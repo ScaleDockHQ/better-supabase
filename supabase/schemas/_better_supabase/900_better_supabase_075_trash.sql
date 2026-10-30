@@ -1,6 +1,6 @@
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:03f75bc0b7e2d6ccba845dcab395f6d0d3d6fe60fc07b0686e96f59e809583db
+-- @bsb-hash sha256:c8b0b7ec2e272cde323f3c714bcab9397d9317d3b4d3eb55c6569cbd40ca4b5b
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,6 +130,12 @@ begin
           and s."tenant_id" = trash_cascade.tenant
           and s."archived_at" is null
         returning s."title"::text into v_title;
+    when 'inspection_program' then
+      update "better_supabase"."inspection_programs" s set "archived_at" = now()
+        where s."id" = (trash_cascade.subject_id)::uuid
+          and s."tenant_id" = trash_cascade.tenant
+          and s."archived_at" is null
+        returning s."name"::text into v_title;
     when 'customer' then
       update "public"."customers" s set "archived_at" = now()
         where s."id" = (trash_cascade.subject_id)::uuid
@@ -196,6 +202,7 @@ begin
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'tasks.read'), false)
     when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'risks.read'), false)
     when 'case' then exists (select 1 from "better_supabase"."cases" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'cases.read'), false)
+    when 'inspection_program' then exists (select 1 from "better_supabase"."inspection_programs" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'inspections.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant) and coalesce(better_supabase.can('tenant', trash.tenant, 'customers.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (trash.subject_id)::uuid and s."tenant_id" = trash.tenant and (coalesce(better_supabase.can('tenant', trash.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (trash.subject_id)::uuid and s."organization_id" = trash.tenant)
@@ -207,6 +214,7 @@ begin
     when 'work_item' then coalesce(better_supabase.can('tenant', trash.tenant, 'tasks.write'), false)
     when 'risk' then coalesce(better_supabase.can('tenant', trash.tenant, 'risks.write'), false)
     when 'case' then coalesce(better_supabase.can('tenant', trash.tenant, 'cases.write'), false)
+    when 'inspection_program' then coalesce(better_supabase.can('tenant', trash.tenant, 'inspections.manage'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', trash.tenant, 'customers.write'), false)
     when 'drive_node' then coalesce(better_supabase.can('tenant', trash.tenant, 'drive.manage'), false)
     else true
@@ -273,6 +281,9 @@ begin
     when 'case' then
       update "better_supabase"."cases" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
+    when 'inspection_program' then
+      update "better_supabase"."inspection_programs" s set "archived_at" = null
+        where s."id" = (v_item.subject_id)::uuid;
     when 'customer' then
       update "public"."customers" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
@@ -327,6 +338,7 @@ begin
     when 'work_item' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'tasks.write'), false)
     when 'risk' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'risks.write'), false)
     when 'case' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'cases.write'), false)
+    when 'inspection_program' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'inspections.manage'), false)
     when 'customer' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'customers.write'), false)
     when 'drive_node' then coalesce(better_supabase.can('tenant', v_root."tenant_id", 'drive.manage'), false)
     else true
@@ -386,6 +398,7 @@ begin
     when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'risks.read'), false)
     when 'case' then exists (select 1 from "better_supabase"."cases" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'cases.read'), false)
+    when 'inspection_program' then exists (select 1 from "better_supabase"."inspection_programs" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'inspections.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id") and coalesce(better_supabase.can('tenant', x."tenant_id", 'customers.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (x."subject_id")::uuid and s."tenant_id" = x."tenant_id" and (coalesce(better_supabase.can('tenant', x."tenant_id", 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (x."subject_id")::uuid and s."organization_id" = x."tenant_id")
@@ -433,6 +446,9 @@ begin
         where s."id" = (v_item.subject_id)::uuid;
     when 'case' then
       delete from "better_supabase"."cases" s
+        where s."id" = (v_item.subject_id)::uuid;
+    when 'inspection_program' then
+      delete from "better_supabase"."inspection_programs" s
         where s."id" = (v_item.subject_id)::uuid;
     when 'customer' then
       delete from "public"."customers" s

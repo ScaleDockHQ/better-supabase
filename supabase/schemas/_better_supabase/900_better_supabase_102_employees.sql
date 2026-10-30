@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:5bfb378cc821743877c46adec997d18cbe5e936b94e38ec05e3f454a9fb72cd8
+-- @bsb-hash sha256:fd24144e66165b621a0a19a9dbeb9cf8caeb8c7c1ecc6dfa50aaf99ba330e464
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -714,10 +714,13 @@ begin
       when 'qualification_type' then (select s."name"::text from "better_supabase"."qualification_types" s where s."id" = (v_application."candidate_id")::uuid)
       when 'risk' then (select s."title"::text from "better_supabase"."risks" s where s."id" = (v_application."candidate_id")::uuid)
       when 'case' then (select s."title"::text from "better_supabase"."cases" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'inspection' then (select s."title"::text from "better_supabase"."inspections" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'inspection_program' then (select s."name"::text from "better_supabase"."inspection_programs" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'inspection_finding' then (select s."title"::text from "better_supabase"."inspection_findings" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'form' then (select s."title"::text from "better_supabase"."forms" s where s."id" = (v_application."candidate_id")::uuid)
       when 'care_plan' then (select s."title"::text from "better_supabase"."care_plans" s where s."id" = (v_application."candidate_id")::uuid)
       when 'incident' then (select s."title"::text from "better_supabase"."incidents" s where s."id" = (v_application."candidate_id")::uuid)
       when 'content_entry' then (select s."title"::text from "better_supabase"."content_entries" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'form' then (select s."title"::text from "better_supabase"."forms" s where s."id" = (v_application."candidate_id")::uuid)
       when 'document' then (select s."name"::text from "better_supabase"."documents" s where s."id" = (v_application."candidate_id")::uuid)
       when 'customer' then (select s."name"::text from "public"."customers" s where s."id" = (v_application."candidate_id")::uuid)
       when 'drive_node' then (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (v_application."candidate_id")::uuid)
