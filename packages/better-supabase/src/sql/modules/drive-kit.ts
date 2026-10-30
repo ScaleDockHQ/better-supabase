@@ -38,6 +38,11 @@ export interface DriveRoles {
   readonly comment: string;
   readonly top: string;
   readonly member: string | undefined;
+  /**
+   * `options.uploadRole`: a grant role outside `roles` that adds files to a
+   * folder and reads nothing.
+   */
+  readonly upload: string | undefined;
 }
 
 /** `options.roles` (lowest first) and the roles each action needs. */
@@ -76,6 +81,16 @@ function driveRoles(ctx: BlockSqlContext): DriveRoles {
   }
 
   const write = pick("writeRole", all.includes("editor") ? "editor" : top);
+  const upload = ctx.option("uploadRole");
+
+  if (
+    upload !== undefined &&
+    (typeof upload !== "string" || !ROLE.test(upload) || all.includes(upload))
+  ) {
+    throw new TypeError(
+      `${where}.uploadRole must be a lowercase role name outside options.roles`,
+    );
+  }
 
   return {
     all,
@@ -88,6 +103,7 @@ function driveRoles(ctx: BlockSqlContext): DriveRoles {
     ),
     top,
     member,
+    upload,
   };
 }
 
@@ -212,6 +228,8 @@ export interface DriveKit {
   readonly driveKindsArray: string;
   readonly sources: readonly string[];
   readonly sourcesArray: string;
+  /** The node sources: `sourcesArray` and `request`, for file request uploads. */
+  readonly nodeSourcesArray: string;
   readonly D: string | undefined;
   readonly DG: string | undefined;
   readonly C: string | undefined;
@@ -268,6 +286,8 @@ export interface DriveKit {
   readonly tenant: BlockSqlContext;
   readonly m: (value: string) => string;
   readonly rolesArray: string;
+  /** The roles a node grant may hold: `rolesArray` and the upload role. */
+  readonly grantRolesArray: string;
   readonly rank: (value: string) => string;
   readonly live: (value: string) => string;
   readonly canRead: (value: string) => string;
@@ -275,6 +295,13 @@ export interface DriveKit {
   readonly canShare: (value: string) => string;
   readonly canComment: (value: string) => string;
   readonly canDownload: (value: string) => string;
+  /** Whether the caller may add files to the folder: write or upload role. */
+  readonly canUpload: (value: string) => string;
+  /**
+   * Whether the node is a file the caller added under the upload role, which
+   * they may finish uploading without reading it. `false` without the role.
+   */
+  readonly uploadedOwn: (value: string) => string;
   readonly notFound: string;
   readonly forbidden: (value: string) => string;
   readonly record: (
@@ -466,10 +493,17 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     sources.length === 0 ||
     new Set(sources).size !== sources.length ||
     !sources.every((source) => SOURCE.test(source)) ||
-    sources.includes("internal")
+    sources.includes("internal") ||
+    sources.includes("request")
   ) {
     throw new TypeError(
-      "blocks.drive.options.sources must list distinct lowercase names other than internal",
+      "blocks.drive.options.sources must list distinct lowercase names other than internal and request",
+    );
+  }
+
+  if (roles.upload !== undefined && !has("createdBy")) {
+    throw new TypeError(
+      "blocks.drive.options.uploadRole needs blocks.drive.columns.nodes.createdBy",
     );
   }
 
@@ -490,10 +524,11 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
 
   const driveKindsArray = `array[${driveKinds.map(sqlString).join(", ")}]::text[]`;
   const sourcesArray = `array[${["internal", ...sources].map(sqlString).join(", ")}]::text[]`;
+  const nodeSourcesArray = `array[${["internal", "request", ...sources].map(sqlString).join(", ")}]::text[]`;
 
   const readOnly = (alias: string): string => {
     const external = sourceColumn
-      ? `coalesce(${alias}.${n("source")}, 'internal') <> 'internal'`
+      ? `coalesce(${alias}.${n("source")}::text, 'internal') not in ('internal', 'request')`
       : "false";
 
     const connected =
@@ -559,6 +594,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const m = (column: string): string => tenant.col("memberships", column);
 
   const rolesArray = `array[${roles.all.map(sqlString).join(", ")}]::text[]`;
+  const grantRolesArray = `array[${[...roles.all, ...(roles.upload === undefined ? [] : [roles.upload])].map(sqlString).join(", ")}]::text[]`;
 
   const rank = (role: string): string =>
     `coalesce(array_position(${rolesArray}, ${role}::text), 0)`;
@@ -580,6 +616,14 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
 
   const canDownload = (node: string): string =>
     `${fn("drive_can_download")}(${node})`;
+
+  const canUpload = (folder: string): string =>
+    `${fn("drive_can_upload")}(${folder})`;
+
+  const uploadedOwn = (node: string): string =>
+    roles.upload === undefined
+      ? "false"
+      : `${fn("drive_uploaded_own")}(${node})`;
 
   const notFound = fail("DRIVE_NOT_FOUND", "drive item not found", "P0002");
 
@@ -777,8 +821,14 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     ctx.cast("nodes", "kind", "drive_insert_node.kind"),
     "v_name",
     ...(ranked ? [rankAfter("v_last")] : []),
-    ...(sourceColumn ? ["'internal'"] : []),
-    ...(has("createdBy") ? ["auth.uid()"] : []),
+    ...(sourceColumn
+      ? [ctx.cast("nodes", "source", "drive_insert_node.source")]
+      : []),
+    ...(has("createdBy")
+      ? [
+          "case when drive_insert_node.source = 'request' then null else auth.uid() end",
+        ]
+      : []),
     ...extras.map(
       (column) =>
         `coalesce(v_fields.${column.ident}, v_parent.${column.ident})`,
@@ -835,6 +885,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     driveKindsArray,
     sources,
     sourcesArray,
+    nodeSourcesArray,
     D,
     DG,
     C,
@@ -884,6 +935,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     tenant,
     m,
     rolesArray,
+    grantRolesArray,
     rank,
     live,
     canRead,
@@ -891,6 +943,8 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     canShare,
     canComment,
     canDownload,
+    canUpload,
+    uploadedOwn,
     notFound,
     forbidden,
     record,

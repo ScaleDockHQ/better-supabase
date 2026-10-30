@@ -11,8 +11,8 @@ import {
   userGrant,
 } from "../shared.ts";
 import { labelTags, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
+import { driveLinksSql } from "./drive-links.ts";
 import { lockGuard, subtreeLockGuard } from "./drive-locks.ts";
-import { liveShareLink } from "./share-links.ts";
 
 /**
  * The approvals action a drive file's request uses:
@@ -41,7 +41,6 @@ export function driveFilesSql(kit: DriveKit): string {
     v,
     trash,
     ti,
-    shareLinks,
     state,
     st,
     live,
@@ -60,6 +59,9 @@ export function driveFilesSql(kit: DriveKit): string {
     touch,
     siblings,
     canDownload,
+    canUpload,
+    uploadedOwn,
+    roles,
     previewColumn,
   } = kit;
 
@@ -218,13 +220,35 @@ ${serviceGrant(`${fn("drive_set_previews")}(uuid, uuid, integer)`)}
 `
       : "";
 
+  const uploadOnly = (node: string, attachment: string): string =>
+    `jsonb_build_object('id', ${node}.${n("id")}, 'attachment', ${attachment})`;
+
+  const uploadOnlyCreate =
+    roles.upload === undefined || attachments === undefined
+      ? ""
+      : `
+  if not ${SERVICE_CALLER} and drive_create_file.parent is not null
+    and exists (select 1 from ${T} x where x.${n("id")} = drive_create_file.parent and x.${n("tenant")} = drive_create_file.tenant${live("x")})
+    and not ${canRead("drive_create_file.parent")} and ${canUpload("drive_create_file.parent")} then
+    v_node := ${fn("drive_insert_node")}(drive_create_file.tenant, ${driveColumn ? `(select x.${n("drive")} from ${T} x where x.${n("id")} = drive_create_file.parent)` : "null"}, drive_create_file.parent, 'file', v_name, 'rename', drive_create_file.fields);
+    v_attachment := ${attachments.fn("create_attachment")}(v_node.${n("tenant")}, v_node.${n("name")}, drive_create_file.mime_type, drive_create_file.size, ${typeLit}, v_node.${n("id")}::text);
+    return ${uploadOnly("v_node", "v_attachment")};
+  end if;`;
+
   const fileFunctions =
     A === undefined || attachments === undefined
       ? ""
       : `
 -- A new file and its pending attachment: upload to the attachment's
 -- object_path, then call drive_commit. With conflict 'replace', a file of
--- the same name gets the upload as a new revision instead.
+-- the same name gets the upload as a new revision instead.${
+          roles.upload === undefined
+            ? ""
+            : `
+-- A caller with only options.uploadRole (${roles.upload}) on the folder gets
+-- { id, attachment } and no node: the file takes a free name, and
+-- they can't read it once committed.`
+        }
 create or replace function ${fn("drive_create_file")}(tenant ${ctx.idType}, parent uuid, name text, mime_type text, size bigint, conflict text default null, fields jsonb default null, drive uuid default null)
 returns jsonb
 language plpgsql
@@ -236,9 +260,9 @@ declare
   v_name text := ${fn("drive_clean_name")}(drive_create_file.name);
   v_conflict text := ${fn("drive_conflict")}(drive_create_file.conflict);
   v_drive uuid := drive_create_file.drive;
-  v_node ${T}%rowtype;
+  v_node ${T}%rowtype;${roles.upload === undefined ? "" : "\n  v_attachment jsonb;"}
 begin
-  ${READ_ONLY_GUARD}
+  ${READ_ONLY_GUARD}${uploadOnlyCreate}
   perform ${fn("drive_check_parent")}(drive_create_file.tenant, drive_create_file.parent, drive_create_file.drive);${
     driveColumn
       ? `
@@ -275,13 +299,14 @@ as $$
 #variable_conflict use_column
 declare
   v_node ${T}%rowtype;
+  v_attachment jsonb;
 begin
   ${READ_ONLY_GUARD}
   select * into v_node from ${T} x where x.${n("id")} = drive_upload_revision.node${live("x")};
-  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)} or ${uploadedOwn(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)} or ${uploadedOwn(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
   if ${readOnly("v_node")} then
@@ -291,8 +316,15 @@ begin
   if v_node.${n("kind")} <> 'file' then
     ${fail("DRIVE_NOT_A_FILE", "a folder has no content", "22023")}
   end if;
-  return jsonb_build_object('node', ${json("v_node")}, 'attachment',
-    ${attachments.fn("create_attachment")}(v_node.${n("tenant")}, v_node.${n("name")}, drive_upload_revision.mime_type, drive_upload_revision.size, ${typeLit}, v_node.${n("id")}::text));
+  v_attachment := ${attachments.fn("create_attachment")}(v_node.${n("tenant")}, v_node.${n("name")}, drive_upload_revision.mime_type, drive_upload_revision.size, ${typeLit}, v_node.${n("id")}::text);${
+    roles.upload === undefined
+      ? ""
+      : `
+  if not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
+    return ${uploadOnly("v_node", "v_attachment")};
+  end if;`
+  }
+  return jsonb_build_object('node', ${json("v_node")}, 'attachment', v_attachment);
 end;
 $$;
 ${userGrant(`${fn("drive_upload_revision")}(uuid, text, bigint)`)}
@@ -310,10 +342,10 @@ declare
   v_file ${A}%rowtype;
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_commit.node${live("x")} for update;
-  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)} or ${uploadedOwn(`v_node.${n("id")}`)}) then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)}) then
+  if not (${SERVICE_CALLER} or ${canWrite(`v_node.${n("id")}`)} or ${uploadedOwn(`v_node.${n("id")}`)}) then
     ${forbidden("change this file")}
   end if;
   if ${readOnly("v_node")} then
@@ -339,7 +371,14 @@ begin
       jsonb_build_object('attachmentId', v_file.${a("id")}, 'name', v_file.${a("name")}, 'mimeType', v_file.${a("mimeType")}, 'size', v_file.${a("size")}),
       v_file.${a("bucket")} || '/' || v_file.${a("path")}, null, 'manual', false, auth.uid());`
     }
-  end if;
+  end if;${
+    roles.upload === undefined
+      ? ""
+      : `
+  if not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
+    return jsonb_build_object('id', v_node.${n("id")}, 'attachmentId', v_file.${a("id")}, 'committed', true);
+  end if;`
+  }
   return ${withRole("v_node")};
 end;
 $$;
@@ -374,7 +413,7 @@ as $$
       when f.${a("subjectType")} is distinct from ${typeLit} then true
       when f.${a("subjectId")} !~ ${UUID_TEXT} then false
       when drive_object_allowed.action = 'select' then ${canDownload(`f.${a("subjectId")}::uuid`)}
-      else ${fn("drive_node_writable")}(f.${a("subjectId")}::uuid)
+      else ${fn("drive_node_writable")}(f.${a("subjectId")}::uuid)${roles.upload === undefined ? "" : ` or ${uploadedOwn(`f.${a("subjectId")}::uuid`)}`}
     end
     from ${A} f
     where f.${a("bucket")} = drive_object_allowed.bucket and f.${a("path")} = drive_object_allowed.path
@@ -392,7 +431,7 @@ as $$
   select case
     when drive_attachment_allowed.subject_type is distinct from ${typeLit} then true
     when drive_attachment_allowed.subject_id !~ ${UUID_TEXT} then false
-    when drive_attachment_allowed.write then ${fn("drive_node_writable")}(drive_attachment_allowed.subject_id::uuid)
+    when drive_attachment_allowed.write then ${fn("drive_node_writable")}(drive_attachment_allowed.subject_id::uuid)${roles.upload === undefined ? "" : ` or ${uploadedOwn("drive_attachment_allowed.subject_id::uuid")}`}
     else ${canRead("drive_attachment_allowed.subject_id::uuid")}
   end
 $$;
@@ -746,72 +785,6 @@ $$;
 ${userGrant(`${fn("drive_marked")}(${ctx.idType}, boolean, integer)`)}
 `;
 
-  const linkFunction =
-    shareLinks === undefined
-      ? ""
-      : `
--- What a share link on a node opens: the node and, for a folder, its
--- children. node picks an item under the linked folder. For a file, object
--- carries the original for the server to sign a download URL with, unless the
--- link's download_allowed is false or a download block covers the file${previewColumn ? "; previews\n-- carries the rendered pages either way" : ""}. An upload link opens nothing.
-create or replace function ${fn("drive_link")}(token text, node uuid default null)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_link_id uuid;
-  v_role text;
-  v_root text;
-  v_expires timestamptz;
-  v_tenant text;
-  v_download boolean;
-  v_node ${T}%rowtype;
-begin
-  select l.${shareLinks.col("links", "id")}, l.${shareLinks.col("links", "role")}, l.${shareLinks.col("links", "subjectId")}, l.${shareLinks.col("links", "expiresAt")}, l.${shareLinks.col("links", "tenant")}::text, ${shareLinks.has("links", "downloadAllowed") ? `l.${shareLinks.col("links", "downloadAllowed")}` : "true"}
-    into v_link_id, v_role, v_root, v_expires, v_tenant, v_download
-  from ${shareLinks.table("links")} l
-  where ${liveShareLink(shareLinks, "l", "drive_link.token", typeLit)};
-  if v_link_id is null or v_root !~ ${UUID_TEXT} then
-    ${fail("DRIVE_LINK_NOT_FOUND", "this link does not exist or has expired", "P0002")}
-  end if;
-  select * into v_node from ${T} x where x.${n("id")} = coalesce(drive_link.node, v_root::uuid)
-    and x.${n("tenant")}::text = v_tenant${live("x")};
-  if not found or not (v_root::uuid = any (${fn("drive_ancestors")}(v_node.${n("id")}))) then
-    ${fail("DRIVE_LINK_NOT_FOUND", "this link does not open that item", "P0002")}
-  end if;
-  if v_role = 'upload' then
-    ${fail("DRIVE_LINK_ROLE_INVALID", "an upload link takes files and opens nothing", "22023")}
-  end if;
-  v_download := coalesce(v_download, true) and not ${fn("drive_download_blocked")}(v_node.${n("id")});
-  return jsonb_build_object(
-    'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires, 'downloadAllowed', v_download),
-    'node', ${json("v_node")},
-    'children', case when v_node.${n("kind")} = 'folder' then (
-      select coalesce(jsonb_agg(${json("c.r")} order by ${orderBy("(c.r)")}), '[]'::jsonb)
-      from (select y as r from ${T} y where y.${n("parent")} = v_node.${n("id")}${live("y")} order by ${orderBy("y")} limit 500) c
-    ) end${
-      A === undefined
-        ? ""
-        : `,
-    'object', case when v_download then (select jsonb_build_object('bucket', f.${a("bucket")}, 'path', f.${a("path")}, 'mimeType', f.${a("mimeType")}, 'status', f.${a("status")})
-      from ${A} f where f.${a("id")} = v_node.${n("attachment")}) end${
-        previewColumn
-          ? `,
-    'previews', ${fn("drive_preview_json")}(v_node)`
-          : ""
-      }`
-    }
-  );
-end;
-$$;
-revoke all on function ${fn("drive_link")}(text, uuid) from public, anon, authenticated;
-grant execute on function ${fn("drive_link")}(text, uuid) to anon, authenticated, service_role;
-`;
-
   const labelFunctions =
     tags === undefined
       ? ""
@@ -1012,7 +985,7 @@ drop trigger if exists ${ctx.trigger("drive_node_purged")} on ${T};
 create trigger ${ctx.trigger("drive_node_purged")}
   after delete on ${T}
   for each row execute function ${fn("drive_node_purged")}();
-${fileFunctions}${revisionFunctions}${binFunctions}${stateFunctions}${linkFunction}${labelFunctions}${approvalFunctions}`;
+${fileFunctions}${revisionFunctions}${binFunctions}${stateFunctions}${driveLinksSql(kit)}${labelFunctions}${approvalFunctions}`;
 
   return late;
 }

@@ -17,6 +17,7 @@ export function driveTablesSql(kit: DriveKit): string {
     driveKinds,
     driveKindsArray,
     sourcesArray,
+    nodeSourcesArray,
     drives,
     D,
     DG,
@@ -36,6 +37,7 @@ export function driveTablesSql(kit: DriveKit): string {
     has,
     binColumn,
     rolesArray,
+    grantRolesArray,
     typed,
     teamColumn,
     driveColumn,
@@ -157,6 +159,9 @@ ${lockTable(DG, { read: true })}
     previewColumn
       ? `alter table ${T} add column if not exists ${n("previewPages")} integer check (${n("previewPages")} >= 0);\n`
       : "",
+    sourceColumn
+      ? `alter table ${T} drop constraint if exists ${sqlIdent(`${ctx.tableName("nodes").name}_source_check`)};\n${ensureCheck(T, "bsb_drive_nodes_source", `${n("source")} = any (${nodeSourcesArray})`)}\n`
+      : "",
   ].join("");
 
   const nodeTable = ctx.owns("nodes")
@@ -171,7 +176,7 @@ ${lockTable(DG, { read: true })}
   ${n("path")} text not null default '',
   ${n("rank")} text collate "C" not null default 'V' check (${n("rank")} ~ ${RANK_KEY_PATTERN}),
   ${n("deletedAt")} timestamptz,
-  ${sourceColumn ? `${n("source")} text not null default 'internal' check (${n("source")} = any (${sourcesArray})),` : ""}
+  ${sourceColumn ? `${n("source")} text not null default 'internal',` : ""}
   ${externalColumn ? `${n("externalId")} text,` : ""}
   ${metadataColumn ? `${n("externalMetadata")} jsonb not null default '{}'::jsonb,` : ""}
   ${holdColumn ? `${n("legalHoldUntil")} timestamptz,` : ""}
@@ -255,7 +260,7 @@ ${grantIdentity}
   ${g("createdAt")} timestamptz not null default now()${grantUnique ? "," : ""}
 ${grantUnique ? `${grantUnique}\n` : ""});
 ${grantIndexes}
-${ensureCheck(G, "bsb_drive_grants_role", `${g("role")} = any (${rolesArray})`)}
+${ensureCheck(G, "bsb_drive_grants_role", `${g("role")} = any (${grantRolesArray})`)}
 ${lockTable(G, { read: false })}
 `
     : "";

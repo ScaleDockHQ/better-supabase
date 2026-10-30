@@ -440,7 +440,8 @@ export default defineConfig({
     incidents: {},
     reminders: {},
     "drive-files": {},
-    drive: {},
+    // Contributors add files to a shared folder without seeing what's in it.
+    drive: { options: { uploadRole: "contributor" } },
     versions: { on: { customer: { columns: ["name", "kvk"] } } },
     // Pages and posts with locales and scheduled publish, read by anon.
     content: {},

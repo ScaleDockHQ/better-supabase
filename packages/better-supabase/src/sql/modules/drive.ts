@@ -223,7 +223,7 @@ export const DRIVE_FILES: BlockSqlDefinition = {
     layout.modules?.["drive"]?.columns?.["nodes"]?.["attachment"] === null
       ? []
       : ["attachments"],
-  integrates: ["drive", ...INTEGRATES, "tags", "approvals"],
+  integrates: ["drive", ...INTEGRATES, "tags", "approvals", "rate-limit"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

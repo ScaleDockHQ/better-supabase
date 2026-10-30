@@ -113,6 +113,7 @@ blocks: {
 | `commentRole`   | `commenter`, else `writeRole`   | The role `drive_can_comment` checks                                                    |
 | `previewPrefix` | `_previews`                     | The storage folder preview pages go to, in the attachment's bucket                     |
 | `memberRole`    | none                            | A role every member of the organization has on every node                              |
+| `uploadRole`    | none                            | A role, outside `roles`, that adds files to a folder without reading it                |
 | `conflict`      | `fail`                          | What a duplicate name in a folder does: `fail`, `rename` (`plan (2).pdf`) or `replace` |
 | `subjectType`   | `drive_node`                    | The subject type of nodes in events, audit entries, attachments, versions and trash    |
 | `drives`        | `false`                         | Several drives per organization, with drive-level grants and connected drives          |
@@ -123,6 +124,75 @@ blocks: {
 | `extraColumns`  | none                            | Columns on the node table that `fields` reads and writes                               |
 
 Each call that creates, renames or moves a node can pass its own `conflict`. Names compare case-insensitively within one folder.
+
+## Upload-only access
+
+Set `uploadRole` to give people a folder they can drop files into without seeing what's in it, such as a `contributor` on an `Inbox` folder. The role sits outside the `roles` ladder, and you grant it on a folder like any other role. It needs the node table's `createdBy` column, because a contributor keeps access to the files they added.
+
+```ts title="better-supabase.config.ts"
+drive: {
+  options: { uploadRole: "contributor" },
+},
+```
+
+```ts
+await db.drive.share(inbox.id, { type: "user", id: vendorId }, "contributor");
+
+// As the contributor:
+const file = await db.drive
+  .contribute(organizationId, {
+    parentId: inbox.id,
+    name: invoice.name,
+    mimeType: invoice.type,
+    size: invoice.size,
+  })
+  .orThrow();
+await supabase.storage
+  .from(file.attachment.bucket)
+  .uploadToSignedUrl(file.attachment.path, file.token, invoice);
+await db.drive.commitContribution(file.id, file.attachment.id).orThrow();
+```
+
+A contributor can't list, open or download the folder or anything in it, including their own files: `get` and `list` return `DRIVE_NOT_FOUND` for them. `contribute` takes a free name (`invoice (2).pdf`) so a contributor never learns which names the folder already holds, and it returns the new file's id and its upload, not the node. The contributor may upload a revision of a file they added and commit it, and nothing else; renaming, moving, trashing and sharing still need the write or share role. `drive_can_upload(folder)` is the check in SQL, true for the upload role and for the write role. Granting the upload role on a file fails with `DRIVE_ROLE_UNKNOWN`.
+
+The upload role works on node grants, not on drive grants. When your grant table's `role` column is an enum, add the upload role's value to it.
+
+## File requests
+
+A file request lets anyone with a link send files into a folder, without an account. It is a [share link](/docs/blocks/share-links) with the role `upload`, so it takes the same expiry, use limit and password. `createFileRequest` needs the share role on the folder, and the token comes back once:
+
+```ts
+const request = await db.drive
+  .createFileRequest(inbox.id, {
+    expiresAt: Temporal.Now.instant().add({ hours: 72 }),
+    maxUses: 10,
+    password: "harbor-pier",
+  })
+  .orThrow();
+const url = `https://app.example.com/send/${request.token}`;
+```
+
+The page behind that URL posts the file to your server, which sends it on with a drive client made from the service transport and the service storage client:
+
+```ts title="src/app/send/[token]/actions.ts"
+"use server";
+
+const drive = createDrive({
+  transport: serviceTransport,
+  storage: serviceStorage,
+});
+const sent = await drive
+  .uploadToRequest(token, file, { name: file.name, password })
+  .orThrow();
+
+if (sent.passwordRequired) {
+  return { passwordRequired: true };
+}
+```
+
+`uploadToRequest` resolves the token, creates the file in the folder under a free name, uploads the bytes and commits them. Each file counts one use of the link, and the files a link takes are counted per link under the scope `drive_link_upload` when the [rate-limit](/docs/blocks/sql) module is installed: 20 an hour, unless `set_rate_limit('drive_link_upload', ...)` sets another rule. Past the limit the call fails with `rate_limited` and the hint `DRIVE_LINK_RATE_LIMITED`. A wrong or missing password returns `{ passwordRequired: true }` instead of an error. A view or download link fails with `DRIVE_LINK_ROLE_INVALID`.
+
+A file that came through a request has the `source` `request` and no creator, and `drive.node_created` carries that `source`, so a sink can tell the folder's owner a file arrived. Unlike files mirrored from a connection, request files aren't read-only: the folder's editors rename, move and trash them like any other file. When your node table's `source` column is an enum, add `request` to it.
 
 Pass a [Standard Schema](https://standardschema.dev) for the `extraColumns`
 as `fields` to `createDrive`: every node the client returns has its `fields`
@@ -245,7 +315,7 @@ await drive.prune({ maxObjects: 500 }).orThrow();
 
 With share-links installed, `star(id)` and `star(id, false)` mark a node for the caller, `open(id)` records that the caller opened it, and `starred` and `recent` list them. A share link on a folder opens it and the nodes under it: `link(token)` returns the folder and its children, and `link(token, { nodeId })` returns one node under it with its stored object.
 
-Creating a link on a node needs the share role. A `view` or `download` link opens the item. Its `downloadAllowed` is false, and the stored object is left out, when the link was created with `downloadAllowed: false` or a download block covers the item; the `previews` still come back. An `upload` link names a folder, and `link(token)` refuses it with `DRIVE_LINK_ROLE_INVALID`, since it takes files and opens nothing.
+Creating a link on a node needs the share role. A `view` or `download` link opens the item. Its `downloadAllowed` is false, and the stored object is left out, when the link was created with `downloadAllowed: false` or a download block covers the item; the `previews` still come back. An `upload` link names a folder, and `link(token)` refuses it with `DRIVE_LINK_ROLE_INVALID`, since it takes files and opens nothing; [file requests](#file-requests) send files through one.
 
 ## With ReUI
 
@@ -342,7 +412,8 @@ drive: {
 | `DRIVE_LOCK_INVALID`         | The lock doesn't end in the future within 30 days, or the note is over 500 characters                |
 | `DRIVE_DOWNLOAD_BLOCKED`     | `download` names a file whose downloads are blocked for the caller                                   |
 | `DRIVE_TARGET_INVALID`       | A download block names an unknown target type, or `blocked` isn't true or false                      |
-| `DRIVE_LINK_ROLE_INVALID`    | An upload link names a file, or `link` opens an upload link                                          |
+| `DRIVE_LINK_ROLE_INVALID`    | An upload link names a file, `link` opens an upload link, or a view link takes a file                |
+| `DRIVE_LINK_RATE_LIMITED`    | A file request took more files than its rate limit allows                                            |
 | `DRIVE_PREVIEWS_INVALID`     | `drive_set_previews` got no page count or a negative one                                             |
 | `TRASH_HELD`                 | `purge` names a batch with a subject under a legal hold                                              |
 

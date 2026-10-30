@@ -1,6 +1,7 @@
 import type { BlockFields } from "../../core/block-fields.ts";
 import type { Result } from "../../core/result.ts";
 import type { ApprovalStatus } from "../approvals/approvals.ts";
+import type { Attachment } from "../attachments/attachments.ts";
 import type {
   Drive,
   DriveApproval,
@@ -22,6 +23,7 @@ import type {
 } from "./drive.ts";
 
 import { AsyncResult, ok } from "../../core/result.ts";
+import { attachmentOf } from "../attachments/attachments.ts";
 import {
   enumOrThrow,
   isRecord,
@@ -308,6 +310,49 @@ export function objectsOf(value: unknown): DriveStoredObject[] {
     bucket: textOf(row["bucket"]),
     path: textOf(row["path"]),
   }));
+}
+
+/**
+ * `drive_create_file` for `contribute`: `{ node, attachment }` for a caller who
+ * can read the folder, `{ id, attachment }` for one who may only add files.
+ */
+export function contributionOf(
+  value: unknown,
+  fn: string,
+): { readonly id: string; readonly attachment: Attachment } {
+  const row = recordOf(value, fn);
+  const node = isRecord(row["node"]) ? row["node"] : row;
+
+  return {
+    id: textOf(node["id"]),
+    attachment: attachmentOf(recordOf(row["attachment"], fn)),
+  };
+}
+
+/** `drive_commit` for `commitContribution`: a node, or `{ id, attachmentId }`. */
+export function committedOf(value: unknown): {
+  readonly id: string;
+  readonly attachmentId: string;
+} {
+  const row = recordOf(value, "drive_commit");
+
+  return { id: textOf(row["id"]), attachmentId: textOf(row["attachmentId"]) };
+}
+
+/** `drive_link_upload`; `undefined` while the link wants its password. */
+export function requestUploadOf(
+  value: unknown,
+): { readonly id: string; readonly attachment: Attachment } | undefined {
+  const row = recordOf(value, "drive_link_upload");
+
+  if (row["passwordRequired"] === true) {
+    return undefined;
+  }
+
+  return {
+    id: textOf(row["nodeId"]),
+    attachment: attachmentOf(recordOf(row["attachment"], "drive_link_upload")),
+  };
 }
 
 /** The methods whose result holds nodes, which `fields` parses. */

@@ -5920,6 +5920,56 @@ msgctxt "drive.6oOCCL"
 msgid "Upload file"
 msgstr "Upload file"
 
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.V0lHV9"
+msgid "Send files"
+msgstr "Send files"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.fCgMR2"
+msgid "Files you send go straight to the folder's owner."
+msgstr "Files you send go straight to the folder's owner."
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.gyrIEl"
+msgid "File"
+msgstr "File"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.FtamuF"
+msgid "Up to 1 MB per file."
+msgstr "Up to 1 MB per file."
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.5sg7KC"
+msgid "Password"
+msgstr "Password"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.pbzTAi"
+msgid "This link needs its password. Check it and try again."
+msgstr "This link needs its password. Check it and try again."
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.9WRlF4"
+msgid "Send"
+msgstr "Send"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.LtWJ-M"
+msgid "File sent"
+msgstr "File sent"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.z_wUXE"
+msgid "Received"
+msgstr "Received"
+
+#: src/features/drive/components/file-request-upload.tsx
+msgctxt "drive.bBehi3"
+msgid "Send another file"
+msgstr "Send another file"
+
 #: src/features/drive/components/grants-editor.tsx
 msgctxt "drive.WYpfjO"
 msgid "Can view"
