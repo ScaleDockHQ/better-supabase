@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:842bec2f3ad04c50685450f4367cbb57bce8ddeb62e9f1e114594edf377b77f5
+-- @bsb-hash sha256:c7a9a3f67165eaf3a84edef76b674ebbc69f4caca74fecd19bdf30a6840c24ff
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,6 +112,35 @@ end;
 $$;
 revoke execute on function "better_supabase"."is_subject_member"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_subject_member"(text, text) to authenticated, service_role;
+
+-- Whether the caller is on the record's team today in one of roles, for a
+-- read rule that only some roles pass. The caller only, like
+-- is_subject_member.
+create or replace function "better_supabase"."has_subject_role"(subject_type text, subject_id text, roles text[])
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
+    return false;
+  end if;
+  return exists (
+    select 1 from "better_supabase"."subject_members" m
+    where m."subject_type" = has_subject_role.subject_type
+      and m."subject_id" = has_subject_role.subject_id
+      and m."role" = any (has_subject_role.roles)
+      and (m."user_id" = auth.uid())
+        and (m."starts_on" is null or m."starts_on" <= current_date)
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
+grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
