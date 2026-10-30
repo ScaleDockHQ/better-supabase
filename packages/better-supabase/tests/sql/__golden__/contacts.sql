@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@1 managed
--- @bsb-hash sha256:ea24651a6f1c6e901fe4a562509c4f88e26cda581f7c6063fa9447f14b5caf5d
--- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
+-- @bsb-block contacts@2 managed
+-- @bsb-hash sha256:bb2aaf7e3b4744931b4b75e4a1cb28ed14a5831d127a06fdbfa32082a2b886d6
+-- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -99,6 +99,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -145,6 +153,8 @@ create table if not exists "better_supabase"."people" (
   "lifecycle" text not null,
   "owner_user_id" uuid,
   "user_id" uuid,
+  "avatar_url" text,
+  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -183,6 +193,26 @@ grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
 create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create table if not exists "better_supabase"."person_identities" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
+  "channel" text not null check (length("channel") between 1 and 50),
+  "address" text not null check (length("address") between 1 and 500),
+  "verified_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "channel", "address")
+);
+create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+alter table "better_supabase"."person_identities" enable row level security;
+revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
+grant select on "better_supabase"."person_identities" to authenticated;
+grant all on "better_supabase"."person_identities" to service_role;
+drop policy if exists person_identities_read on "better_supabase"."person_identities";
+create policy person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -576,6 +606,7 @@ begin
   from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  update "better_supabase"."person_identities" i set "person_id" = merge_people.keep where i."person_id" = merge_people.drop;
   perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
   null;
   return (select to_jsonb(x) from "better_supabase"."people" x where x."id" = merge_people.keep);
@@ -663,6 +694,189 @@ as $$
 $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
+-- The person contact fields name, for the inbox and the channels: by id,
+-- then by the identity on a channel ({ channel, address }), the user, then
+-- the email. Fills in what the person lacks, or creates a lead; an identity
+-- is attached when given. A merged person resolves to the one it was merged
+-- into. No permission check: callers check.
+create or replace function "better_supabase"."resolve_person"(tenant uuid, input jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_person uuid;
+  v_identity jsonb := input -> 'identity';
+  v_channel text := nullif(trim(v_identity ->> 'channel'), '');
+  v_address text := nullif(trim(coalesce(v_identity ->> 'address', v_identity ->> 'external_id')), '');
+  v_email text := lower(nullif(trim(input ->> 'email'), ''));
+  v_name text;
+begin
+  if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+$' then
+    v_email := null;
+  end if;
+  if nullif(trim(input ->> 'id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."id" = nullif(trim(input ->> 'id'), '')::uuid and p."tenant_id" = resolve_person.tenant;
+    if v_person is null then
+      raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
+    end if;
+  end if;
+  if v_person is null and v_channel is not null and v_address is not null then
+    select i."person_id" into v_person from "better_supabase"."person_identities" i
+    where i."tenant_id" = resolve_person.tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  if v_person is null and nullif(trim(input ->> 'user_id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."user_id" = nullif(trim(input ->> 'user_id'), '')::uuid
+    order by p."archived_at" nulls first, p."created_at", p."id" limit 1;
+  end if;
+  if v_person is null and v_email is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+  end if;
+  if v_person is not null then
+    select coalesce(p."merged_into", p."id") into v_person from "better_supabase"."people" p where p."id" = v_person;
+    update "better_supabase"."people" p set
+      "email" = coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end),
+      "phone" = coalesce(p."phone", nullif(trim(input ->> 'phone'), '')),
+      "user_id" = coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid),
+      "avatar_url" = coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"),
+      "metadata" = p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end,
+      "updated_at" = now()
+    where p."id" = v_person
+      and (p."email", p."phone", p."user_id", p."avatar_url", p."metadata") is distinct from (coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end), coalesce(p."phone", nullif(trim(input ->> 'phone'), '')), coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid), coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"), p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end);
+  else
+    v_name := left(coalesce(nullif(trim(input ->> 'name'), ''), v_email, nullif(trim(input ->> 'phone'), ''), v_address, 'Unknown contact'), 300);
+    begin
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "lifecycle", "user_id", "avatar_url", "metadata", "created_by")
+      values (resolve_person.tenant, v_name, v_email, nullif(trim(input ->> 'phone'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1], nullif(trim(input ->> 'user_id'), '')::uuid, nullif(trim(input ->> 'avatar_url'), ''), case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end || case when v_email is null and nullif(trim(input ->> 'email'), '') is not null then jsonb_build_object('email', nullif(trim(input ->> 'email'), '')) else '{}'::jsonb end, auth.uid())
+      returning "id" into v_person;
+      null;
+    exception when unique_violation then
+      select p."id" into v_person from "better_supabase"."people" p
+      where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+      if v_person is null then
+        raise;
+      end if;
+    end;
+  end if;
+  if v_channel is not null and v_address is not null then
+    insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address")
+    values (resolve_person.tenant, v_person, v_channel, v_address)
+    on conflict do nothing;
+  end if;
+  return v_person;
+end;
+$$;
+revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+
+-- A person's identities, by channel and address.
+create or replace function "better_supabase"."list_person_identities"(person uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") order by i."channel", i."address"), '[]'::jsonb)
+  from "better_supabase"."person_identities" i where i."person_id" = list_person_identities.person
+$$;
+revoke execute on function "better_supabase"."list_person_identities"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_person_identities"(uuid) to authenticated, service_role;
+
+-- Adds an address on a channel to a person, or marks it verified. An address
+-- another person of the organization holds is refused.
+create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_channel text := nullif(trim(add_person_identity.channel), '');
+  v_address text := nullif(trim(add_person_identity.address), '');
+  v_holder uuid;
+  v_row jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select p."tenant_id" into v_tenant from "better_supabase"."people" p
+  where p."id" = add_person_identity.person and p."merged_into" is null;
+  if v_tenant is null then
+    raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if v_channel is null or v_address is null then
+    raise exception 'an identity needs a channel and an address' using errcode = '22023', hint = 'PARTY_IDENTITY_INVALID';
+  end if;
+  select i."person_id" into v_holder from "better_supabase"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  if v_holder is not null and v_holder <> add_person_identity.person then
+    raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
+  end if;
+  insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
+  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  on conflict do nothing;
+  if add_person_identity.verified then
+    update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
+    where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  select jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") into v_row from "better_supabase"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+
+-- The person an address on a channel belongs to, or null.
+create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(p) from "better_supabase"."person_identities" i
+  join "better_supabase"."people" p on p."id" = i."person_id"
+  where i."tenant_id" = find_person_by_identity.tenant
+    and i."channel" = trim(find_person_by_identity.channel)
+    and i."address" = trim(find_person_by_identity.address)
+$$;
+revoke execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -742,6 +956,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_peop
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -759,22 +994,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
+-- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 1, 'managed')
+values ('contacts', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@1 managed
--- @bsb-hash sha256:5a2b4141378bd15eecc152c3ce181eeabef92c60380b8d662121aec5715d3f04
--- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
+-- @bsb-block contacts@2 managed
+-- @bsb-hash sha256:c693ff5eff9ec592dc17b048b2f664e888013de96250d8c071e85cad4993b4c0
+-- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -872,11 +1107,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."person_inbox_contacts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_inbox_contacts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_inbox_contacts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_inbox_contacts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_inbox_contacts";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -925,6 +1160,8 @@ create table if not exists "better_supabase"."people" (
   "lifecycle" text not null,
   "owner_user_id" uuid,
   "user_id" uuid,
+  "avatar_url" text,
+  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -963,6 +1200,26 @@ grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
 create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create table if not exists "better_supabase"."person_identities" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
+  "channel" text not null check (length("channel") between 1 and 50),
+  "address" text not null check (length("address") between 1 and 500),
+  "verified_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "channel", "address")
+);
+create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+alter table "better_supabase"."person_identities" enable row level security;
+revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
+grant select on "better_supabase"."person_identities" to authenticated;
+grant all on "better_supabase"."person_identities" to service_role;
+drop policy if exists person_identities_read on "better_supabase"."person_identities";
+create policy person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -1376,6 +1633,9 @@ begin
   from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  update "better_supabase"."person_identities" i set "person_id" = merge_people.keep where i."person_id" = merge_people.drop;
+  update "better_supabase"."inbox_conversations" x set "contact_id" = merge_people.keep where x."contact_id" = merge_people.drop;
+  update "better_supabase"."identity_links" x set "contact_id" = merge_people.keep where x."contact_id" = merge_people.drop;
   perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
   perform "better_supabase".emit_event('person.merged', jsonb_build_object('organizationId', v_keep."tenant_id", 'personId', merge_people.keep, 'name', v_keep."name", 'mergedId', merge_people.drop), 'persons/' || merge_people.keep::text, (v_keep."tenant_id"::text)::text, null, 'better-supabase/contacts');
   perform better_supabase.audit_event(
@@ -1473,126 +1733,197 @@ as $$
 $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
-create table if not exists "better_supabase"."person_inbox_contacts" (
-  "tenant_id" uuid not null,
-  "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "contact_id" uuid not null unique references "better_supabase"."contacts" ("id") on delete cascade,
-  "created_at" timestamptz not null default now(),
-  primary key ("person_id", "contact_id")
-);
-alter table "better_supabase"."person_inbox_contacts" enable row level security;
-revoke all on "better_supabase"."person_inbox_contacts" from public, anon, authenticated;
-grant select on "better_supabase"."person_inbox_contacts" to authenticated;
-grant all on "better_supabase"."person_inbox_contacts" to service_role;
-drop policy if exists person_inbox_contacts_read on "better_supabase"."person_inbox_contacts";
-create policy person_inbox_contacts_read on "better_supabase"."person_inbox_contacts"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
-
--- Links an inbox contact to a person in the same organization; a contact
--- linked to someone else moves.
-create or replace function "better_supabase"."link_inbox_contact"(person uuid, contact uuid)
-returns boolean
+-- The person contact fields name, for the inbox and the channels: by id,
+-- then by the identity on a channel ({ channel, address }), the user, then
+-- the email. Fills in what the person lacks, or creates a lead; an identity
+-- is attached when given. A merged person resolves to the one it was merged
+-- into. No permission check: callers check.
+create or replace function "better_supabase"."resolve_person"(tenant uuid, input jsonb)
+returns uuid
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_tenant uuid;
+  v_person uuid;
+  v_identity jsonb := input -> 'identity';
+  v_channel text := nullif(trim(v_identity ->> 'channel'), '');
+  v_address text := nullif(trim(coalesce(v_identity ->> 'address', v_identity ->> 'external_id')), '');
+  v_email text := lower(nullif(trim(input ->> 'email'), ''));
+  v_name text;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+$' then
+    v_email := null;
   end if;
-  select p."tenant_id" into v_tenant from "better_supabase"."people" p
-  join "better_supabase"."contacts" k on k."id" = link_inbox_contact.contact and k."tenant_id"::text = p."tenant_id"::text
-  where p."id" = link_inbox_contact.person;
-  if v_tenant is null then
-    raise exception 'person or contact not found in one organization' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  if nullif(trim(input ->> 'id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."id" = nullif(trim(input ->> 'id'), '')::uuid and p."tenant_id" = resolve_person.tenant;
+    if v_person is null then
+      raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
+    end if;
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
-    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  if v_person is null and v_channel is not null and v_address is not null then
+    select i."person_id" into v_person from "better_supabase"."person_identities" i
+    where i."tenant_id" = resolve_person.tenant and i."channel" = v_channel and i."address" = v_address;
   end if;
-  insert into "better_supabase"."person_inbox_contacts" ("tenant_id", "person_id", "contact_id")
-  values (v_tenant, link_inbox_contact.person, link_inbox_contact.contact)
-  on conflict ("contact_id") do update set "person_id" = excluded."person_id";
-  return true;
+  if v_person is null and nullif(trim(input ->> 'user_id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."user_id" = nullif(trim(input ->> 'user_id'), '')::uuid
+    order by p."archived_at" nulls first, p."created_at", p."id" limit 1;
+  end if;
+  if v_person is null and v_email is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+  end if;
+  if v_person is not null then
+    select coalesce(p."merged_into", p."id") into v_person from "better_supabase"."people" p where p."id" = v_person;
+    update "better_supabase"."people" p set
+      "email" = coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end),
+      "phone" = coalesce(p."phone", nullif(trim(input ->> 'phone'), '')),
+      "user_id" = coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid),
+      "avatar_url" = coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"),
+      "metadata" = p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end,
+      "updated_at" = now()
+    where p."id" = v_person
+      and (p."email", p."phone", p."user_id", p."avatar_url", p."metadata") is distinct from (coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end), coalesce(p."phone", nullif(trim(input ->> 'phone'), '')), coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid), coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"), p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end);
+  else
+    v_name := left(coalesce(nullif(trim(input ->> 'name'), ''), v_email, nullif(trim(input ->> 'phone'), ''), v_address, 'Unknown contact'), 300);
+    begin
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "lifecycle", "user_id", "avatar_url", "metadata", "created_by")
+      values (resolve_person.tenant, v_name, v_email, nullif(trim(input ->> 'phone'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1], nullif(trim(input ->> 'user_id'), '')::uuid, nullif(trim(input ->> 'avatar_url'), ''), case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end || case when v_email is null and nullif(trim(input ->> 'email'), '') is not null then jsonb_build_object('email', nullif(trim(input ->> 'email'), '')) else '{}'::jsonb end, auth.uid())
+      returning "id" into v_person;
+      perform "better_supabase".emit_event('person.created', jsonb_build_object('organizationId', resolve_person.tenant, 'personId', v_person, 'name', v_name), 'persons/' || v_person::text, (resolve_person.tenant::text)::text, null, 'better-supabase/contacts');
+    exception when unique_violation then
+      select p."id" into v_person from "better_supabase"."people" p
+      where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+      if v_person is null then
+        raise;
+      end if;
+    end;
+  end if;
+  if v_channel is not null and v_address is not null then
+    insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address")
+    values (resolve_person.tenant, v_person, v_channel, v_address)
+    on conflict do nothing;
+  end if;
+  return v_person;
 end;
 $$;
-revoke execute on function "better_supabase"."link_inbox_contact"(uuid, uuid) from public, anon;
-grant execute on function "better_supabase"."link_inbox_contact"(uuid, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
 
-create or replace function "better_supabase"."unlink_inbox_contact"(contact uuid)
-returns boolean
-language plpgsql
-security definer
+-- A person's identities, by channel and address.
+create or replace function "better_supabase"."list_person_identities"(person uuid)
+returns jsonb
+language sql
+stable
+security invoker
 set search_path = ''
 as $$
-declare
-  v_tenant uuid;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."person_inbox_contacts" x where x."contact_id" = unlink_inbox_contact.contact;
-  if v_tenant is null then
-    return false;
-  end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
-    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
-  end if;
-  delete from "better_supabase"."person_inbox_contacts" x where x."contact_id" = unlink_inbox_contact.contact;
-  return true;
-end;
+  select coalesce(jsonb_agg(jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") order by i."channel", i."address"), '[]'::jsonb)
+  from "better_supabase"."person_identities" i where i."person_id" = list_person_identities.person
 $$;
-revoke execute on function "better_supabase"."unlink_inbox_contact"(uuid) from public, anon;
-grant execute on function "better_supabase"."unlink_inbox_contact"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_person_identities"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_person_identities"(uuid) to authenticated, service_role;
 
--- The person an inbox contact is linked to. Without a link, the active
--- person with the contact's email is linked first; with create, a contact
--- with a name and no match becomes a new lead.
-create or replace function "better_supabase"."person_for_inbox_contact"(contact uuid, "create" boolean)
+-- Adds an address on a channel to a person, or marks it verified. An address
+-- another person of the organization holds is refused.
+create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_contact "better_supabase"."contacts";
-  v_person uuid;
+  v_tenant uuid;
+  v_channel text := nullif(trim(add_person_identity.channel), '');
+  v_address text := nullif(trim(add_person_identity.address), '');
+  v_holder uuid;
+  v_row jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_contact from "better_supabase"."contacts" k where k."id" = person_for_inbox_contact.contact;
-  if v_contact."id" is null then
-    raise exception 'contact not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  select p."tenant_id" into v_tenant from "better_supabase"."people" p
+  where p."id" = add_person_identity.person and p."merged_into" is null;
+  if v_tenant is null then
+    raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_contact."tenant_id", 'contacts.read'), false)) then
-    raise exception 'not allowed to read people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
   end if;
-  select x."person_id" into v_person from "better_supabase"."person_inbox_contacts" x where x."contact_id" = v_contact."id";
-  if v_person is null and v_contact."email" is not null then
-    select p."id" into v_person from "better_supabase"."people" p
-    where p."tenant_id"::text = v_contact."tenant_id"::text and p."email" = lower(v_contact."email") and p."archived_at" is null;
+  if v_channel is null or v_address is null then
+    raise exception 'an identity needs a channel and an address' using errcode = '22023', hint = 'PARTY_IDENTITY_INVALID';
   end if;
-  if v_person is null and person_for_inbox_contact."create" and nullif(trim(v_contact."name"), '') is not null then
-    if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_contact."tenant_id", 'contacts.write'), false)) then
-      raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
-    end if;
-    v_person := ("better_supabase"."save_person"(v_contact."tenant_id", null, jsonb_strip_nulls(jsonb_build_object(
-      'name', v_contact."name", 'email', v_contact."email", 'phone', v_contact."phone"))) ->> 'id')::uuid;
+  select i."person_id" into v_holder from "better_supabase"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  if v_holder is not null and v_holder <> add_person_identity.person then
+    raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
   end if;
-  if v_person is null then
-    return null;
-  end if;
-  insert into "better_supabase"."person_inbox_contacts" ("tenant_id", "person_id", "contact_id")
-  select p."tenant_id", v_person, v_contact."id" from "better_supabase"."people" p where p."id" = v_person
+  insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
+  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
   on conflict do nothing;
-  return (select to_jsonb(p) from "better_supabase"."people" p where p."id" = v_person);
+  if add_person_identity.verified then
+    update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
+    where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  select jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") into v_row from "better_supabase"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  return v_row;
 end;
 $$;
-revoke execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."person_for_inbox_contact"(uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+
+-- The person an address on a channel belongs to, or null.
+create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(p) from "better_supabase"."person_identities" i
+  join "better_supabase"."people" p on p."id" = i."person_id"
+  where i."tenant_id" = find_person_by_identity.tenant
+    and i."channel" = trim(find_person_by_identity.channel)
+    and i."address" = trim(find_person_by_identity.address)
+$$;
+revoke execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
+
+-- A conversation's contact and an identity link's contact are people.
+alter table "better_supabase"."inbox_conversations" drop constraint if exists "inbox_conversations_contact_id_fkey";
+alter table "better_supabase"."inbox_conversations" add constraint "inbox_conversations_contact_id_fkey"
+  foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;
+alter table "better_supabase"."identity_links" drop constraint if exists "identity_links_contact_id_fkey";
+alter table "better_supabase"."identity_links" add constraint "identity_links_contact_id_fkey"
+  foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;
 
 -- The people who represent a record (a client's guardian, a legal
 -- representative), with their role and authority. Runs as the caller, so the
@@ -1738,25 +2069,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_peop
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."person_inbox_contacts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_inbox_contacts";
-create policy bsb_tenant_scope_select on "better_supabase"."person_inbox_contacts" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_inbox_contacts";
-create policy bsb_tenant_scope_insert on "better_supabase"."person_inbox_contacts" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_inbox_contacts";
-create policy bsb_tenant_scope_update on "better_supabase"."person_inbox_contacts" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_inbox_contacts";
-create policy bsb_tenant_scope_delete on "better_supabase"."person_inbox_contacts" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1776,22 +2107,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
+-- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 1, 'managed')
+values ('contacts', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@1 managed
--- @bsb-hash sha256:b582d6d5ec0c95f85f99828a55c6fdffe61ca4797f367b955b1e1186607dc057
--- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
+-- @bsb-block contacts@2 managed
+-- @bsb-hash sha256:79fea65e68bb0aba752d307ccaeea4dfe6a5472b5361e5453dd2eb14c38a94a9
+-- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1888,6 +2219,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "app_private"."company_people";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "app_private"."person_identities";
+    drop policy if exists bsb_tenant_scope_select on "app_private"."person_identities";
+    drop policy if exists bsb_tenant_scope_insert on "app_private"."person_identities";
+    drop policy if exists bsb_tenant_scope_update on "app_private"."person_identities";
+    drop policy if exists bsb_tenant_scope_delete on "app_private"."person_identities";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -1939,6 +2278,8 @@ create table if not exists "app_private"."people" (
   "lifecycle" text not null,
   "owner_user_id" uuid,
   "user_id" uuid,
+  "avatar_url" text,
+  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
   "merged_into" uuid references "app_private"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -1977,6 +2318,26 @@ grant select on "app_private"."company_people" to authenticated;
 grant all on "app_private"."company_people" to service_role;
 drop policy if exists company_people_read on "app_private"."company_people";
 create policy company_people_read on "app_private"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create table if not exists "app_private"."person_identities" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "person_id" uuid not null references "app_private"."people" ("id") on delete cascade,
+  "channel" text not null check (length("channel") between 1 and 50),
+  "address" text not null check (length("address") between 1 and 500),
+  "verified_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "channel", "address")
+);
+create index if not exists person_identities_person_idx on "app_private"."person_identities" ("person_id");
+alter table "app_private"."person_identities" enable row level security;
+revoke all on "app_private"."person_identities" from public, anon, authenticated;
+grant select on "app_private"."person_identities" to authenticated;
+grant all on "app_private"."person_identities" to service_role;
+drop policy if exists person_identities_read on "app_private"."person_identities";
+create policy person_identities_read on "app_private"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -2370,6 +2731,7 @@ begin
   from "app_private"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "app_private"."company_people" l where l."person_id" = merge_people.drop;
+  update "app_private"."person_identities" i set "person_id" = merge_people.keep where i."person_id" = merge_people.drop;
   perform better_supabase.merge_subject_refs('app_private.people', merge_people.keep::text, merge_people.drop::text);
   null;
   return (select to_jsonb(x) from "app_private"."people" x where x."id" = merge_people.keep);
@@ -2457,6 +2819,189 @@ as $$
 $$;
 revoke execute on function "app_private"."company_people_of"(uuid) from public, anon;
 grant execute on function "app_private"."company_people_of"(uuid) to authenticated, service_role;
+-- The person contact fields name, for the inbox and the channels: by id,
+-- then by the identity on a channel ({ channel, address }), the user, then
+-- the email. Fills in what the person lacks, or creates a lead; an identity
+-- is attached when given. A merged person resolves to the one it was merged
+-- into. No permission check: callers check.
+create or replace function "app_private"."resolve_person"(tenant uuid, input jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_person uuid;
+  v_identity jsonb := input -> 'identity';
+  v_channel text := nullif(trim(v_identity ->> 'channel'), '');
+  v_address text := nullif(trim(coalesce(v_identity ->> 'address', v_identity ->> 'external_id')), '');
+  v_email text := lower(nullif(trim(input ->> 'email'), ''));
+  v_name text;
+begin
+  if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+$' then
+    v_email := null;
+  end if;
+  if nullif(trim(input ->> 'id'), '') is not null then
+    select p."id" into v_person from "app_private"."people" p
+    where p."id" = nullif(trim(input ->> 'id'), '')::uuid and p."tenant_id" = resolve_person.tenant;
+    if v_person is null then
+      raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
+    end if;
+  end if;
+  if v_person is null and v_channel is not null and v_address is not null then
+    select i."person_id" into v_person from "app_private"."person_identities" i
+    where i."tenant_id" = resolve_person.tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  if v_person is null and nullif(trim(input ->> 'user_id'), '') is not null then
+    select p."id" into v_person from "app_private"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."user_id" = nullif(trim(input ->> 'user_id'), '')::uuid
+    order by p."archived_at" nulls first, p."created_at", p."id" limit 1;
+  end if;
+  if v_person is null and v_email is not null then
+    select p."id" into v_person from "app_private"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+  end if;
+  if v_person is not null then
+    select coalesce(p."merged_into", p."id") into v_person from "app_private"."people" p where p."id" = v_person;
+    update "app_private"."people" p set
+      "email" = coalesce(p."email", case when not exists (select 1 from "app_private"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end),
+      "phone" = coalesce(p."phone", nullif(trim(input ->> 'phone'), '')),
+      "user_id" = coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid),
+      "avatar_url" = coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"),
+      "metadata" = p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end,
+      "updated_at" = now()
+    where p."id" = v_person
+      and (p."email", p."phone", p."user_id", p."avatar_url", p."metadata") is distinct from (coalesce(p."email", case when not exists (select 1 from "app_private"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end), coalesce(p."phone", nullif(trim(input ->> 'phone'), '')), coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid), coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"), p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end);
+  else
+    v_name := left(coalesce(nullif(trim(input ->> 'name'), ''), v_email, nullif(trim(input ->> 'phone'), ''), v_address, 'Unknown contact'), 300);
+    begin
+      insert into "app_private"."people" ("tenant_id", "name", "email", "phone", "lifecycle", "user_id", "avatar_url", "metadata", "created_by")
+      values (resolve_person.tenant, v_name, v_email, nullif(trim(input ->> 'phone'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1], nullif(trim(input ->> 'user_id'), '')::uuid, nullif(trim(input ->> 'avatar_url'), ''), case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end || case when v_email is null and nullif(trim(input ->> 'email'), '') is not null then jsonb_build_object('email', nullif(trim(input ->> 'email'), '')) else '{}'::jsonb end, auth.uid())
+      returning "id" into v_person;
+      null;
+    exception when unique_violation then
+      select p."id" into v_person from "app_private"."people" p
+      where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+      if v_person is null then
+        raise;
+      end if;
+    end;
+  end if;
+  if v_channel is not null and v_address is not null then
+    insert into "app_private"."person_identities" ("tenant_id", "person_id", "channel", "address")
+    values (resolve_person.tenant, v_person, v_channel, v_address)
+    on conflict do nothing;
+  end if;
+  return v_person;
+end;
+$$;
+revoke execute on function "app_private"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+
+-- A person's identities, by channel and address.
+create or replace function "app_private"."list_person_identities"(person uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") order by i."channel", i."address"), '[]'::jsonb)
+  from "app_private"."person_identities" i where i."person_id" = list_person_identities.person
+$$;
+revoke execute on function "app_private"."list_person_identities"(uuid) from public, anon;
+grant execute on function "app_private"."list_person_identities"(uuid) to authenticated, service_role;
+
+-- Adds an address on a channel to a person, or marks it verified. An address
+-- another person of the organization holds is refused.
+create or replace function "app_private"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_channel text := nullif(trim(add_person_identity.channel), '');
+  v_address text := nullif(trim(add_person_identity.address), '');
+  v_holder uuid;
+  v_row jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select p."tenant_id" into v_tenant from "app_private"."people" p
+  where p."id" = add_person_identity.person and p."merged_into" is null;
+  if v_tenant is null then
+    raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if v_channel is null or v_address is null then
+    raise exception 'an identity needs a channel and an address' using errcode = '22023', hint = 'PARTY_IDENTITY_INVALID';
+  end if;
+  select i."person_id" into v_holder from "app_private"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  if v_holder is not null and v_holder <> add_person_identity.person then
+    raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
+  end if;
+  insert into "app_private"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
+  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  on conflict do nothing;
+  if add_person_identity.verified then
+    update "app_private"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
+    where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  select jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") into v_row from "app_private"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  return v_row;
+end;
+$$;
+revoke execute on function "app_private"."add_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "app_private"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "app_private"."remove_person_identity"(identity uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select i."tenant_id" into v_tenant from "app_private"."person_identities" i where i."id" = remove_person_identity.identity;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "app_private"."person_identities" i where i."id" = remove_person_identity.identity;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."remove_person_identity"(uuid) from public, anon;
+grant execute on function "app_private"."remove_person_identity"(uuid) to authenticated, service_role;
+
+-- The person an address on a channel belongs to, or null.
+create or replace function "app_private"."find_person_by_identity"(tenant uuid, channel text, address text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(p) from "app_private"."person_identities" i
+  join "app_private"."people" p on p."id" = i."person_id"
+  where i."tenant_id" = find_person_by_identity.tenant
+    and i."channel" = trim(find_person_by_identity.channel)
+    and i."address" = trim(find_person_by_identity.address)
+$$;
+revoke execute on function "app_private"."find_person_by_identity"(uuid, text, text) from public, anon;
+grant execute on function "app_private"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -2536,6 +3081,27 @@ drop policy if exists bsb_tenant_scope_delete on "app_private"."company_people";
 create policy bsb_tenant_scope_delete on "app_private"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "app_private"."person_identities";
+drop policy if exists bsb_tenant_scope_select on "app_private"."person_identities";
+create policy bsb_tenant_scope_select on "app_private"."person_identities" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "app_private"."person_identities";
+create policy bsb_tenant_scope_insert on "app_private"."person_identities" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "app_private"."person_identities";
+create policy bsb_tenant_scope_update on "app_private"."person_identities" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "app_private"."person_identities";
+create policy bsb_tenant_scope_delete on "app_private"."person_identities" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -2553,22 +3119,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
+-- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 1, 'managed')
+values ('contacts', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@1 managed
--- @bsb-hash sha256:0a9f64d792072488483afa0a30e4eb966ba4a86a0e215b19c0967d18001d1309
--- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
+-- @bsb-block contacts@2 managed
+-- @bsb-hash sha256:f60dc50acbbf9ddc02e03eeb5dcebe8ecf88e4ad5fdf2d7e0f2167e6d182111b
+-- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2665,6 +3231,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -2711,6 +3285,8 @@ create table if not exists "better_supabase"."people" (
   "lifecycle" text not null,
   "owner_user_id" uuid,
   "user_id" uuid,
+  "avatar_url" text,
+  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -2749,6 +3325,26 @@ grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
 create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create table if not exists "better_supabase"."person_identities" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
+  "channel" text not null check (length("channel") between 1 and 50),
+  "address" text not null check (length("address") between 1 and 500),
+  "verified_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("tenant_id", "channel", "address")
+);
+create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+alter table "better_supabase"."person_identities" enable row level security;
+revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
+grant select on "better_supabase"."person_identities" to authenticated;
+grant all on "better_supabase"."person_identities" to service_role;
+drop policy if exists person_identities_read on "better_supabase"."person_identities";
+create policy person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -3142,6 +3738,7 @@ begin
   from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  update "better_supabase"."person_identities" i set "person_id" = merge_people.keep where i."person_id" = merge_people.drop;
   perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
   null;
   return (select to_jsonb(x) from "better_supabase"."people" x where x."id" = merge_people.keep);
@@ -3229,6 +3826,189 @@ as $$
 $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
+-- The person contact fields name, for the inbox and the channels: by id,
+-- then by the identity on a channel ({ channel, address }), the user, then
+-- the email. Fills in what the person lacks, or creates a lead; an identity
+-- is attached when given. A merged person resolves to the one it was merged
+-- into. No permission check: callers check.
+create or replace function "better_supabase"."resolve_person"(tenant uuid, input jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_person uuid;
+  v_identity jsonb := input -> 'identity';
+  v_channel text := nullif(trim(v_identity ->> 'channel'), '');
+  v_address text := nullif(trim(coalesce(v_identity ->> 'address', v_identity ->> 'external_id')), '');
+  v_email text := lower(nullif(trim(input ->> 'email'), ''));
+  v_name text;
+begin
+  if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+$' then
+    v_email := null;
+  end if;
+  if nullif(trim(input ->> 'id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."id" = nullif(trim(input ->> 'id'), '')::uuid and p."tenant_id" = resolve_person.tenant;
+    if v_person is null then
+      raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
+    end if;
+  end if;
+  if v_person is null and v_channel is not null and v_address is not null then
+    select i."person_id" into v_person from "better_supabase"."person_identities" i
+    where i."tenant_id" = resolve_person.tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  if v_person is null and nullif(trim(input ->> 'user_id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."user_id" = nullif(trim(input ->> 'user_id'), '')::uuid
+    order by p."archived_at" nulls first, p."created_at", p."id" limit 1;
+  end if;
+  if v_person is null and v_email is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+  end if;
+  if v_person is not null then
+    select coalesce(p."merged_into", p."id") into v_person from "better_supabase"."people" p where p."id" = v_person;
+    update "better_supabase"."people" p set
+      "email" = coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end),
+      "phone" = coalesce(p."phone", nullif(trim(input ->> 'phone'), '')),
+      "user_id" = coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid),
+      "avatar_url" = coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"),
+      "metadata" = p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end,
+      "updated_at" = now()
+    where p."id" = v_person
+      and (p."email", p."phone", p."user_id", p."avatar_url", p."metadata") is distinct from (coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end), coalesce(p."phone", nullif(trim(input ->> 'phone'), '')), coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid), coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"), p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end);
+  else
+    v_name := left(coalesce(nullif(trim(input ->> 'name'), ''), v_email, nullif(trim(input ->> 'phone'), ''), v_address, 'Unknown contact'), 300);
+    begin
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "lifecycle", "user_id", "avatar_url", "metadata", "created_by")
+      values (resolve_person.tenant, v_name, v_email, nullif(trim(input ->> 'phone'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1], nullif(trim(input ->> 'user_id'), '')::uuid, nullif(trim(input ->> 'avatar_url'), ''), case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end || case when v_email is null and nullif(trim(input ->> 'email'), '') is not null then jsonb_build_object('email', nullif(trim(input ->> 'email'), '')) else '{}'::jsonb end, auth.uid())
+      returning "id" into v_person;
+      null;
+    exception when unique_violation then
+      select p."id" into v_person from "better_supabase"."people" p
+      where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+      if v_person is null then
+        raise;
+      end if;
+    end;
+  end if;
+  if v_channel is not null and v_address is not null then
+    insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address")
+    values (resolve_person.tenant, v_person, v_channel, v_address)
+    on conflict do nothing;
+  end if;
+  return v_person;
+end;
+$$;
+revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+
+-- A person's identities, by channel and address.
+create or replace function "better_supabase"."list_person_identities"(person uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") order by i."channel", i."address"), '[]'::jsonb)
+  from "better_supabase"."person_identities" i where i."person_id" = list_person_identities.person
+$$;
+revoke execute on function "better_supabase"."list_person_identities"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_person_identities"(uuid) to authenticated, service_role;
+
+-- Adds an address on a channel to a person, or marks it verified. An address
+-- another person of the organization holds is refused.
+create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_channel text := nullif(trim(add_person_identity.channel), '');
+  v_address text := nullif(trim(add_person_identity.address), '');
+  v_holder uuid;
+  v_row jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select p."tenant_id" into v_tenant from "better_supabase"."people" p
+  where p."id" = add_person_identity.person and p."merged_into" is null;
+  if v_tenant is null then
+    raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if v_channel is null or v_address is null then
+    raise exception 'an identity needs a channel and an address' using errcode = '22023', hint = 'PARTY_IDENTITY_INVALID';
+  end if;
+  select i."person_id" into v_holder from "better_supabase"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  if v_holder is not null and v_holder <> add_person_identity.person then
+    raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
+  end if;
+  insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
+  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  on conflict do nothing;
+  if add_person_identity.verified then
+    update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
+    where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  select jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") into v_row from "better_supabase"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+
+-- The person an address on a channel belongs to, or null.
+create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(p) from "better_supabase"."person_identities" i
+  join "better_supabase"."people" p on p."id" = i."person_id"
+  where i."tenant_id" = find_person_by_identity.tenant
+    and i."channel" = trim(find_person_by_identity.channel)
+    and i."address" = trim(find_person_by_identity.address)
+$$;
+revoke execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -3306,6 +4086,27 @@ create policy bsb_tenant_scope_update on "better_supabase"."company_people" as r
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -3430,6 +4231,42 @@ as $$ select "better_supabase"."company_people_of"($1) $$;
 revoke execute on function "api"."company_people_of"(uuid) from public, anon;
 grant execute on function "api"."company_people_of"(uuid) to authenticated, service_role;
 
+create or replace function "api"."list_person_identities"(person uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_person_identities"($1) $$;
+revoke execute on function "api"."list_person_identities"(uuid) from public, anon;
+grant execute on function "api"."list_person_identities"(uuid) to authenticated, service_role;
+
+create or replace function "api"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."add_person_identity"($1, $2, $3, $4) $$;
+revoke execute on function "api"."add_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "api"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "api"."remove_person_identity"(identity uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."remove_person_identity"($1) $$;
+revoke execute on function "api"."remove_person_identity"(uuid) from public, anon;
+grant execute on function "api"."remove_person_identity"(uuid) to authenticated, service_role;
+
+create or replace function "api"."find_person_by_identity"(tenant uuid, channel text, address text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."find_person_by_identity"($1, $2, $3) $$;
+revoke execute on function "api"."find_person_by_identity"(uuid, text, text) from public, anon;
+grant execute on function "api"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -3446,22 +4283,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
+-- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 1, 'managed')
+values ('contacts', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@1 managed
--- @bsb-hash sha256:e9b0c0b17174c16bc8cdc21c4a8ceda4a11b3b289ae3483d3e64b1da4aa684c0
--- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
+-- @bsb-block contacts@2 managed
+-- @bsb-hash sha256:19274ffaa63220edcb31d89a4b8eb807ca0b5563917ba13c7113e61fb23fed6e
+-- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3573,6 +4410,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -3617,6 +4462,8 @@ alter table "better_supabase"."people" add column if not exists "title" text;
 alter table "better_supabase"."people" add column if not exists "lifecycle" text;
 alter table "better_supabase"."people" add column if not exists "owner_user_id" uuid;
 alter table "better_supabase"."people" add column if not exists "user_id" uuid;
+alter table "better_supabase"."people" add column if not exists "avatar_url" text;
+alter table "better_supabase"."people" add column if not exists "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."people" add column if not exists "merged_into" uuid references "better_supabase"."people" ("id");
 alter table "better_supabase"."people" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."people" add column if not exists "created_by" uuid;
@@ -3651,6 +4498,24 @@ grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists bsb_company_people_select on "better_supabase"."company_people";
 create policy bsb_company_people_select on "better_supabase"."company_people"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+-- better_supabase.person_identities is the app's table: this block adds only the columns it needs.
+alter table "better_supabase"."person_identities" add column if not exists "id" uuid default gen_random_uuid();
+alter table "better_supabase"."person_identities" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."person_identities" add column if not exists "person_id" uuid references "better_supabase"."people" ("id") on delete cascade;
+alter table "better_supabase"."person_identities" add column if not exists "channel" text check (length("channel") between 1 and 50);
+alter table "better_supabase"."person_identities" add column if not exists "address" text check (length("address") between 1 and 500);
+alter table "better_supabase"."person_identities" add column if not exists "verified_at" timestamptz;
+alter table "better_supabase"."person_identities" add column if not exists "created_at" timestamptz not null default now();
+create unique index if not exists "person_identities_tenant_id_channel_address_key" on "better_supabase"."person_identities" ("tenant_id", "channel", "address");
+create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+alter table "better_supabase"."person_identities" enable row level security;
+grant select on "better_supabase"."person_identities" to authenticated;
+grant all on "better_supabase"."person_identities" to service_role;
+drop policy if exists bsb_person_identities_select on "better_supabase"."person_identities";
+create policy bsb_person_identities_select on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -4044,6 +4909,7 @@ begin
   from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  update "better_supabase"."person_identities" i set "person_id" = merge_people.keep where i."person_id" = merge_people.drop;
   perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
   null;
   return (select to_jsonb(x) from "better_supabase"."people" x where x."id" = merge_people.keep);
@@ -4131,6 +4997,189 @@ as $$
 $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
+-- The person contact fields name, for the inbox and the channels: by id,
+-- then by the identity on a channel ({ channel, address }), the user, then
+-- the email. Fills in what the person lacks, or creates a lead; an identity
+-- is attached when given. A merged person resolves to the one it was merged
+-- into. No permission check: callers check.
+create or replace function "better_supabase"."resolve_person"(tenant uuid, input jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_person uuid;
+  v_identity jsonb := input -> 'identity';
+  v_channel text := nullif(trim(v_identity ->> 'channel'), '');
+  v_address text := nullif(trim(coalesce(v_identity ->> 'address', v_identity ->> 'external_id')), '');
+  v_email text := lower(nullif(trim(input ->> 'email'), ''));
+  v_name text;
+begin
+  if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+$' then
+    v_email := null;
+  end if;
+  if nullif(trim(input ->> 'id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."id" = nullif(trim(input ->> 'id'), '')::uuid and p."tenant_id" = resolve_person.tenant;
+    if v_person is null then
+      raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
+    end if;
+  end if;
+  if v_person is null and v_channel is not null and v_address is not null then
+    select i."person_id" into v_person from "better_supabase"."person_identities" i
+    where i."tenant_id" = resolve_person.tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  if v_person is null and nullif(trim(input ->> 'user_id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."user_id" = nullif(trim(input ->> 'user_id'), '')::uuid
+    order by p."archived_at" nulls first, p."created_at", p."id" limit 1;
+  end if;
+  if v_person is null and v_email is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+  end if;
+  if v_person is not null then
+    select coalesce(p."merged_into", p."id") into v_person from "better_supabase"."people" p where p."id" = v_person;
+    update "better_supabase"."people" p set
+      "email" = coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end),
+      "phone" = coalesce(p."phone", nullif(trim(input ->> 'phone'), '')),
+      "user_id" = coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid),
+      "avatar_url" = coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"),
+      "metadata" = p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end,
+      "updated_at" = now()
+    where p."id" = v_person
+      and (p."email", p."phone", p."user_id", p."avatar_url", p."metadata") is distinct from (coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."tenant_id" = p."tenant_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end), coalesce(p."phone", nullif(trim(input ->> 'phone'), '')), coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid), coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"), p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end);
+  else
+    v_name := left(coalesce(nullif(trim(input ->> 'name'), ''), v_email, nullif(trim(input ->> 'phone'), ''), v_address, 'Unknown contact'), 300);
+    begin
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "lifecycle", "user_id", "avatar_url", "metadata", "created_by")
+      values (resolve_person.tenant, v_name, v_email, nullif(trim(input ->> 'phone'), ''), better_supabase.as_column_type(('{lead,mql,sql,opportunity,customer}'::text[])[1], (null::"better_supabase"."people")."lifecycle"), nullif(trim(input ->> 'user_id'), '')::uuid, nullif(trim(input ->> 'avatar_url'), ''), case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end || case when v_email is null and nullif(trim(input ->> 'email'), '') is not null then jsonb_build_object('email', nullif(trim(input ->> 'email'), '')) else '{}'::jsonb end, auth.uid())
+      returning "id" into v_person;
+      null;
+    exception when unique_violation then
+      select p."id" into v_person from "better_supabase"."people" p
+      where p."tenant_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+      if v_person is null then
+        raise;
+      end if;
+    end;
+  end if;
+  if v_channel is not null and v_address is not null then
+    insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address")
+    values (resolve_person.tenant, v_person, v_channel, v_address)
+    on conflict do nothing;
+  end if;
+  return v_person;
+end;
+$$;
+revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+
+-- A person's identities, by channel and address.
+create or replace function "better_supabase"."list_person_identities"(person uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") order by i."channel", i."address"), '[]'::jsonb)
+  from "better_supabase"."person_identities" i where i."person_id" = list_person_identities.person
+$$;
+revoke execute on function "better_supabase"."list_person_identities"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_person_identities"(uuid) to authenticated, service_role;
+
+-- Adds an address on a channel to a person, or marks it verified. An address
+-- another person of the organization holds is refused.
+create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_channel text := nullif(trim(add_person_identity.channel), '');
+  v_address text := nullif(trim(add_person_identity.address), '');
+  v_holder uuid;
+  v_row jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select p."tenant_id" into v_tenant from "better_supabase"."people" p
+  where p."id" = add_person_identity.person and p."merged_into" is null;
+  if v_tenant is null then
+    raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if v_channel is null or v_address is null then
+    raise exception 'an identity needs a channel and an address' using errcode = '22023', hint = 'PARTY_IDENTITY_INVALID';
+  end if;
+  select i."person_id" into v_holder from "better_supabase"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  if v_holder is not null and v_holder <> add_person_identity.person then
+    raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
+  end if;
+  insert into "better_supabase"."person_identities" ("tenant_id", "person_id", "channel", "address", "verified_at")
+  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  on conflict do nothing;
+  if add_person_identity.verified then
+    update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
+    where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  select jsonb_build_object('id', i."id", 'tenant_id', i."tenant_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") into v_row from "better_supabase"."person_identities" i
+  where i."tenant_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select i."tenant_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+
+-- The person an address on a channel belongs to, or null.
+create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(p) from "better_supabase"."person_identities" i
+  join "better_supabase"."people" p on p."id" = i."person_id"
+  where i."tenant_id" = find_person_by_identity.tenant
+    and i."channel" = trim(find_person_by_identity.channel)
+    and i."address" = trim(find_person_by_identity.address)
+$$;
+revoke execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -4210,6 +5259,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_peop
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4227,22 +5297,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
+-- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 1, 'managed')
+values ('contacts', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
--- @bsb-block contacts@1 managed
--- @bsb-hash sha256:6e6a70e37c3d3534ce479d53fe1d163e8a2cadcaf9dbb419c6f857317fa888a8
--- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.
+-- @bsb-block contacts@2 managed
+-- @bsb-hash sha256:7b759a79e9d6881e7d5cfb7959113bc1ee9bed9cab87e9eb99b7af97a8aeef36
+-- Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -4339,6 +5409,14 @@ begin
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_people";
   exception when undefined_table or invalid_schema_name then null;
   end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
 end $$;
 
 create schema if not exists better_supabase;
@@ -4385,6 +5463,8 @@ create table if not exists "better_supabase"."people" (
   "lifecycle" text not null,
   "owner_user_id" uuid,
   "user_id" uuid,
+  "avatar_url" text,
+  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -4423,6 +5503,26 @@ grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
 drop policy if exists company_people_read on "better_supabase"."company_people";
 create policy company_people_read on "better_supabase"."company_people"
+  for select to authenticated
+  using ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')));
+
+create table if not exists "better_supabase"."person_identities" (
+  "id" uuid primary key default gen_random_uuid(),
+  "org_id" uuid not null,
+  "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
+  "channel" text not null check (length("channel") between 1 and 50),
+  "address" text not null check (length("address") between 1 and 500),
+  "verified_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  unique ("org_id", "channel", "address")
+);
+create index if not exists person_identities_person_idx on "better_supabase"."person_identities" ("person_id");
+alter table "better_supabase"."person_identities" enable row level security;
+revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
+grant select on "better_supabase"."person_identities" to authenticated;
+grant all on "better_supabase"."person_identities" to service_role;
+drop policy if exists person_identities_read on "better_supabase"."person_identities";
+create policy person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -4816,6 +5916,7 @@ begin
   from "better_supabase"."company_people" l where l."person_id" = merge_people.drop
   on conflict do nothing;
   delete from "better_supabase"."company_people" l where l."person_id" = merge_people.drop;
+  update "better_supabase"."person_identities" i set "person_id" = merge_people.keep where i."person_id" = merge_people.drop;
   perform better_supabase.merge_subject_refs('better_supabase.people', merge_people.keep::text, merge_people.drop::text);
   null;
   return (select to_jsonb(x) from "better_supabase"."people" x where x."id" = merge_people.keep);
@@ -4903,6 +6004,189 @@ as $$
 $$;
 revoke execute on function "better_supabase"."company_people_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."company_people_of"(uuid) to authenticated, service_role;
+-- The person contact fields name, for the inbox and the channels: by id,
+-- then by the identity on a channel ({ channel, address }), the user, then
+-- the email. Fills in what the person lacks, or creates a lead; an identity
+-- is attached when given. A merged person resolves to the one it was merged
+-- into. No permission check: callers check.
+create or replace function "better_supabase"."resolve_person"(tenant uuid, input jsonb)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_person uuid;
+  v_identity jsonb := input -> 'identity';
+  v_channel text := nullif(trim(v_identity ->> 'channel'), '');
+  v_address text := nullif(trim(coalesce(v_identity ->> 'address', v_identity ->> 'external_id')), '');
+  v_email text := lower(nullif(trim(input ->> 'email'), ''));
+  v_name text;
+begin
+  if v_email !~ '^[^@[:space:]]+@[^@[:space:]]+$' then
+    v_email := null;
+  end if;
+  if nullif(trim(input ->> 'id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."id" = nullif(trim(input ->> 'id'), '')::uuid and p."org_id" = resolve_person.tenant;
+    if v_person is null then
+      raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
+    end if;
+  end if;
+  if v_person is null and v_channel is not null and v_address is not null then
+    select i."person_id" into v_person from "better_supabase"."person_identities" i
+    where i."org_id" = resolve_person.tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  if v_person is null and nullif(trim(input ->> 'user_id'), '') is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."org_id" = resolve_person.tenant and p."user_id" = nullif(trim(input ->> 'user_id'), '')::uuid
+    order by p."archived_at" nulls first, p."created_at", p."id" limit 1;
+  end if;
+  if v_person is null and v_email is not null then
+    select p."id" into v_person from "better_supabase"."people" p
+    where p."org_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+  end if;
+  if v_person is not null then
+    select coalesce(p."merged_into", p."id") into v_person from "better_supabase"."people" p where p."id" = v_person;
+    update "better_supabase"."people" p set
+      "email" = coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."org_id" = p."org_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end),
+      "phone" = coalesce(p."phone", nullif(trim(input ->> 'phone'), '')),
+      "user_id" = coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid),
+      "avatar_url" = coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"),
+      "metadata" = p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end,
+      "updated_at" = now()
+    where p."id" = v_person
+      and (p."email", p."phone", p."user_id", p."avatar_url", p."metadata") is distinct from (coalesce(p."email", case when not exists (select 1 from "better_supabase"."people" o where o."org_id" = p."org_id" and o."email" = v_email and o."archived_at" is null and o."id" <> p."id") then v_email end), coalesce(p."phone", nullif(trim(input ->> 'phone'), '')), coalesce(p."user_id", nullif(trim(input ->> 'user_id'), '')::uuid), coalesce(nullif(trim(input ->> 'avatar_url'), ''), p."avatar_url"), p."metadata" || case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end);
+  else
+    v_name := left(coalesce(nullif(trim(input ->> 'name'), ''), v_email, nullif(trim(input ->> 'phone'), ''), v_address, 'Unknown contact'), 300);
+    begin
+      insert into "better_supabase"."people" ("org_id", "name", "email", "phone", "lifecycle", "user_id", "avatar_url", "metadata", "created_by")
+      values (resolve_person.tenant, v_name, v_email, nullif(trim(input ->> 'phone'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1], nullif(trim(input ->> 'user_id'), '')::uuid, nullif(trim(input ->> 'avatar_url'), ''), case when jsonb_typeof(input -> 'metadata') = 'object' then input -> 'metadata' else '{}'::jsonb end || case when v_email is null and nullif(trim(input ->> 'email'), '') is not null then jsonb_build_object('email', nullif(trim(input ->> 'email'), '')) else '{}'::jsonb end, auth.uid())
+      returning "id" into v_person;
+      null;
+    exception when unique_violation then
+      select p."id" into v_person from "better_supabase"."people" p
+      where p."org_id" = resolve_person.tenant and p."email" = v_email and p."archived_at" is null;
+      if v_person is null then
+        raise;
+      end if;
+    end;
+  end if;
+  if v_channel is not null and v_address is not null then
+    insert into "better_supabase"."person_identities" ("org_id", "person_id", "channel", "address")
+    values (resolve_person.tenant, v_person, v_channel, v_address)
+    on conflict do nothing;
+  end if;
+  return v_person;
+end;
+$$;
+revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;
+
+-- A person's identities, by channel and address.
+create or replace function "better_supabase"."list_person_identities"(person uuid)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', i."id", 'tenant_id', i."org_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") order by i."channel", i."address"), '[]'::jsonb)
+  from "better_supabase"."person_identities" i where i."person_id" = list_person_identities.person
+$$;
+revoke execute on function "better_supabase"."list_person_identities"(uuid) from public, anon;
+grant execute on function "better_supabase"."list_person_identities"(uuid) to authenticated, service_role;
+
+-- Adds an address on a channel to a person, or marks it verified. An address
+-- another person of the organization holds is refused.
+create or replace function "better_supabase"."add_person_identity"(person uuid, channel text, address text, verified boolean default false)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_channel text := nullif(trim(add_person_identity.channel), '');
+  v_address text := nullif(trim(add_person_identity.address), '');
+  v_holder uuid;
+  v_row jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select p."org_id" into v_tenant from "better_supabase"."people" p
+  where p."id" = add_person_identity.person and p."merged_into" is null;
+  if v_tenant is null then
+    raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  if v_channel is null or v_address is null then
+    raise exception 'an identity needs a channel and an address' using errcode = '22023', hint = 'PARTY_IDENTITY_INVALID';
+  end if;
+  select i."person_id" into v_holder from "better_supabase"."person_identities" i
+  where i."org_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  if v_holder is not null and v_holder <> add_person_identity.person then
+    raise exception 'another person has this address' using errcode = '23505', hint = 'PARTY_IDENTITY_TAKEN';
+  end if;
+  insert into "better_supabase"."person_identities" ("org_id", "person_id", "channel", "address", "verified_at")
+  values (v_tenant, add_person_identity.person, v_channel, v_address, case when add_person_identity.verified then now() end)
+  on conflict do nothing;
+  if add_person_identity.verified then
+    update "better_supabase"."person_identities" i set "verified_at" = coalesce(i."verified_at", now())
+    where i."org_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  end if;
+  select jsonb_build_object('id', i."id", 'tenant_id', i."org_id", 'person_id', i."person_id", 'channel', i."channel", 'address', i."address", 'verified_at', i."verified_at", 'created_at', i."created_at") into v_row from "better_supabase"."person_identities" i
+  where i."org_id" = v_tenant and i."channel" = v_channel and i."address" = v_address;
+  return v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) from public, anon;
+grant execute on function "better_supabase"."add_person_identity"(uuid, text, text, boolean) to authenticated, service_role;
+
+create or replace function "better_supabase"."remove_person_identity"(identity uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select i."org_id" into v_tenant from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  if v_tenant is null then
+    return false;
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'contacts.write'), false)) then
+    raise exception 'not allowed to change companies and people' using errcode = '42501', hint = 'PARTY_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."person_identities" i where i."id" = remove_person_identity.identity;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."remove_person_identity"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_person_identity"(uuid) to authenticated, service_role;
+
+-- The person an address on a channel belongs to, or null.
+create or replace function "better_supabase"."find_person_by_identity"(tenant uuid, channel text, address text)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select to_jsonb(p) from "better_supabase"."person_identities" i
+  join "better_supabase"."people" p on p."id" = i."person_id"
+  where i."org_id" = find_person_by_identity.tenant
+    and i."channel" = trim(find_person_by_identity.channel)
+    and i."address" = trim(find_person_by_identity.address)
+$$;
+revoke execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."find_person_by_identity"(uuid, text, text) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -4982,6 +6266,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."company_peop
 create policy bsb_tenant_scope_delete on "better_supabase"."company_people" as restrictive
   for delete to public
   using ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."person_identities";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_select on "better_supabase"."person_identities" as restrictive
+  for select to public
+  using (
+    "org_id" in (select better_supabase.member_organization_ids())
+    or ("org_id" in (select better_supabase.tenant_ids_with('contacts.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_insert on "better_supabase"."person_identities" as restrictive
+  for insert to public
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_update on "better_supabase"."person_identities" as restrictive
+  for update to public
+  using ("org_id" in (select better_supabase.member_organization_ids()))
+  with check ("org_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."person_identities";
+create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" as restrictive
+  for delete to public
+  using ("org_id" in (select better_supabase.member_organization_ids()));
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
@@ -4999,13 +6304,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
+-- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 1, 'managed')
+values ('contacts', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

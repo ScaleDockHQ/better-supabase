@@ -165,45 +165,6 @@ export const INBOX_NAMES: BlockSqlNames = {
       lifecycle: { user: "user" },
       columns: { team: "team_id", user: "user_id", createdAt: "created_at" },
     },
-    contacts: {
-      name: "contacts",
-      app: {},
-      optional: [
-        "name",
-        "email",
-        "phone",
-        "avatarUrl",
-        "metadata",
-        "createdAt",
-      ],
-      lifecycle: { tenant: "tenant", user: "user" },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        user: "user_id",
-        name: "name",
-        email: "email",
-        phone: "phone",
-        avatarUrl: "avatar_url",
-        metadata: "metadata",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-    },
-    identities: {
-      name: "contact_identities",
-      app: {},
-      optional: ["createdAt"],
-      lifecycle: { tenant: "tenant" },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        contact: "contact_id",
-        channel: "channel",
-        externalId: "external_id",
-        createdAt: "created_at",
-      },
-    },
     conversations: {
       name: "inbox_conversations",
       app: {},
@@ -468,6 +429,17 @@ export interface InboxSql {
     /** The subject type literal of a core conversation. */
     readonly conversation: string;
   };
+  /** The contacts block's people: a conversation's contact is a person. */
+  readonly people: {
+    readonly ctx: BlockSqlContext;
+    readonly t: string;
+    readonly c: (column: string) => string;
+    readonly has: (column: string) => boolean;
+    /** `alias.column`, or `null` when the people table lacks the column. */
+    readonly or: (alias: string, column: string) => string;
+    /** `resolve_person(tenant, input)`: a person id from contact fields. */
+    readonly resolve: string;
+  };
 }
 
 /** The staff commands whose permission `inbox.command.<name>` can name. */
@@ -532,8 +504,19 @@ export function inboxSql(
 
   const core = ctx.of("messaging");
   const m = messagingSql(core);
+  const contacts = ctx.of("contacts");
+  const pc = (column: string): string => contacts.col("people", column);
 
   return {
+    people: {
+      ctx: contacts,
+      t: contacts.table("people"),
+      c: pc,
+      has: (column) => contacts.has("people", column),
+      or: (alias, column) =>
+        contacts.has("people", column) ? `${alias}.${pc(column)}` : "null",
+      resolve: contacts.fn("resolve_person"),
+    },
     core: {
       ctx: core,
       t: (table) => core.table(table),

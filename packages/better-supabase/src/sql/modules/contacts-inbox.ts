@@ -1,138 +1,77 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { PartyNames } from "./contacts-functions.ts";
 
-import { sqlString } from "../../core/template.ts";
-import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { fail, userGrant } from "../shared.ts";
-import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
+import { sqlIdent } from "../../core/template.ts";
 
 /**
- * With the inbox installed: which person an inbox contact is, so a conversation
- * shows the person's company, deals and history. One person has many contacts
- * (an email, a WhatsApp number); a contact has one person.
+ * A reference from another block's table to people. The inbox and identities
+ * render before contacts, so their foreign keys to people live here.
  */
-export function partiesInboxSql(
+function personKey(
+  other: BlockSqlContext,
+  table: string,
+  column: string,
+  names: PartyNames,
+): string {
+  const target = other.table(table);
+
+  const key = sqlIdent(
+    `${other.tableName(table).name}_${other.colName(table, column)}_fkey`,
+  );
+
+  return `alter table ${target} drop constraint if exists ${key};
+alter table ${target} add constraint ${key}
+  foreign key (${other.col(table, column)}) references ${names.t("people")} (${names.c("people", "id")}) on delete cascade;`;
+}
+
+/** The tables whose `contact` column names a person: [their block, table]. */
+function referrers(
+  ctx: BlockSqlContext,
+): readonly (readonly [BlockSqlContext, string])[] {
+  return [
+    ...(ctx.installed("inbox") && ctx.of("inbox").mode !== "custom"
+      ? [[ctx.of("inbox"), "conversations"] as const]
+      : []),
+    ...(ctx.installed("identities") &&
+    ctx.of("identities").has("links", "contact")
+      ? [[ctx.of("identities"), "links"] as const]
+      : []),
+  ];
+}
+
+/**
+ * The foreign keys of the inbox conversations' contact and of an identity
+ * link's contact: both name a person.
+ */
+export function personReferences(
   ctx: BlockSqlContext,
   names: PartyNames,
 ): string {
-  if (!ctx.installed("inbox")) {
-    return "";
-  }
+  const keys = referrers(ctx)
+    .filter(([other, table]) => other.owns(table))
+    .map(([other, table]) => personKey(other, table, "contact", names));
 
-  const inbox = ctx.of("inbox");
-  const { t, c, fn } = names;
-  const pc = (column: string): string => c("personContacts", column);
-  const pe = (column: string): string => c("people", column);
-  const ic = (column: string): string => inbox.col("contacts", column);
-  const contacts = inbox.table("contacts");
-
-  const guard = (
-    tenant: string,
-  ): string => `if not (auth.role() = 'service_role' or ${ctx.scope.can(tenant, names.write)}) then
-    ${fail("PARTY_FORBIDDEN", "not allowed to change companies and people")}
-  end if;`;
-
-  const table = ctx.manages
-    ? `
-create table if not exists ${t("personContacts")} (
-  ${pc("tenant")} ${ctx.idType} not null,
-  ${pc("person")} uuid not null references ${t("people")} (${pe("id")}) on delete cascade,
-  ${pc("contact")} uuid not null unique references ${contacts} (${ic("id")}) on delete cascade,${ctx.has("personContacts", "createdAt") ? `\n  ${pc("createdAt")} timestamptz not null default now(),` : ""}
-  primary key (${pc("person")}, ${pc("contact")})
-);${appUniqueIndex(ctx, "personContacts", ["contact"])}
-${lockModuleTable(ctx, "personContacts", { read: true })}
-${renderPolicy(makePolicy({ table: t("personContacts"), name: ctx.naming.rename("person_inbox_contacts_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(pc("tenant"), names.read) }), { drop: true, target: t("personContacts") })}
-`
-    : "";
-
-  return `${table}
--- Links an inbox contact to a person in the same organization; a contact
--- linked to someone else moves.
-create or replace function ${fn("link_inbox_contact")}(person uuid, contact uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_tenant ${ctx.idType};
-begin
-  select p.${pe("tenant")} into v_tenant from ${t("people")} p
-  join ${contacts} k on k.${ic("id")} = link_inbox_contact.contact and k.${ic("tenant")}::text = p.${pe("tenant")}::text
-  where p.${pe("id")} = link_inbox_contact.person;
-  if v_tenant is null then
-    ${fail("PARTY_NOT_FOUND", "person or contact not found in one organization", "P0002")}
-  end if;
-  ${guard("v_tenant")}
-  insert into ${t("personContacts")} (${pc("tenant")}, ${pc("person")}, ${pc("contact")})
-  values (v_tenant, link_inbox_contact.person, link_inbox_contact.contact)
-  on conflict (${pc("contact")}) do update set ${pc("person")} = excluded.${pc("person")};
-  return true;
-end;
-$$;
-${userGrant(`${fn("link_inbox_contact")}(uuid, uuid)`)}
-
-create or replace function ${fn("unlink_inbox_contact")}(contact uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_tenant ${ctx.idType};
-begin
-  select x.${pc("tenant")} into v_tenant from ${t("personContacts")} x where x.${pc("contact")} = unlink_inbox_contact.contact;
-  if v_tenant is null then
-    return false;
-  end if;
-  ${guard("v_tenant")}
-  delete from ${t("personContacts")} x where x.${pc("contact")} = unlink_inbox_contact.contact;
-  return true;
-end;
-$$;
-${userGrant(`${fn("unlink_inbox_contact")}(uuid)`)}
-
--- The person an inbox contact is linked to. Without a link, the active
--- person with the contact's email is linked first; with create, a contact
--- with a name and no match becomes a new lead.
-create or replace function ${fn("person_for_inbox_contact")}(contact uuid, "create" boolean)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_contact ${contacts};
-  v_person uuid;
-begin
-  select * into v_contact from ${contacts} k where k.${ic("id")} = person_for_inbox_contact.contact;
-  if v_contact.${ic("id")} is null then
-    ${fail("PARTY_NOT_FOUND", "contact not found", "P0002")}
-  end if;
-  if not (auth.role() = 'service_role' or ${ctx.scope.can(`v_contact.${ic("tenant")}`, names.read)}) then
-    ${fail("PARTY_FORBIDDEN", "not allowed to read people")}
-  end if;
-  select x.${pc("person")} into v_person from ${t("personContacts")} x where x.${pc("contact")} = v_contact.${ic("id")};
-  if v_person is null and v_contact.${ic("email")} is not null then
-    select p.${pe("id")} into v_person from ${t("people")} p
-    where p.${pe("tenant")}::text = v_contact.${ic("tenant")}::text and p.${pe("email")} = lower(v_contact.${ic("email")}) and p.${pe("archivedAt")} is null;
-  end if;
-  if v_person is null and person_for_inbox_contact."create" and nullif(trim(v_contact.${ic("name")}), '') is not null then
-    if not (auth.role() = 'service_role' or ${ctx.scope.can(`v_contact.${ic("tenant")}`, names.write)}) then
-      ${fail("PARTY_FORBIDDEN", "not allowed to change companies and people")}
-    end if;
-    v_person := (${fn("save_person")}(v_contact.${ic("tenant")}, null, jsonb_strip_nulls(jsonb_build_object(
-      'name', v_contact.${ic("name")}, 'email', v_contact.${ic("email")}, 'phone', v_contact.${ic("phone")}))) ->> ${sqlString(ctx.colName("people", "id"))})::uuid;
-  end if;
-  if v_person is null then
-    return null;
-  end if;
-  insert into ${t("personContacts")} (${pc("tenant")}, ${pc("person")}, ${pc("contact")})
-  select p.${pe("tenant")}, v_person, v_contact.${ic("id")} from ${t("people")} p where p.${pe("id")} = v_person
-  on conflict do nothing;
-  return (select to_jsonb(p) from ${t("people")} p where p.${pe("id")} = v_person);
-end;
-$$;
-${userGrant(`${fn("person_for_inbox_contact")}(uuid, boolean)`)}
+  return keys.length === 0
+    ? ""
+    : `
+-- A conversation's contact and an identity link's contact are people.
+${keys.join("\n")}
 `;
+}
+
+/**
+ * SQL for a person merge: the inbox conversations and identity links of the
+ * dropped person move to the kept one.
+ */
+export function personMergeMoves(
+  ctx: BlockSqlContext,
+  keep: string,
+  drop: string,
+): string {
+  return referrers(ctx)
+    .map(
+      ([other, table]) =>
+        `\n  update ${other.table(table)} x set ${other.col(table, "contact")} = ${keep} where x.${other.col(table, "contact")} = ${drop};`,
+    )
+    .join("");
 }

@@ -7526,6 +7526,8 @@
       "PartyListOptions",
       "PartyPage",
       "Person",
+      "PersonIdentity",
+      "PersonIdentityInput",
       "PersonInput",
       "Representation",
       "Representative",

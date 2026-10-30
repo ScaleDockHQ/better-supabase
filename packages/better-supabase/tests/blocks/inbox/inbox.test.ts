@@ -150,6 +150,7 @@ describe("createInbox", () => {
     await inbox.inboxes.setTeamMember("team1", "u1").orThrow();
 
     const contact = await inbox.contacts
+      // oxlint-disable-next-line typescript/no-deprecated -- covers the wrapper until 0.48 (1 finding)
       .upsert("org", {
         name: "Ada",
         identity: { channel: "whatsapp", externalId: "+3199" },

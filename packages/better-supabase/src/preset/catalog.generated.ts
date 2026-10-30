@@ -869,7 +869,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "updated-at",
         "teams",
         "messaging",
-        "attachments"
+        "attachments",
+        "contacts"
       ],
       "integrates": [
         "queue",
@@ -3057,7 +3058,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "category": "identity",
       "requires": [],
       "integrates": [
-        "inbox"
+        "contacts"
       ],
       "manifest": "identities"
     },
@@ -3200,6 +3201,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "notifications",
         "inbox",
+        "identities",
         "relations"
       ],
       "manifest": "contacts",
@@ -3279,6 +3281,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "lifecycle": "lifecycle",
               "owner": "owner_user_id",
               "user": "user_id",
+              "avatarUrl": "avatar_url",
+              "metadata": "metadata",
               "mergedInto": "merged_into",
               "archivedAt": "archived_at",
               "createdBy": "created_by",
@@ -22350,6 +22354,12 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "Person"
+        },
+        {
+          "name": "PersonIdentity"
+        },
+        {
+          "name": "PersonIdentityInput"
         },
         {
           "name": "PersonInput"

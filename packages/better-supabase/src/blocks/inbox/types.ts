@@ -47,7 +47,9 @@ export interface InboxRow {
   readonly archivedAt: Temporal.Instant | null;
 }
 
+/** A conversation's contact: a person of the contacts block. */
 export interface Contact {
+  /** The person's id. */
   readonly id: string;
   readonly tenant?: string;
   readonly userId: string | null;

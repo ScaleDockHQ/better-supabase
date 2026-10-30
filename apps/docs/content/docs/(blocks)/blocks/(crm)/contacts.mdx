@@ -3,7 +3,7 @@ title: Contacts
 description: Companies and people an organization works with, with lifecycle stages, owners, who works where with a role and a primary contact, dedupe by domain and email, merges and keyset-paged search.
 ---
 
-`contacts` keeps the companies and people an organization sells to, supports or hires: the counterparty that deals, quotes, invoices, tickets and applications point at. A company has a name, a domain, a website, a VAT id, an address, an owner and a lifecycle stage. A person has a name, an email, a phone, a title, an owner, a lifecycle stage and optionally the user they sign in as. `company_people` records who works where, with a role and one primary contact per company.
+`contacts` keeps the companies and people an organization sells to, supports or hires: the counterparty that deals, quotes, invoices, tickets and applications point at. A company has a name, a domain, a website, a VAT id, an address, an owner and a lifecycle stage. A person has a name, an email, a phone, a title, an avatar, an owner, a lifecycle stage, optionally the user they sign in as, and identities: their addresses on channels. `company_people` records who works where, with a role and one primary contact per company.
 
 Reading needs `contacts.read`, creating, changing, linking and archiving needs `contacts.write`, and merging needs `contacts.manage`. Admins get every permission, and members get `contacts.read` and `contacts.write`.
 
@@ -100,17 +100,21 @@ export default defineConfig({
 
 With the [notifications](/docs/blocks/notifications) module installed, the owner watches a company or person when they become its owner, and a level they already chose stays.
 
-## Inbox contacts
+## Identities
 
-With the [inbox](/docs/blocks/inbox) module installed, parties keeps which person each inbox contact is, so a conversation shows the person's company, deals and history. One person has many contacts (an email address, a WhatsApp number); a contact has one person.
+A person's addresses on channels, such as an email address or a WhatsApp number, are its identities in `person_identities`. An address on a channel belongs to one person of the organization, so the [inbox](/docs/blocks/inbox) and the [Chat SDK adapters](/docs/chat-sdk) find the person behind an incoming message, and a conversation's contact is that person, with their company, deals and history.
 
 ```ts
-const person = await parties
-  .personForInboxContact(conversation.contactId, { create: true })
+await parties
+  .addIdentity(ada.id, { channel: "whatsapp", address: "+31612345678" })
+  .orThrow();
+
+const sender = await parties
+  .findByIdentity(organizationId, "whatsapp", "+31612345678")
   .orThrow();
 ```
 
-`personForInboxContact(contactId)` returns the linked person. Without a link, it links the active person with the contact's email; with `create: true` and no match, it saves the contact as a new lead first. `linkInboxContact(personId, contactId)` links by hand (a contact linked to someone else moves), and `unlinkInboxContact(contactId)` removes the link.
+`identities(personId)` lists a person's addresses. `addIdentity(personId, { channel, address, verified })` adds one, or marks it verified with `verified: true`; an address another person of the organization holds fails with `PARTY_IDENTITY_TAKEN`. `removeIdentity(identityId)` removes one and returns `false` when there was none. `findByIdentity(organizationId, channel, address)` returns the person or `undefined`. Merging two people moves the dropped person's identities and inbox conversations to the kept one.
 
 ## Representatives
 
@@ -205,6 +209,8 @@ The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filter
 | `PARTY_EMAIL_TAKEN`       | another active person has the email                                 |
 | `PARTY_NOT_FOUND`         | no such record                                                      |
 | `PARTY_MERGE_INVALID`     | the records can't be merged                                         |
+| `PARTY_IDENTITY_INVALID`  | an identity has no channel or no address                            |
+| `PARTY_IDENTITY_TAKEN`    | another person of the organization has the address                  |
 
 ## Without the client
 

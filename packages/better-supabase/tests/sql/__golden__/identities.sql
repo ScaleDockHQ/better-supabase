@@ -334,7 +334,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:9668e770e763ec0a309045d23dea4318cc4c3edfce12ae59d33bfb842374c46c
+-- @bsb-hash sha256:8caa8c3bdddefd3f2d65ae734a26adabf259b487e20ea476f0b165f9f7b93360
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -387,7 +387,7 @@ create table if not exists "better_supabase"."identity_links" (
   "value" text not null check (length("value") between 1 and 500),
   "workspace" text check (length("workspace") between 1 and 200),
   "user_id" uuid references auth.users (id) on delete cascade,
-  "contact_id" uuid references "better_supabase"."contacts" ("id") on delete cascade,
+  "contact_id" uuid,
   "source" text not null check ("source" in ('link', 'verified_email')),
   "created_at" timestamptz not null default now(),
   constraint identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),

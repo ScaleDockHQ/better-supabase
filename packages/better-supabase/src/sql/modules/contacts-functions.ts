@@ -5,6 +5,8 @@ import { sqlString } from "../../core/template.ts";
 import { columnsObject, fail, pageSize, userGrant } from "../shared.ts";
 import { recordMergeFunction } from "../subject-merge-sql.ts";
 import { watchSql } from "../watch-sql.ts";
+import { identityMergeMoves } from "./contacts-identities.ts";
+import { personMergeMoves } from "./contacts-inbox.ts";
 import { asText } from "./over-app.ts";
 
 export interface PartyNames {
@@ -355,7 +357,7 @@ function mergeFunction(
   select l.${li("tenant")}, ${kind === "company" ? `${keep}, l.${li("person")}` : `l.${li("company")}, ${keep}`}${role ? `, l.${li("role")}` : ""}, false
   from ${t("links")} l where l.${linkColumn} = ${drop}
   on conflict do nothing;
-  delete from ${t("links")} l where l.${linkColumn} = ${drop};`,
+  delete from ${t("links")} l where l.${linkColumn} = ${drop};${kind === "person" ? `${identityMergeMoves(names, keep, drop)}${personMergeMoves(ctx, keep, drop)}` : ""}`,
     record: (keep, drop) =>
       ctx.record({
         type: `${kind}.merged`,

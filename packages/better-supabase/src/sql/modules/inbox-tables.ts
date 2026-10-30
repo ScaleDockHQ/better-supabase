@@ -97,8 +97,6 @@ export function inboxTables(q: InboxSql, sharedTeams = false): string {
   const mb = q.cols("members");
   const tm = q.cols("teams");
   const tmm = q.cols("teamMembers");
-  const ct = q.cols("contacts");
-  const ci = q.cols("identities");
   const cv = q.cols("conversations");
   const ev = q.cols("events");
   const dt = q.cols("details");
@@ -112,8 +110,6 @@ export function inboxTables(q: InboxSql, sharedTeams = false): string {
     members: q.t("members"),
     teams: q.t("teams"),
     teamMembers: q.t("teamMembers"),
-    contacts: q.t("contacts"),
-    identities: q.t("identities"),
     conversations: q.t("conversations"),
     events: q.t("events"),
     details: q.t("details"),
@@ -172,41 +168,16 @@ ${lockTable(T.teamMembers, { read: true })}
 ${policy(T.teamMembers, q.ctx.naming.rename("inbox_team_members_staff_read"), `exists (select 1 from ${T.teams} t where t.${tm("id")} = ${tmm("team")} and ${q.staff(`t.${tm("tenant")}`)})`)}`
 }
 
--- The people staff talk to. user_id links a signed-in widget visitor (an
--- anonymous Auth user works too) to their contact.
-create table if not exists ${T.contacts} (
-  ${ct("id")} uuid primary key default gen_random_uuid(),
-  ${ct("tenant")} ${id} not null,
-  ${ct("user")} uuid references auth.users (id) on delete set null${tail(q, "contacts", "name", () => `text check (length(${ct("name")}) <= 200)`)}${tail(q, "contacts", "email", () => `text check (length(${ct("email")}) <= 320)`)}${tail(q, "contacts", "phone", () => `text check (length(${ct("phone")}) <= 50)`)}${tail(q, "contacts", "avatarUrl", () => "text")}${tail(q, "contacts", "metadata", () => "jsonb not null default '{}'::jsonb")}${tail(q, "contacts", "createdAt", () => "timestamptz not null default now()")}
-);
-create unique index if not exists contacts_user_idx on ${T.contacts} (${ct("tenant")}, ${ct("user")}) where ${ct("user")} is not null;
-${q.has("contacts", "email") ? `create index if not exists contacts_email_idx on ${T.contacts} (${ct("tenant")}, lower(${ct("email")}));\n` : ""}create index if not exists contacts_user_id_idx on ${T.contacts} (${ct("user")});
-${updatedAt(T.contacts, ct("updatedAt"))}
-${lockTable(T.contacts, { read: true })}
-${policy(T.contacts, q.ctx.naming.rename("contacts_read"), `${q.staff(ct("tenant"))} or ${ct("user")} = (select auth.uid())`)}
-
--- A contact's address on a channel: a WhatsApp number, a Slack user id.
-create table if not exists ${T.identities} (
-  ${ci("id")} uuid primary key default gen_random_uuid(),
-  ${ci("tenant")} ${id} not null,
-  ${ci("contact")} uuid not null references ${T.contacts} (${ct("id")}) on delete cascade,
-  ${ci("channel")} text not null check (length(${ci("channel")}) between 1 and 50),
-  ${ci("externalId")} text not null check (length(${ci("externalId")}) between 1 and 500),${line(q, "identities", "createdAt", () => "timestamptz not null default now()")}
-  unique (${ci("tenant")}, ${ci("channel")}, ${ci("externalId")})
-);${unique(q, "identities", "external", ["tenant", "channel", "externalId"])}
-create index if not exists contact_identities_contact_idx on ${T.identities} (${ci("contact")});
-${lockTable(T.identities, { read: true })}
-${policy(T.identities, q.ctx.naming.rename("contact_identities_staff_read"), q.staff(ci("tenant")))}
-
 -- The inbox side of a core conversation of kind inbox, with the same id:
 -- one per channel thread (thread_id is the Chat SDK thread id), reopened
 -- when the contact writes again. last_message_at and the preview follow the
--- messages, never the notes.
+-- messages, never the notes. contact_id is a person of the contacts block,
+-- which adds its foreign key: contacts renders after the inbox.
 create table if not exists ${T.conversations} (
   ${cv("id")} uuid primary key,
   ${cv("tenant")} ${id} not null,
   ${cv("inbox")} uuid not null references ${T.inboxes} (${ib("id")}) on delete cascade,
-  ${cv("contact")} uuid not null references ${T.contacts} (${ct("id")}) on delete cascade,${line(q, "conversations", "subject", () => `text check (length(${cv("subject")}) <= 500)`)}
+  ${cv("contact")} uuid not null,${line(q, "conversations", "subject", () => `text check (length(${cv("subject")}) <= 500)`)}
   ${cv("status")} text not null default 'open' check (${cv("status")} in ('open', 'pending', 'snoozed', 'resolved')),${line(q, "conversations", "priority", () => `text not null default 'normal' check (${cv("priority")} in ('low', 'normal', 'high', 'urgent'))`)}
   ${cv("assignee")} uuid references auth.users (id) on delete set null,
   ${cv("team")} uuid${sharedTeams ? "" : ` references ${T.teams} (${tm("id")}) on delete set null`},
@@ -319,8 +290,8 @@ ${policy(T.scheduled, q.ctx.naming.rename("scheduled_inbox_messages_author_read"
  * checks the messaging core calls for a conversation of kind inbox.
  */
 export function inboxHelpers(q: InboxSql): string {
-  const ct = q.cols("contacts");
   const cv = q.cols("conversations");
+  const { people } = q;
 
   const contactIds = `(select ${q.fn("inbox_contact_ids")}())`;
 
@@ -330,12 +301,14 @@ grant execute on function ${signature} to ${roles};`;
 
   return `create or replace function ${q.fn("inbox_contact_ids")}()
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select c.${ct("id")} from ${q.t("contacts")} c where c.${ct("user")} = (select auth.uid());
+begin
+  return query select p.${people.c("id")} from ${people.t} p where p.${people.c("user")} = (select auth.uid());
+end;
 $$;
 ${internal(`${q.fn("inbox_contact_ids")}()`, "authenticated, service_role")}
 
@@ -343,17 +316,19 @@ ${internal(`${q.fn("inbox_contact_ids")}()`, "authenticated, service_role")}
 -- signed-in contact it belongs to. write asks for the reply key instead.
 create or replace function ${q.fn("inbox_conversation_allowed")}(conversation text, write boolean default false)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select ${q.service} or coalesce((
+begin
+  return ${q.service} or coalesce((
     select (case when write then ${q.can(`v.${cv("tenant")}`, "reply")} else ${q.can(`v.${cv("tenant")}`, "read")} end)
-      or exists (select 1 from ${q.t("contacts")} c where c.${ct("id")} = v.${cv("contact")} and c.${ct("user")} = (select auth.uid()))
+      or exists (select 1 from ${people.t} p where p.${people.c("id")} = v.${cv("contact")} and p.${people.c("user")} = (select auth.uid()))
     from ${q.t("conversations")} v
-    where v.${cv("id")}::text = conversation
+    where v.${cv("id")}::text = inbox_conversation_allowed.conversation
   ), false);
+end;
 $$;
 ${internal(`${q.fn("inbox_conversation_allowed")}(text, boolean)`, "authenticated, service_role")}
 

@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:5c9f210e76e71fe7c20d5bb80d7f268fbcc2b130f8e297dfac172ca6b30dee2e
+-- @bsb-hash sha256:79245cdaa38a43aba6e4527e2193e8cd4381ad2088a345648c1926683d1d866c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -11,6 +11,6 @@ values ('inbox.conversation_to_task', 'inbox', 'inbox_conversation', 'inbox_conv
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 7, 'managed')
+values ('inbox', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

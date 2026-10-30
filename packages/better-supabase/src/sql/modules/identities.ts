@@ -95,10 +95,6 @@ function build(ctx: BlockSqlContext): string {
     Math.min(60, Math.trunc(ctx.number("codeMinutes", 10))),
   );
 
-  const contactRef = ctx.installed("inbox")
-    ? ` references ${ctx.of("inbox").table("contacts")} (${ctx.of("inbox").col("contacts", "id")}) on delete cascade`
-    : "";
-
   const verified = ctx.flag("verifiedEmails", true);
   const trigger = ctx.trigger("identity_email");
 
@@ -142,7 +138,7 @@ create table if not exists ${links} (
   ${l("kind")} text not null check (${l("kind")} in (${KINDS})),
   ${l("provider")} text check (length(${l("provider")}) between 1 and 100),
   ${l("value")} text not null check (length(${l("value")}) between 1 and 500),${hasWorkspace ? `\n  ${l("workspace")} text check (length(${l("workspace")}) between 1 and 200),` : ""}
-  ${l("user")} uuid references auth.users (id) on delete cascade,${hasContact ? `\n  ${l("contact")} uuid${contactRef},` : ""}
+  ${l("user")} uuid references auth.users (id) on delete cascade,${hasContact ? `\n  ${l("contact")} uuid,` : ""}
   ${l("source")} text not null check (${l("source")} in ('link', 'verified_email')),${hasLinkCreated ? `\n  ${l("createdAt")} timestamptz not null default now(),` : ""}
   constraint identity_links_one_target check (${hasContact ? `num_nonnulls(${l("user")}, ${l("contact")}) = 1` : `${l("user")} is not null`}),
   constraint identity_links_email_lower check (${l("kind")} <> 'email' or ${l("value")} = lower(${l("value")})),
@@ -375,7 +371,7 @@ export const IDENTITIES: BlockSqlDefinition = {
   description:
     "Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.",
   requires: [],
-  integrates: ["inbox"],
+  integrates: ["contacts"],
   target: "schema",
   version: 1,
   names: NAMES,

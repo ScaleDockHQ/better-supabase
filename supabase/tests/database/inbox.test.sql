@@ -10,7 +10,7 @@ grant all on ids to authenticated, anon, service_role;
 insert into ids
 select 'conversation', id from better_supabase.conversations where kind = 'inbox';
 -- The Globex owner stands in for Road Runner's signed-in account.
-update better_supabase.contacts
+update better_supabase.people
 set user_id = '00000000-0000-4000-8000-0000000000a3'
 where id = (select contact_id from better_supabase.inbox_conversations where id = (select id from ids where name = 'conversation'));
 

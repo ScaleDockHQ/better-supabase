@@ -13,7 +13,12 @@ import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, schemaPreamble } from "../shared.ts";
 import { partyFunctions } from "./contacts-functions.ts";
-import { partiesInboxSql } from "./contacts-inbox.ts";
+import {
+  identitiesTable,
+  identityFunctions,
+  peopleInboxColumns,
+} from "./contacts-identities.ts";
+import { personReferences } from "./contacts-inbox.ts";
 import {
   representativeFunctions,
   representsKind,
@@ -119,13 +124,15 @@ const NAMES: BlockSqlNames = {
         lifecycle: "lifecycle",
         owner: "owner_user_id",
         user: "user_id",
+        avatarUrl: "avatar_url",
+        metadata: "metadata",
         mergedInto: "merged_into",
         archivedAt: "archived_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["createdBy"],
+      optional: ["avatarUrl", "metadata", "createdBy"],
       typed: ["lifecycle"],
     },
     links: {
@@ -142,18 +149,20 @@ const NAMES: BlockSqlNames = {
       },
       optional: ["role"],
     },
-    personContacts: {
-      name: "person_inbox_contacts",
+    identities: {
+      name: "person_identities",
       app: {},
-      optionalTable: true,
       lifecycle: { tenant: "tenant", export: true },
       columns: {
+        id: "id",
         tenant: "tenant_id",
         person: "person_id",
-        contact: "contact_id",
+        channel: "channel",
+        address: "address",
+        verifiedAt: "verified_at",
         createdAt: "created_at",
       },
-      optional: ["createdAt"],
+      optional: ["verifiedAt", "createdAt"],
     },
   },
 };
@@ -174,6 +183,17 @@ function lifecycles(
   }
 
   return list;
+}
+
+/** A new person's lifecycle stage: the first configured one. */
+export function personStage(ctx: BlockSqlContext): string {
+  const [first = "lead"] = lifecycles(
+    ctx,
+    "personLifecycles",
+    PERSON_LIFECYCLES,
+  );
+
+  return first;
 }
 
 const textArray = (items: readonly string[]): string =>
@@ -239,7 +259,7 @@ create table if not exists ${t("people")} (
   ${pe("title")} text,
   ${pe("lifecycle")} text not null,
   ${pe("owner")} uuid,
-  ${pe("user")} uuid,
+  ${pe("user")} uuid,${column("people", "avatarUrl", (name) => `${name} text`)}${column("people", "metadata", (name) => `${name} jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}
   ${pe("mergedInto")} uuid references ${t("people")} (${pe("id")}),
   ${pe("archivedAt")} timestamptz,${column("people", "createdBy", (name) => `${name} uuid`)}
   ${pe("createdAt")} timestamptz not null default now(),
@@ -269,14 +289,10 @@ ${read("links")}
 `;
 }
 
-function build(ctx: BlockSqlContext): string {
-  if (ctx.mode === "custom") {
-    return "";
-  }
-
+function partyNames(ctx: BlockSqlContext): PartyNames {
   const keys = moduleOperations("contacts");
 
-  const names: PartyNames = {
+  return {
     scope: ctx.scope,
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
@@ -291,10 +307,34 @@ function build(ctx: BlockSqlContext): string {
       lifecycles(ctx, "personLifecycles", PERSON_LIFECYCLES),
     ),
   };
+}
+
+/**
+ * The people and identity tables as an upgrade of another block creates them
+ * before the module file runs: the inbox moves its contacts onto them.
+ */
+export function contactsUpgradeTables(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const names = partyNames(ctx);
+
+  return `${schemaPreamble(ctx)}
+${tables(ctx, names)}${peopleInboxColumns(ctx)}
+${identitiesTable(ctx, names)}`;
+}
+
+function build(ctx: BlockSqlContext): string {
+  if (ctx.mode === "custom") {
+    return "";
+  }
+
+  const names = partyNames(ctx);
 
   return `${schemaPreamble(ctx)}
 -- Companies and people an organization works with, and who works where.
-${tables(ctx, names)}${partyFunctions(ctx, names)}${partiesInboxSql(ctx, names)}${representativeFunctions(ctx, names)}`;
+${tables(ctx, names)}${identitiesTable(ctx, names)}${partyFunctions(ctx, names)}${identityFunctions(ctx, names)}${personReferences(ctx, names)}${representativeFunctions(ctx, names)}`;
 }
 
 const CONTRIBUTES: BlockContributes = {
@@ -330,21 +370,18 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     { name: "company_people_of", args: ["uuid"], returns: "jsonb" },
-    ...(ctx.installed("inbox")
-      ? [
-          {
-            name: "link_inbox_contact",
-            args: ["uuid", "uuid"],
-            returns: "boolean",
-          },
-          { name: "unlink_inbox_contact", args: ["uuid"], returns: "boolean" },
-          {
-            name: "person_for_inbox_contact",
-            args: ["uuid", "boolean"],
-            returns: "jsonb",
-          },
-        ]
-      : []),
+    { name: "list_person_identities", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "add_person_identity",
+      args: ["uuid", "text", "text", "boolean"],
+      returns: "jsonb",
+    },
+    { name: "remove_person_identity", args: ["uuid"], returns: "boolean" },
+    {
+      name: "find_person_by_identity",
+      args: ["{id}", "text", "text"],
+      returns: "jsonb",
+    },
     ...(ctx.installed("relations")
       ? [
           {
@@ -364,12 +401,20 @@ export const PARTIES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Parties",
   description:
-    "Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search.",
+    "Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "notifications", "inbox", "relations"],
+  integrates: [
+    "outbox",
+    "audit",
+    "notifications",
+    "inbox",
+    "identities",
+    "relations",
+  ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  internal: ["resolve_person"],
   names: NAMES,
   contract,
   build,

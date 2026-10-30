@@ -1,6 +1,6 @@
 ---
 title: From 0.46 to 0.47
-description: What to check when upgrading from better-supabase 0.46 to 0.47. Block entity keys equal the entity's singular, subject types, hint codes, function names and module tables take the new nouns, and every event type names its entity and a past verb. AI document versions, policy acknowledgements and sequence runs move onto the versions, acknowledgements and enrollments blocks, postmortem action items become tasks, and doctor adds BS423 and BS424.
+description: What to check when upgrading from better-supabase 0.46 to 0.47. Block entity keys equal the entity's singular, subject types, hint codes, function names and module tables take the new nouns, and every event type names its entity and a past verb. AI document versions, policy acknowledgements and sequence runs move onto the versions, acknowledgements and enrollments blocks, inbox contacts become people of the contacts block, postmortem action items become tasks, and doctor adds BS423 and BS424.
 ---
 
 0.47.0 finishes the naming convention (ADR 0130): the key of every entity in
@@ -13,8 +13,8 @@ an old type miss its events until you rename them; receivers outside the app
 can keep the old names for one minor with the outbox `legacyEventTypes`
 option. AI document versions move onto the versions block, policy
 acknowledgements onto the acknowledgements block and sequence runs onto
-enrollments, and with the tasks block installed, postmortem action items
-become tasks. Everything this guide calls deprecated is listed in
+enrollments, inbox contacts become people of the contacts block, and with
+the tasks block installed, postmortem action items become tasks. Everything this guide calls deprecated is listed in
 [Removed in 0.48](#removed-in-048).
 
 | Section                                             | Needs code                                          |
@@ -28,6 +28,7 @@ become tasks. Everything this guide calls deprecated is listed in
 | [Postmortem action items](#postmortem-action-items) | With `tasks`, use `addPostmortemAction`             |
 | [Policy acknowledgements](#policy-acknowledgements) | Call the acknowledgements block                     |
 | [Sequence runs](#sequence-runs)                     | Rename SQL that reads `sequence_enrollments`        |
+| [Inbox contacts](#inbox-contacts)                   | Install `contacts`; call its identity methods       |
 | [Table names](#table-names)                         | Rename queries on the old tables in your own code   |
 | [The SQL modules](#the-sql-modules)                 | Run `upgrade` and generate a migration              |
 | [Removed in 0.48](#removed-in-048)                  | Move off each item before 0.48                      |
@@ -401,6 +402,63 @@ starts with `sequence:`. `SequenceEnrollmentEventData` is a deprecated alias
 of `EnrollmentEventData` until then. `PROGRAM_EVENT_MOVES` (`better-supabase`)
 lists the moves.
 
+## Inbox contacts
+
+The inbox now takes its contacts from the [contacts](/docs/blocks/contacts)
+block (ADR 0131): a conversation's contact is a person, and the inbox
+`contacts` and `contact_identities` tables and the contacts block's
+`person_inbox_contacts` link are gone. The inbox requires `contacts`, so add
+it before you upgrade:
+
+```sh
+npx better-supabase@latest add contacts
+npx better-supabase@latest upgrade
+```
+
+`upgrade` renders a data step that turns each inbox contact into a person:
+the person it was linked to, else the active person with the same email,
+else a new person with the contact's id, so `contactId` values you stored
+keep pointing at the same contact. It fills the person's user, phone and
+avatar when they are empty, copies `contact_identities` into
+`person_identities`, points conversations and identity links at the person,
+then drops the old tables. An inbox `contacts` table you adopted in 0.46
+isn't moved; copy its rows into `people` the same way before you drop it.
+
+The conversation API keeps its shape: `contactId` is the person's id, and
+`conversations.open` and the Chat SDK adapters find or create the person by
+identity, user or email. Code that linked contacts to people calls the
+identity methods instead:
+
+```ts
+// 0.46
+const person = await db.contacts
+  .personForInboxContact(conversation.contactId, { create: true })
+  .orThrow();
+await db.contacts.linkInboxContact(personId, contactId).orThrow();
+
+// 0.47
+const person = await db.contacts
+  .findByIdentity(organizationId, "whatsapp", "+31612345678")
+  .orThrow();
+await db.contacts
+  .addIdentity(personId, { channel: "whatsapp", address: "+31612345678" })
+  .orThrow();
+```
+
+| 0.46                                                              | 0.47                                                        |
+| ----------------------------------------------------------------- | ----------------------------------------------------------- |
+| `contacts` (inbox)                                                | `people`, with `avatar_url` and `metadata`                  |
+| `contact_identities` (`contact_id`, `external_id`)                | `person_identities` (`person_id`, `address`, `verified_at`) |
+| `person_inbox_contacts`                                           | none: the conversation's `contact_id` is the person         |
+| `personForInboxContact`, `linkInboxContact`, `unlinkInboxContact` | `findByIdentity`, `addIdentity`, `removeIdentity`           |
+| `inbox.contacts.upsert` (deprecated)                              | `contacts.savePerson` and `addIdentity`                     |
+
+A person has no user lifecycle of its own, so deleting a user no longer
+erases their inbox contact: call `purgeContact(personId)` for a data subject
+request, which deletes the person, their identities and their
+conversations. The codemod lists the old calls and tables for review, and
+doctor reports the removed methods.
+
 ## Table names
 
 A module table is its entity's plural, or starts with its entity's singular.
@@ -459,3 +517,4 @@ at each one.
 | Postmortem `actionItems` and the `action_items` column               | `addPostmortemAction` and the postmortem's `actions`   |
 | `acknowledgePolicy`, `acknowledgements(policyId)`, `{ pendingOnly }` | `db.acknowledgements.acknowledge`, `mine` and `status` |
 | `SequenceEnrollmentEventData`                                        | `EnrollmentEventData`                                  |
+| `inbox.contacts.upsert`                                              | `contacts.savePerson` and `contacts.addIdentity`       |

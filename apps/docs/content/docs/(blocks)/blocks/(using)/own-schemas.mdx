@@ -234,7 +234,7 @@ may be your own enum or domain.
   - `better_supabase.companies`: `id`, `tenant_id`, `name`, `domain`, `website`, `lifecycle`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
   - `better_supabase.people`: `id`, `tenant_id`, `name`, `email`, `phone`, `title`, `lifecycle`, `owner_user_id`, `user_id`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
   - `better_supabase.company_people`: `tenant_id`, `company_id`, `person_id`, `is_primary`, `created_at`
-  - `better_supabase.person_inbox_contacts`: `tenant_id`, `person_id`, `contact_id`
+  - `better_supabase.person_identities`: `id`, `tenant_id`, `person_id`, `channel`, `address`
 - `content`
   - `better_supabase.content_entries`: `id`, `tenant_id`, `type`, `locale`, `slug`, `title`, `body`, `status`, `publish_at`, `published_at`, `author_id`, `translation_group_id`, `created_at`, `updated_at`; typed: `type`, `locale`, `status`
 - `contracts`
@@ -345,8 +345,6 @@ may be your own enum or domain.
   - `better_supabase.inbox_members`: `inbox_id`, `user_id`, `role`; typed: `role`
   - `better_supabase.inbox_teams`: `id`, `tenant_id`, `name`
   - `better_supabase.inbox_team_members`: `team_id`, `user_id`
-  - `better_supabase.contacts`: `id`, `tenant_id`, `user_id`, `updated_at`
-  - `better_supabase.contact_identities`: `id`, `tenant_id`, `contact_id`, `channel`, `external_id`
   - `better_supabase.inbox_conversations`: `id`, `tenant_id`, `inbox_id`, `contact_id`, `status`, `assignee_id`, `team_id`, `bot_mode`, `thread_id`, `snoozed_until`, `last_message_at`, `created_at`, `updated_at`; typed: `status`, `priority`, `bot_mode`
   - `better_supabase.inbox_conversation_events`: `id`, `tenant_id`, `conversation_id`, `type`, `created_at`
   - `better_supabase.inbox_message_details`: `message_id`, `tenant_id`, `conversation_id`, `direction`, `author_type`, `external_id`; typed: `direction`, `author_type`, `format`

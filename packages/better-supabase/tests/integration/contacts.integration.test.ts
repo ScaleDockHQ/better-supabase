@@ -205,7 +205,7 @@ describe.skipIf(!live)("parties and the inbox", () => {
 
   afterAll(() => pool.end());
 
-  it("finds the person behind an inbox contact by link, by email or as a new lead", async () => {
+  it("keeps a person's addresses and finds the person by one", async () => {
     const s = await BlockSession.open(pool);
 
     try {
@@ -216,58 +216,45 @@ describe.skipIf(!live)("parties and the inbox", () => {
       );
       const org = await s.organization(owner);
       const parties = createContacts({ transport: sqlTransport(s.sql) });
-      await s.service();
-
-      const contact = async (
-        name: string | null,
-        email: string | null,
-      ): Promise<string> =>
-        (
-          await s.rows<{ id: string }>(
-            "insert into better_supabase.contacts (tenant_id, name, email) values ($1, $2, $3) returning id",
-            [org, name, email],
-          )
-        )[0]!.id;
-
-      const byEmail = await contact("Ada L.", "ADA@acme.com");
-      const unknown = await contact("Bob", null);
-      const anonymous = await contact(null, null);
-
       await s.as(owner);
 
       const ada = await parties
         .savePerson(org, { name: "Ada", email: "ada@acme.com" })
         .orThrow();
 
-      expect((await parties.personForInboxContact(byEmail).orThrow())?.id).toBe(
-        ada.id,
-      );
-      expect(
-        await parties.personForInboxContact(unknown).orThrow(),
-      ).toBeUndefined();
+      const bo = await parties.savePerson(org, { name: "Bo" }).orThrow();
 
-      const lead = await parties
-        .personForInboxContact(unknown, { create: true })
+      const added = await parties
+        .addIdentity(ada.id, {
+          channel: "whatsapp",
+          address: " +3161 ",
+          verified: true,
+        })
         .orThrow();
 
-      expect(lead).toMatchObject({ name: "Bob", lifecycle: "lead" });
-      expect((await parties.personForInboxContact(unknown).orThrow())?.id).toBe(
-        lead?.id,
-      );
+      expect(added).toMatchObject({
+        personId: ada.id,
+        channel: "whatsapp",
+        address: "+3161",
+      });
+      expect(added.verifiedAt).toBeDefined();
       expect(
-        await parties
-          .personForInboxContact(anonymous, { create: true })
-          .orThrow(),
-      ).toBeUndefined();
-
-      expect(await parties.linkInboxContact(ada.id, anonymous).orThrow()).toBe(
-        true,
-      );
-      expect(
-        (await parties.personForInboxContact(anonymous).orThrow())?.id,
+        (await parties.findByIdentity(org, "whatsapp", "+3161").orThrow())?.id,
       ).toBe(ada.id);
-      expect(await parties.unlinkInboxContact(anonymous).orThrow()).toBe(true);
-      expect(await parties.unlinkInboxContact(anonymous).orThrow()).toBe(false);
+
+      const taken = await parties.addIdentity(bo.id, {
+        channel: "whatsapp",
+        address: "+3161",
+      });
+
+      expect(taken.ok ? "ok" : taken.error.hint).toBe("PARTY_IDENTITY_TAKEN");
+
+      expect(await parties.identities(ada.id).orThrow()).toHaveLength(1);
+      expect(await parties.removeIdentity(added.id).orThrow()).toBe(true);
+      expect(await parties.removeIdentity(added.id).orThrow()).toBe(false);
+      expect(
+        await parties.findByIdentity(org, "whatsapp", "+3161").orThrow(),
+      ).toBeUndefined();
     } finally {
       await s.close();
     }

@@ -28,8 +28,6 @@ describe("inbox module", () => {
     for (const table of [
       "inboxes",
       "inbox_members",
-      "contacts",
-      "contact_identities",
       "inbox_conversations",
       "inbox_conversation_events",
       "inbox_message_details",
@@ -49,6 +47,8 @@ describe("inbox module", () => {
       "conversation_participants",
       "conversation_reads",
       "inbox_mentions",
+      "contacts",
+      "contact_identities",
     ]) {
       expect(sql).not.toContain(
         `create table if not exists "better_supabase"."${table}"`,

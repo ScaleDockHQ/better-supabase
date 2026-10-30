@@ -230,28 +230,55 @@ describe("parties block, optional fields", () => {
   });
 });
 
-describe("parties block with the inbox", () => {
-  it("links, unlinks and finds the person behind a contact", async () => {
+describe("person identities", () => {
+  const IDENTITY = {
+    id: "i1",
+    tenant_id: "o",
+    person_id: "p1",
+    channel: "whatsapp",
+    address: "+3161",
+    verified_at: "2026-10-01T00:00:00Z",
+    created_at: "2026-09-01T00:00:00Z",
+  };
+
+  it("lists, adds, removes and finds a person by an address", async () => {
     const t = transport({
-      link_inbox_contact: () => true,
-      unlink_inbox_contact: () => false,
-      person_for_inbox_contact: (args) =>
-        args["create"] === true ? PERSON : null,
+      list_person_identities: () => [IDENTITY],
+      add_person_identity: () => ({ ...IDENTITY, verified_at: null }),
+      remove_person_identity: () => false,
+      find_person_by_identity: (args) =>
+        args["address"] === "+3161" ? PERSON : null,
     });
 
     const parties = createContacts({ transport: t });
-    expect(await parties.linkInboxContact("p1", "k1").orThrow()).toBe(true);
-    expect(await parties.unlinkInboxContact("k1").orThrow()).toBe(false);
-    expect(await parties.personForInboxContact("k1").orThrow()).toBeUndefined();
+    const [listed] = await parties.identities("p1").orThrow();
+    expect(listed).toMatchObject({
+      id: "i1",
+      organizationId: "o",
+      personId: "p1",
+      channel: "whatsapp",
+      address: "+3161",
+    });
+    expect(listed?.verifiedAt?.toString()).toBe("2026-10-01T00:00:00Z");
+
+    const added = await parties
+      .addIdentity("p1", { channel: "whatsapp", address: "+3161" })
+      .orThrow();
+
+    expect(added.verifiedAt).toBeUndefined();
+    expect(await parties.removeIdentity("i1").orThrow()).toBe(false);
     expect(
-      (await parties.personForInboxContact("k1", { create: true }).orThrow())
-        ?.id,
+      (await parties.findByIdentity("o", "whatsapp", "+3161").orThrow())?.id,
     ).toBe("p1");
+    expect(
+      await parties.findByIdentity("o", "whatsapp", "+3162").orThrow(),
+    ).toBeUndefined();
     expect(t.calls.map(([, args]) => args)).toEqual([
-      { person: "p1", contact: "k1" },
-      { contact: "k1" },
-      { contact: "k1", create: false },
-      { contact: "k1", create: true },
+      { person: "p1" },
+      { person: "p1", channel: "whatsapp", address: "+3161", verified: false },
+      { identity: "i1" },
+      { tenant: "o", channel: "whatsapp", address: "+3161" },
+      { tenant: "o", channel: "whatsapp", address: "+3162" },
     ]);
   });
 });

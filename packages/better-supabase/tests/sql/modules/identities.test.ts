@@ -90,10 +90,19 @@ describe("identities module", () => {
     expect(off).not.toContain("create trigger");
   });
 
-  it("references inbox contacts only when the inbox is installed", () => {
-    expect(sqlOf()).not.toContain('references "better_supabase"."contacts"');
-    expect(sqlOf(["inbox", "identities"])).toContain(
-      `"contact_id" uuid references "better_supabase"."contacts" ("id") on delete cascade`,
+  it("leaves the contact's foreign key to the contacts block", () => {
+    const sql = sqlOf(["inbox", "identities"]);
+    expect(sql).toContain('"contact_id" uuid,');
+    expect(sql).not.toContain('references "better_supabase"."contacts"');
+    expect(sql).not.toContain('references "better_supabase"."people"');
+
+    const contacts = renderBlocks(["inbox", "identities"])
+      .filter((file) => file.module === "contacts")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(contacts).toContain(
+      `alter table "better_supabase"."identity_links" add constraint "identity_links_contact_id_fkey"\n  foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;`,
     );
   });
 

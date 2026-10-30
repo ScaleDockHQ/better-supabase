@@ -72,6 +72,12 @@ const REVIEW_0_47: readonly ReviewHint[] = [
       "Policy acknowledgements moved onto the acknowledgements block: call `acknowledge('compliance_policy', id)` and `list_my_acknowledgements` instead of `acknowledge_compliance_policy` and `list_compliance_policies(pending_only)`, read `acknowledgements` instead of `policy_acknowledgements`, match `ACKNOWLEDGEMENT_NO_VERSION` and `ACKNOWLEDGEMENT_NOT_ASSIGNED` instead of `POLICY_NOT_PUBLISHED`, grant `acknowledgements.acknowledge` instead of `compliance.acknowledge`, and listen for `acknowledgement.created` instead of `policy.acknowledged`",
   },
   {
+    pattern:
+      /\b(?:linkInboxContact|unlinkInboxContact|personForInboxContact|contact_identities|person_inbox_contacts|upsert_contact)\b|\bcontacts\.upsert\(|\bbetter_supabase"?\."?contacts\b/,
+    message:
+      "Inbox contacts are people of the contacts block: a conversation's `contact_id` is a person id, `contact_identities` is `person_identities` (`address` instead of `external_id`), and `person_inbox_contacts` is gone. Use `contacts.findByIdentity`, `addIdentity` and `savePerson` instead of `personForInboxContact`, `linkInboxContact` and the deprecated `inbox.contacts.upsert`, and read `people` instead of the inbox `contacts` table",
+  },
+  {
     pattern: new RegExp(
       `\\bbetter_supabase"?\\."?(?:${OLD_TABLES.map(escapeRegExp).join("|")})\\b`,
     ),
