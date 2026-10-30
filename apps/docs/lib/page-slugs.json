@@ -449,6 +449,7 @@
   "registry/ui-recipes/post-board",
   "registry/ui-recipes/presence-avatars",
   "registry/ui-recipes/product-catalog-grid",
+  "registry/ui-recipes/production-order-board",
   "registry/ui-recipes/profile-form",
   "registry/ui-recipes/promotion-code-field",
   "registry/ui-recipes/push-opt-in",
