@@ -234,7 +234,7 @@ export interface PostmortemInput {
   readonly resolution?: string;
   /**
    * @deprecated With the tasks block, `savePostmortem` refuses this key: use
-   * `addPostmortemAction`. Removed in 0.47.
+   * `addPostmortemAction`. Removed in 0.48.
    */
   readonly actionItems?: readonly unknown[];
 }

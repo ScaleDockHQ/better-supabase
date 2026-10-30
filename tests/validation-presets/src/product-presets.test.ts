@@ -118,4 +118,35 @@ describe.skipIf(!live)("product presets on the local stack", () => {
       expect(await publicBucket(client, "attachments")).toBe(true);
     });
   }, 120_000);
+
+  it("qms releases controlled documents through approvals next to the quality blocks", async () => {
+    await installAndRollBack(pool, installed("qms"), async (client) => {
+      expect(
+        await tables(client, [
+          "acknowledgements",
+          "case_kinds",
+          "cases",
+          "inspections",
+          "inspection_findings",
+          "risks",
+          "qualification_types",
+          "qualifications",
+        ]),
+      ).toEqual([]);
+      expect(await functionBody(client, "%approval%")).toContain(
+        "drive_document_decided",
+      );
+    });
+  }, 120_000);
+
+  // The fixture already holds every table, so the approval functions the
+  // preset replaces are what tells the two apart.
+  it("ehs keeps the drive without document control", async () => {
+    await installAndRollBack(pool, installed("ehs"), async (client) => {
+      expect(await tables(client, ["cases", "qualifications"])).toEqual([]);
+      expect(await functionBody(client, "%approval%")).not.toContain(
+        "drive_document_decided",
+      );
+    });
+  }, 120_000);
 });

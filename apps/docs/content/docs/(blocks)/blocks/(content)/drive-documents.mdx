@@ -87,7 +87,7 @@ select cron.schedule('drive-reviews', '0 6 * * *', $$select better_supabase.noti
 With the [acknowledgements block](/docs/blocks/acknowledgements) installed and `drive_node` in its `on` map, a release asks the members assigned to a document to acknowledge the new effective version. Assign readers through the acknowledgements client with the `drive_node` subject; each release of a new version opens a new pending acknowledgement for them.
 
 ```ts title="better-supabase.config.ts"
-acknowledgements: { options: { on: { drive_node: {} } } },
+acknowledgements: { on: { drive_node: {} } },
 ```
 
 ## Variants
