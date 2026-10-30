@@ -1,6 +1,6 @@
 -- better-supabase module: drive
--- @bsb-block drive@1 managed
--- @bsb-hash sha256:b02a4ab7d01fe0d5b0e8835d33e7e0bfbb394f6a974d956fb8c0ae3177f4096c
+-- @bsb-block drive@2 managed
+-- @bsb-hash sha256:42ee0a8c3661c1881c3adebdc81923a2885eff57e98e3c1ea2050ce4ad8e6500
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1013,6 +1013,17 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_grants"(uuid) from public, anon;
 grant execute on function "better_supabase"."drive_grants"(uuid) to authenticated, service_role;
+
+
+
+
+
+-- Each node's name and the start of its text, for the drive_node search subject.
+create or replace view "better_supabase"."file_node_search" with (security_invoker = true) as
+  select s."id" as id, s."name" as name, null::text as content
+  from "centrakit"."file_node" s;
+revoke all on "better_supabase"."file_node_search" from public, anon, authenticated;
+grant select on "better_supabase"."file_node_search" to service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
