@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defineSupabase } from "../../src/core/define.ts";
+import { bootstrapWith } from "../../src/server/bootstrap.ts";
 import { createServer } from "../../src/server/server.ts";
 import { createTestSigner } from "../../src/testing/jwt.ts";
 import { schema } from "../fixtures/generated-camel.ts";
@@ -140,5 +141,66 @@ describe("server.accessFor()", () => {
 
     expect(access.session.kind).toBe("none");
     expect(await access.can("posts.read")).toBe(false);
+  });
+});
+
+describe("bootstrapWith() in a support session", () => {
+  const supportCtx = (rpc: (name: string) => unknown) => ({
+    auth: {
+      kind: "user" as const,
+      token: "",
+      claims: { sub: USER, role: "authenticated" },
+      user: { id: USER, role: "authenticated" },
+      source: "support" as const,
+      expiresAt: Math.floor(Date.now() / 1000) + 600,
+    },
+    db: {
+      $executor: {
+        rpc: (name: string) => Promise.resolve({ ok: true, data: rpc(name) }),
+      },
+    },
+    support: { session: { id: "sup1" } },
+  });
+
+  const deps = {
+    schema: () => "better_supabase",
+    evictSession: async (userId: string) => {
+      evicted(userId);
+    },
+    versions: undefined,
+  };
+
+  it("runs the wrapper as the target and reports the session active", async () => {
+    const keys: string[] = [];
+
+    const boot = await bootstrapWith(
+      deps,
+      // SAFETY: the context carries the parts bootstrapWith reads.
+      supportCtx(() => row) as never,
+      { rpc: "home" },
+      undefined,
+      (key, run) => {
+        keys.push(key);
+
+        return run();
+      },
+    );
+
+    expect(boot).toMatchObject({ sessionActive: true, data: { unread: 3 } });
+    expect(keys).toEqual(["support:sup1|better_supabase|home|{}"]);
+  });
+
+  it("does not evict the target when the support session ended", async () => {
+    const boot = await bootstrapWith(
+      deps,
+      // SAFETY: the context carries the parts bootstrapWith reads.
+      supportCtx(() => ({ ...row, session_active: false })) as never,
+      { rpc: "home" },
+      undefined,
+      (_key, run) => run(),
+    );
+
+    expect(boot).toMatchObject({ sessionActive: false, data: null });
+    expect(evicted).not.toHaveBeenCalled();
   });
 });

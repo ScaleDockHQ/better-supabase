@@ -205,6 +205,7 @@ export async function bootstrapWith<C, P, T>(
   ctx: {
     readonly auth: AuthState<C, P>;
     readonly db: { readonly $executor: Executor };
+    readonly support?: { readonly session: { readonly id: string } };
   },
   call: BootstrapCallOptions,
   tenant: string | undefined,
@@ -212,21 +213,29 @@ export async function bootstrapWith<C, P, T>(
 ): Promise<Bootstrap<C, P, T>> {
   const view = toSession(ctx.auth);
   const snapshot = snapshotOf(ctx.auth);
+  const support = ctx.support?.session.id;
 
-  if (view.kind !== "user" || !snapshot) {
+  const session =
+    support === undefined
+      ? snapshot && sessionCacheKey(snapshot)
+      : `support:${support}`;
+
+  if (view.kind !== "user" || !session) {
     return signedOutBootstrap(view, tenant);
   }
 
   const schema = deps.schema(call);
   const args = { ...call.args, ...(tenant ? { tenant } : {}) };
-  const key = `${sessionCacheKey(snapshot)}|${schema}|${call.rpc}|${JSON.stringify(args)}`;
+  const key = `${session}|${schema}|${call.rpc}|${JSON.stringify(args)}`;
 
   const row = await memo(key, () =>
     runBootstrap(ctx.db.$executor, schema, call.rpc, args),
   );
 
   if (!row.sessionActive) {
-    await deps.evictSession(view.user.id);
+    if (support === undefined) {
+      await deps.evictSession(view.user.id);
+    }
   } else if (row.authzVersion !== null) {
     await deps.versions?.seed?.(view.user.id, row.authzVersion);
   }
