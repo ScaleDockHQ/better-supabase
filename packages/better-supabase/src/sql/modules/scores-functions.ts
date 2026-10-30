@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { createdOrUpdated } from "../event-verbs.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -270,7 +271,7 @@ begin
   insert into ${versions} (${versionInsert.map(([column]) => v(column)).join(", ")})
   values (${versionInsert.map(([, value]) => value).join(", ")})
   on conflict do nothing;
-  ${modelRecord("score_model.saved", "v_row", "saved score model")}
+  ${createdOrUpdated(`v_old.${m("id")} is null`, (verb) => modelRecord(`score_model.${verb}`, "v_row", `${verb} score model`))}
   return ${modelJson("v_row")};
 end;
 $$;

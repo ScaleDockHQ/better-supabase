@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:f6bd9d2ab0862704c98d64082122aecf52f21515d445c0d53a11e5933275dae9
+-- @bsb-hash sha256:a42b65a686b0d93b1071456e5c19eb10d530fb7eb75d95c71b0bb336101c14c9
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -740,7 +740,11 @@ begin
     end if;
   end if;
   perform "better_supabase"."scim_sync_member"(v_row."id");
-  null;
+  if scim_save_user.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg."id", 'display', sg."display_name") order by sg."display_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_groups" sg on sg."id" = sm."group_id"
@@ -882,7 +886,11 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform "better_supabase"."scim_sync_member"(v_member);
   end loop;
-  null;
+  if scim_save_group.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('members', (
       select coalesce(jsonb_agg(jsonb_build_object('value', su."id", 'display', coalesce(su."display_name", su."user_name")) order by su."user_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_users" su on su."id" = sm."scim_user_id"
@@ -996,7 +1004,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:b48234273ad2594d81773fd0d1e0cb08fe3bd49ca634db6a72390c64b116d466
+-- @bsb-hash sha256:6337445d93b29b34c81fc092c923c662b881ade1491baefeba6c1a8a732fcccc
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1279,9 +1287,9 @@ begin
   insert into "better_supabase"."organization_domains" as x ("organization_id", "domain") values (add_organization_domain.tenant, v_domain)
   on conflict ("organization_id", "domain") do update set "domain" = x."domain"
   returning * into v_row;
-  perform "better_supabase".emit_event('organization.domain_added', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
+  perform "better_supabase".emit_event('sso_domain.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
-    event_type => 'organization.domain_added',
+    event_type => 'sso_domain.created',
     category => 'security',
     target_type => 'domain',
     record_id => v_row."id"::text,
@@ -1362,9 +1370,9 @@ begin
   update "better_supabase"."organization_domains" x set "auto_join_role" = update_organization_domain.auto_join_role, "enforce_sso" = update_organization_domain.enforce_sso
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('organization.domain_updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
+  perform "better_supabase".emit_event('sso_domain.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
-    event_type => 'organization.domain_updated',
+    event_type => 'sso_domain.updated',
     category => 'security',
     target_type => 'domain',
     record_id => v_row."id"::text,
@@ -1397,9 +1405,9 @@ begin
     raise exception 'An SSO provider uses this domain; remove it first' using errcode = '23503', hint = 'SSO_DOMAIN_IN_USE';
   end if;
   delete from "better_supabase"."organization_domains" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('organization.domain_removed', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
+  perform "better_supabase".emit_event('sso_domain.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', auth.uid()), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
-    event_type => 'organization.domain_removed',
+    event_type => 'sso_domain.deleted',
     category => 'security',
     target_type => 'domain',
     record_id => v_row."id"::text,
@@ -1437,9 +1445,9 @@ begin
     raise exception 'Another organization has verified %', v_row."domain" using errcode = '23505', hint = 'SSO_DOMAIN_TAKEN';
   end if;
   update "better_supabase"."organization_domains" x set "verified_at" = now() where x."id" = v_row."id" returning * into v_row;
-  perform "better_supabase".emit_event('organization.domain_verified', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', verify_organization_domain.actor), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
+  perform "better_supabase".emit_event('sso_domain.verified', jsonb_build_object('organizationId', v_row."organization_id"::text, 'domainId', v_row."id", 'domain', v_row."domain", 'userId', verify_organization_domain.actor), 'organizations/' || v_row."organization_id"::text, (v_row."organization_id")::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
-    event_type => 'organization.domain_verified',
+    event_type => 'sso_domain.verified',
     category => 'security',
     target_type => 'domain',
     record_id => v_row."id"::text,
@@ -1825,15 +1833,27 @@ begin
     end if;
   end if;
   perform "better_supabase"."scim_sync_member"(v_row."id");
-  perform "better_supabase".emit_event('scim_user.saved', jsonb_build_object('organizationId', scim_save_user.tenant::text, 'scimUserId', v_row."id"), 'organizations/' || scim_save_user.tenant::text, (scim_save_user.tenant)::text, null, 'better-supabase/sso');
+  if scim_save_user.id is null then
+    perform "better_supabase".emit_event('scim_user.created', jsonb_build_object('organizationId', scim_save_user.tenant::text, 'scimUserId', v_row."id"), 'organizations/' || scim_save_user.tenant::text, (scim_save_user.tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
-    event_type => 'scim_user.saved',
+    event_type => 'scim_user.created',
     category => 'security',
     target_type => 'scim_user',
     record_id => v_row."id"::text,
     tenant => (scim_save_user.tenant)::uuid,
     metadata => jsonb_build_object('organizationId', scim_save_user.tenant::text, 'scimUserId', v_row."id")
   );
+  else
+    perform "better_supabase".emit_event('scim_user.updated', jsonb_build_object('organizationId', scim_save_user.tenant::text, 'scimUserId', v_row."id"), 'organizations/' || scim_save_user.tenant::text, (scim_save_user.tenant)::text, null, 'better-supabase/sso');
+  perform better_supabase.audit_event(
+    event_type => 'scim_user.updated',
+    category => 'security',
+    target_type => 'scim_user',
+    record_id => v_row."id"::text,
+    tenant => (scim_save_user.tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', scim_save_user.tenant::text, 'scimUserId', v_row."id")
+  );
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg."id", 'display', sg."display_name") order by sg."display_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_groups" sg on sg."id" = sm."group_id"
@@ -1983,15 +2003,27 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform "better_supabase"."scim_sync_member"(v_member);
   end loop;
-  perform "better_supabase".emit_event('scim_group.saved', jsonb_build_object('organizationId', scim_save_group.tenant::text, 'scimGroupId', v_row."id"), 'organizations/' || scim_save_group.tenant::text, (scim_save_group.tenant)::text, null, 'better-supabase/sso');
+  if scim_save_group.id is null then
+    perform "better_supabase".emit_event('scim_group.created', jsonb_build_object('organizationId', scim_save_group.tenant::text, 'scimGroupId', v_row."id"), 'organizations/' || scim_save_group.tenant::text, (scim_save_group.tenant)::text, null, 'better-supabase/sso');
   perform better_supabase.audit_event(
-    event_type => 'scim_group.saved',
+    event_type => 'scim_group.created',
     category => 'security',
     target_type => 'scim_group',
     record_id => v_row."id"::text,
     tenant => (scim_save_group.tenant)::uuid,
     metadata => jsonb_build_object('organizationId', scim_save_group.tenant::text, 'scimGroupId', v_row."id")
   );
+  else
+    perform "better_supabase".emit_event('scim_group.updated', jsonb_build_object('organizationId', scim_save_group.tenant::text, 'scimGroupId', v_row."id"), 'organizations/' || scim_save_group.tenant::text, (scim_save_group.tenant)::text, null, 'better-supabase/sso');
+  perform better_supabase.audit_event(
+    event_type => 'scim_group.updated',
+    category => 'security',
+    target_type => 'scim_group',
+    record_id => v_row."id"::text,
+    tenant => (scim_save_group.tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', scim_save_group.tenant::text, 'scimGroupId', v_row."id")
+  );
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('members', (
       select coalesce(jsonb_agg(jsonb_build_object('value', su."id", 'display', coalesce(su."display_name", su."user_name")) order by su."user_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_users" su on su."id" = sm."scim_user_id"
@@ -2113,7 +2145,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:05d9c0cee22f8d2dbad39f8bad811a096bfe69bcbf5110679ad5e30149e1ed2e
+-- @bsb-hash sha256:6476e4ce4b0a80ba0e659ffe771e29d21868c65756d50b37c7d3813040ba8cf4
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2857,7 +2889,11 @@ begin
     end if;
   end if;
   perform "app_private"."scim_sync_member"(v_row."id");
-  null;
+  if scim_save_user.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg."id", 'display', sg."display_name") order by sg."display_name"), '[]'::jsonb)
       from "app_private"."scim_group_members" sm join "app_private"."scim_groups" sg on sg."id" = sm."group_id"
@@ -2999,7 +3035,11 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform "app_private"."scim_sync_member"(v_member);
   end loop;
-  null;
+  if scim_save_group.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('members', (
       select coalesce(jsonb_agg(jsonb_build_object('value', su."id", 'display', coalesce(su."display_name", su."user_name")) order by su."user_name"), '[]'::jsonb)
       from "app_private"."scim_group_members" sm join "app_private"."scim_users" su on su."id" = sm."scim_user_id"
@@ -3113,7 +3153,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:c89512c2bc9830a0e907c0517151b4ff30b065ca39eaa35e0f4e0b9fa7209935
+-- @bsb-hash sha256:2951caa97c6c587bf1009c694d3390910dd2941cf0bebc66fea041277a9ed6c6
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3852,7 +3892,11 @@ begin
     end if;
   end if;
   perform "better_supabase"."scim_sync_member"(v_row."id");
-  null;
+  if scim_save_user.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg."id", 'display', sg."display_name") order by sg."display_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_groups" sg on sg."id" = sm."group_id"
@@ -3994,7 +4038,11 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform "better_supabase"."scim_sync_member"(v_member);
   end loop;
-  null;
+  if scim_save_group.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('members', (
       select coalesce(jsonb_agg(jsonb_build_object('value', su."id", 'display', coalesce(su."display_name", su."user_name")) order by su."user_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_users" su on su."id" = sm."scim_user_id"
@@ -4337,7 +4385,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:138abf482e2b4c12a49f168b2ec20c20210ac2e331e5fcd379f92bc569119d7d
+-- @bsb-hash sha256:32ab4507edab84ae16e8eede5f0a2a3894d26587d15d27ac12c83bf374ed7124
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5082,7 +5130,11 @@ begin
     end if;
   end if;
   perform "better_supabase"."scim_sync_member"(v_row."id");
-  null;
+  if scim_save_user.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'user_id', x."user_id", 'external_id', x."external_id", 'user_name', x."user_name", 'display_name', x."display_name", 'given_name', x."given_name", 'family_name', x."family_name", 'email', x."email", 'emails', x."emails", 'active', x."active", 'version', x."version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg."id", 'display', sg."display_name") order by sg."display_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_groups" sg on sg."id" = sm."group_id"
@@ -5224,7 +5276,11 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform "better_supabase"."scim_sync_member"(v_member);
   end loop;
-  null;
+  if scim_save_group.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'display_name', x."display_name", 'external_id', x."external_id", 'role', x."role", 'version', x."version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('members', (
       select coalesce(jsonb_agg(jsonb_build_object('value', su."id", 'display', coalesce(su."display_name", su."user_name")) order by su."user_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_users" su on su."id" = sm."scim_user_id"
@@ -5338,7 +5394,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:11bdc0f63e31effdc038b2b96fcd5e754347a35e80444fe53011e6387fb03fa5
+-- @bsb-hash sha256:0e4f33be243e3750a41eb9580542c5d411fab5e49af25b459ab187c90b339684
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6077,7 +6133,11 @@ begin
     end if;
   end if;
   perform "better_supabase"."scim_sync_member"(v_row."id");
-  null;
+  if scim_save_user.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg."id", 'display', sg."display_name") order by sg."display_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_groups" sg on sg."id" = sm."group_id"
@@ -6219,7 +6279,11 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform "better_supabase"."scim_sync_member"(v_member);
   end loop;
-  null;
+  if scim_save_group.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('members', (
       select coalesce(jsonb_agg(jsonb_build_object('value', su."id", 'display', coalesce(su."display_name", su."user_name")) order by su."user_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_users" su on su."id" = sm."scim_user_id"

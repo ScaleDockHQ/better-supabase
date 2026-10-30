@@ -8,15 +8,16 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Columns } from "./module-columns.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
   raise,
+  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
-  revokeTable,
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
@@ -73,7 +74,11 @@ const FINGERPRINTS = {
 } as const;
 
 const EVENTS: BlockSqlEvents<ConnectorsEvents> = {
-  "connector.saved": {
+  "connector.created": {
+    subject: "organizations",
+    payload: ["organizationId", "serverId", "name"],
+  },
+  "connector.updated": {
     subject: "organizations",
     payload: ["organizationId", "serverId", "name"],
   },
@@ -485,7 +490,7 @@ begin
     ${serverUpdate.join(",\n    ")}
   where x.${v.id} = v_row.${v.id}
   returning * into v_row;${writeExtraColumns(servers, extras, "save_connector_server.fields", `x.${v.id} = v_row.${v.id}`, "v_row")}
-  ${serverEvent("connector.saved", "v_row")}
+  ${createdOrUpdated("save_connector_server.id is null", (verb) => serverEvent(`connector.${verb}`, "v_row"))}
   return ${serverJson("v_row")};
 end;
 $$;

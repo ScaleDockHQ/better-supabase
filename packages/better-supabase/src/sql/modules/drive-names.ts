@@ -19,40 +19,40 @@ export const DOCUMENT_COLUMNS = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<DriveEvents> = {
-  "drive.node_created": {
+  "drive_node.created": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "kind", "name", "parentId", "source"],
   },
-  "drive.node_renamed": {
+  "drive_node.renamed": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "name", "previousName"],
   },
-  "drive.node_moved": {
+  "drive_node.moved": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "parentId", "previousParentId"],
   },
-  "drive.node_shared": {
+  "drive_node.shared": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "principalType", "principalId", "role"],
   },
-  "drive.node_unshared": {
+  "drive_node.unshared": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "principalType", "principalId"],
   },
-  "drive.node_hold_placed": {
+  "drive_node.hold_placed": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "legalHoldUntil"],
   },
-  "drive.node_hold_released": { subject: PATH_SEGMENT, payload: [...SUBJECT] },
-  "drive.node_locked": {
+  "drive_node.hold_released": { subject: PATH_SEGMENT, payload: [...SUBJECT] },
+  "drive_node.locked": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "lockedBy", "lockedUntil"],
   },
-  "drive.node_unlocked": {
+  "drive_node.unlocked": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "lockedBy", "forced"],
   },
-  "drive.node_download_blocked_changed": {
+  "drive_node.download_blocked_changed": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "downloadBlocked"],
   },
@@ -74,7 +74,7 @@ const EVENTS: BlockSqlEvents<DriveEvents> = {
     subject: "drives",
     payload: [...SUBJECT, "principalType", "principalId"],
   },
-  "drive.node_ownership_transferred": {
+  "drive_node.ownership_transferred": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "fromUserId", "toUserId"],
   },
@@ -93,31 +93,31 @@ const EVENTS: BlockSqlEvents<DriveEvents> = {
 };
 
 export const FILE_EVENTS: BlockSqlEvents<DriveEvents> = {
-  "drive.node_purged": {
+  "drive_node.purged": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "objects"],
   },
-  "drive.node_document_saved": {
+  "drive_node.document_saved": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "documentType", "ownerId"],
   },
-  "drive.node_submitted": {
+  "drive_node.submitted": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "attachmentId", "requestId"],
   },
-  "drive.node_released": {
+  "drive_node.released": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "versionId", "attachmentId"],
   },
-  "drive.node_obsoleted": {
+  "drive_node.obsoleted": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "reason"],
   },
-  "drive.node_reviewed": {
+  "drive_node.reviewed": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "outcome", "note", "nextReviewOn"],
   },
-  "drive.node_review_requested": {
+  "drive_node.review_requested": {
     subject: PATH_SEGMENT,
     payload: [...SUBJECT, "documentNumber", "ownerId", "nextReviewOn"],
   },

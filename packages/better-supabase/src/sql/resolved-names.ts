@@ -33,8 +33,8 @@ export interface ResolvedEntity {
   readonly to: EntityNoun;
   /**
    * The entity's singular before 0.47 (`spec.formerly`) and its current one.
-   * The tables, columns and events still carry the old noun; function, hook and
-   * trigger names carry the new one.
+   * The tables and columns still carry the old noun; function, hook and trigger
+   * names and event types carry the new one.
    */
   readonly formerly?: { readonly from: EntityNoun; readonly to: EntityNoun };
   readonly primary: boolean;
@@ -75,6 +75,14 @@ export interface ResolvedNames {
   readonly functionNouns: EntityNames;
   /** `name` as it was before 0.47 (`create_task` to `create_work_item`). */
   readonly formerName: (name: string) => string;
+  /**
+   * For a renamed entity whose singular changed in 0.47, its current singular
+   * to the config's name (`task` to `ticket`): its event types name the current
+   * singular, while its other names start from the old one.
+   */
+  readonly eventRenames: readonly EntityRename[];
+  /** Event types: `eventRenames`, then the module's own entities. */
+  readonly eventNaming: EntityNames;
 }
 
 const PLACEHOLDER = /\{([^{}]*)\}/g;
@@ -307,6 +315,14 @@ export function resolveNames(
     ),
   );
 
+  const eventRenames = own.flatMap(({ formerly, from, to }) =>
+    formerly === undefined ||
+    from.singular !== formerly.from.singular ||
+    to.singular === formerly.to.singular
+      ? []
+      : [{ from: formerly.to, to }],
+  );
+
   return {
     module,
     entities,
@@ -315,6 +331,8 @@ export function resolveNames(
     entityNaming: entityNames(renames),
     functionNouns: nouns,
     formerName: (name) => former.rename(name),
+    eventRenames,
+    eventNaming: entityNames([...eventRenames, ...renames]),
   };
 }
 

@@ -81,6 +81,7 @@ export type {
 } from "./entity-schema.ts";
 
 export type {
+  EventRenamesOf,
   NounRename,
   NounRenames,
   RenamedBlock,

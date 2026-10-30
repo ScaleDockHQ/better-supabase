@@ -5,14 +5,16 @@ import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `flags` block: type to data. */
 export type FlagsEvents = {
-  readonly "flag.saved": FlagEventData;
+  readonly "flag.created": FlagEventData;
+  readonly "flag.updated": FlagEventData;
   readonly "flag.deleted": FlagEventData;
-  readonly "flag.override_set": FlagEventData;
+  readonly "flag.override_changed": FlagEventData;
 };
 
 /** The `flags` block's event types, for its manifest and `onBlockEvent`. */
 export const flagsEvents: Events<FlagsEvents> = defineEvents({
-  "flag.saved": event<FlagEventData>(),
+  "flag.created": event<FlagEventData>(),
+  "flag.updated": event<FlagEventData>(),
   "flag.deleted": event<FlagEventData>(),
-  "flag.override_set": event<FlagEventData>(),
+  "flag.override_changed": event<FlagEventData>(),
 });

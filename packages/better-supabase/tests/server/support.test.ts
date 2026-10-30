@@ -178,7 +178,7 @@ describe("support sessions on the server", () => {
       "SUPPORT_NESTED",
     ]);
     expect(events.map((event) => event.type)).toEqual(
-      Array.from({ length: 4 }, () => "support.denied"),
+      Array.from({ length: 4 }, () => "support_session.denied"),
     );
     expect(events[0]?.data).toMatchObject({ denial: "policy" });
 
@@ -266,7 +266,7 @@ describe("support sessions on the server", () => {
       /^bsb-support=[^;]+; Path=\/; Max-Age=1800;/,
     );
     expect(events.at(-1)).toMatchObject({
-      type: "support.started",
+      type: "support_session.started",
       actorId: ADMIN,
       subject: `support_sessions/${started.session.id}`,
     });
@@ -319,7 +319,7 @@ describe("support sessions on the server", () => {
 
     expect(stopped.ended).toBe(true);
     expect(stopped.cookie).toContain("Max-Age=0");
-    expect(events.at(-1)?.type).toBe("support.ended");
+    expect(events.at(-1)?.type).toBe("support_session.ended");
     const after = await server.context(await request(cookie));
     expect(after.support).toBeUndefined();
     expect(after.auth).toMatchObject({ user: { id: ADMIN } });
@@ -606,7 +606,7 @@ describe("support sessions on the server", () => {
     const expired = await server.support.expire().orThrow();
     expect(expired.map((session) => session.endedBy)).toEqual(["expired"]);
     expect(events.at(-1)).toMatchObject({
-      type: "support.ended",
+      type: "support_session.ended",
       actorId: ADMIN,
       subject: `support_sessions/${started.session.id}`,
       data: {

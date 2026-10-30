@@ -295,7 +295,7 @@ begin
     update ${requests} x set ${q("rejectedAt")} = now(), ${q("updatedAt")} = now()${decision("decidedBy", "coalesce(decide_leave_request.decided_by, auth.uid())")}${decision("decisionNote", "nullif(trim(decide_leave_request.note), '')")}
       where x.${q("id")} = v_row.${q("id")}
       returning * into v_row;
-    ${requestRecord("leave.rejected", "v_row", "rejected leave")}`
+    ${requestRecord("leave_request.rejected", "v_row", "rejected leave")}`
       : `
     ${fail("LEAVE_REJECTION_UNSUPPORTED", "this leave requests table has no rejected_at column", "22023")}`
   }
@@ -669,7 +669,7 @@ ${overlapCheck(`v_row.${q("tenant")}`, "v_starts", "v_ends", `v_row.${q("id")}`)
       where p.${a("id")} = v_row.${q("approval")} and p.${a("status")} = 'pending';${openApproval(`v_row.${q("tenant")}`).replaceAll("\n  ", "\n    ")}${autoApproved.replaceAll("\n  ", "\n    ")}
   end if;`
   }
-  ${requestRecord("leave.updated", "v_row", "changed leave")}
+  ${requestRecord("leave_request.updated", "v_row", "changed leave")}
   return ${requestJson("v_row", approvalRow)};
 end;
 $$;
@@ -727,7 +727,7 @@ ${measure({
       ", ",
     )}, v_old.${q("type")}, split_leave_request.gap_ends + 1, v_old.${q("endsOn")}${ctx.has("requests", "partial") ? `, ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${ctx.cast("requests", "startPart", "v_start")}, ${ctx.cast("requests", "endPart", "v_end")}` : ""}, v_amount${copied("note")}${copied("approval")}, v_old.${q("approvedAt")}${statusMode ? `${copied("decidedBy")}${copied("decisionNote")}` : ""}${extras.map((x) => `, v_old.${x.ident}`).join("")})
   returning * into v_row;${taken("v_row", -1).replaceAll("\n    ", "\n  ")}${approvals === undefined ? "" : `\n  select * into v_approval from ${ar} x where x.${a("id")} = v_row.${q("approval")};`}
-  ${requestRecord("leave.split", "v_row", "split leave")}
+  ${requestRecord("leave_request.split", "v_row", "split leave")}
   return jsonb_build_object(
     'request', (select ${requestJson("x", approvals === undefined ? "" : "v_approval")} from ${requests} x where x.${q("id")} = v_old.${q("id")}),
     'split', ${requestJson("v_row", approvals === undefined ? "" : "v_approval")}
@@ -894,7 +894,7 @@ ${overlapCheck("request_leave.tenant", "request_leave.starts_on", "request_leave
   insert into ${requests} (${q("tenant")}, ${ownerColumns}, ${q("type")}, ${q("startsOn")}, ${q("endsOn")}${also("requests", "partial")}${parts ? `, ${q("startPart")}, ${q("endPart")}` : ""}, ${q("amount")}${also("requests", "note")}${inserted.columns})
   values (request_leave.tenant, ${ownerValues}, v_type.${ty("id")}, request_leave.starts_on, request_leave.ends_on${ctx.has("requests", "partial") ? `, ${ctx.cast("requests", "partial", "v_partial")}` : ""}${parts ? `, ${ctx.cast("requests", "startPart", "v_start")}, ${ctx.cast("requests", "endPart", "v_end")}` : ""}, v_amount${alsoValue("requests", "note", "nullif(trim(request_leave.note), '')")}${inserted.values})
   returning * into v_row;${openApproval("request_leave.tenant")}
-  ${requestRecord("leave.requested", "v_row", "requested leave")}${autoApproved}
+  ${requestRecord("leave_request.requested", "v_row", "requested leave")}${autoApproved}
   ${ctx.hook("after_leave_request", [["uuid", `v_row.${q("id")}`]])}
   return ${requestJson("v_row", approvalRow)};
 end;
@@ -920,7 +920,7 @@ begin
   end if;
   perform ${fn("leave_post")}(v_row.${q("tenant")}, v_row.${owner.column}, v_row.${q("type")}, 'taken', -v_row.${q("amount")}, ${period("v_row")}, v_row.${q("id")})
   from ${types} t where t.${ty("id")} = v_row.${q("type")} and t.${ty("tracked")};
-  ${requestRecord("leave.approved", "v_row", "approved leave")}
+  ${requestRecord("leave_request.approved", "v_row", "approved leave")}
 end;
 $$;
 revoke execute on function ${fn("approve_leave_request")}(uuid) from public, anon, authenticated;
@@ -969,7 +969,7 @@ ${
   update ${requests} x set ${q("cancelledAt")} = now()${ctx.has("requests", "cancelledBy") ? `, ${q("cancelledBy")} = auth.uid()` : ""}, ${q("updatedAt")} = now()
     where x.${q("id")} = v_row.${q("id")}
     returning * into v_row;${loadApproval}
-  ${requestRecord("leave.cancelled", "v_row", "cancelled leave")}
+  ${requestRecord("leave_request.cancelled", "v_row", "cancelled leave")}
   return ${requestJson("v_row", approvalRow)};
 end;
 $$;

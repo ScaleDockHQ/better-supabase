@@ -10,6 +10,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { CUSTOM_FIELD_TYPES } from "../../core/contracts/field-formats.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import {
   CUSTOM_FIELD_VALIDATORS,
   customFieldValueCheck,
@@ -47,11 +48,15 @@ const ENCRYPTABLE_TYPES: readonly CustomFieldType[] = [
 ];
 
 const EVENTS: BlockSqlEvents<CustomFieldsEvents> = {
-  "custom_field.saved": {
+  "field_definition.created": {
     subject: "custom-fields",
     payload: ["organizationId", "id", "entity"],
   },
-  "custom_field.deleted": {
+  "field_definition.updated": {
+    subject: "custom-fields",
+    payload: ["organizationId", "id", "entity"],
+  },
+  "field_definition.deleted": {
     subject: "custom-fields",
     payload: ["organizationId", "id"],
   },
@@ -319,6 +324,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -339,15 +345,17 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false)${ranked ? ", v_rank" : ""})
   on conflict (${ctx.col("definitions", "tenant")}, ${ctx.col("definitions", "entity")}, ${ctx.col("definitions", "key")})
   do update set ${ctx.col("definitions", "label")} = excluded.${ctx.col("definitions", "label")}, ${ctx.col("definitions", "sensitive")} = excluded.${ctx.col("definitions", "sensitive")}
-  returning ${ctx.col("definitions", "id")} into v_id;`
+  returning ${ctx.col("definitions", "id")}, xmax = 0 into v_id, v_inserted;`
   }
-  ${ctx.record({
-    type: "custom_field.saved",
-    payload: `jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity)`,
-    subject: `'custom-fields/' || coalesce(v_id::text, save_field_definition.key)`,
-    tenant: "save_field_definition.tenant",
-    audit: false,
-  })}
+  ${createdOrUpdated("v_inserted", (verb) =>
+    ctx.record({
+      type: `field_definition.${verb}`,
+      payload: `jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity)`,
+      subject: `'custom-fields/' || coalesce(v_id::text, save_field_definition.key)`,
+      tenant: "save_field_definition.tenant",
+      audit: false,
+    }),
+  )}
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -486,7 +494,7 @@ begin
   delete from ${definitions} where ${ctx.col("definitions", "id")} = delete_field_definition.definition;`
   }
   ${ctx.record({
-    type: "custom_field.deleted",
+    type: "field_definition.deleted",
     payload: `jsonb_build_object('organizationId', v_tenant, 'id', delete_field_definition.definition)`,
     subject: `'custom-fields/' || delete_field_definition.definition::text`,
     tenant: "v_tenant",

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:e86da89c90bdb2f47e04f9a56745340b988978f2e6cf0bba99fe77eaaa04eca8
+-- @bsb-hash sha256:8a135690e9e11a456a222a93fa35a30cb5cf24a04a029e5bce9c03da4a9e531d
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -810,7 +810,11 @@ begin
   insert into "better_supabase"."rule_versions" ("rule_id", "version", "workspace_id", "name", "conditions", "actions", "saved_by")
   values (v_row."id", v_row."version", v_row."workspace_id", v_row."name", v_row."conditions", v_row."actions", auth.uid())
   on conflict do nothing;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   if v_row."enabled" and not coalesce(v_old."enabled", false) then
     null;
   elsif not v_row."enabled" and coalesce(v_old."enabled", false) then
@@ -1014,7 +1018,7 @@ end;
 $$;
 
 -- Logs one evaluation. Live entries come from the service role and emit
--- rule.matched when they match; a test entry takes the edit permission.
+-- automation.matched when they match; a test entry takes the edit permission.
 create or replace function "better_supabase"."record_rule_evaluation"(rule uuid, subject_id text, matched boolean, results jsonb default '{}'::jsonb, mode text default 'live')
 returns jsonb
 language plpgsql
@@ -1267,11 +1271,200 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:8c90f3b542a13a97e8c62db0d246a1a3132cccbec7a660f83e436e9eb9dcfee3
+-- @bsb-hash sha256:ed927cd8dd28d2f1834032b1b0aabf9960cf5353b662f42c910ed209c3a66eb4
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Event types renamed by the 0.47 naming convention (ADR 0130).
+update "better_supabase"."rules" t set "trigger" = m.next_type
+from (values
+  ('access.ended', 'access_request.ended'),
+  ('access.request_approved', 'access_request.approved'),
+  ('access.requested', 'access_request.requested'),
+  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
+  ('approval_policy.removed', 'approval_policy.deleted'),
+  ('credential.set', 'credential.updated'),
+  ('custom_field.deleted', 'field_definition.deleted'),
+  ('drive.node_created', 'drive_node.created'),
+  ('drive.node_document_saved', 'drive_node.document_saved'),
+  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
+  ('drive.node_hold_placed', 'drive_node.hold_placed'),
+  ('drive.node_hold_released', 'drive_node.hold_released'),
+  ('drive.node_locked', 'drive_node.locked'),
+  ('drive.node_moved', 'drive_node.moved'),
+  ('drive.node_obsoleted', 'drive_node.obsoleted'),
+  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
+  ('drive.node_purged', 'drive_node.purged'),
+  ('drive.node_released', 'drive_node.released'),
+  ('drive.node_renamed', 'drive_node.renamed'),
+  ('drive.node_review_requested', 'drive_node.review_requested'),
+  ('drive.node_reviewed', 'drive_node.reviewed'),
+  ('drive.node_shared', 'drive_node.shared'),
+  ('drive.node_submitted', 'drive_node.submitted'),
+  ('drive.node_unlocked', 'drive_node.unlocked'),
+  ('drive.node_unshared', 'drive_node.unshared'),
+  ('engagement.amended', 'activity.amended'),
+  ('engagement.completed', 'activity.completed'),
+  ('engagement.deleted', 'activity.deleted'),
+  ('engagement.error_marked', 'activity.error_marked'),
+  ('engagement.logged', 'activity.logged'),
+  ('engagement.recorded', 'activity.recorded'),
+  ('engagement.summarized', 'activity.summarized'),
+  ('engagement.transcribed', 'activity.transcribed'),
+  ('engagement.updated', 'activity.updated'),
+  ('flag.override_set', 'flag.override_changed'),
+  ('forecast.snapshotted', 'forecast_snapshot.created'),
+  ('hostname.primary_set', 'hostname.primary_changed'),
+  ('hostname.removed', 'hostname.deleted'),
+  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
+  ('job.closed', 'job_opening.closed'),
+  ('job.opened', 'job_opening.opened'),
+  ('leave.adjusted', 'leave_balance.adjusted'),
+  ('leave.approved', 'leave_request.approved'),
+  ('leave.cancelled', 'leave_request.cancelled'),
+  ('leave.rejected', 'leave_request.rejected'),
+  ('leave.requested', 'leave_request.requested'),
+  ('leave.split', 'leave_request.split'),
+  ('leave.updated', 'leave_request.updated'),
+  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
+  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
+  ('obligation.status_changed', 'contract_obligation.status_changed'),
+  ('organization.domain_added', 'sso_domain.created'),
+  ('organization.domain_removed', 'sso_domain.deleted'),
+  ('organization.domain_updated', 'sso_domain.updated'),
+  ('organization.domain_verified', 'sso_domain.verified'),
+  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.published', 'compliance_policy.published'),
+  ('postmortem.published', 'incident_postmortem.published'),
+  ('rule.disabled', 'automation.disabled'),
+  ('rule.enabled', 'automation.enabled'),
+  ('rule.matched', 'automation.matched'),
+  ('rule.removed', 'automation.deleted'),
+  ('segment.removed', 'segment.deleted'),
+  ('signature.cancelled', 'signature_request.cancelled'),
+  ('signature.completed', 'signature_request.completed'),
+  ('signature.declined', 'signature_request.declined'),
+  ('signature.requested', 'signature_request.requested'),
+  ('signature.signed', 'signature_request.signed'),
+  ('support.denied', 'support_session.denied'),
+  ('support.ended', 'support_session.ended'),
+  ('support.started', 'support_session.started'),
+  ('time.invoiced', 'time_entry.invoiced'),
+  ('variant.created', 'product_variant.created'),
+  ('variant.deleted', 'product_variant.deleted'),
+  ('variant.updated', 'product_variant.updated'),
+  ('waitlist.approved', 'waitlist_entry.approved'),
+  ('waitlist.rejected', 'waitlist_entry.rejected'),
+  ('webhook.delivered', 'webhook_endpoint.delivered'),
+  ('webhook.disabled', 'webhook_endpoint.disabled'),
+  ('webhook.failed', 'webhook_endpoint.failed'),
+  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
+  ('work_item.archived', 'task.archived'),
+  ('work_item.assigned', 'task.assigned'),
+  ('work_item.closed', 'task.closed'),
+  ('work_item.created', 'task.created'),
+  ('work_item.deleted', 'task.deleted'),
+  ('work_item.reopened', 'task.reopened'),
+  ('work_item.updated', 'task.updated'),
+  ('workflow.published', 'workflow_definition.published')
+) as m(old_type, next_type)
+where t."trigger" = m.old_type;
+
+update "better_supabase"."rule_defaults" t set "trigger" = m.next_type
+from (values
+  ('access.ended', 'access_request.ended'),
+  ('access.request_approved', 'access_request.approved'),
+  ('access.requested', 'access_request.requested'),
+  ('ai_tool_policy.set', 'ai_tool_policy.updated'),
+  ('approval_policy.removed', 'approval_policy.deleted'),
+  ('credential.set', 'credential.updated'),
+  ('custom_field.deleted', 'field_definition.deleted'),
+  ('drive.node_created', 'drive_node.created'),
+  ('drive.node_document_saved', 'drive_node.document_saved'),
+  ('drive.node_download_blocked_changed', 'drive_node.download_blocked_changed'),
+  ('drive.node_hold_placed', 'drive_node.hold_placed'),
+  ('drive.node_hold_released', 'drive_node.hold_released'),
+  ('drive.node_locked', 'drive_node.locked'),
+  ('drive.node_moved', 'drive_node.moved'),
+  ('drive.node_obsoleted', 'drive_node.obsoleted'),
+  ('drive.node_ownership_transferred', 'drive_node.ownership_transferred'),
+  ('drive.node_purged', 'drive_node.purged'),
+  ('drive.node_released', 'drive_node.released'),
+  ('drive.node_renamed', 'drive_node.renamed'),
+  ('drive.node_review_requested', 'drive_node.review_requested'),
+  ('drive.node_reviewed', 'drive_node.reviewed'),
+  ('drive.node_shared', 'drive_node.shared'),
+  ('drive.node_submitted', 'drive_node.submitted'),
+  ('drive.node_unlocked', 'drive_node.unlocked'),
+  ('drive.node_unshared', 'drive_node.unshared'),
+  ('engagement.amended', 'activity.amended'),
+  ('engagement.completed', 'activity.completed'),
+  ('engagement.deleted', 'activity.deleted'),
+  ('engagement.error_marked', 'activity.error_marked'),
+  ('engagement.logged', 'activity.logged'),
+  ('engagement.recorded', 'activity.recorded'),
+  ('engagement.summarized', 'activity.summarized'),
+  ('engagement.transcribed', 'activity.transcribed'),
+  ('engagement.updated', 'activity.updated'),
+  ('flag.override_set', 'flag.override_changed'),
+  ('forecast.snapshotted', 'forecast_snapshot.created'),
+  ('hostname.primary_set', 'hostname.primary_changed'),
+  ('hostname.removed', 'hostname.deleted'),
+  ('incoming_webhook.enabled_set', 'incoming_webhook.enabled_changed'),
+  ('job.closed', 'job_opening.closed'),
+  ('job.opened', 'job_opening.opened'),
+  ('leave.adjusted', 'leave_balance.adjusted'),
+  ('leave.approved', 'leave_request.approved'),
+  ('leave.cancelled', 'leave_request.cancelled'),
+  ('leave.rejected', 'leave_request.rejected'),
+  ('leave.requested', 'leave_request.requested'),
+  ('leave.split', 'leave_request.split'),
+  ('leave.updated', 'leave_request.updated'),
+  ('marketplace_installation.removed', 'marketplace_installation.deleted'),
+  ('marketplace_invoice.state_changed', 'marketplace_invoice.status_changed'),
+  ('obligation.status_changed', 'contract_obligation.status_changed'),
+  ('organization.domain_added', 'sso_domain.created'),
+  ('organization.domain_removed', 'sso_domain.deleted'),
+  ('organization.domain_updated', 'sso_domain.updated'),
+  ('organization.domain_verified', 'sso_domain.verified'),
+  ('policy.acknowledged', 'compliance_policy.acknowledged'),
+  ('policy.published', 'compliance_policy.published'),
+  ('postmortem.published', 'incident_postmortem.published'),
+  ('rule.disabled', 'automation.disabled'),
+  ('rule.enabled', 'automation.enabled'),
+  ('rule.matched', 'automation.matched'),
+  ('rule.removed', 'automation.deleted'),
+  ('segment.removed', 'segment.deleted'),
+  ('signature.cancelled', 'signature_request.cancelled'),
+  ('signature.completed', 'signature_request.completed'),
+  ('signature.declined', 'signature_request.declined'),
+  ('signature.requested', 'signature_request.requested'),
+  ('signature.signed', 'signature_request.signed'),
+  ('support.denied', 'support_session.denied'),
+  ('support.ended', 'support_session.ended'),
+  ('support.started', 'support_session.started'),
+  ('time.invoiced', 'time_entry.invoiced'),
+  ('variant.created', 'product_variant.created'),
+  ('variant.deleted', 'product_variant.deleted'),
+  ('variant.updated', 'product_variant.updated'),
+  ('waitlist.approved', 'waitlist_entry.approved'),
+  ('waitlist.rejected', 'waitlist_entry.rejected'),
+  ('webhook.delivered', 'webhook_endpoint.delivered'),
+  ('webhook.disabled', 'webhook_endpoint.disabled'),
+  ('webhook.failed', 'webhook_endpoint.failed'),
+  ('webhook.secret_rotated', 'webhook_endpoint.secret_rotated'),
+  ('work_item.archived', 'task.archived'),
+  ('work_item.assigned', 'task.assigned'),
+  ('work_item.closed', 'task.closed'),
+  ('work_item.created', 'task.created'),
+  ('work_item.deleted', 'task.deleted'),
+  ('work_item.reopened', 'task.reopened'),
+  ('work_item.updated', 'task.updated'),
+  ('workflow.published', 'workflow_definition.published')
+) as m(old_type, next_type)
+where t."trigger" = m.old_type;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('automations', 1, 'managed')

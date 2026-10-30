@@ -427,10 +427,10 @@ export function traceAuth(
 }
 
 /**
- * Records block events (`support.started`, `webhook.failed`, ...) with the
- * `BLOCK_ATTRIBUTES` names: as an event on the active span, or as a short
- * `block <type>` span when there is none. Failures (`*.failed`, `*.denied`) set
- * an error status. Returns a function that stops listening.
+ * Records block events (`support_session.started`, `webhook_endpoint.failed`,
+ * ...) with the `BLOCK_ATTRIBUTES` names: as an event on the active span, or as
+ * a short `block <type>` span when there is none. Failures (`*.failed`,
+ * `*.denied`) set an error status. Returns a function that stops listening.
  */
 export function traceBlockEvents(
   betterSupabase: { readonly events: EventHub },

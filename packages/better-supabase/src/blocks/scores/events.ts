@@ -2,7 +2,7 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `score_model.saved` and `score_model.deleted`. */
+/** `score_model.created`, `score_model.updated` and `score_model.deleted`. */
 export interface ScoreModelEventData {
   readonly organizationId: string;
   /** The model. */
@@ -29,14 +29,16 @@ export interface ScoreChangedEventData {
 
 /** The events of the `scores` block: type to data. */
 export type ScoresEvents = {
-  readonly "score_model.saved": ScoreModelEventData;
+  readonly "score_model.created": ScoreModelEventData;
+  readonly "score_model.updated": ScoreModelEventData;
   readonly "score_model.deleted": ScoreModelEventData;
   readonly "score.changed": ScoreChangedEventData;
 };
 
 /** The `scores` block's event types, for its manifest and `onBlockEvent`. */
 export const scoresEvents: Events<ScoresEvents> = defineEvents({
-  "score_model.saved": event<ScoreModelEventData>(),
+  "score_model.created": event<ScoreModelEventData>(),
+  "score_model.updated": event<ScoreModelEventData>(),
   "score_model.deleted": event<ScoreModelEventData>(),
   "score.changed": event<ScoreChangedEventData>(),
 });

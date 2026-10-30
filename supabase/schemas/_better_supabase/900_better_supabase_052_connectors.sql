@@ -1,6 +1,6 @@
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:849932e81793ce37ee2158b97d29a9545b6c1004eafc5061137a307c86367109
+-- @bsb-hash sha256:25274329093d9c05d61e2523818f319bbcc1bd0e6f6ab29bf578ab81ea07d471
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -210,9 +210,10 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('connector.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+  if save_connector_server.id is null then
+    perform "better_supabase".emit_event('connector.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
-    event_type => 'connector.saved',
+    event_type => 'connector.created',
     category => 'integration',
     target_type => 'connector',
     record_id => v_row."id"::text,
@@ -220,6 +221,18 @@ begin
     tenant => (v_row."organization_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
   );
+  else
+    perform "better_supabase".emit_event('connector.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+  perform better_supabase.audit_event(
+    event_type => 'connector.updated',
+    category => 'integration',
+    target_type => 'connector',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;

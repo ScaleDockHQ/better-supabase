@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:2fe4175b7e9d8117d34d53586e910dbbbec8309e3af3ea659e2e02deb3effade
+-- @bsb-hash sha256:57fc0c7e39a6aa8fae2690d2bf36e69d8cde3ddc44a5c5042a8a53a5c967bbe3
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -83,7 +83,7 @@ $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
 -- Before a node is deleted for good, its stored objects go into
--- drive.node_purged for the app to remove through Storage; after, its
+-- drive_node.purged for the app to remove through Storage; after, its
 -- grants, attachments, revisions and starred state go too.
 create or replace function "better_supabase"."drive_node_purging"()
 returns trigger
@@ -94,9 +94,9 @@ as $$
 declare
   v_objects jsonb := (select coalesce(jsonb_agg(jsonb_build_object('bucket', pa."bucket", 'path', pa."object_path")), '[]'::jsonb) from "better_supabase"."attachments" pa where pa."subject_type" = 'drive_node' and pa."subject_id" = old."id"::text and pa."uploaded_at" is not null);
 begin
-  perform "better_supabase".emit_event('drive.node_purged', jsonb_build_object('organizationId', old."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', old."id"::text, 'objects', v_objects), 'drive-nodes/' || old."id"::text, (old."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform "better_supabase".emit_event('drive_node.purged', jsonb_build_object('organizationId', old."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', old."id"::text, 'objects', v_objects), 'drive-nodes/' || old."id"::text, (old."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_purged',
+    event_type => 'drive_node.purged',
     category => 'data',
     target_type => 'drive_node',
     record_id => old."id"::text,
@@ -1189,9 +1189,9 @@ begin
     perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'draft', null);
     select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
   end if;
-  perform "better_supabase".emit_event('drive.node_document_saved', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'documentType', v_node."document_type", 'ownerId', v_node."document_owner_id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform "better_supabase".emit_event('drive_node.document_saved', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'documentType', v_node."document_type", 'ownerId', v_node."document_owner_id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_document_saved',
+    event_type => 'drive_node.document_saved',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -1264,9 +1264,9 @@ begin
   v_request := "better_supabase"."request_approval"(v_node."tenant_id", 'drive_node', v_node."id"::text, 'release',
     drive_document_submit.reason, jsonb_build_object('attachmentId', v_file."id", 'revision', v_revision, 'name', v_file."name"));
   select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
-  perform "better_supabase".emit_event('drive.node_submitted', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'attachmentId', v_file."id", 'requestId', v_request ->> 'id'), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform "better_supabase".emit_event('drive_node.submitted', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'attachmentId', v_file."id", 'requestId', v_request ->> 'id'), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_submitted',
+    event_type => 'drive_node.submitted',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -1345,9 +1345,9 @@ begin
     perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'effective', 'released');
   end if;
   select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
-  perform "better_supabase".emit_event('drive.node_released', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'versionId', v_version, 'attachmentId', v_file."id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform "better_supabase".emit_event('drive_node.released', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'versionId', v_version, 'attachmentId', v_file."id"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_released',
+    event_type => 'drive_node.released',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -1425,9 +1425,9 @@ begin
   end if;
   perform "better_supabase"."transition"('drive_node', v_node."id"::text, 'obsolete', drive_document_obsolete.reason);
   select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_node."id";
-  perform "better_supabase".emit_event('drive.node_obsoleted', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'reason', drive_document_obsolete.reason), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform "better_supabase".emit_event('drive_node.obsoleted', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'reason', drive_document_obsolete.reason), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_obsoleted',
+    event_type => 'drive_node.obsoleted',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -1477,9 +1477,9 @@ begin
     where x."id" = v_node."id"
     returning * into v_node;
   end if;
-  perform "better_supabase".emit_event('drive.node_reviewed', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'outcome', drive_document_review.outcome, 'note', drive_document_review.note, 'nextReviewOn', v_node."next_review_on"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform "better_supabase".emit_event('drive_node.reviewed', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'outcome', drive_document_review.outcome, 'note', drive_document_review.note, 'nextReviewOn', v_node."next_review_on"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_reviewed',
+    event_type => 'drive_node.reviewed',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -1529,7 +1529,7 @@ revoke execute on function "better_supabase"."drive_documents"(uuid, jsonb) from
 grant execute on function "better_supabase"."drive_documents"(uuid, jsonb) to authenticated, service_role;
 
 -- Reports each effective document whose review date has come once per date:
--- a drive.node_review_requested event and, with notifications, a notification
+-- a drive_node.review_requested event and, with notifications, a notification
 -- to its owner. Run it daily from a job.
 create or replace function "better_supabase"."notify_due_drive_reviews"()
 returns integer
@@ -1548,7 +1548,7 @@ begin
       and x."review_notified_for" is distinct from x."next_review_on" and x."deleted_at" is null
     for update skip locked
   loop
-    perform "better_supabase".emit_event('drive.node_review_requested', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'ownerId', v_node."document_owner_id", 'nextReviewOn', v_node."next_review_on"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
+    perform "better_supabase".emit_event('drive_node.review_requested', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'documentNumber', v_node."document_number", 'ownerId', v_node."document_owner_id", 'nextReviewOn', v_node."next_review_on"), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive-files');
     if v_node."document_owner_id" is not null then
       v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);

@@ -1,5 +1,6 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
+import { createdOrUpdated } from "../event-verbs.ts";
 import { fail, lockTable, raise, serviceGrant } from "../shared.ts";
 
 /**
@@ -188,7 +189,7 @@ begin
     end if;
   end if;
   perform ${fn("scim_sync_member")}(v_row.${cu("id")});
-  ${record("scim_user.saved", "scim_save_user.tenant", `v_row.${cu("id")}`)}
+  ${createdOrUpdated("scim_save_user.id is null", (verb) => record(`scim_user.${verb}`, "scim_save_user.tenant", `v_row.${cu("id")}`))}
   return (select ${userJson("x")} from ${u} x where x.${cu("id")} = v_row.${cu("id")});
 end;
 $$;
@@ -309,7 +310,7 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform ${fn("scim_sync_member")}(v_member);
   end loop;
-  ${record("scim_group.saved", "scim_save_group.tenant", `v_row.${cg("id")}`)}
+  ${createdOrUpdated("scim_save_group.id is null", (verb) => record(`scim_group.${verb}`, "scim_save_group.tenant", `v_row.${cg("id")}`))}
   return (select ${groupJson("x")} from ${g} x where x.${cg("id")} = v_row.${cg("id")});
 end;
 $$;

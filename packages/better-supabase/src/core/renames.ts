@@ -1,8 +1,8 @@
 /**
  * The names the naming convention changed (ADR 0130), old to new: permission
- * keys in 0.46, entity keys, subject types and hints in 0.47. The shims, the
- * stored-name migrations, the codemods and doctor read these maps, so each
- * rename is written once.
+ * keys in 0.46; entity keys, subject types, hints and event types in 0.47. The
+ * shims, the stored-name migrations, the codemods and doctor read these maps,
+ * so each rename is written once.
  */
 
 /**
@@ -11,7 +11,10 @@
  */
 export const RENAMES_CODEMOD = "0.46";
 
-/** The codemod that applies the 0.47 entity, subject type and hint renames. */
+/**
+ * The codemod that applies the 0.47 entity, subject type, hint and event type
+ * renames.
+ */
 export const ENTITY_RENAMES_CODEMOD = "0.47";
 
 export { HINT_RENAMES, legacyHintOf } from "./hint-renames.ts";
@@ -136,8 +139,162 @@ export const PERMISSION_KEY_SPLITS: Readonly<
   "workflow.run": ["workflow_editor.run"],
 });
 
-/** Outbox event types, old to new. */
-export const EVENT_TYPE_RENAMES: Readonly<Record<string, string>> = frozen({});
+/**
+ * Outbox event types, old to new: the prefix is the entity's singular and the
+ * verb follows the lifecycle list (`deleted`, not `removed`; `<attr>_changed`,
+ * not `<attr>_set`). Wildcards whose whole prefix moved are listed too.
+ */
+export const EVENT_TYPE_RENAMES: Readonly<Record<string, string>> =
+  /* @__PURE__ */ frozen({
+    "access.*": "access_request.*",
+    "access.ended": "access_request.ended",
+    "access.request_approved": "access_request.approved",
+    "access.requested": "access_request.requested",
+    "ai_tool_policy.set": "ai_tool_policy.updated",
+    "approval_policy.removed": "approval_policy.deleted",
+    "credential.set": "credential.updated",
+    "custom_field.*": "field_definition.*",
+    "custom_field.deleted": "field_definition.deleted",
+    "drive.node_created": "drive_node.created",
+    "drive.node_document_saved": "drive_node.document_saved",
+    "drive.node_download_blocked_changed":
+      "drive_node.download_blocked_changed",
+    "drive.node_hold_placed": "drive_node.hold_placed",
+    "drive.node_hold_released": "drive_node.hold_released",
+    "drive.node_locked": "drive_node.locked",
+    "drive.node_moved": "drive_node.moved",
+    "drive.node_obsoleted": "drive_node.obsoleted",
+    "drive.node_ownership_transferred": "drive_node.ownership_transferred",
+    "drive.node_purged": "drive_node.purged",
+    "drive.node_released": "drive_node.released",
+    "drive.node_renamed": "drive_node.renamed",
+    "drive.node_review_requested": "drive_node.review_requested",
+    "drive.node_reviewed": "drive_node.reviewed",
+    "drive.node_shared": "drive_node.shared",
+    "drive.node_submitted": "drive_node.submitted",
+    "drive.node_unlocked": "drive_node.unlocked",
+    "drive.node_unshared": "drive_node.unshared",
+    "engagement.*": "activity.*",
+    "engagement.amended": "activity.amended",
+    "engagement.completed": "activity.completed",
+    "engagement.deleted": "activity.deleted",
+    "engagement.error_marked": "activity.error_marked",
+    "engagement.logged": "activity.logged",
+    "engagement.recorded": "activity.recorded",
+    "engagement.summarized": "activity.summarized",
+    "engagement.transcribed": "activity.transcribed",
+    "engagement.updated": "activity.updated",
+    "flag.override_set": "flag.override_changed",
+    "forecast.*": "forecast_snapshot.*",
+    "forecast.snapshotted": "forecast_snapshot.created",
+    "hostname.primary_set": "hostname.primary_changed",
+    "hostname.removed": "hostname.deleted",
+    "incoming_webhook.enabled_set": "incoming_webhook.enabled_changed",
+    "job.*": "job_opening.*",
+    "job.closed": "job_opening.closed",
+    "job.opened": "job_opening.opened",
+    "leave.adjusted": "leave_balance.adjusted",
+    "leave.approved": "leave_request.approved",
+    "leave.cancelled": "leave_request.cancelled",
+    "leave.rejected": "leave_request.rejected",
+    "leave.requested": "leave_request.requested",
+    "leave.split": "leave_request.split",
+    "leave.updated": "leave_request.updated",
+    "marketplace_installation.removed": "marketplace_installation.deleted",
+    "marketplace_invoice.state_changed": "marketplace_invoice.status_changed",
+    "obligation.*": "contract_obligation.*",
+    "obligation.status_changed": "contract_obligation.status_changed",
+    "organization.domain_added": "sso_domain.created",
+    "organization.domain_removed": "sso_domain.deleted",
+    "organization.domain_updated": "sso_domain.updated",
+    "organization.domain_verified": "sso_domain.verified",
+    "policy.*": "compliance_policy.*",
+    "policy.acknowledged": "compliance_policy.acknowledged",
+    "policy.published": "compliance_policy.published",
+    "postmortem.*": "incident_postmortem.*",
+    "postmortem.published": "incident_postmortem.published",
+    "rule.*": "automation.*",
+    "rule.disabled": "automation.disabled",
+    "rule.enabled": "automation.enabled",
+    "rule.matched": "automation.matched",
+    "rule.removed": "automation.deleted",
+    "segment.removed": "segment.deleted",
+    "signature.*": "signature_request.*",
+    "signature.cancelled": "signature_request.cancelled",
+    "signature.completed": "signature_request.completed",
+    "signature.declined": "signature_request.declined",
+    "signature.requested": "signature_request.requested",
+    "signature.signed": "signature_request.signed",
+    "support.*": "support_session.*",
+    "support.denied": "support_session.denied",
+    "support.ended": "support_session.ended",
+    "support.started": "support_session.started",
+    "time.*": "time_entry.*",
+    "time.invoiced": "time_entry.invoiced",
+    "variant.*": "product_variant.*",
+    "variant.created": "product_variant.created",
+    "variant.deleted": "product_variant.deleted",
+    "variant.updated": "product_variant.updated",
+    "waitlist.*": "waitlist_entry.*",
+    "waitlist.approved": "waitlist_entry.approved",
+    "waitlist.rejected": "waitlist_entry.rejected",
+    "webhook.*": "webhook_endpoint.*",
+    "webhook.delivered": "webhook_endpoint.delivered",
+    "webhook.disabled": "webhook_endpoint.disabled",
+    "webhook.failed": "webhook_endpoint.failed",
+    "webhook.secret_rotated": "webhook_endpoint.secret_rotated",
+    "work_item.*": "task.*",
+    "work_item.archived": "task.archived",
+    "work_item.assigned": "task.assigned",
+    "work_item.closed": "task.closed",
+    "work_item.created": "task.created",
+    "work_item.deleted": "task.deleted",
+    "work_item.reopened": "task.reopened",
+    "work_item.updated": "task.updated",
+    "workflow.*": "workflow_definition.*",
+    "workflow.published": "workflow_definition.published",
+  });
+
+const lifecycle = (entity: string): readonly string[] => [
+  `${entity}.created`,
+  `${entity}.updated`,
+];
+
+/**
+ * Event types that became several: a `saved` or `upserted` event is now
+ * `created` or `updated`, `party.enriched` is `company.enriched` or
+ * `person.enriched`, and a wildcard whose prefix only partly moved gains the
+ * new prefix. A subscriber to the old type gets every type listed.
+ */
+export const EVENT_TYPE_SPLITS: Readonly<Record<string, readonly string[]>> =
+  /* @__PURE__ */ Object.freeze({
+    "agent.saved": lifecycle("agent"),
+    "ai_provider_key.saved": lifecycle("ai_provider_key"),
+    "announcement.saved": lifecycle("announcement"),
+    "approval_policy.saved": lifecycle("approval_policy"),
+    "connector.saved": lifecycle("connector"),
+    "control.saved": lifecycle("control"),
+    "course.saved": lifecycle("course"),
+    "custom_field.saved": lifecycle("field_definition"),
+    "drive.*": ["drive_node.*"],
+    "enrollment_program.saved": lifecycle("enrollment_program"),
+    "flag.saved": lifecycle("flag"),
+    "leave.*": ["leave_request.*", "leave_balance.*"],
+    "marketplace_installation.upserted": lifecycle("marketplace_installation"),
+    "obligation.saved": lifecycle("contract_obligation"),
+    "organization.*": ["sso_domain.*"],
+    "party.*": ["company.enriched", "person.enriched"],
+    "party.enriched": ["company.enriched", "person.enriched"],
+    "pipeline_stage.saved": lifecycle("pipeline_stage"),
+    "post_board.saved": lifecycle("post_board"),
+    "rule.saved": lifecycle("automation"),
+    "saved_view.saved": lifecycle("saved_view"),
+    "scim_group.saved": lifecycle("scim_group"),
+    "scim_user.saved": lifecycle("scim_user"),
+    "score_model.saved": lifecycle("score_model"),
+    "segment.saved": lifecycle("segment"),
+    "sequence.saved": lifecycle("sequence"),
+  });
 
 /**
  * Subject types stored in `subject_type` columns, old to new: the subject
@@ -247,4 +404,49 @@ export function upgradePermissionKey(
   }
 
   return next;
+}
+
+/** Split event wildcards whose prefix still has events of its own. */
+const KEPT_EVENT_SPLITS: ReadonlySet<string> = /* @__PURE__ */ new Set([
+  "drive.*",
+  "organization.*",
+]);
+
+const eventSplitsOf = (type: string): readonly string[] =>
+  Object.hasOwn(EVENT_TYPE_SPLITS, type) ? (EVENT_TYPE_SPLITS[type] ?? []) : [];
+
+/** Whether no block emits `type` any more: it was renamed or split up. */
+export const isOldEventType = (type: string): boolean =>
+  Object.hasOwn(EVENT_TYPE_RENAMES, type) ||
+  (eventSplitsOf(type).length > 0 && !KEPT_EVENT_SPLITS.has(type));
+
+/**
+ * Every type or pattern a subscriber to `type` needs now: its rename and the
+ * types it was split into. A type that did not change is returned as it is.
+ */
+export function currentEventTypes(type: string): readonly string[] {
+  const own =
+    isOldEventType(type) && !Object.hasOwn(EVENT_TYPE_RENAMES, type)
+      ? []
+      : [renamed(EVENT_TYPE_RENAMES, type)];
+
+  return [...own, ...eventSplitsOf(type)];
+}
+
+let legacyEventTypes: ReadonlyMap<string, string> | undefined;
+
+/**
+ * The name `type` had before 0.47, for subscribers that still listen for it, or
+ * `type` when it was not renamed.
+ */
+export function legacyEventType(type: string): string {
+  legacyEventTypes ??= new Map(
+    Object.keys({ ...EVENT_TYPE_RENAMES, ...EVENT_TYPE_SPLITS })
+      .filter((old) => !old.endsWith(".*"))
+      .flatMap((old) =>
+        currentEventTypes(old).map((next) => [next, old] as const),
+      ),
+  );
+
+  return legacyEventTypes.get(type) ?? type;
 }

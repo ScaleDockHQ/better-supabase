@@ -127,6 +127,20 @@ describe("renameBlock", () => {
     });
   });
 
+  it("renames the event types through `events` on a renamed install", () => {
+    const ticket = { singular: "ticket", plural: "tickets" } as const;
+
+    const tickets = renameBlock(tasksBlock, {
+      entities: [
+        { from: { singular: "work_item", plural: "work_items" }, to: ticket },
+      ],
+      events: [{ from: { singular: "task", plural: "tasks" }, to: ticket }],
+    });
+
+    expect(tickets.events.types).toContain("ticket.created");
+    expect(tickets.events.types).not.toContain("task.created");
+  });
+
   it("runs hooks on the renamed client", async () => {
     const { transport } = sql();
     const seen: string[] = [];

@@ -27,7 +27,10 @@ export interface ContractRenewedEventData {
   readonly renewedCount: number;
 }
 
-/** `obligation.saved` and `obligation.status_changed`. */
+/**
+ * `contract_obligation.created`, `contract_obligation.updated` and
+ * `contract_obligation.status_changed`.
+ */
 export interface ObligationEventData {
   readonly organizationId: string;
   readonly obligationId: string;
@@ -41,8 +44,9 @@ export type ContractsEvents = {
   readonly "contract.updated": ContractEventData;
   readonly "contract.status_changed": ContractStatusChangedEventData;
   readonly "contract.renewed": ContractRenewedEventData;
-  readonly "obligation.saved": ObligationEventData;
-  readonly "obligation.status_changed": ObligationEventData;
+  readonly "contract_obligation.created": ObligationEventData;
+  readonly "contract_obligation.updated": ObligationEventData;
+  readonly "contract_obligation.status_changed": ObligationEventData;
 };
 
 /** The `contracts` block's event types, for its manifest and `onBlockEvent`. */
@@ -51,6 +55,7 @@ export const contractsEvents: Events<ContractsEvents> = defineEvents({
   "contract.updated": event<ContractEventData>(),
   "contract.status_changed": event<ContractStatusChangedEventData>(),
   "contract.renewed": event<ContractRenewedEventData>(),
-  "obligation.saved": event<ObligationEventData>(),
-  "obligation.status_changed": event<ObligationEventData>(),
+  "contract_obligation.created": event<ObligationEventData>(),
+  "contract_obligation.updated": event<ObligationEventData>(),
+  "contract_obligation.status_changed": event<ObligationEventData>(),
 });

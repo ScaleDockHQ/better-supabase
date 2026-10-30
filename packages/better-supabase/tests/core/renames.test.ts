@@ -1,8 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 
 import {
+  currentEventTypes,
   currentPermissionKeys,
+  EVENT_TYPE_RENAMES,
+  EVENT_TYPE_SPLITS,
+  isOldEventType,
   isOldPermissionKey,
+  legacyEventType,
   PERMISSION_KEY_RENAMES,
   PERMISSION_KEY_SPLITS,
   renamed,
@@ -77,5 +82,48 @@ describe("renames", () => {
     expect(warn).toHaveBeenCalledOnce();
     expect(warn.mock.calls[0]?.[0]).toContain('"goals.read"');
     expect(warn.mock.calls[0]?.[0]).toContain("codemod 0.46");
+  });
+});
+
+const EVENT = /^[a-z][a-z_]*\.(?:\*|[a-z][a-z_]*)$/;
+
+describe("event type renames", () => {
+  it("only renames to types that follow the convention", () => {
+    const next = [
+      ...Object.values(EVENT_TYPE_RENAMES),
+      ...Object.values(EVENT_TYPE_SPLITS).flat(),
+    ];
+
+    expect(next.filter((type) => !EVENT.test(type))).toEqual([]);
+    expect(next.filter(isOldEventType)).toEqual([]);
+  });
+
+  it("lists every type a subscriber to an old type needs", () => {
+    expect(currentEventTypes("work_item.created")).toEqual(["task.created"]);
+    expect(currentEventTypes("agent.saved")).toEqual([
+      "agent.created",
+      "agent.updated",
+    ]);
+    expect(currentEventTypes("leave.*")).toEqual([
+      "leave_request.*",
+      "leave_balance.*",
+    ]);
+    expect(currentEventTypes("drive.*")).toEqual(["drive.*", "drive_node.*"]);
+    expect(currentEventTypes("task.created")).toEqual(["task.created"]);
+  });
+
+  it("keeps the wildcards that still match current types", () => {
+    expect(isOldEventType("drive.*")).toBe(false);
+    expect(isOldEventType("organization.*")).toBe(false);
+    expect(isOldEventType("sla.breached")).toBe(false);
+    expect(isOldEventType("party.enriched")).toBe(true);
+    expect(isOldEventType("toString")).toBe(false);
+  });
+
+  it("names the old type of a renamed or split event", () => {
+    expect(legacyEventType("task.created")).toBe("work_item.created");
+    expect(legacyEventType("agent.updated")).toBe("agent.saved");
+    expect(legacyEventType("person.enriched")).toBe("party.enriched");
+    expect(legacyEventType("member.joined")).toBe("member.joined");
   });
 });

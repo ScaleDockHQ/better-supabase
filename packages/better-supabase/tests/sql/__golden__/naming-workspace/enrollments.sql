@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:ca1e2ca30ae78ca1a7b9439b221bed951ea1dcf148186d701722df025d284863
+-- @bsb-hash sha256:0da0c8293a4b4f5848b195c281d8fdf4405df61c9ffd68c122f55bc1045c19e6
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -493,7 +493,11 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;

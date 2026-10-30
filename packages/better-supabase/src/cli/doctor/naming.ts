@@ -6,12 +6,32 @@ import {
   RENAMES_CODEMOD,
 } from "../../blocks/permissions/index.ts";
 import {
+  currentEventTypes,
   ENTITY_KEY_RENAMES,
   ENTITY_RENAMES_CODEMOD,
+  EVENT_TYPE_RENAMES,
+  EVENT_TYPE_SPLITS,
   HINT_RENAMES,
+  isOldEventType,
 } from "../../index.ts";
 
 const QUOTED_KEY = /(?<=(["'`]))[a-z][\w-]*\.(?:\*|[a-z][\w-]*)(?=\1)/g;
+
+/**
+ * The event types and patterns the renames lead to, such as `activity.*`, which
+ * was a permission wildcard before 0.46.
+ */
+const CURRENT_EVENT_PATTERNS: ReadonlySet<string> = new Set(
+  Object.keys({ ...EVENT_TYPE_RENAMES, ...EVENT_TYPE_SPLITS }).flatMap((type) =>
+    currentEventTypes(type),
+  ),
+);
+
+/** Old event patterns that are also current permission wildcards. */
+const PERMISSION_WILDCARDS: ReadonlySet<string> = new Set([
+  "leave.*",
+  "waitlist.*",
+]);
 
 function lineAt(text: string, index: number): number {
   return text.slice(0, index).split("\n").length;
@@ -63,7 +83,7 @@ function oldPermissionKeys(context: DoctorContext): FindingInput[] {
     for (const match of file.text.matchAll(QUOTED_KEY)) {
       const [key] = match;
 
-      if (isOldPermissionKey(key)) {
+      if (isOldPermissionKey(key) && !CURRENT_EVENT_PATTERNS.has(key)) {
         findings.push(
           finding(file.path, key, {
             file: file.path,
@@ -124,6 +144,38 @@ function oldEntityKeysAndHints(context: DoctorContext): FindingInput[] {
   return findings;
 }
 
+/**
+ * Event types the naming contract renamed or split, in app code (BS424).
+ * Strings that are also permission keys, old or current, are left to BS422.
+ */
+function oldEventTypes(context: DoctorContext): FindingInput[] {
+  return context.sources.flatMap((file) =>
+    [...file.text.matchAll(QUOTED_KEY)].flatMap((match) => {
+      const [type] = match;
+
+      if (
+        !isOldEventType(type) ||
+        isOldPermissionKey(type) ||
+        PERMISSION_WILDCARDS.has(type)
+      ) {
+        return [];
+      }
+
+      const next = currentEventTypes(type)
+        .map((each) => `\`${each}\``)
+        .join(" or ");
+
+      return [
+        {
+          message: `${file.path} uses the event type \`${type}\`, which is now ${next}. Run \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\`.`,
+          target: `${file.path}:${type}`,
+          location: { file: file.path, line: lineAt(file.text, match.index) },
+        },
+      ];
+    }),
+  );
+}
+
 export const NAMING_RULES: readonly Rule[] = [
   {
     code: "BS422",
@@ -138,5 +190,12 @@ export const NAMING_RULES: readonly Rule[] = [
     title: "Config or code uses a renamed entity key or hint code",
     description: `Keys in \`blocks.<name>.entities\` equal the entity's singular, and hint codes start with the entity's new name. The old keys keep working until the next minor, with a warning; \`hint\` never carries an old code (\`legacyHint\` does). \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\` renames both.`,
     check: oldEntityKeysAndHints,
+  },
+  {
+    code: "BS424",
+    severity: "warning",
+    title: "Code uses a renamed event type",
+    description: `Event types are named \`<entity>.<past verb>\`, so 0.47 renamed some (\`work_item.created\` is \`task.created\`) and split the \`saved\` events into \`created\` and \`updated\`. The outbox stores the new types, so a subscriber to an old one misses its events; the outbox \`legacyEventTypes\` option relays the old names to receivers outside the app until the next minor. \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\` renames them in the app's code and SQL, and lists the split ones.`,
+    check: oldEventTypes,
   },
 ];

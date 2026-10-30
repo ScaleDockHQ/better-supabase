@@ -132,7 +132,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_041_credentials.sql
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:a08fcfde53034cf7ebeeb2f0fd88de116cbce7cd3bb8e219dbab4560a5f323d2
+-- @bsb-hash sha256:9d3c6ccc006695e48f88203c21d8922273fa509333ab0e0a46c11a169264440c
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -199,9 +199,9 @@ begin
   else
     perform vault.update_secret(v_id, credential_set.secret);
   end if;
-  perform "better_supabase".emit_event('credential.set', jsonb_build_object('provider', credential_set.provider, 'name', credential_set.name), 'credentials/' || credential_set.provider || '/' || credential_set.name, null, null, 'better-supabase/credentials');
+  perform "better_supabase".emit_event('credential.updated', jsonb_build_object('provider', credential_set.provider, 'name', credential_set.name), 'credentials/' || credential_set.provider || '/' || credential_set.name, null, null, 'better-supabase/credentials');
   perform better_supabase.audit_event(
-    event_type => 'credential.set',
+    event_type => 'credential.updated',
     category => 'security',
     target_type => 'credential',
     record_id => credential_set.provider || ':' || credential_set.name,

@@ -19,7 +19,7 @@ import {
 import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<ForecastsEvents> = {
-  "forecast.snapshotted": {
+  "forecast_snapshot.created": {
     subject: "forecast-snapshots",
     payload: [
       "organizationId",
@@ -324,7 +324,7 @@ begin
   where x.${s("id")} = v_row.${s("id")}
   returning * into v_row;
   ${ctx.record({
-    type: "forecast.snapshotted",
+    type: "forecast_snapshot.created",
     payload: `jsonb_build_object('organizationId', v_row.${s("tenant")}, 'snapshotId', v_row.${s("id")}, 'pipelineId', v_row.${s("pipeline")}, 'since', v_row.${s("since")}, 'until', v_row.${s("until")}, 'currency', v_row.${s("currency")}, 'dealCount', v_row.${s("dealCount")})`,
     subject: `'forecast-snapshots/' || v_row.${s("id")}::text`,
     tenant: `v_row.${s("tenant")}::text`,

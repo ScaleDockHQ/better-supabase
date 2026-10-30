@@ -570,7 +570,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:46c96384c5bacbd62fee9550432c203e132a1faacf3889070026a6ac02065753
+-- @bsb-hash sha256:0c90da20d1795fdff1c2bfeda75906d688857def740585915e73f7f87117f4d6
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1028,9 +1028,9 @@ begin
     return false;
   end if;
   update "better_supabase"."incoming_webhooks" e set "enabled" = set_incoming_webhook_enabled.enabled where e."id" = endpoint;
-  perform "better_supabase".emit_event('incoming_webhook.enabled_set', jsonb_build_object('organizationId', tenant::text, 'endpointId', endpoint, 'enabled', set_incoming_webhook_enabled.enabled), 'organizations/' || tenant::text || '/incoming-webhooks/' || endpoint::text, (tenant)::text, null, 'better-supabase/webhooks-in');
+  perform "better_supabase".emit_event('incoming_webhook.enabled_changed', jsonb_build_object('organizationId', tenant::text, 'endpointId', endpoint, 'enabled', set_incoming_webhook_enabled.enabled), 'organizations/' || tenant::text || '/incoming-webhooks/' || endpoint::text, (tenant)::text, null, 'better-supabase/webhooks-in');
   perform better_supabase.audit_event(
-    event_type => 'incoming_webhook.enabled_set',
+    event_type => 'incoming_webhook.enabled_changed',
     category => 'integration',
     target_type => 'incoming_webhook',
     record_id => endpoint::text,

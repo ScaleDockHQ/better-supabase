@@ -180,7 +180,7 @@ export interface WebhooksOptions extends BlockTemporalOptions {
   ) => Readonly<Record<string, string>>;
   /** Characters of the response body kept in the log. Defaults to 2000. */
   readonly responseBodyLimit?: number;
-  /** `betterSupabase.events`, for `webhook.*` block events. */
+  /** `betterSupabase.events`, for `webhook_endpoint.*` block events. */
   readonly events?: EventHub;
   /**
    * `withBlockHooks` hooks around the client's methods, such as a check before

@@ -706,11 +706,11 @@ describe("createRuleDispatcher", () => {
         test("ok", ({ context: value }) => ok(value.eventId)),
       ),
       load: (event) =>
-        event.type === "task.skipped"
+        event.type === "widget.skipped"
           ? undefined
           : {
               organizationId: "org-1",
-              subjectType: "task",
+              subjectType: "widget",
               subjectId: (event.payload as { id: string }).id,
               subject: { status: "todo" },
             },
@@ -718,17 +718,17 @@ describe("createRuleDispatcher", () => {
     });
 
     await sink([
-      { id: "e1", type: "task.created", payload: { id: "t1" } },
-      { id: "e2", type: "task.skipped", payload: { id: "t2" } },
-      { id: "e3", type: "task.updated", payload: { id: "t3" } },
+      { id: "e1", type: "widget.created", payload: { id: "t1" } },
+      { id: "e2", type: "widget.skipped", payload: { id: "t2" } },
+      { id: "e3", type: "widget.updated", payload: { id: "t3" } },
     ]);
 
     expect(runs).toEqual([
       [
         "org-1",
         {
-          subjectType: "task",
-          trigger: "task.created",
+          subjectType: "widget",
+          trigger: "widget.created",
           subject: { status: "todo" },
           subjectId: "t1",
         },
@@ -736,13 +736,44 @@ describe("createRuleDispatcher", () => {
       [
         "org-1",
         {
-          subjectType: "task",
-          trigger: "task.updated",
+          subjectType: "widget",
+          trigger: "widget.updated",
           subject: { status: "todo" },
           subjectId: "t3",
         },
       ],
     ]);
+    expect(seen).toEqual([
+      ["e1", [{ ruleId: "r1", kind: "ok", ok: true, value: "e1" }]],
+    ]);
+  });
+
+  it("runs the rules that still name a type from before 0.46", async () => {
+    const triggers: string[] = [];
+    const seen: unknown[] = [];
+    const legacy = { rule: rule([{ kind: "ok" }]), results: {} };
+
+    const sink = createRuleSink({
+      rules: {
+        run: (_, input) => {
+          triggers.push(input.trigger);
+
+          return AsyncResult.ok(
+            input.trigger === "agent.saved" ? [legacy] : [],
+          );
+        },
+      },
+      dispatcher: registry(test("ok", ({ context }) => ok(context.eventId))),
+      load: () => ({ organizationId: "org-1", subjectId: "a1", subject: {} }),
+      onOutcomes: (event, outcomes) => seen.push([event.id, outcomes]),
+    });
+
+    await sink([
+      { id: "e1", type: "agent.updated", payload: {} },
+      { id: "e2", type: "member.joined", payload: {} },
+    ]);
+
+    expect(triggers).toEqual(["agent.updated", "agent.saved", "member.joined"]);
     expect(seen).toEqual([
       ["e1", [{ ruleId: "r1", kind: "ok", ok: true, value: "e1" }]],
     ]);
@@ -832,6 +863,6 @@ describe("automationsBlock", () => {
   it("names its SQL module and events", () => {
     expect(automationsBlock.name).toBe("automations");
     expect(automationsBlock.sql).toEqual(["automations"]);
-    expect(automationsBlock.events.types).toContain("rule.matched");
+    expect(automationsBlock.events.types).toContain("automation.matched");
   });
 });

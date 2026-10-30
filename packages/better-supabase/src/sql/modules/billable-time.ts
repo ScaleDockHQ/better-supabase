@@ -32,7 +32,7 @@ import {
 const GROUPINGS = ["subject", "member", "entry"] as const;
 
 const EVENTS: BlockSqlEvents<BillableTimeEvents> = {
-  "time.invoiced": {
+  "time_entry.invoiced": {
     subject: "invoices",
     payload: ["organizationId", "invoiceId", "entryIds", "currency", "total"],
   },
@@ -558,7 +558,7 @@ begin
   from (${unbilled("invoice_from_time.tenant", "v_scope")}) u
   where u.id::text in (select jsonb_array_elements_text(v_entries));
   ${ctx.record({
-    type: "time.invoiced",
+    type: "time_entry.invoiced",
     payload: `jsonb_build_object('organizationId', invoice_from_time.tenant, 'invoiceId', v_invoice ->> 'id', 'entryIds', v_entries, 'currency', v_currency, 'total', v_total::text)`,
     subject: `'invoices/' || (v_invoice ->> 'id')`,
     tenant: "invoice_from_time.tenant::text",

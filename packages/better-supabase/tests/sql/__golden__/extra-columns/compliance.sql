@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:7af2b53832842a5bb24ba0469e98704246c8a834d7ba26789cbd9923f59f2c5f
+-- @bsb-hash sha256:828bec7de84a0bc8202c899f74381e769e2ea2950cdd34174032831cadfc3b2c
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -343,7 +343,9 @@ begin
   if save_control.owner_id is not null and not exists (select 1 from "better_supabase"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
+  v_new := false;
   if save_control.control_id is null then
+    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
     values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
@@ -364,7 +366,11 @@ begin
   from jsonb_populate_record(null::"better_supabase"."controls", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_control.fields) e where e.key in ('app_note'))) r
   where x."id" = v_row."id"
   returning x.* into v_row;
-  null;
+  if v_new then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'

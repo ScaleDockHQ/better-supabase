@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:5160860ed6776201dbb9d8445ba48d66feace9156d2ce3d650535f4cfff08c3a
+-- @bsb-hash sha256:7476f244c24deaf9a1cc654370b0c60ebb4fa269414d5b6dd7ca7d0c94cfc89c
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -411,7 +411,11 @@ begin
   from jsonb_populate_record(null::"better_supabase"."courses", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each((save_course.course -> 'fields')) e where e.key in ('app_note'))) r
   where x."id" = v_row."id"
   returning x.* into v_row;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;

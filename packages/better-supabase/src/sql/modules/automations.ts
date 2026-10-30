@@ -1,52 +1,26 @@
-import type { AutomationsEvents } from "../../blocks/automations/events.ts";
 import type {
   BlockSqlContext,
   BlockSqlContractFunction,
-  BlockSqlEvents,
   BlockSqlNames,
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
-import { fail, raise, SERVICE_CALLER, schemaPreamble } from "../shared.ts";
+import { fail, raise, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
 import { defaultRulesSql, saveVersionSql } from "./automations-defaults-sql.ts";
 import { operatorTable, rulesEvaluator } from "./automations-evaluate.ts";
 import {
   ACTION_KIND,
+  AUTOMATION_EVENTS,
   columnOf,
   rulesTablesSql,
   SUBJECT_TYPE,
   TRIGGER,
 } from "./automations-tables.ts";
+import { storedTypesData } from "./event-type-renames.ts";
 import { moduleOperations } from "./permissions-model.ts";
-
-const RULE_PAYLOAD = [
-  "organizationId",
-  "ruleId",
-  "name",
-  "subjectType",
-  "trigger",
-  "version",
-] as const;
-
-const EVENTS: BlockSqlEvents<AutomationsEvents> = {
-  "rule.saved": { subject: "rules", payload: RULE_PAYLOAD },
-  "rule.enabled": { subject: "rules", payload: RULE_PAYLOAD },
-  "rule.disabled": { subject: "rules", payload: RULE_PAYLOAD },
-  "rule.removed": { subject: "rules", payload: RULE_PAYLOAD },
-  "rule.matched": {
-    subject: "rules",
-    payload: [
-      "organizationId",
-      "ruleId",
-      "version",
-      "subjectType",
-      "subjectId",
-      "trigger",
-    ],
-  },
-};
 
 const NAMES: BlockSqlNames = {
   entities: {
@@ -57,7 +31,7 @@ const NAMES: BlockSqlNames = {
       primary: true,
     },
   },
-  events: EVENTS,
+  events: AUTOMATION_EVENTS,
   options: ["maxConditions", "maxDepth", "maxActions", "enable", "disable"],
   hooks: [],
   tables: {
@@ -336,7 +310,7 @@ function build(ctx: BlockSqlContext): string {
     });
 
   const matchedEvent = ctx.record({
-    type: "rule.matched",
+    type: "automation.matched",
     payload: `jsonb_build_object('organizationId', v_rule.${r("tenant")}::text, 'ruleId', v_rule.${r("id")}::text, 'version', v_rule.${r("version")}, 'subjectType', v_rule.${r("subjectType")}, 'subjectId', record_rule_evaluation.subject_id, 'trigger', v_rule.${r("trigger")})`,
     subject: `'rules/' || v_rule.${r("id")}::text`,
     tenant: `v_rule.${r("tenant")}`,
@@ -669,11 +643,11 @@ begin
     returning * into v_row;
   end if;
   ${saveVersion}
-  ${ruleEvent("rule.saved", "v_row")}
+  ${createdOrUpdated(`v_old.${r("id")} is null`, (verb) => ruleEvent(`automation.${verb}`, "v_row"))}
   if v_row.${r("enabled")} and not coalesce(v_old.${r("enabled")}, false) then
-    ${ruleEvent("rule.enabled", "v_row")}
+    ${ruleEvent("automation.enabled", "v_row")}
   elsif not v_row.${r("enabled")} and coalesce(v_old.${r("enabled")}, false) then
-    ${ruleEvent("rule.disabled", "v_row")}
+    ${ruleEvent("automation.disabled", "v_row")}
   end if;
   return ${ruleJson("v_row")};
 end;
@@ -778,9 +752,9 @@ begin
   )}
   where x.${r("id")} = v_row.${r("id")} returning * into v_row;
   if v_row.${r("enabled")} then
-    ${ruleEvent("rule.enabled", "v_row")}
+    ${ruleEvent("automation.enabled", "v_row")}
   else
-    ${ruleEvent("rule.disabled", "v_row")}
+    ${ruleEvent("automation.disabled", "v_row")}
   end if;
   return ${ruleJson("v_row")};
 end;
@@ -835,7 +809,7 @@ ${
 `
     : ""
 }  delete from ${t} x where x.${r("id")} = v_row.${r("id")};
-  ${ruleEvent("rule.removed", "v_row")}
+  ${ruleEvent("automation.deleted", "v_row")}
   return true;
 end;
 $$;
@@ -875,7 +849,7 @@ end;
 $$;
 
 -- Logs one evaluation. Live entries come from the service role and emit
--- rule.matched when they match; a test entry takes the edit permission.
+-- automation.matched when they match; a test entry takes the edit permission.
 create or replace function ${fn("record_rule_evaluation")}(rule uuid, subject_id text, matched boolean, results jsonb default '{}'::jsonb, mode text default 'live')
 returns jsonb
 language plpgsql
@@ -1050,6 +1024,11 @@ export const RULES: BlockSqlDefinition = {
   modes: ["managed", "custom"],
   version: 1,
   names: NAMES,
+  data: (ctx) =>
+    storedTypesData(ctx, [
+      ["rules", "trigger"],
+      ["defaults", "trigger"],
+    ]),
   contract,
   build,
 };

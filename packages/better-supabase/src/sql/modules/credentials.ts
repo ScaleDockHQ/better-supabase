@@ -11,7 +11,10 @@ import { sqlString } from "../../core/template.ts";
 import { schemaPreamble, SERVICE_CALLER, serviceGrant } from "../shared.ts";
 
 const EVENTS: BlockSqlEvents<CredentialsEvents> = {
-  "credential.set": { subject: "credentials", payload: ["provider", "name"] },
+  "credential.updated": {
+    subject: "credentials",
+    payload: ["provider", "name"],
+  },
   "credential.deleted": {
     subject: "credentials",
     payload: ["provider", "name"],
@@ -322,7 +325,7 @@ begin${guard("credential_set")}
     insert into ${t} (${insertColumns.join(", ")})
     values (${insertValues.join(", ")});
   end if;
-  ${credentialEvent(ctx, "credential.set", "credential_set")}
+  ${credentialEvent(ctx, "credential.updated", "credential_set")}
   return v_vault;
 end;
 $$;
@@ -412,7 +415,7 @@ begin${guard("credential_set")}
   else
     perform vault.update_secret(v_id, credential_set.secret);
   end if;
-  ${credentialEvent(ctx, "credential.set", "credential_set")}
+  ${credentialEvent(ctx, "credential.updated", "credential_set")}
   return v_id;
 end;
 $$;

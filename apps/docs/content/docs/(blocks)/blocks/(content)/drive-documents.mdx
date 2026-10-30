@@ -76,7 +76,7 @@ The [document register](/docs/registry/ui-recipes/document-register) recipe show
 
 `reviewDocument(id, "unchanged", note?)` records a review that changes nothing and moves the next review date on by the document's interval. `reviewDocument(id, "revise", note?)` records that the document needs a revision; it stays effective until the revision is released. Both need the drive's write role.
 
-`notifyDueReviews()` reports, from the service role, every effective document whose review date has come, once per date: it records `drive.node_review_requested` and, with the [notifications block](/docs/blocks/notifications), notifies the owner. It returns how many it reported. The block doesn't schedule it; run it daily, for example with pg_cron:
+`notifyDueReviews()` reports, from the service role, every effective document whose review date has come, once per date: it records `drive_node.review_requested` and, with the [notifications block](/docs/blocks/notifications), notifies the owner. It returns how many it reported. The block doesn't schedule it; run it daily, for example with pg_cron:
 
 ```sql
 select cron.schedule('drive-reviews', '0 6 * * *', $$select better_supabase.notify_due_drive_reviews()$$);
@@ -109,4 +109,4 @@ With the [relations block](/docs/blocks/relations) installed, control adds the `
 
 ## Events
 
-Control records `drive.node_document_saved`, `drive.node_submitted`, `drive.node_released`, `drive.node_obsoleted`, `drive.node_reviewed` and `drive.node_review_requested`, each with the `documentNumber`. The [events page](/docs/extending/events) lists their payloads.
+Control records `drive_node.document_saved`, `drive_node.submitted`, `drive_node.released`, `drive_node.obsoleted`, `drive_node.reviewed` and `drive_node.review_requested`, each with the `documentNumber`. The [events page](/docs/extending/events) lists their payloads.

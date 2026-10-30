@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:35a8b6f85c825ae11ea2bee59b3960ed9900828d8d5cdeb3107f886cfabc1e9e
+-- @bsb-hash sha256:e741a4f462023dbcdcff0a356d07971db65188b9021e43aae5e6a66ed097c0a0
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -43,7 +43,7 @@ create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
 
 -- Before a node is deleted for good, its stored objects go into
--- drive.node_purged for the app to remove through Storage; after, its
+-- drive_node.purged for the app to remove through Storage; after, its
 -- grants, attachments and starred state go too.
 create or replace function "better_supabase"."drive_node_purging"()
 returns trigger
@@ -54,9 +54,9 @@ as $$
 declare
   v_objects jsonb := '[]'::jsonb;
 begin
-  perform "better_supabase".emit_event('drive.node_purged', jsonb_build_object('organizationId', old."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', old."id"::text, 'objects', v_objects), 'drive-nodes/' || old."id"::text, (old."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('drive_node.purged', jsonb_build_object('organizationId', old."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', old."id"::text, 'objects', v_objects), 'drive-nodes/' || old."id"::text, (old."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_purged',
+    event_type => 'drive_node.purged',
     category => 'data',
     target_type => 'drive_node',
     record_id => old."id"::text,

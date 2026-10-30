@@ -167,15 +167,15 @@ describe.skipIf(!live)("leave", () => {
       ).toEqual(["accrual 25", "taken -5", "taken 5"]);
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'leave.%' order by position",
+        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'leave_request.%' order by position",
         [tenant],
       );
 
       expect(events.map((event) => event.type)).toEqual([
-        "leave.requested",
-        "leave.requested",
-        "leave.approved",
-        "leave.cancelled",
+        "leave_request.requested",
+        "leave_request.requested",
+        "leave_request.approved",
+        "leave_request.cancelled",
       ]);
     } finally {
       await s.close();

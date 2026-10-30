@@ -74,6 +74,22 @@ export function blockEntityRenames(
 }
 
 /**
+ * The renames `module`'s event types start from: a renamed entity's current
+ * singular to the config's name (`task` to `ticket`), since its events name the
+ * current singular. Empty when no renamed entity changed its singular.
+ */
+export function blockEventRenames(
+  module: string,
+  blocks: AnyBlocksConfig,
+): readonly EntityRename[] {
+  const names = catalogNames(module);
+
+  return names === undefined
+    ? []
+    : resolveNames(module, names, blocks).eventRenames;
+}
+
+/**
  * The SQL name of each client function of `module` that the entity renames
  * write under the noun it had before 0.47: with `tasks: { names: { task:
  * "ticket" } }`, `create_task` is still `create_ticket`, as it was from

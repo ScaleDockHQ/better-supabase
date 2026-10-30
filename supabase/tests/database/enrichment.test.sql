@@ -127,9 +127,9 @@ select is(
 
 reset role;
 select is(
-  (select count(*)::int from better_supabase.outbox_events where type = 'party.enriched'),
+  (select count(*)::int from better_supabase.outbox_events where type in ('company.enriched', 'person.enriched')),
   4,
-  'every recorded result emits party.enriched'
+  'every recorded result emits company.enriched or person.enriched'
 );
 
 -- The member reads the results, newest first.

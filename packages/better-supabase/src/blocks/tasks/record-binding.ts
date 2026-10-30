@@ -41,8 +41,8 @@ export function workItemChecklistOptimistic(
 
 /**
  * A task's checklist, on the task's own page: the subject is the task (`{ type:
- * "task", id }`, or its renamed type). A checklist change emits
- * `work_item.updated`, which makes the binding stale.
+ * "task", id }`, or its renamed type). A checklist change emits `task.updated`,
+ * which makes the binding stale.
  */
 export const taskChecklistBinding: RecordBinding<
   Tasks,
@@ -52,7 +52,7 @@ export const taskChecklistBinding: RecordBinding<
 > = defineRecordBinding({
   permissions: { read: "read", write: "write" },
   load: (client: Tasks, subject) => client.checklist(subject.id),
-  events: ["work_item.updated"],
+  events: ["task.updated"],
   optimistic: workItemChecklistOptimistic,
 });
 

@@ -115,7 +115,7 @@ begin
   where x.${v("id")} = set_variant_status.variant
   returning ${ctx.label("variants", "status", `x.${v("status")}`)} into v_to;${liveChecks}
   ${ctx.record({
-    type: "variant.updated",
+    type: "product_variant.updated",
     payload: `jsonb_build_object('organizationId', v_tenant, 'id', set_variant_status.variant, 'productId', v_product, 'sku', v_sku)`,
     subject: `'variants/' || set_variant_status.variant::text`,
     tenant: "v_tenant",

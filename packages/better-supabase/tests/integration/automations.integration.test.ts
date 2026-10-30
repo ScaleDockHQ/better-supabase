@@ -514,7 +514,11 @@ describe.skipIf(!live)("rules module", () => {
       );
 
       expect(events.map((event) => event.type)).toEqual(
-        expect.arrayContaining(["rule.saved", "rule.enabled", "rule.matched"]),
+        expect.arrayContaining([
+          "automation.created",
+          "automation.enabled",
+          "automation.matched",
+        ]),
       );
 
       await s.as(editor);

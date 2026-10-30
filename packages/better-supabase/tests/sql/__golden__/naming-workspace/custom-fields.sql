@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:c03fb7b99fe6c491a91ffcfda44a3e50908bb580fe8386c2ef361731578e4db6
+-- @bsb-hash sha256:e16a6e96a93687ef4b4979b42c3e374ce20f674bcc46b278dca1c0d3628248c0
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,6 +162,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -182,8 +183,12 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
-  returning "id" into v_id;
-  null;
+  returning "id", xmax = 0 into v_id, v_inserted;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;

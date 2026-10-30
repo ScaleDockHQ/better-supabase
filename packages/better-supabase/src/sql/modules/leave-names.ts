@@ -29,13 +29,31 @@ const ADJUSTED_PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<LeaveEvents> = {
-  "leave.requested": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.approved": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.cancelled": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.rejected": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.updated": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.split": { subject: "leave-requests", payload: REQUEST_PAYLOAD },
-  "leave.adjusted": {
+  "leave_request.requested": {
+    subject: "leave-requests",
+    payload: REQUEST_PAYLOAD,
+  },
+  "leave_request.approved": {
+    subject: "leave-requests",
+    payload: REQUEST_PAYLOAD,
+  },
+  "leave_request.cancelled": {
+    subject: "leave-requests",
+    payload: REQUEST_PAYLOAD,
+  },
+  "leave_request.rejected": {
+    subject: "leave-requests",
+    payload: REQUEST_PAYLOAD,
+  },
+  "leave_request.updated": {
+    subject: "leave-requests",
+    payload: REQUEST_PAYLOAD,
+  },
+  "leave_request.split": {
+    subject: "leave-requests",
+    payload: REQUEST_PAYLOAD,
+  },
+  "leave_balance.adjusted": {
     subject: "leave-ledger-entries",
     payload: ADJUSTED_PAYLOAD,
   },

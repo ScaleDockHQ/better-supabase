@@ -2,7 +2,10 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `rule.saved`, `rule.enabled`, `rule.disabled` and `rule.removed`. */
+/**
+ * `automation.created`, `automation.updated`, `automation.enabled`,
+ * `automation.disabled` and `automation.deleted`.
+ */
 export interface RuleEventData {
   readonly organizationId: string;
   readonly ruleId: string;
@@ -12,7 +15,7 @@ export interface RuleEventData {
   readonly version: number;
 }
 
-/** `rule.matched`: a live evaluation matched a subject. */
+/** `automation.matched`: a live evaluation matched a subject. */
 export interface RuleMatchedEventData {
   readonly organizationId: string;
   readonly ruleId: string;
@@ -24,18 +27,20 @@ export interface RuleMatchedEventData {
 
 /** The events of the `rules` block: type to data. */
 export type AutomationsEvents = {
-  readonly "rule.saved": RuleEventData;
-  readonly "rule.enabled": RuleEventData;
-  readonly "rule.disabled": RuleEventData;
-  readonly "rule.removed": RuleEventData;
-  readonly "rule.matched": RuleMatchedEventData;
+  readonly "automation.created": RuleEventData;
+  readonly "automation.updated": RuleEventData;
+  readonly "automation.enabled": RuleEventData;
+  readonly "automation.disabled": RuleEventData;
+  readonly "automation.deleted": RuleEventData;
+  readonly "automation.matched": RuleMatchedEventData;
 };
 
 /** The `rules` block's event types, for its manifest and `onBlockEvent`. */
 export const automationsEvents: Events<AutomationsEvents> = defineEvents({
-  "rule.saved": event<RuleEventData>(),
-  "rule.enabled": event<RuleEventData>(),
-  "rule.disabled": event<RuleEventData>(),
-  "rule.removed": event<RuleEventData>(),
-  "rule.matched": event<RuleMatchedEventData>(),
+  "automation.created": event<RuleEventData>(),
+  "automation.updated": event<RuleEventData>(),
+  "automation.enabled": event<RuleEventData>(),
+  "automation.disabled": event<RuleEventData>(),
+  "automation.deleted": event<RuleEventData>(),
+  "automation.matched": event<RuleMatchedEventData>(),
 });

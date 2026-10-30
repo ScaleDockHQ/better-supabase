@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:8933b26e17038ec3ba666a93f2cf11bda3d9f8ea9ecc195a235c27bfad429299
+-- @bsb-hash sha256:b6ab8c4aba9733e83bca77d5713b6c2377f3fcedb4dcb2478f2cf144885ce12b
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,6 +129,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "better_supabase"."saved_views";
   v_last text;
   v_rank text;
@@ -213,7 +214,11 @@ begin
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin
@@ -526,7 +531,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:641687c0170b50db16c197f0c1d66d22265e5c927d472f0685f696cd3e145a4c
+-- @bsb-hash sha256:e1f67ed3f3792a85b3704bd71de576ed8b893f89089a4be6b761191b62a2c2c2
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -654,6 +659,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "better_supabase"."saved_views";
   v_last text;
   v_rank text;
@@ -749,7 +755,11 @@ begin
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  perform "better_supabase".emit_event('saved_view.saved', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
+  if v_inserted then
+    perform "better_supabase".emit_event('saved_view.created', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
+  else
+    perform "better_supabase".emit_event('saved_view.updated', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin
@@ -1062,7 +1072,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:831e49467572954eb70a9576a76477236e5642c24c27b6acec342cbbdf92b80f
+-- @bsb-hash sha256:b9df43cd8fdd20be479c270e95c5448d7f47ee923fee1b1dd52c7d4c67127876
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1195,6 +1205,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "app_private"."saved_views";
   v_last text;
   v_rank text;
@@ -1279,7 +1290,11 @@ begin
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin
@@ -1592,7 +1607,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:236e1cc799a661ad1e13a935dd721367c9d4ed0a1a7e1e11781f610e34437ca2
+-- @bsb-hash sha256:76155142de53c9ab826bb7f118eb29aa4fe121af66e5d4428970c300f04c5eeb
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1720,6 +1735,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "better_supabase"."saved_views";
   v_last text;
   v_rank text;
@@ -1804,7 +1820,11 @@ begin
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin
@@ -2204,7 +2224,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:1463c7664392496e0a7e7b31476fcc87bfd7eeabe2b66f88b01d4c47462f1c6f
+-- @bsb-hash sha256:b51510ecc96f5b94bdf2dd98e9596eade91eb18dac9e86d7e45e1350c9cf033a
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2325,6 +2345,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "better_supabase"."saved_views";
   v_last text;
   v_rank text;
@@ -2409,7 +2430,11 @@ begin
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin
@@ -2722,7 +2747,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:44a9a99a94f3a01dbcaf2b47d4f6da63c16818506843b823175c467de688a51f
+-- @bsb-hash sha256:03bfa6440c2814f135c56de85b7b1b6fea97635d46950675b5f9eafbb7e9d6db
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2850,6 +2875,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "better_supabase"."saved_views";
   v_last text;
   v_rank text;
@@ -2934,7 +2960,11 @@ begin
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin

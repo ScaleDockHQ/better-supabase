@@ -212,7 +212,7 @@ const check = await db.courses.verifyCertificate(code).orThrow();
 
 | Event                                                      | Data                                                                                     |
 | ---------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `course.saved`, `course.deleted`                           | `organizationId`, `id`, `key`, `status`                                                  |
+| `course.created`, `course.updated`, `course.deleted`       | `organizationId`, `id`, `key`, `status`                                                  |
 | `course.enrolled`, `course.unenrolled`, `course.completed` | `organizationId`, `id`, `userId`, `enrollmentId`                                         |
 | `course_lesson.completed`                                  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId`                             |
 | `course_certificate.issued`, `course_certificate.revoked`  | `organizationId`, `id`, `courseId`, `userId`, `enrollmentId`, `expiresAt` (for `issued`) |

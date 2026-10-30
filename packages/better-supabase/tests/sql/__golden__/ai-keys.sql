@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:163f33526be9e20e117274480c7f2fd7f1844f2fb93e5647d7b712d8760eaa32
+-- @bsb-hash sha256:3093e3abcbef4d2f9873b7b218a9c49170992d108c4b60d9e0c66d4fcd49dc96
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -179,6 +179,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -195,6 +196,7 @@ begin
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
   where x."organization_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into "better_supabase"."ai_provider_keys" ("organization_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
   on conflict ("organization_id", "provider", "name") do update set
@@ -203,7 +205,11 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;
@@ -565,7 +571,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:d80d92bd1b7d58d8ca4914644a511255842806d8aad3b00a0c8bdca755c62389
+-- @bsb-hash sha256:a0d7360793a2fb95dd1a446db3f6e1685065947f8d50e6e7293263c7bbdc72e1
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -743,6 +749,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -759,6 +766,7 @@ begin
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
   where x."organization_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into "better_supabase"."ai_provider_keys" ("organization_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
   on conflict ("organization_id", "provider", "name") do update set
@@ -767,9 +775,10 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
-  perform "better_supabase".emit_event('ai_provider_key.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/ai-provider-keys/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-keys');
+  if v_inserted then
+    perform "better_supabase".emit_event('ai_provider_key.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/ai-provider-keys/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-keys');
   perform better_supabase.audit_event(
-    event_type => 'ai_provider_key.saved',
+    event_type => 'ai_provider_key.created',
     category => 'security',
     target_type => 'ai_provider_key',
     record_id => v_row."id"::text,
@@ -777,6 +786,18 @@ begin
     tenant => (v_row."organization_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name")
   );
+  else
+    perform "better_supabase".emit_event('ai_provider_key.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/ai-provider-keys/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-keys');
+  perform better_supabase.audit_event(
+    event_type => 'ai_provider_key.updated',
+    category => 'security',
+    target_type => 'ai_provider_key',
+    record_id => v_row."id"::text,
+    target_label => v_row."provider" || '/' || v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name")
+  );
+  end if;
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;
@@ -1147,7 +1168,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:209c9f0eba6db3c857d6e0e8761c2fcad506ed7a49cdda34a4442e6b14d3eb46
+-- @bsb-hash sha256:f05516c87f1eaf4031b7534b780af478114952a09ddc22e24c447fca20195617
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1330,6 +1351,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row "app_private"."ai_provider_keys"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1346,6 +1368,7 @@ begin
   select x."credential_ref" into v_old from "app_private"."ai_provider_keys" x
   where x."organization_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into "app_private"."ai_provider_keys" ("organization_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
   on conflict ("organization_id", "provider", "name") do update set
@@ -1354,7 +1377,11 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;
@@ -1716,7 +1743,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:3cc79557778fa3dcde4368c17d4b782117583797de0705035e82ed53288f6e4f
+-- @bsb-hash sha256:5b99c6682d358feaf45410363e61f6cc2bb0e7f0ad78fb95416eaeb61559202f
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1894,6 +1921,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -1910,6 +1938,7 @@ begin
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
   where x."organization_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into "better_supabase"."ai_provider_keys" ("organization_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
   on conflict ("organization_id", "provider", "name") do update set
@@ -1918,7 +1947,11 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;
@@ -2410,7 +2443,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:0b1785ed9cfba1090e425d4e8d1f35d8572dfad290de79cf4e16a867260ed25b
+-- @bsb-hash sha256:a48b045c7cf089c999eca6e28f5f39bc549584c48378bb02840a32ff532f274b
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2598,6 +2631,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -2614,6 +2648,7 @@ begin
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
   where x."organization_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into "better_supabase"."ai_provider_keys" ("organization_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
   on conflict ("organization_id", "provider", "name") do update set
@@ -2622,7 +2657,11 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;
@@ -2984,7 +3023,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:80ddcf6be034841ba7aa9388421907672a31b65458da3c94fba07ea99c1e2381
+-- @bsb-hash sha256:ce5200837cb00eb0dcac1338dbd5912e439136e34b4fbc70ac4c262ece1971d5
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3162,6 +3201,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -3178,6 +3218,7 @@ begin
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
   where x."org_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into "better_supabase"."ai_provider_keys" ("org_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
   on conflict ("org_id", "provider", "name") do update set
@@ -3186,7 +3227,11 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;

@@ -33,7 +33,7 @@ describe("taskChecklistBinding", () => {
 
     expect(loaded.ok && loaded.data.map((row) => row.id)).toEqual(["a"]);
     expect(checklist).toHaveBeenCalledWith("w1");
-    expect(taskChecklistBinding.events).toEqual(["work_item.updated"]);
+    expect(taskChecklistBinding.events).toEqual(["task.updated"]);
     expect(tasksBlock.record).toBe(taskChecklistBinding);
   });
 

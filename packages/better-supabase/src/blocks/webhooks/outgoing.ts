@@ -243,7 +243,10 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
   const emitEvent = blockEmitter<WebhooksEvents>(options);
 
   function emit(
-    type: "webhook.delivered" | "webhook.failed" | "webhook.disabled",
+    type:
+      | "webhook_endpoint.delivered"
+      | "webhook_endpoint.failed"
+      | "webhook_endpoint.disabled",
     delivery: WebhookDelivery,
     extra: { readonly status?: number; readonly error?: string } = {},
   ): void {
@@ -628,7 +631,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
       switch (outcome) {
         case "succeeded": {
           counts.succeeded += 1;
-          emit("webhook.delivered", delivery, {
+          emit("webhook_endpoint.delivered", delivery, {
             status: result.response?.status ?? 200,
           });
           break;
@@ -642,7 +645,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
             counts.dead += 1;
           }
 
-          emit("webhook.failed", delivery, {
+          emit("webhook_endpoint.failed", delivery, {
             ...(result.response ? { status: result.response.status } : {}),
             ...(result.error ? { error: result.error } : {}),
           });
@@ -662,7 +665,7 @@ export function createWebhooks(options: WebhooksOptions): Webhooks {
 
       if (state === "disabled") {
         counts.disabled += 1;
-        emit("webhook.disabled", delivery);
+        emit("webhook_endpoint.disabled", delivery);
       }
     }
 

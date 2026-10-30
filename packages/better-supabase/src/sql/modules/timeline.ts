@@ -8,6 +8,7 @@ import type { ActivitySourceName } from "./timeline-reads.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { SERVICE_CALLER, schemaPreamble, pageSize, fail } from "../shared.ts";
+import { storedTypesData } from "./event-type-renames.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { activityReads } from "./timeline-reads.ts";
@@ -258,6 +259,7 @@ export const ACTIVITY: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,
+  data: (ctx) => storedTypesData(ctx, [["activity", "type"]]),
   contract,
   build,
 };

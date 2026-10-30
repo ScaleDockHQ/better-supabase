@@ -26,7 +26,11 @@ import { moduleOperations } from "./permissions-model.ts";
 import { subjectTypeRenames } from "./subject-type-renames.ts";
 
 const EVENTS: BlockSqlEvents<ComplianceEvents> = {
-  "control.saved": {
+  "control.created": {
+    subject: "controls",
+    payload: ["organizationId", "controlId", "frameworkId", "code"],
+  },
+  "control.updated": {
     subject: "controls",
     payload: ["organizationId", "controlId", "frameworkId", "code"],
   },
@@ -44,11 +48,11 @@ const EVENTS: BlockSqlEvents<ComplianceEvents> = {
       "dueOn",
     ],
   },
-  "policy.published": {
+  "compliance_policy.published": {
     subject: "policies",
     payload: ["organizationId", "policyId", "versionId", "number"],
   },
-  "policy.acknowledged": {
+  "compliance_policy.acknowledged": {
     subject: "policies",
     payload: ["organizationId", "policyId", "versionId", "userId"],
   },

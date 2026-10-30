@@ -11,6 +11,7 @@ import type { DrivePreviews } from "./drive.ts";
 
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 import { attachmentOf, stored } from "../attachments/attachments.ts";
 import { applyTemporal, blockCall, isRecord, optionalText } from "../shared.ts";
 import { nodeOf, previewsOf } from "./parse.ts";
@@ -263,9 +264,7 @@ export function createDrivePreviews(
     sink: () => ({
       async send(events) {
         for (const event of events) {
-          const type = event.type.startsWith(prefix)
-            ? event.type.slice(prefix.length)
-            : event.type;
+          const type = eventTypeOf(event, prefix);
 
           if (
             (type !== "attachment.uploaded" && type !== "attachment.scanned") ||

@@ -199,7 +199,7 @@ describe("createWebhooks: deliver", () => {
     });
     expect(seen).toEqual([
       {
-        type: "webhook.delivered",
+        type: "webhook_endpoint.delivered",
         data: {
           endpointId: "dest-1",
           deliveryId: "del-1",
@@ -283,9 +283,9 @@ describe("createWebhooks: deliver", () => {
     expect(last).not.toHaveProperty("retry_at");
     expect(gone).toMatchObject({ status: "dead", response_status: 410 });
     expect(seen.map((event) => event.type)).toEqual([
-      "webhook.failed",
-      "webhook.failed",
-      "webhook.failed",
+      "webhook_endpoint.failed",
+      "webhook_endpoint.failed",
+      "webhook_endpoint.failed",
     ]);
     expect(seen.map((event) => event.data)).toContainEqual(
       expect.objectContaining({ status: 503, error: "HTTP 503" }),
@@ -519,8 +519,8 @@ describe("createWebhooks: deliver", () => {
 
     expect(await webhooks.deliver()).toMatchObject({ dead: 1, disabled: 1 });
     expect(seen.map((event) => event.type)).toEqual([
-      "webhook.failed",
-      "webhook.disabled",
+      "webhook_endpoint.failed",
+      "webhook_endpoint.disabled",
     ]);
   });
 

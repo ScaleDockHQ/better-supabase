@@ -154,7 +154,7 @@ describe.skipIf(!live)("billable-time", () => {
       ).toEqual([{ status: "draft", quantity: "1.5000", unit: "12000" }]);
       expect(
         await s.rows<{ type: string }>(
-          "select type from better_supabase.outbox_events where organization_id = $1 and type = 'time.invoiced'",
+          "select type from better_supabase.outbox_events where organization_id = $1 and type = 'time_entry.invoiced'",
           [tenant],
         ),
       ).toHaveLength(1);

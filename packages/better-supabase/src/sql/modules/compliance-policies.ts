@@ -152,7 +152,7 @@ begin
     where x.${p("id")} = v_row.${p("id")}
     returning * into v_row;
   ${policyRecord(
-    "policy.published",
+    "compliance_policy.published",
     `jsonb_build_object('organizationId', v_row.${p("tenant")}, 'policyId', v_row.${p("id")}, 'versionId', v_row.${p("currentVersion")}, 'number', v_row.${p("versionNumber")})`,
     `'published policy ' || v_row.${p("title")} || ' version ' || v_row.${p("versionNumber")}::text`,
   )}
@@ -213,7 +213,7 @@ begin
   on conflict (${a("policy")}, ${a("version")}, ${a("user")}) do nothing;
   if found then
     ${policyRecord(
-      "policy.acknowledged",
+      "compliance_policy.acknowledged",
       `jsonb_build_object('organizationId', v_row.${p("tenant")}, 'policyId', v_row.${p("id")}, 'versionId', v_row.${p("currentVersion")}, 'userId', v_me)`,
       `'acknowledged policy ' || v_row.${p("title")} || ' version ' || v_row.${p("versionNumber")}::text`,
     )}

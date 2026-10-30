@@ -5,6 +5,11 @@ import {
   HINT_RENAMES,
   SUBJECT_TYPE_RENAMES,
 } from "../index.ts";
+import {
+  EVENT_REVIEW,
+  EVENT_STRINGS,
+  renameSqlEventTypes,
+} from "./codemod-events-0-47.ts";
 import { withEntityKeysRenamed } from "./sql/config-entity-keys.ts";
 
 const escapeRegExp = (value: string): string =>
@@ -68,20 +73,29 @@ function renameSqlHints(source: string): CodemodResult {
   return { text, review };
 }
 
+/** Renames the hint codes, then the event types, in the app's own SQL. */
+function renameSql(source: string): CodemodResult {
+  const hints = renameSqlHints(source);
+  const events = renameSqlEventTypes(hints.text);
+
+  return { text: events.text, review: [...hints.review, ...events.review] };
+}
+
 /**
- * `codemod 0.47`: entity keys equal the entity's singular, and hint codes
- * follow the entity's new name (ADR 0130).
+ * `codemod 0.47`: entity keys equal the entity's singular, hint codes follow
+ * the entity's new name, and event types are `<entity>.<past verb>` (ADR
+ * 0130).
  */
 export const CODEMOD_0_47: Codemod = {
   name: ENTITY_RENAMES_CODEMOD,
   description:
-    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, and lists ACTIVITY_FORBIDDEN and the renamed subject types for review",
+    "Renames the keys of blocks.<name>.entities to the entity's singular (work_item to task, engagement to activity, rule to automation, ...), renames hint codes after the entity's new name (WORK_ITEM_NOT_FOUND to TASK_NOT_FOUND, ENGAGEMENT_NOT_FOUND to ACTIVITY_NOT_FOUND, ...) in code and the app's SQL, renames workItemChecklistBinding to taskChecklistBinding, renames event types to <entity>.<past verb> (work_item.created to task.created, rule.removed to automation.deleted, ...) in config, code and the app's SQL, and lists ACTIVITY_FORBIDDEN, the renamed subject types, the split event types such as agent.saved, the support.*, workflow.*, leave.* and waitlist.* patterns and the drive.* and organization.* patterns for review",
   subpathImports: {
     "blocks/tasks": { workItemChecklistBinding: "taskChecklistBinding" },
   },
-  strings: HINT_STRINGS,
+  strings: { ...HINT_STRINGS, ...EVENT_STRINGS },
   configFile: (source) =>
     withEntityKeysRenamed({ ok: true, text: source, review: [] }),
-  sqlFile: renameSqlHints,
-  review: REVIEW_0_47,
+  sqlFile: renameSql,
+  review: [...REVIEW_0_47, ...EVENT_REVIEW],
 };

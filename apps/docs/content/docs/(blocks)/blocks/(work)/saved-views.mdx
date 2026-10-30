@@ -323,10 +323,10 @@ await client.upsert({
 
 ## Events
 
-`upsert` and `delete` record `saved_view.saved` and `saved_view.deleted` in the
+`upsert` and `delete` record `saved_view.created`, `saved_view.updated` and `saved_view.deleted` in the
 outbox when it is installed, and `upsert` calls the `before_view_save` and
 `after_view_save` hooks. `duplicate` saves through the same function, so a
-copy records `saved_view.saved` and runs both hooks. Preferences record no
+copy records `saved_view.created`, `saved_view.updated` and runs both hooks. Preferences record no
 event.
 
 ## With ReUI

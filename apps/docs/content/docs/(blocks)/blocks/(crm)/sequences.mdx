@@ -149,7 +149,7 @@ blocks: {
 
 ## Events
 
-The block writes `sequence.saved` and `sequence.deleted`, and per run
+The block writes `sequence.created`, `sequence.updated` and `sequence.deleted`, and per run
 `sequence_enrollment.created`, `.step_completed`, `.paused`, `.resumed`,
 `.exited` and `.completed`, to the [outbox](/docs/blocks/outbox). A run event
 names the record (`subjectType`, `subjectId`), so record timelines and the

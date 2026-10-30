@@ -2,7 +2,10 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `enrollment_program.saved` and `enrollment_program.deleted`. */
+/**
+ * `enrollment_program.created`, `enrollment_program.updated` and
+ * `enrollment_program.deleted`.
+ */
 export interface EnrollmentProgramEventData {
   readonly organizationId: string;
   /** The program. */
@@ -33,7 +36,8 @@ export interface EnrollmentEventData {
 
 /** The events of the `enrollments` block: type to data. */
 export type EnrollmentsEvents = {
-  readonly "enrollment_program.saved": EnrollmentProgramEventData;
+  readonly "enrollment_program.created": EnrollmentProgramEventData;
+  readonly "enrollment_program.updated": EnrollmentProgramEventData;
   readonly "enrollment_program.deleted": EnrollmentProgramEventData;
   readonly "enrollment.created": EnrollmentEventData;
   readonly "enrollment.step_completed": EnrollmentEventData;
@@ -43,7 +47,8 @@ export type EnrollmentsEvents = {
 
 /** The `enrollments` block's event types, for its manifest and `onBlockEvent`. */
 export const enrollmentsEvents: Events<EnrollmentsEvents> = defineEvents({
-  "enrollment_program.saved": event<EnrollmentProgramEventData>(),
+  "enrollment_program.created": event<EnrollmentProgramEventData>(),
+  "enrollment_program.updated": event<EnrollmentProgramEventData>(),
   "enrollment_program.deleted": event<EnrollmentProgramEventData>(),
   "enrollment.created": event<EnrollmentEventData>(),
   "enrollment.step_completed": event<EnrollmentEventData>(),

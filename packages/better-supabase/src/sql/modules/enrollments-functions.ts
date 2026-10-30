@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { createdOrUpdated } from "../event-verbs.ts";
 import { fail, pageSize, SERVICE_CALLER, userGrant } from "../shared.ts";
 import {
   assigneeJson,
@@ -420,7 +421,7 @@ begin
     where x.${p("id")} = v_old.${p("id")}
     returning * into v_row;
   end if;
-  ${programRecord("enrollment_program.saved", "v_row", "saved an enrollment program")}
+  ${createdOrUpdated(`v_old.${p("id")} is null`, (verb) => programRecord(`enrollment_program.${verb}`, "v_row", `${verb} an enrollment program`))}
   return ${programJson("v_row")};
 end;
 $$;

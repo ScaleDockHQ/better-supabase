@@ -26,6 +26,7 @@ import type { RuleField, RuleFieldCatalog } from "./fields.ts";
 import { actionKey } from "../../core/automation.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { dbError } from "../../core/errors.ts";
+import { legacyEventType } from "../../core/renames.ts";
 import { AsyncResult, err, ok } from "../../core/result.ts";
 import { evaluateFilterQuery } from "../../list/filter-evaluate.ts";
 import { FILTER_OPERATORS } from "../../list/filter-query.ts";
@@ -757,10 +758,11 @@ export function eventTarget(event: RuleSinkEvent): RuleSinkTarget | undefined {
 
 /**
  * An outbox consumer handler that tests the rules whose trigger is the event's
- * type and runs the actions of the ones that match, for
- * `outbox.consume("rules", createRuleSink(...))`. It throws when the evaluation
- * fails, so the outbox retries the event; a failed action goes to `onOutcomes`
- * instead, since a retry would run the others again.
+ * type, or the name the type had before 0.46 (such as `agent.saved` for
+ * `agent.created`) until the next minor, and runs the actions of the ones that
+ * match, for `outbox.consume("rules", createRuleSink(...))`. It throws when the
+ * evaluation fails, so the outbox retries the event; a failed action goes to
+ * `onOutcomes` instead, since a retry would run the others again.
  */
 export function createRuleSink(
   options: RuleSinkOptions,
@@ -773,19 +775,28 @@ export function createRuleSink(
         continue;
       }
 
-      const matches = await options.rules
-        .run(target.organizationId, {
-          subjectType: target.subjectType ?? null,
-          trigger: event.type,
-          subject: target.subject,
-          ...(target.subjectId === undefined
-            ? {}
-            : { subjectId: target.subjectId }),
-          ...(target.timeZone === undefined
-            ? {}
-            : { timeZone: target.timeZone }),
-        })
-        .orThrow();
+      const legacy = legacyEventType(event.type);
+      const matches: RuleMatch[] = [];
+
+      for (const trigger of legacy === event.type
+        ? [event.type]
+        : [event.type, legacy]) {
+        matches.push(
+          ...(await options.rules
+            .run(target.organizationId, {
+              subjectType: target.subjectType ?? null,
+              trigger,
+              subject: target.subject,
+              ...(target.subjectId === undefined
+                ? {}
+                : { subjectId: target.subjectId }),
+              ...(target.timeZone === undefined
+                ? {}
+                : { timeZone: target.timeZone }),
+            })
+            .orThrow()),
+        );
+      }
 
       if (matches.length === 0) {
         continue;

@@ -1,6 +1,6 @@
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:c4aca60b76a86fb5329ee2854920d761f8aab168e7be61b924b3f95c781c87ca
+-- @bsb-hash sha256:9442e3f7f9f85614b454d00e7428a71cfbc4e77b41cc9a5f3e69449b6351742d
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -181,7 +181,7 @@ begin
 end;
 $$;
 
--- Approves or rejects an entry. Approving emits waitlist.approved, for the
+-- Approves or rejects an entry. Approving emits waitlist_entry.approved, for the
 -- email that says they can sign up.
 create or replace function "better_supabase"."decide_waitlist_entry"(id uuid, approve boolean)
 returns jsonb
@@ -208,9 +208,9 @@ begin
     raise exception 'No open waitlist entry %', decide_waitlist_entry.id using errcode = 'P0002', hint = 'WAITLIST_NOT_FOUND';
   end if;
   if decide_waitlist_entry.approve then
-    perform "better_supabase".emit_event('waitlist.approved', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
+    perform "better_supabase".emit_event('waitlist_entry.approved', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
   perform better_supabase.audit_event(
-    event_type => 'waitlist.approved',
+    event_type => 'waitlist_entry.approved',
     category => 'access',
     target_type => 'waitlist_entry',
     record_id => v_row."id"::text,
@@ -218,9 +218,9 @@ begin
     metadata => jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email")
   );
   else
-    perform "better_supabase".emit_event('waitlist.rejected', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
+    perform "better_supabase".emit_event('waitlist_entry.rejected', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
   perform better_supabase.audit_event(
-    event_type => 'waitlist.rejected',
+    event_type => 'waitlist_entry.rejected',
     category => 'access',
     target_type => 'waitlist_entry',
     record_id => v_row."id"::text,

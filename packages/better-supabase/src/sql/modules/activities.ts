@@ -52,29 +52,29 @@ const PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<ActivitiesEvents> = {
-  "engagement.logged": { subject: "engagements", payload: [...PAYLOAD] },
-  "engagement.updated": { subject: "engagements", payload: [...PAYLOAD] },
-  "engagement.completed": { subject: "engagements", payload: [...PAYLOAD] },
-  "engagement.deleted": { subject: "engagements", payload: [...PAYLOAD] },
-  "engagement.recorded": {
+  "activity.logged": { subject: "engagements", payload: [...PAYLOAD] },
+  "activity.updated": { subject: "engagements", payload: [...PAYLOAD] },
+  "activity.completed": { subject: "engagements", payload: [...PAYLOAD] },
+  "activity.deleted": { subject: "engagements", payload: [...PAYLOAD] },
+  "activity.recorded": {
     subject: "engagements",
     payload: [...PAYLOAD, "recordingId"],
   },
-  "engagement.transcribed": {
+  "activity.transcribed": {
     subject: "engagements",
     payload: [...PAYLOAD, "recordingId"],
     retries: true,
   },
-  "engagement.summarized": {
+  "activity.summarized": {
     subject: "engagements",
     payload: [...PAYLOAD],
     retries: true,
   },
-  "engagement.amended": {
+  "activity.amended": {
     subject: "engagements",
     payload: [...PAYLOAD, "amendsId"],
   },
-  "engagement.error_marked": {
+  "activity.error_marked": {
     subject: "engagements",
     payload: [...PAYLOAD, "reason"],
   },
@@ -473,7 +473,7 @@ begin
   }
   returning ${e("id")} into v_id;${writeExtraColumns(t("engagements"), extras, "log_activity.attrs -> 'fields'", `x.${e("id")} = v_id`)}
   ${setSubjects("v_id", "log_activity.subjects", "v_tenant")}
-  ${record("engagement.logged", "v_id", "v_type", "v_tenant")}${notifyOwner}
+  ${record("activity.logged", "v_id", "v_type", "v_tenant")}${notifyOwner}
   ${ctx.hook("after_activity_log", [["uuid", "v_id"]])}
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
@@ -529,7 +529,7 @@ begin
     v_subjects := ${subjectsOf("v_id")};
     v_first := v_subjects -> 0;
   end if;
-  ${record("engagement.updated", "v_id", "v_type", "v_tenant")}${notifyOwner}
+  ${record("activity.updated", "v_id", "v_type", "v_tenant")}${notifyOwner}
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;
@@ -558,7 +558,7 @@ begin${refuseLocked("v_id")}
     ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
   end if;
   if complete_activity.done then
-    ${record("engagement.completed", "v_id", "v_type", "v_tenant")}
+    ${record("activity.completed", "v_id", "v_type", "v_tenant")}
   end if;
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
@@ -583,7 +583,7 @@ begin${refuseLocked("v_id")}
   if v_tenant is null then
     return false;
   end if;
-  ${record("engagement.deleted", "v_id", "v_type", "v_tenant")}
+  ${record("activity.deleted", "v_id", "v_type", "v_tenant")}
   return true;
 end;
 $$;

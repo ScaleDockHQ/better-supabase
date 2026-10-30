@@ -217,7 +217,7 @@ can't change them and their enrollments can't be cancelled. See
 
 | Event                                                                                             | Data                                                                                                            |
 | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `enrollment_program.saved`, `enrollment_program.deleted`                                          | `organizationId`, `id`, `key`, `version`                                                                        |
+| `enrollment_program.created`, `enrollment_program.updated`, `enrollment_program.deleted`          | `organizationId`, `id`, `key`, `version`                                                                        |
 | `enrollment.created`, `enrollment.step_completed`, `enrollment.completed`, `enrollment.cancelled` | `organizationId`, `id`, `program`, `subjectType`, `subjectId`, `status`, `step`, `completedSteps`, `totalSteps` |
 
 `step` is set for `enrollment.step_completed`. Only enrollments in an

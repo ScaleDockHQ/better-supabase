@@ -5,7 +5,8 @@ import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `agents` block: type to data. */
 export type AgentsEvents = {
-  readonly "agent.saved": AgentEventData;
+  readonly "agent.created": AgentEventData;
+  readonly "agent.updated": AgentEventData;
   readonly "agent.published": AgentEventData;
   readonly "agent.deleted": AgentEventData;
   readonly "agent.installed": AgentEventData;
@@ -14,7 +15,8 @@ export type AgentsEvents = {
 
 /** The `agents` block's event types, for its manifest and `onBlockEvent`. */
 export const agentsEvents: Events<AgentsEvents> = defineEvents({
-  "agent.saved": event<AgentEventData>(),
+  "agent.created": event<AgentEventData>(),
+  "agent.updated": event<AgentEventData>(),
   "agent.published": event<AgentEventData>(),
   "agent.deleted": event<AgentEventData>(),
   "agent.installed": event<AgentEventData>(),

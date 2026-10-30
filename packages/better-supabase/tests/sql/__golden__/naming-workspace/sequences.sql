@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:fd0483e32a7700e56a87247679bdd775217954440229ec2fc91689f133d01b3a
+-- @bsb-hash sha256:6169b2fb635ec14223d376ce5864c7031a0329afd550ac9b03cff964eb7a786a
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -462,7 +462,11 @@ begin
       end loop;
     end if;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
       'replied', count(*) filter (where m."exit_reason" = 'replied'))

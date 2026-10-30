@@ -144,9 +144,9 @@ begin
       ${e("doneAt")} = null, ${e("outcome")} = null${touched}
     returning ${e("id")}, (xmax = 0) into v_id, v_inserted;${linkParties.link}${subjects}
     if v_inserted then
-      ${record("engagement.logged")}
+      ${record("activity.logged")}
     else
-      ${record("engagement.updated")}
+      ${record("activity.updated")}
     end if;
   elsif new.${b("status")} = 'cancelled' and tg_op = 'UPDATE' and old.${b("status")} = 'confirmed' then
     update ${t("engagements")} x set
@@ -155,7 +155,7 @@ begin
     where x.${e("tenant")} = v_tenant and x.${e("externalRef")} = v_ref and x.${e("doneAt")} is null
     returning x.${e("id")} into v_id;
     if v_id is not null then${subjects}
-      ${record("engagement.completed")}
+      ${record("activity.completed")}
     end if;
   end if;
   return null;

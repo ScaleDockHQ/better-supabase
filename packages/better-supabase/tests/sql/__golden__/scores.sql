@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:831ab255cbc520f6a49ea9e29423c04c0b3ab561353c730750ab76741f81d2f3
+-- @bsb-hash sha256:e1e16253e985c7352032d45c903db9c4348aebcefb570e82f736becad7d133e1
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -287,7 +287,11 @@ begin
   insert into "better_supabase"."score_model_versions" ("model_id", "version", "tenant_id", "rules", "metrics", "bands", "saved_by")
   values (v_row."id", v_row."version", v_row."tenant_id", v_row."rules", v_row."metrics", v_row."bands", auth.uid())
   on conflict do nothing;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -655,7 +659,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:0bb4084f3106cc2e46d315a382204384fd481dfbfe066994567ceae4f674c0dc
+-- @bsb-hash sha256:0a27a0568ae821ec9afb026e2fc86d65b592e625da79b8e13bcb990d7cd8ea95
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -941,17 +945,31 @@ begin
   insert into "better_supabase"."score_model_versions" ("model_id", "version", "tenant_id", "rules", "metrics", "bands", "saved_by")
   values (v_row."id", v_row."version", v_row."tenant_id", v_row."rules", v_row."metrics", v_row."bands", auth.uid())
   on conflict do nothing;
-  perform "better_supabase".emit_event('score_model.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'subjectType', v_row."subject_type", 'version', v_row."version"), 'score-models/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/scores');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('score_model.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'subjectType', v_row."subject_type", 'version', v_row."version"), 'score-models/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/scores');
   perform better_supabase.audit_event(
-    event_type => 'score_model.saved',
+    event_type => 'score_model.created',
     category => 'data',
     target_type => 'score_model',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    summary => 'saved score model',
+    summary => 'created score model',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'subjectType', v_row."subject_type", 'version', v_row."version")
   );
+  else
+    perform "better_supabase".emit_event('score_model.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'subjectType', v_row."subject_type", 'version', v_row."version"), 'score-models/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/scores');
+  perform better_supabase.audit_event(
+    event_type => 'score_model.updated',
+    category => 'data',
+    target_type => 'score_model',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'updated score model',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'subjectType', v_row."subject_type", 'version', v_row."version")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -1329,7 +1347,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:5517c86882d9fd388ecc2db83aa363bbdb98620d4bb2808083a98e0a5b83efec
+-- @bsb-hash sha256:ecf86a553f16ba16f056ec5fb1ec4c73dc7e1f07d11d6f83f357ece8c05057e6
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1620,7 +1638,11 @@ begin
   insert into "app_private"."score_model_versions" ("model_id", "version", "tenant_id", "rules", "metrics", "bands", "saved_by")
   values (v_row."id", v_row."version", v_row."tenant_id", v_row."rules", v_row."metrics", v_row."bands", auth.uid())
   on conflict do nothing;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -1988,7 +2010,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:72302b254ffd0e516ea12747c0c6eb03cbce10a5c41135f1d0b7a6dbc9cb1885
+-- @bsb-hash sha256:e6436736dbc7f21ff4c3fa2d8dadb70465a7b1a8ea61a05af3ad2d91a900a105
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2274,7 +2296,11 @@ begin
   insert into "better_supabase"."score_model_versions" ("model_id", "version", "tenant_id", "rules", "metrics", "bands", "saved_by")
   values (v_row."id", v_row."version", v_row."tenant_id", v_row."rules", v_row."metrics", v_row."bands", auth.uid())
   on conflict do nothing;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -2736,7 +2762,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:70fa025bf5bc36d980491722249d6ba4ed0812855a4f85d5f26a33508c6d97c6
+-- @bsb-hash sha256:266828d4f850d9750ef45b0798fc03557464cd8606abb31a82ea19682910ad3a
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3009,7 +3035,11 @@ begin
   insert into "better_supabase"."score_model_versions" ("model_id", "version", "tenant_id", "rules", "metrics", "bands", "saved_by")
   values (v_row."id", v_row."version", v_row."tenant_id", v_row."rules", v_row."metrics", v_row."bands", auth.uid())
   on conflict do nothing;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -3377,7 +3407,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:fdee9b846edee7e5dbb5a646a682e8e5d2bbdb7970a776977bbda71561867567
+-- @bsb-hash sha256:ba8b9494b0b5f10a04e03c4df71a735c58793396c2aa3872967ff6ad57d3b4f9
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3663,7 +3693,11 @@ begin
   insert into "better_supabase"."score_model_versions" ("model_id", "version", "org_id", "rules", "metrics", "bands", "saved_by")
   values (v_row."id", v_row."version", v_row."org_id", v_row."rules", v_row."metrics", v_row."bands", auth.uid())
   on conflict do nothing;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'rules', v_row."rules", 'metrics', v_row."metrics", 'bands', v_row."bands", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:e0f14f68bdf40d0a703ba4b0a209a59fe2271ebf8770c7a06f5296b0bce0506a
+-- @bsb-hash sha256:51b6e281371f2bab66012e7990c65180874d9ea4d1114b3c4d6168f8e714e08d
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -503,7 +503,7 @@ revoke execute on function "better_supabase"."update_tasks"(jsonb, boolean) from
 grant execute on function "better_supabase"."update_tasks"(jsonb, boolean) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified. work_item.assigned is recorded only
+-- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
 create or replace function "better_supabase"."set_task_assignees"(work_item uuid, users uuid[])
 returns integer

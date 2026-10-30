@@ -57,7 +57,10 @@ describe("auditEventOf", () => {
       auditEventOf({ ...base, type: "dev.better-supabase.account.suspended" }),
     ).toMatchObject({ category: "security" });
     expect(
-      auditEventOf({ ...base, type: "dev.better-supabase.support.denied" }),
+      auditEventOf({
+        ...base,
+        type: "dev.better-supabase.support_session.denied",
+      }),
     ).toMatchObject({ category: "security" });
     expect(auditEventOf({ ...base, type: "invoice.sent" })).not.toHaveProperty(
       "category",
@@ -78,7 +81,7 @@ describe("auditEventOf for support events", () => {
     expect(
       auditEventOf({
         ...base,
-        type: "dev.better-supabase.support.ended",
+        type: "dev.better-supabase.support_session.ended",
         data: {
           sessionId: "s1",
           adminId: "admin-1",
@@ -88,7 +91,7 @@ describe("auditEventOf for support events", () => {
         },
       }),
     ).toMatchObject({
-      eventType: "support.ended",
+      eventType: "support_session.ended",
       supportSessionId: "s1",
       impersonatedBy: "admin-1",
       impersonationReason: "ticket 9",
@@ -107,7 +110,7 @@ describe("auditEventOf for support events", () => {
 
     const denied = auditEventOf({
       ...base,
-      type: "dev.better-supabase.support.denied",
+      type: "dev.better-supabase.support_session.denied",
       data: { adminId: "admin-1", targetUserId: "user-1" },
     });
 
@@ -115,7 +118,10 @@ describe("auditEventOf for support events", () => {
     expect(denied).not.toHaveProperty("supportSessionId");
     expect(denied).not.toHaveProperty("impersonationReason");
     expect(
-      auditEventOf({ ...base, type: "dev.better-supabase.support.started" }),
+      auditEventOf({
+        ...base,
+        type: "dev.better-supabase.support_session.started",
+      }),
     ).not.toHaveProperty("impersonatedBy");
   });
 });

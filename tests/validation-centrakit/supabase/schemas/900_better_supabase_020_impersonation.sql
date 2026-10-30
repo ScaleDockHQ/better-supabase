@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:e7de6a122fd2ec8c0b4adf4720d396f324be3b0b0c85fd0c94248c031709295c
+-- @bsb-hash sha256:1ec4492eb37886b4fbfab57293f0c34bd69002146a80fd9f0021c4c0d431aa5a
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -486,15 +486,15 @@ begin
         using session_id;
     end if;
   end;
-  perform "better_supabase".emit_event('support.started', jsonb_build_object('sessionId', started ->> 'id', 'adminId', started ->> 'admin_id', 'targetUserId', started ->> 'target_user_id', 'reason', started ->> 'reason', 'readOnly', (started ->> 'read_only')::boolean, 'expiresAt', started ->> 'expires_at', 'organizationId', started ->> 'tenant'), 'support-sessions/' || session_id, (tenant)::text, 'support.started:' || session_id, 'domain');
+  perform "better_supabase".emit_event('support_session.started', jsonb_build_object('sessionId', started ->> 'id', 'adminId', started ->> 'admin_id', 'targetUserId', started ->> 'target_user_id', 'reason', started ->> 'reason', 'readOnly', (started ->> 'read_only')::boolean, 'expiresAt', started ->> 'expires_at', 'organizationId', started ->> 'tenant'), 'support-sessions/' || session_id, (tenant)::text, 'support_session.started:' || session_id, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'support.started',
+    event_type => 'support_session.started',
     category => 'security',
     target_type => 'user',
     record_id => target::text,
     tenant => (tenant)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only),
-    idempotency_key => 'support.started:' || session_id,
+    idempotency_key => 'support_session.started:' || session_id,
     actor_id => admin,
     support_session => session_id,
     impersonated_by => admin,
@@ -559,15 +559,15 @@ begin
         using session_id;
     end if;
   end;
-  perform "better_supabase".emit_event('support.ended', jsonb_build_object('sessionId', ended ->> 'id', 'adminId', ended ->> 'admin_id', 'targetUserId', ended ->> 'target_user_id', 'reason', ended ->> 'reason', 'readOnly', (ended ->> 'read_only')::boolean, 'expiresAt', ended ->> 'expires_at', 'organizationId', ended ->> 'tenant', 'endedBy', ended_by), 'support-sessions/' || session_id, ((ended ->> 'tenant')::uuid)::text, 'support.ended:' || session_id, 'domain');
+  perform "better_supabase".emit_event('support_session.ended', jsonb_build_object('sessionId', ended ->> 'id', 'adminId', ended ->> 'admin_id', 'targetUserId', ended ->> 'target_user_id', 'reason', ended ->> 'reason', 'readOnly', (ended ->> 'read_only')::boolean, 'expiresAt', ended ->> 'expires_at', 'organizationId', ended ->> 'tenant', 'endedBy', ended_by), 'support-sessions/' || session_id, ((ended ->> 'tenant')::uuid)::text, 'support_session.ended:' || session_id, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'support.ended',
+    event_type => 'support_session.ended',
     category => 'security',
     target_type => 'user',
     record_id => ended ->> 'target_user_id',
     tenant => ((ended ->> 'tenant')::uuid)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
+    idempotency_key => 'support_session.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end,
     support_session => session_id,
     impersonated_by => (ended ->> 'admin_id')::uuid,

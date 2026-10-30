@@ -2,7 +2,7 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `post_board.saved`. */
+/** `post_board.created` and `post_board.updated`. */
 export interface PostBoardEventData {
   readonly organizationId: string;
   /** The board. */
@@ -28,7 +28,8 @@ export interface PostEventData {
 
 /** The events of the `posts` block: type to data. */
 export type PostsEvents = {
-  readonly "post_board.saved": PostBoardEventData;
+  readonly "post_board.created": PostBoardEventData;
+  readonly "post_board.updated": PostBoardEventData;
   readonly "post.created": PostEventData;
   readonly "post.updated": PostEventData;
   readonly "post.status_changed": PostEventData;
@@ -39,7 +40,8 @@ export type PostsEvents = {
 
 /** The `posts` block's event types, for its manifest and `onBlockEvent`. */
 export const postsEvents: Events<PostsEvents> = defineEvents({
-  "post_board.saved": event<PostBoardEventData>(),
+  "post_board.created": event<PostBoardEventData>(),
+  "post_board.updated": event<PostBoardEventData>(),
   "post.created": event<PostEventData>(),
   "post.updated": event<PostEventData>(),
   "post.status_changed": event<PostEventData>(),

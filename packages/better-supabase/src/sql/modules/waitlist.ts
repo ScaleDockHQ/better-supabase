@@ -31,11 +31,11 @@ import {
 } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<WaitlistEvents> = {
-  "waitlist.approved": {
+  "waitlist_entry.approved": {
     subject: "waitlist-entries",
     payload: ["entryId", "email"],
   },
-  "waitlist.rejected": {
+  "waitlist_entry.rejected": {
     subject: "waitlist-entries",
     payload: ["entryId", "email"],
   },
@@ -420,7 +420,7 @@ begin
 end;
 $$;
 
--- Approves or rejects an entry. Approving emits waitlist.approved, for the
+-- Approves or rejects an entry. Approving emits waitlist_entry.approved, for the
 -- email that says they can sign up.
 create or replace function ${fn("decide_waitlist_entry")}(id uuid, approve boolean)
 returns jsonb
@@ -442,9 +442,9 @@ begin
     ${raise("No open waitlist entry %", "P0002", "WAITLIST_NOT_FOUND", "decide_waitlist_entry.id")}
   end if;
   if decide_waitlist_entry.approve then
-    ${decided("waitlist.approved")}
+    ${decided("waitlist_entry.approved")}
   else
-    ${decided("waitlist.rejected")}
+    ${decided("waitlist_entry.rejected")}
   end if;
   return ${withExtraFields(entryJson("v_row"), "v_row", extras)};
 end;

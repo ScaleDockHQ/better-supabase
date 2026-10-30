@@ -11,6 +11,7 @@ import { entityNames } from "../../blocks/index.ts";
 import {
   blockEntities,
   blockEntityRenames,
+  blockEventRenames,
   blockFormerFunctions,
   tenantNameOf,
 } from "../../config/index.ts";
@@ -150,6 +151,10 @@ function namingOf(
     blockEntityRenames(module, config.blocks),
   );
 
+  const events = modules.flatMap((module) =>
+    blockEventRenames(module, config.blocks),
+  );
+
   const tenant = tenantNameOf(config.blocks);
   const renames = Object.keys(functions).length > 0;
   const tenantColumn = tenantColumnOf(config, modules);
@@ -177,6 +182,7 @@ function namingOf(
     ...(tenantColumn === undefined ? {} : { tenantColumn }),
     ...(renames ? { functions } : {}),
     ...(entities.length === 0 ? {} : { entities }),
+    ...(events.length === 0 ? {} : { events }),
     ...(moved ? { columns } : {}),
   };
 }
@@ -501,6 +507,7 @@ function renamedBlockLines(
   const lines: string[] = [];
   const exported = new Set<string>();
   const constants = new Map<string, string>();
+  let eventRenames = false;
 
   for (const manifest of PRESET_CATALOG.manifests) {
     const instances = Object.entries(entries).filter(
@@ -581,22 +588,40 @@ function renamedBlockLines(
       exported.add(renamed);
       constants.set(instance, renamed);
 
+      const eventAlias =
+        (entry.names?.events?.length ?? 0) === 0 ? alias : `${alias}Events`;
+
+      eventRenames ||= eventAlias !== alias;
+
       lines.push(
         "",
         `type ${alias} = (typeof blockConfig)[${key}]["names"]["entities"];`,
+        ...(eventAlias === alias
+          ? []
+          : [
+              `type ${eventAlias} = EventRenamesOf<(typeof blockConfig)[${key}]["names"]>;`,
+            ]),
         "",
         "/**",
         ` * The \`${manifest.name}\` block under the names \`blocks.${instance}.entities\` gives it.`,
         " * @public",
         " */",
         `export const ${renamed} = renameBlock(${local}, blockConfig[${key}].names);`,
-        ...renamedTypeLines(types, names, localOf, alias, exported, {
-          block: eventsType,
-          instance:
-            instance === manifest.name
-              ? undefined
-              : `${pascal(camelOf(instance))}Events`,
-        }),
+        ...renamedTypeLines(
+          types,
+          names,
+          localOf,
+          alias,
+          eventAlias,
+          exported,
+          {
+            block: eventsType,
+            instance:
+              instance === manifest.name
+                ? undefined
+                : `${pascal(camelOf(instance))}Events`,
+          },
+        ),
       );
     }
   }
@@ -605,7 +630,12 @@ function renamedBlockLines(
     specifiers:
       imports.length === 0
         ? []
-        : ["renameBlock", "type RenamedEvents", "type RenamedType"],
+        : [
+            "renameBlock",
+            ...(eventRenames ? ["type EventRenamesOf"] : []),
+            "type RenamedEvents",
+            "type RenamedType",
+          ],
     imports,
     lines,
     constants,
@@ -690,6 +720,7 @@ function renamedTypeLines(
   names: ReturnType<typeof entityNames>,
   localOf: (name: string) => string,
   alias: string,
+  eventAlias: string,
   exported: Set<string>,
   events: {
     readonly block: string | undefined;
@@ -714,7 +745,7 @@ function renamedTypeLines(
       return [
         "",
         "/** @public */",
-        `export type ${name} = RenamedEvents<${source}, ${alias}>;`,
+        `export type ${name} = RenamedEvents<${source}, ${eventAlias}>;`,
       ];
     }
 

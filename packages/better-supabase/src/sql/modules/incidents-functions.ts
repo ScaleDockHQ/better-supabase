@@ -648,7 +648,7 @@ begin
     ${fail("INCIDENT_POSTMORTEM_NOT_FOUND", "the incident has no postmortem", "P0002")}
   end if;
   ${incidentRecord(
-    "postmortem.published",
+    "incident_postmortem.published",
     `jsonb_build_object('organizationId', v_row.${i("tenant")}, 'postmortemId', v_post.${pm("id")}, 'incidentId', v_row.${i("id")})`,
     `'published the postmortem of incident ' || v_row.${i("title")}`,
   )}

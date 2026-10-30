@@ -28,7 +28,8 @@ const MEMBER_PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<SequencesEvents> = {
-  "sequence.saved": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
+  "sequence.created": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
+  "sequence.updated": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
   "sequence.deleted": { subject: "sequences", payload: SEQUENCE_PAYLOAD },
   "sequence_enrollment.created": {
     subject: "sequence-enrollments",

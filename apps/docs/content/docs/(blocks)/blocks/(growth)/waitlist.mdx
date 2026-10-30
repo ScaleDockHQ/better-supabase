@@ -73,7 +73,7 @@ await waitlist.approve(entries[0].id);
 await waitlist.reject(entries[1].id);
 ```
 
-Approving emits `waitlist.approved` through the outbox, with the entry's
+Approving emits `waitlist_entry.approved` through the outbox, with the entry's
 `email`, for the message that tells them to sign up. When the user signs up,
 the entry becomes `joined`.
 

@@ -15,8 +15,12 @@ import { blockCall, budget } from "../../core/block-helpers.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { cronRoute } from "../../core/cron-route.ts";
 import { DbException } from "../../core/db-exception.ts";
+import { legacyEventType } from "../../core/renames.ts";
 import { toDbError } from "../../core/result.ts";
-import { DEFAULT_TYPE_PREFIX } from "../../events/cloud-event.ts";
+import {
+  CURRENT_TYPE_EXTENSION,
+  DEFAULT_TYPE_PREFIX,
+} from "../../events/cloud-event.ts";
 import {
   asDbError,
   run,
@@ -69,6 +73,16 @@ export interface OutboxOptions extends BlockOptions {
    * Defaults to `dev.better-supabase`.
    */
   readonly typePrefix?: string;
+  /**
+   * Relays each renamed event under the type it had before 0.47, such as
+   * `rule.saved` for `automation.created`, for receivers that still match the
+   * old names. The CloudEvent's `currenttype` extension carries the current
+   * type, which the library's sinks read. Defaults to `false`.
+   *
+   * @deprecated Update the receivers to the new types; the option goes away in
+   * the next minor.
+   */
+  readonly legacyEventTypes?: boolean;
   /**
    * Decides, per event, whether a consumer gets it. The consumer is the
    * subscriber `{ principal: <consumer name>, kind: "service" }`. An event it
@@ -291,17 +305,25 @@ function toEvents(value: unknown): readonly OutboxEvent[] {
  * The CloudEvent for an outbox row: the row id as `id` (stable, so receivers
  * can deduplicate), the payload as `data`, the tenant as `partitionkey` and the
  * writing module as `producer`. The actor stays out of the context attributes,
- * which must not carry personal data.
+ * which must not carry personal data. With `legacyEventTypes`, a renamed type
+ * goes out under its old name and `currenttype` holds the new one.
  */
 export function outboxCloudEvent(
   event: OutboxEvent,
-  options: Pick<OutboxOptions, "source" | "typePrefix">,
+  options: Pick<OutboxOptions, "source" | "typePrefix" | "legacyEventTypes">,
 ): CloudEvent {
+  const legacy =
+    // oxlint-disable-next-line typescript/no-deprecated -- read until the option goes.
+    options.legacyEventTypes === true
+      ? legacyEventType(event.type)
+      : event.type;
+
   return {
     specversion: "1.0",
     id: event.id,
     source: options.source,
-    type: `${options.typePrefix ?? DEFAULT_TYPE_PREFIX}.${event.type}`,
+    type: `${options.typePrefix ?? DEFAULT_TYPE_PREFIX}.${legacy}`,
+    ...(legacy === event.type ? {} : { [CURRENT_TYPE_EXTENSION]: event.type }),
     ...(event.subject ? { subject: event.subject } : {}),
     time: event.createdAt.toString(),
     datacontenttype: "application/json",

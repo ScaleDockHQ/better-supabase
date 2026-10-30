@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:9392967dc152d4f7b9c1db2436950249feb33f2e5e7cc1efd8409ff4d649002a
+-- @bsb-hash sha256:fe99ce44972c7368cfdc23594854da4b55ce58d816c17161e1aff537346cc9b6
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -161,6 +161,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -181,8 +182,12 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
-  returning "id" into v_id;
-  perform "better_supabase".emit_event('custom_field.saved', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+  returning "id", xmax = 0 into v_id, v_inserted;
+  if v_inserted then
+    perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+  else
+    perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+  end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -290,7 +295,7 @@ begin
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
   delete from "better_supabase"."field_definitions" where "id" = delete_field_definition.definition;
-  perform "better_supabase".emit_event('custom_field.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_field_definition.definition), 'custom-fields/' || delete_field_definition.definition::text, (v_tenant)::text, null, 'better-supabase/custom-fields');
+  perform "better_supabase".emit_event('field_definition.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_field_definition.definition), 'custom-fields/' || delete_field_definition.definition::text, (v_tenant)::text, null, 'better-supabase/custom-fields');
   return true;
 end;
 $$;

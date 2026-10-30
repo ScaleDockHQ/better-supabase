@@ -49,7 +49,11 @@ const EVENTS: BlockSqlEvents<PipelinesEvents> = {
     subject: "pipelines",
     payload: ["organizationId", "pipelineId", "subjectType"],
   },
-  "pipeline_stage.saved": {
+  "pipeline_stage.created": {
+    subject: "pipelines",
+    payload: ["organizationId", "pipelineId", "stageId", "key", "category"],
+  },
+  "pipeline_stage.updated": {
     subject: "pipelines",
     payload: ["organizationId", "pipelineId", "stageId", "key", "category"],
   },

@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { sequenceSql } from "./sequences-sql.ts";
 
@@ -401,7 +402,7 @@ begin
       end loop;
     end if;
   end if;
-  ${record("sequence.saved", "saved a sequence")}
+  ${createdOrUpdated(`v_old.${s("id")} is null`, (verb) => record(`sequence.${verb}`, `${verb} a sequence`))}
   return ${q.sequenceJson("v_row")} || jsonb_build_object('counts', ${counts(`v_row.${s("id")}`)});
 end;
 $$;

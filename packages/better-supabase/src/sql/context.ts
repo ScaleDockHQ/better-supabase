@@ -328,6 +328,11 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    */
   blockNaming(): EntityNames;
   /**
+   * Every configured block's event type renames as one (`eventNaming`), for the
+   * stored event types.
+   */
+  blockEventNaming(): EntityNames;
+  /**
    * The entity renames of each block installed under another name, such as
    * `tickets` from `tasks`, for the permission keys each instance adds.
    */
@@ -1015,7 +1020,7 @@ export function createModuleContext(
 
     return {
       ...event,
-      type: entityNaming.rename(event.type),
+      type: resolved.eventNaming.rename(event.type),
       payload,
       ...(subject === undefined ? {} : { subject }),
     };
@@ -1185,6 +1190,17 @@ export function createModuleContext(
           return known === undefined
             ? []
             : [resolveNames(name, known, modules).entityNaming];
+        }),
+      ),
+    blockEventNaming: () =>
+      composeNames(
+        ...Object.entries(modules).flatMap(([name, block]) => {
+          const known =
+            block?.entities === undefined ? undefined : namesOf(name);
+
+          return known === undefined
+            ? []
+            : [resolveNames(name, known, modules).eventNaming];
         }),
       ),
     contributions: (block) =>

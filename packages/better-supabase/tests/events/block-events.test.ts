@@ -68,10 +68,10 @@ describe("block CloudEvents", () => {
     const stop = forwardBlockEvents(
       { events },
       { send: (batch) => void sent.push([...batch]) },
-      { ...fixed, types: ["support.*", "organization.created"] },
+      { ...fixed, types: ["support_session.*", "organization.created"] },
     );
 
-    emitBlockEvent(events, "support.started", {
+    emitBlockEvent(events, "support_session.started", {
       sessionId: "s1",
       adminId: "a1",
       targetUserId: "u1",
@@ -81,7 +81,7 @@ describe("block CloudEvents", () => {
     stop();
     emitBlockEvent(events, "organization.created", { organizationId: "o2" });
     expect(sent.map((batch) => batch.map((event) => event.type))).toEqual([
-      ["dev.better-supabase.support.started"],
+      ["dev.better-supabase.support_session.started"],
       ["dev.better-supabase.organization.created"],
     ]);
 
@@ -100,7 +100,7 @@ describe("block CloudEvents", () => {
       },
       { ...fixed, onError },
     );
-    emitBlockEvent(events, "webhook.failed", { endpointId: "e1" });
+    emitBlockEvent(events, "webhook_endpoint.failed", { endpointId: "e1" });
     await events.settled();
     expect(onError.mock.calls.map(([error]) => String(error))).toEqual([
       "Error: sync",

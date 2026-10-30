@@ -125,12 +125,12 @@ describe.skipIf(!live)("sso", () => {
       expect(resolved).toEqual([`_better-supabase.${name}`]);
       expect(
         await s.rows<{ type: string }>(
-          "select type from better_supabase.outbox_events where organization_id = $1 and type like 'organization.domain%' order by position",
+          "select type from better_supabase.outbox_events where organization_id = $1 and type like 'sso_domain.%' order by position",
           [tenant],
         ),
       ).toEqual([
-        { type: "organization.domain_added" },
-        { type: "organization.domain_verified" },
+        { type: "sso_domain.created" },
+        { type: "sso_domain.verified" },
       ]);
 
       const rival = await s.user("rival");

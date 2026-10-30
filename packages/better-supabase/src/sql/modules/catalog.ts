@@ -58,15 +58,15 @@ const EVENTS: BlockSqlEvents<CatalogEvents> = {
     payload: ["organizationId", "id", "from", "to"],
   },
   "product.deleted": { subject: "products", payload: ["organizationId", "id"] },
-  "variant.created": {
+  "product_variant.created": {
     subject: "variants",
     payload: ["organizationId", "id", "productId", "sku"],
   },
-  "variant.updated": {
+  "product_variant.updated": {
     subject: "variants",
     payload: ["organizationId", "id", "productId", "sku"],
   },
-  "variant.deleted": {
+  "product_variant.deleted": {
     subject: "variants",
     payload: ["organizationId", "id", "productId"],
   },

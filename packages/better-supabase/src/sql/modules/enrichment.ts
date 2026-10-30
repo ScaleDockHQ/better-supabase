@@ -12,6 +12,7 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
   lockTable,
+  NOTHING,
   pageSize,
   schemaPreamble,
   SERVICE_CALLER,
@@ -21,7 +22,18 @@ import {
 import { moduleOperations } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<EnrichmentEvents> = {
-  "party.enriched": {
+  "company.enriched": {
+    subject: "enrichments",
+    payload: [
+      "organizationId",
+      "subjectType",
+      "subjectId",
+      "provider",
+      "status",
+      "filled",
+    ],
+  },
+  "person.enriched": {
     subject: "enrichments",
     payload: [
       "organizationId",
@@ -176,6 +188,15 @@ function functions(ctx: BlockSqlContext, n: EnrichmentNames): string {
     "No company or person you can enrich has this id",
     "P0002",
   );
+
+  const enriched = (party: "company" | "person"): string =>
+    ctx.record({
+      type: `${party}.enriched`,
+      payload: `jsonb_build_object('organizationId', v_tenant, 'subjectType', record_enrichment.subject_type, 'subjectId', record_enrichment.subject_id, 'provider', record_enrichment.provider, 'status', v_status, 'filled', to_jsonb(v_filled))`,
+      subject: `'enrichments/' || v_row.${e("id")}::text`,
+      tenant: "v_tenant::text",
+      audit: false,
+    }) || NOTHING;
 
   const upsert = (
     column: "company" | "person",
@@ -332,13 +353,11 @@ begin
   else
     ${upsert("person")}
   end if;
-  ${ctx.record({
-    type: "party.enriched",
-    payload: `jsonb_build_object('organizationId', v_tenant, 'subjectType', record_enrichment.subject_type, 'subjectId', record_enrichment.subject_id, 'provider', record_enrichment.provider, 'status', v_status, 'filled', to_jsonb(v_filled))`,
-    subject: `'enrichments/' || v_row.${e("id")}::text`,
-    tenant: "v_tenant::text",
-    audit: false,
-  })}
+  if v_company.${co("id")} is not null then
+    ${enriched("company")}
+  else
+    ${enriched("person")}
+  end if;
   return ${json("v_row")};
 end;
 $$;

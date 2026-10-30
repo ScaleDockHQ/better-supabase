@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:1aba4ef2375a51228e10cdf60292608ae4c54ad9eebbb0449a8585ace09f6e94
+-- @bsb-hash sha256:38a82dd65b2d2eafa875fb85a696a8a232d5b5a45913fc844cb5e1846ddaa6fb
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1069,16 +1069,29 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  perform "better_supabase".emit_event('pipeline_stage.saved', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
+  if save_pipeline_stage.stage is null then
+    perform "better_supabase".emit_event('pipeline_stage.created', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
   perform better_supabase.audit_event(
-    event_type => 'pipeline_stage.saved',
+    event_type => 'pipeline_stage.created',
     category => 'configuration',
     target_type => 'pipeline',
     record_id => v_pipeline::text,
-    summary => 'saved stage ' || save_pipeline_stage.name,
+    summary => 'created stage ' || save_pipeline_stage.name,
     tenant => (v_tenant::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)
   );
+  else
+    perform "better_supabase".emit_event('pipeline_stage.updated', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');
+  perform better_supabase.audit_event(
+    event_type => 'pipeline_stage.updated',
+    category => 'configuration',
+    target_type => 'pipeline',
+    record_id => v_pipeline::text,
+    summary => 'updated stage ' || save_pipeline_stage.name,
+    tenant => (v_tenant::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)
+  );
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_pipeline_stage_save"(uuid)');
   begin

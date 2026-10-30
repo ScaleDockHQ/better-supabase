@@ -2602,7 +2602,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@5 managed
--- @bsb-hash sha256:2fa0177d0ca510ae0a49b093f575496e9623932fdb323f728d200609af377f81
+-- @bsb-hash sha256:5201ee4b9598442fb8a1bdd77a3a9b8ec1674c6bfc7b6c1a1d26818f4b3cffe3
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4137,9 +4137,9 @@ begin
   end if;
   if set_ai_tool_policy.policy is null then
     delete from "better_supabase"."ai_tool_policies" x where x."organization_id" = set_ai_tool_policy.tenant and x."tool" = set_ai_tool_policy.tool;
-    perform "better_supabase".emit_event('ai_tool_policy.set', jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy), 'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool, (set_ai_tool_policy.tenant)::text, null, 'better-supabase/ai-chat');
+    perform "better_supabase".emit_event('ai_tool_policy.updated', jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy), 'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool, (set_ai_tool_policy.tenant)::text, null, 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
-    event_type => 'ai_tool_policy.set',
+    event_type => 'ai_tool_policy.updated',
     category => 'ai',
     target_type => 'ai_tool_policy',
     record_id => set_ai_tool_policy.tool,
@@ -4151,9 +4151,9 @@ begin
   insert into "better_supabase"."ai_tool_policies" ("organization_id", "tool", "policy")
   values (set_ai_tool_policy.tenant, set_ai_tool_policy.tool, set_ai_tool_policy.policy)
   on conflict ("organization_id", "tool") do update set "policy" = excluded."policy", "updated_at" = now();
-  perform "better_supabase".emit_event('ai_tool_policy.set', jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy), 'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool, (set_ai_tool_policy.tenant)::text, null, 'better-supabase/ai-chat');
+  perform "better_supabase".emit_event('ai_tool_policy.updated', jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy), 'organizations/' || set_ai_tool_policy.tenant::text || '/ai-tool-policies/' || set_ai_tool_policy.tool, (set_ai_tool_policy.tenant)::text, null, 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
-    event_type => 'ai_tool_policy.set',
+    event_type => 'ai_tool_policy.updated',
     category => 'ai',
     target_type => 'ai_tool_policy',
     record_id => set_ai_tool_policy.tool,

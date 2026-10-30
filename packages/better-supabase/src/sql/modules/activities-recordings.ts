@@ -318,7 +318,7 @@ begin
     ${fail("ACTIVITY_RECORDING_EXISTS", "the file is already a recording of this engagement", "23505")}
   end if;
   ${loadSubjects("attach_activity_recording.engagement")}
-  ${record("engagement.recorded", "attach_activity_recording.engagement", "v_type", "v_tenant", recordingPayload("v_recording"))}${enqueue}
+  ${record("activity.recorded", "attach_activity_recording.engagement", "v_type", "v_tenant", recordingPayload("v_recording"))}${enqueue}
   return ${oneRecording("v_recording")};
 end;
 $$;
@@ -423,7 +423,7 @@ begin
     ${r("status")} = 'transcribed'${set("recordings", "error", "null")}${set("recordings", "language", `coalesce(nullif(save_activity_transcript.attrs ->> 'language', ''), ${field("recordings", "rx", "language")})`)}${set("recordings", "durationSeconds", `coalesce((save_activity_transcript.attrs ->> 'durationSeconds')::integer, ${field("recordings", "rx", "durationSeconds")})`)}${set("recordings", "model", `coalesce(nullif(save_activity_transcript.attrs ->> 'model', ''), ${field("recordings", "rx", "model")})`)}${set("recordings", "transcribedAt", "now()")}
   where rx.${r("id")} = v_recording;
   ${loadSubjects("v_engagement")}
-  ${record("engagement.transcribed", "v_engagement", "v_type", "v_tenant", recordingPayload("v_recording"), "'engagement.transcribed:' || v_recording::text || ':' || md5(save_activity_transcript.segments::text)")}
+  ${record("activity.transcribed", "v_engagement", "v_type", "v_tenant", recordingPayload("v_recording"), "'activity.transcribed:' || v_recording::text || ':' || md5(save_activity_transcript.segments::text)")}
   return ${oneRecording("v_recording")};
 end;
 $$;
@@ -507,7 +507,7 @@ begin
       ...(ctx.has("notes", "updatedAt") ? [`${n("updatedAt")} = now()`] : []),
     ].join(", ")};
   ${loadSubjects("save_activity_notes.engagement")}
-  ${record("engagement.summarized", "save_activity_notes.engagement", "v_type", "v_tenant", "", "'engagement.summarized:' || save_activity_notes.engagement::text || ':' || md5(save_activity_notes.notes::text)")}
+  ${record("activity.summarized", "save_activity_notes.engagement", "v_type", "v_tenant", "", "'activity.summarized:' || save_activity_notes.engagement::text || ':' || md5(save_activity_notes.notes::text)")}
   return (select ${notesJson("nx")} from ${t("notes")} nx where nx.${n("engagement")} = save_activity_notes.engagement);
 end;
 $$;

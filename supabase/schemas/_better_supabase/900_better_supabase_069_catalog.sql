@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@3 managed
--- @bsb-hash sha256:f339a21030f9103eec2638191dedee85263350666ba7a1a68122c62c1cf67c55
+-- @bsb-hash sha256:59b71996e49f5155b7d422c9bfd73860a59ae56632792bb2f7000bf3111a12b5
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -828,9 +828,9 @@ begin
   on conflict do nothing;
   end if;
   if v_created then
-    perform "better_supabase".emit_event('variant.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+    perform "better_supabase".emit_event('product_variant.created', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   else
-    perform "better_supabase".emit_event('variant.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
+    perform "better_supabase".emit_event('product_variant.updated', jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku), 'variants/' || v_id::text, (v_tenant)::text, null, 'better-supabase/catalog');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_variant_save"(uuid, boolean)');
@@ -901,7 +901,7 @@ begin
     raise exception 'the stock ledger has movements for this record; archive it instead' using errcode = '23503', hint = 'CATALOG_VARIANT_IN_USE';
   end if;
   delete from "better_supabase"."product_variants" x where x."id" = delete_variant.variant;
-  perform "better_supabase".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_variant.variant, 'productId', v_product), 'variants/' || delete_variant.variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
+  perform "better_supabase".emit_event('product_variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_variant.variant, 'productId', v_product), 'variants/' || delete_variant.variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
   return true;
 end;
 $$;
@@ -987,7 +987,7 @@ begin
     end if;
     begin
       delete from "better_supabase"."product_variants" x where x."id" = v_variant;
-      perform "better_supabase".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', save_product_option.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
+      perform "better_supabase".emit_event('product_variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', save_product_option.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
     exception when foreign_key_violation then
       raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
     end;
@@ -1165,7 +1165,7 @@ begin
     end if;
     begin
       delete from "better_supabase"."product_variants" x where x."id" = v_variant;
-      perform "better_supabase".emit_event('variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', set_product_options.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
+      perform "better_supabase".emit_event('product_variant.deleted', jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', set_product_options.product), 'variants/' || v_variant::text, (v_tenant)::text, null, 'better-supabase/catalog');
     exception when foreign_key_violation then
       raise exception 'a variant this list removes is still in use' using errcode = '23503', hint = 'CATALOG_OPTION_VALUE_IN_USE';
     end;

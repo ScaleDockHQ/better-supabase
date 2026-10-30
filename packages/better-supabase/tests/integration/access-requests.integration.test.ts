@@ -148,9 +148,9 @@ describe.skipIf(!live)("access requests", () => {
           [`access-requests/${request.id}`],
         ),
       ).toEqual([
-        { type: "access.ended" },
-        { type: "access.request_approved" },
-        { type: "access.requested" },
+        { type: "access_request.approved" },
+        { type: "access_request.ended" },
+        { type: "access_request.requested" },
       ]);
     } finally {
       await s.close();

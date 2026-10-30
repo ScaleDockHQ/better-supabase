@@ -1,6 +1,6 @@
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:b5cba031f7f6f286cb9ae84f6f596fee81f2b84a596ea30a7034c74fbb53c6e2
+-- @bsb-hash sha256:46f5c5ba7182267dd88e7cf3cc9bb0fb514b014c21447c3d51b48e4032737a24
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -425,17 +425,31 @@ begin
       raise exception 'a course with this key already exists' using errcode = '23505', hint = 'COURSE_EXISTS';
     end;
   end if;
-  perform "better_supabase".emit_event('course.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('course.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
   perform better_supabase.audit_event(
-    event_type => 'course.saved',
+    event_type => 'course.created',
     category => 'data',
     target_type => 'course',
     record_id => v_row."id"::text,
     target_label => v_row."title",
-    summary => 'saved a course',
+    summary => 'created a course',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
   );
+  else
+    perform "better_supabase".emit_event('course.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
+  perform better_supabase.audit_event(
+    event_type => 'course.updated',
+    category => 'data',
+    target_type => 'course',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'updated a course',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
+  );
+  end if;
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;

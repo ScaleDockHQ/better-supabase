@@ -3,8 +3,8 @@ import type { Events } from "../../core/event-map.ts";
 import { defineEvents, event } from "../../core/event-map.ts";
 
 /**
- * `leave.requested`, `leave.approved`, `leave.rejected` and `leave.cancelled`:
- * the request.
+ * `leave_request.requested`, `leave_request.approved`, `leave_request.rejected`
+ * and `leave_request.cancelled`: the request.
  */
 export interface LeaveRequestEventData {
   readonly organizationId: string;
@@ -22,7 +22,7 @@ export interface LeaveRequestEventData {
   readonly approvalId: string | null;
 }
 
-/** `leave.adjusted`: a grant or manual adjustment to a member's balance. */
+/** `leave_balance.adjusted`: a grant or manual adjustment to a member's balance. */
 export interface LeaveAdjustedEventData {
   readonly organizationId: string;
   /** The ledger entry. */
@@ -39,24 +39,24 @@ export interface LeaveAdjustedEventData {
 
 /** The events of the `leave` block: type to data. */
 export type LeaveEvents = {
-  readonly "leave.requested": LeaveRequestEventData;
-  readonly "leave.approved": LeaveRequestEventData;
-  readonly "leave.cancelled": LeaveRequestEventData;
-  readonly "leave.rejected": LeaveRequestEventData;
+  readonly "leave_request.requested": LeaveRequestEventData;
+  readonly "leave_request.approved": LeaveRequestEventData;
+  readonly "leave_request.cancelled": LeaveRequestEventData;
+  readonly "leave_request.rejected": LeaveRequestEventData;
   /** A pending or approved request's dates, parts or hours changed. */
-  readonly "leave.updated": LeaveRequestEventData;
+  readonly "leave_request.updated": LeaveRequestEventData;
   /** Approved leave was split around a gap; the event names the new part. */
-  readonly "leave.split": LeaveRequestEventData;
-  readonly "leave.adjusted": LeaveAdjustedEventData;
+  readonly "leave_request.split": LeaveRequestEventData;
+  readonly "leave_balance.adjusted": LeaveAdjustedEventData;
 };
 
 /** The `leave` block's event types, for its manifest and `onBlockEvent`. */
 export const leaveEvents: Events<LeaveEvents> = defineEvents({
-  "leave.requested": event<LeaveRequestEventData>(),
-  "leave.approved": event<LeaveRequestEventData>(),
-  "leave.cancelled": event<LeaveRequestEventData>(),
-  "leave.rejected": event<LeaveRequestEventData>(),
-  "leave.updated": event<LeaveRequestEventData>(),
-  "leave.split": event<LeaveRequestEventData>(),
-  "leave.adjusted": event<LeaveAdjustedEventData>(),
+  "leave_request.requested": event<LeaveRequestEventData>(),
+  "leave_request.approved": event<LeaveRequestEventData>(),
+  "leave_request.cancelled": event<LeaveRequestEventData>(),
+  "leave_request.rejected": event<LeaveRequestEventData>(),
+  "leave_request.updated": event<LeaveRequestEventData>(),
+  "leave_request.split": event<LeaveRequestEventData>(),
+  "leave_balance.adjusted": event<LeaveAdjustedEventData>(),
 });

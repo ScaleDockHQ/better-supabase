@@ -8076,9 +8076,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "AccessRequestsEvents",
         "types": [
-          "access.requested",
-          "access.request_approved",
-          "access.ended",
+          "access_request.requested",
+          "access_request.approved",
+          "access_request.ended",
           "access_request.emergency_opened",
           "access_request.emergency_reviewed"
         ]
@@ -8619,7 +8619,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "AgentsEvents",
         "types": [
-          "agent.saved",
+          "agent.created",
+          "agent.updated",
           "agent.published",
           "agent.deleted",
           "agent.installed",
@@ -8722,7 +8723,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "AiChatEvents",
         "types": [
-          "ai_tool_policy.set",
+          "ai_tool_policy.updated",
           "ai_tool_approval.decided",
           "ai_chat_message.completed",
           "ai_chat.shared",
@@ -8790,7 +8791,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "AiKeysEvents",
         "types": [
-          "ai_provider_key.saved",
+          "ai_provider_key.created",
+          "ai_provider_key.updated",
           "ai_provider_key.deleted"
         ]
       }
@@ -8872,7 +8874,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "AnnouncementsEvents",
         "types": [
-          "announcement.saved",
+          "announcement.created",
+          "announcement.updated",
           "announcement.deleted"
         ]
       }
@@ -9055,8 +9058,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "approval.delegated",
           "approval.consumed",
           "approval.escalated",
-          "approval_policy.saved",
-          "approval_policy.removed"
+          "approval_policy.created",
+          "approval_policy.updated",
+          "approval_policy.deleted"
         ]
       }
     },
@@ -10881,9 +10885,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "product.updated",
           "product.status_changed",
           "product.deleted",
-          "variant.created",
-          "variant.updated",
-          "variant.deleted",
+          "product_variant.created",
+          "product_variant.updated",
+          "product_variant.deleted",
           "catalog.price_changed",
           "storefront.published",
           "storefront.unpublished"
@@ -10957,7 +10961,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "ConnectorsEvents",
         "types": [
-          "connector.saved",
+          "connector.created",
+          "connector.updated",
           "connector.deleted",
           "connector.fingerprint_decided",
           "connector_grant.created",
@@ -11016,8 +11021,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "CustomFieldsEvents",
         "types": [
-          "custom_field.saved",
-          "custom_field.deleted",
+          "field_definition.created",
+          "field_definition.updated",
+          "field_definition.deleted",
           "field_value.set",
           "field_value.deleted",
           "field_value.viewed"
@@ -11501,8 +11507,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "hostname.added",
           "hostname.verified",
-          "hostname.primary_set",
-          "hostname.removed"
+          "hostname.primary_changed",
+          "hostname.deleted"
         ]
       }
     },
@@ -11605,13 +11611,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "LeaveEvents",
         "types": [
-          "leave.requested",
-          "leave.approved",
-          "leave.cancelled",
-          "leave.rejected",
-          "leave.updated",
-          "leave.split",
-          "leave.adjusted"
+          "leave_request.requested",
+          "leave_request.approved",
+          "leave_request.cancelled",
+          "leave_request.rejected",
+          "leave_request.updated",
+          "leave_request.split",
+          "leave_balance.adjusted"
         ]
       }
     },
@@ -11823,7 +11829,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "ScoresEvents",
         "types": [
-          "score_model.saved",
+          "score_model.created",
+          "score_model.updated",
           "score_model.deleted",
           "score.changed"
         ]
@@ -11935,7 +11942,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "EnrollmentsEvents",
         "types": [
-          "enrollment_program.saved",
+          "enrollment_program.created",
+          "enrollment_program.updated",
           "enrollment_program.deleted",
           "enrollment.created",
           "enrollment.step_completed",
@@ -12485,7 +12493,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "BillableTimeEvents",
         "types": [
-          "time.invoiced"
+          "time_entry.invoiced"
         ]
       }
     },
@@ -14411,8 +14419,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "contract.updated",
           "contract.status_changed",
           "contract.renewed",
-          "obligation.saved",
-          "obligation.status_changed"
+          "contract_obligation.created",
+          "contract_obligation.updated",
+          "contract_obligation.status_changed"
         ]
       }
     },
@@ -14824,11 +14833,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "ComplianceEvents",
         "types": [
-          "control.saved",
+          "control.created",
+          "control.updated",
           "control.evidence_added",
           "evidence_task.missed",
-          "policy.published",
-          "policy.acknowledged"
+          "compliance_policy.published",
+          "compliance_policy.acknowledged"
         ]
       }
     },
@@ -15375,7 +15385,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "incident.opened",
           "incident.updated",
           "incident.resolved",
-          "postmortem.published",
+          "incident_postmortem.published",
           "status_component.changed"
         ]
       }
@@ -15721,7 +15731,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "CoursesEvents",
         "types": [
-          "course.saved",
+          "course.created",
+          "course.updated",
           "course.deleted",
           "course.enrolled",
           "course.unenrolled",
@@ -15971,7 +15982,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "SequencesEvents",
         "types": [
-          "sequence.saved",
+          "sequence.created",
+          "sequence.updated",
           "sequence.deleted",
           "sequence_enrollment.created",
           "sequence_enrollment.step_completed",
@@ -16200,7 +16212,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "PostsEvents",
         "types": [
-          "post_board.saved",
+          "post_board.created",
+          "post_board.updated",
           "post.created",
           "post.updated",
           "post.status_changed",
@@ -18389,30 +18402,30 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "DriveEvents",
         "types": [
-          "drive.node_created",
-          "drive.node_renamed",
-          "drive.node_moved",
-          "drive.node_shared",
-          "drive.node_unshared",
-          "drive.node_purged",
-          "drive.node_document_saved",
-          "drive.node_submitted",
-          "drive.node_released",
-          "drive.node_obsoleted",
-          "drive.node_reviewed",
-          "drive.node_review_requested",
-          "drive.node_hold_placed",
-          "drive.node_hold_released",
-          "drive.node_locked",
-          "drive.node_unlocked",
-          "drive.node_download_blocked_changed",
+          "drive_node.created",
+          "drive_node.renamed",
+          "drive_node.moved",
+          "drive_node.shared",
+          "drive_node.unshared",
+          "drive_node.purged",
+          "drive_node.document_saved",
+          "drive_node.submitted",
+          "drive_node.released",
+          "drive_node.obsoleted",
+          "drive_node.reviewed",
+          "drive_node.review_requested",
+          "drive_node.hold_placed",
+          "drive_node.hold_released",
+          "drive_node.locked",
+          "drive_node.unlocked",
+          "drive_node.download_blocked_changed",
           "drive.download_blocked_changed",
           "drive.created",
           "drive.renamed",
           "drive.deleted",
           "drive.shared",
           "drive.unshared",
-          "drive.node_ownership_transferred",
+          "drive_node.ownership_transferred",
           "drive.ownership_transferred",
           "drive.connection_created",
           "drive.connection_removed"
@@ -19100,15 +19113,15 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "ActivitiesEvents",
         "types": [
-          "engagement.logged",
-          "engagement.updated",
-          "engagement.completed",
-          "engagement.deleted",
-          "engagement.recorded",
-          "engagement.transcribed",
-          "engagement.summarized",
-          "engagement.amended",
-          "engagement.error_marked"
+          "activity.logged",
+          "activity.updated",
+          "activity.completed",
+          "activity.deleted",
+          "activity.recorded",
+          "activity.transcribed",
+          "activity.summarized",
+          "activity.amended",
+          "activity.error_marked"
         ]
       }
     },
@@ -19255,9 +19268,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "FlagsEvents",
         "types": [
-          "flag.saved",
+          "flag.created",
+          "flag.updated",
           "flag.deleted",
-          "flag.override_set"
+          "flag.override_changed"
         ]
       }
     },
@@ -19404,11 +19418,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "SignaturesEvents",
         "types": [
-          "signature.requested",
-          "signature.signed",
-          "signature.completed",
-          "signature.declined",
-          "signature.cancelled"
+          "signature_request.requested",
+          "signature_request.signed",
+          "signature_request.completed",
+          "signature_request.declined",
+          "signature_request.cancelled"
         ]
       }
     },
@@ -19451,8 +19465,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "HiringEvents",
         "types": [
-          "job.opened",
-          "job.closed",
+          "job_opening.opened",
+          "job_opening.closed",
           "application.created",
           "application.hired",
           "application.rejected",
@@ -20794,7 +20808,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "EnrichmentEvents",
         "types": [
-          "party.enriched"
+          "company.enriched",
+          "person.enriched"
         ]
       },
       "providers": [
@@ -20844,7 +20859,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "ForecastsEvents",
         "types": [
-          "forecast.snapshotted"
+          "forecast_snapshot.created"
         ]
       }
     },
@@ -21604,7 +21619,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "pipeline.created",
           "pipeline.updated",
           "pipeline.archived",
-          "pipeline_stage.saved",
+          "pipeline_stage.created",
+          "pipeline_stage.updated",
           "pipeline_stage.archived",
           "pipeline.stage_changed"
         ]
@@ -22103,11 +22119,12 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "AutomationsEvents",
         "types": [
-          "rule.saved",
-          "rule.enabled",
-          "rule.disabled",
-          "rule.removed",
-          "rule.matched"
+          "automation.created",
+          "automation.updated",
+          "automation.enabled",
+          "automation.disabled",
+          "automation.deleted",
+          "automation.matched"
         ]
       },
       "actions": [
@@ -22148,9 +22165,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "VercelMarketplaceEvents",
         "types": [
-          "marketplace_installation.upserted",
-          "marketplace_installation.removed",
-          "marketplace_invoice.state_changed"
+          "marketplace_installation.created",
+          "marketplace_installation.updated",
+          "marketplace_installation.deleted",
+          "marketplace_invoice.status_changed"
         ]
       }
     },
@@ -22236,7 +22254,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "SavedViewsEvents",
         "types": [
-          "saved_view.saved",
+          "saved_view.created",
+          "saved_view.updated",
           "saved_view.deleted"
         ]
       }
@@ -22471,15 +22490,17 @@ export const PRESET_CATALOG: PresetCatalog = {
           "organization.member_added",
           "organization.member_removed",
           "organization.role_changed",
-          "organization.domain_added",
-          "organization.domain_updated",
-          "organization.domain_verified",
-          "organization.domain_removed",
+          "sso_domain.created",
+          "sso_domain.updated",
+          "sso_domain.verified",
+          "sso_domain.deleted",
           "sso_provider.registered",
           "sso_provider.unregistered",
-          "scim_user.saved",
+          "scim_user.created",
+          "scim_user.updated",
           "scim_user.deleted",
-          "scim_group.saved",
+          "scim_group.created",
+          "scim_group.updated",
           "scim_group.deleted"
         ]
       }
@@ -23041,8 +23062,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "WaitlistEvents",
         "types": [
           "organization.member_added",
-          "waitlist.approved",
-          "waitlist.rejected",
+          "waitlist_entry.approved",
+          "waitlist_entry.rejected",
           "invite_code.created",
           "invite_code.revoked"
         ]
@@ -23065,7 +23086,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "incoming_webhook.created",
           "incoming_webhook.updated",
-          "incoming_webhook.enabled_set",
+          "incoming_webhook.enabled_changed",
           "incoming_webhook.token_rotated",
           "incoming_webhook.secret_rotated",
           "incoming_webhook.deleted"
@@ -23101,10 +23122,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "WebhooksEvents",
         "types": [
-          "webhook.delivered",
-          "webhook.failed",
-          "webhook.disabled",
-          "webhook.secret_rotated"
+          "webhook_endpoint.delivered",
+          "webhook_endpoint.failed",
+          "webhook_endpoint.disabled",
+          "webhook_endpoint.secret_rotated"
         ]
       }
     },
@@ -23499,13 +23520,13 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "TasksEvents",
         "types": [
-          "work_item.created",
-          "work_item.updated",
-          "work_item.assigned",
-          "work_item.closed",
-          "work_item.reopened",
-          "work_item.archived",
-          "work_item.deleted"
+          "task.created",
+          "task.updated",
+          "task.assigned",
+          "task.closed",
+          "task.reopened",
+          "task.archived",
+          "task.deleted"
         ]
       },
       "actions": [
@@ -23544,7 +23565,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "events": {
         "type": "WorkflowEditorEvents",
         "types": [
-          "workflow.published",
+          "workflow_definition.published",
           "workflow_alert.triggered"
         ]
       }

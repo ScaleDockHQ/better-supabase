@@ -51,15 +51,15 @@ select results_eq(
   'the meeting links the booker (matched by email, any case) and their company'
 );
 select is(
-  (select count(*)::int from better_supabase.outbox_events where type = 'engagement.logged' and payload ->> 'subjectType' = 'person'),
+  (select count(*)::int from better_supabase.outbox_events where type = 'activity.logged' and payload ->> 'subjectType' = 'person'),
   1,
-  'confirming records engagement.logged on the person'
+  'confirming records activity.logged on the person'
 );
 
 -- Moving a confirmed booking moves the meeting; a no-op update changes nothing.
 update better_supabase.bookings set notes = 'changed' where id = (select id from ids where name = 'booking');
 select is(
-  (select count(*)::int from better_supabase.outbox_events where type = 'engagement.updated'),
+  (select count(*)::int from better_supabase.outbox_events where type = 'activity.updated'),
   0,
   'an update that keeps status and time records nothing'
 );
@@ -77,9 +77,9 @@ select is(
   'rescheduling keeps one engagement'
 );
 select is(
-  (select count(*)::int from better_supabase.outbox_events where type = 'engagement.updated'),
+  (select count(*)::int from better_supabase.outbox_events where type = 'activity.updated'),
   1,
-  'rescheduling records engagement.updated'
+  'rescheduling records activity.updated'
 );
 select is(
   (select count(*)::int from better_supabase.engagement_subjects s join better_supabase.engagements e on e.id = s.engagement_id
@@ -98,9 +98,9 @@ select results_eq(
   'cancelling completes the meeting with the reason'
 );
 select is(
-  (select count(*)::int from better_supabase.outbox_events where type = 'engagement.completed'),
+  (select count(*)::int from better_supabase.outbox_events where type = 'activity.completed'),
   1,
-  'cancelling records engagement.completed'
+  'cancelling records activity.completed'
 );
 
 -- A booking without a matching person is a meeting on no subject, titled by the service.

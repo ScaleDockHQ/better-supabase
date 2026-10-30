@@ -33,11 +33,15 @@ const EVENTS: BlockSqlEvents<ApprovalsEvents> = {
   "approval.delegated": { subject: "approval-requests", payload: PAYLOAD },
   "approval.consumed": { subject: "approval-requests", payload: PAYLOAD },
   "approval.escalated": { subject: "approval-requests", payload: PAYLOAD },
-  "approval_policy.saved": {
+  "approval_policy.created": {
     subject: "approval-policies",
     payload: POLICY_PAYLOAD,
   },
-  "approval_policy.removed": {
+  "approval_policy.updated": {
+    subject: "approval-policies",
+    payload: POLICY_PAYLOAD,
+  },
+  "approval_policy.deleted": {
     subject: "approval-policies",
     payload: POLICY_PAYLOAD,
   },

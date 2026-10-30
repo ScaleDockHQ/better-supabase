@@ -5,10 +5,10 @@ import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `forecasts` block: type to data. */
 export type ForecastsEvents = {
-  readonly "forecast.snapshotted": ForecastSnapshotEventData;
+  readonly "forecast_snapshot.created": ForecastSnapshotEventData;
 };
 
 /** The `forecasts` block's event types, for its manifest and `onBlockEvent`. */
 export const forecastsEvents: Events<ForecastsEvents> = defineEvents({
-  "forecast.snapshotted": event<ForecastSnapshotEventData>(),
+  "forecast_snapshot.created": event<ForecastSnapshotEventData>(),
 });

@@ -25,6 +25,9 @@ function check(
   return findings;
 }
 
+const events = (text: string): readonly FindingInput[] =>
+  check({}, [{ path: "src/events.ts", text }], "BS424");
+
 describe("BS422", () => {
   it("reports old keys in the roles and the overrides", () => {
     const findings = check({
@@ -63,6 +66,12 @@ describe("BS422", () => {
         deals: undefined,
         tasks: { permissions: { approve: false } },
       }),
+    ).toEqual([]);
+  });
+
+  it("leaves an old key that is now an event pattern", () => {
+    expect(
+      check({}, [{ path: "src/feed.ts", text: `onBlockEvent("activity.*")` }]),
     ).toEqual([]);
   });
 
@@ -114,5 +123,28 @@ describe("BS423", () => {
       }),
     ]);
     expect(findings[0]?.message).toContain("now `TASK_LOCKED`");
+  });
+});
+
+describe("BS424", () => {
+  it("reports renamed and split event types in the app sources", () => {
+    const findings = events(
+      `on("work_item.created", a);\non("agent.saved", b);\non("task.created", c);`,
+    );
+
+    expect(findings.map((each) => [each.target, each.location])).toEqual([
+      ["src/events.ts:work_item.created", { file: "src/events.ts", line: 1 }],
+      ["src/events.ts:agent.saved", { file: "src/events.ts", line: 2 }],
+    ]);
+    expect(findings[0]?.message).toContain("now `task.created`");
+    expect(findings[1]?.message).toContain(
+      "now `agent.created` or `agent.updated`",
+    );
+  });
+
+  it("leaves strings that are also permission keys to BS422", () => {
+    expect(
+      events(`["support.*", "workflow.*", "leave.*", "waitlist.*", "drive.*"]`),
+    ).toEqual([]);
   });
 });

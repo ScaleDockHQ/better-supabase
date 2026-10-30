@@ -1055,7 +1055,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c50b387cee229413b9c36a9d826c1e3b3d194ee39b2b7ef7e4bb202506217d10
+-- @bsb-hash sha256:3a9ba7e703720d690f742837877462a818c59fc3af49cdfff3694118e50f6164
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1435,9 +1435,9 @@ begin
     join "better_supabase"."ledger_accounts" x on x."id" = y."account_id" and x."managed_by" = 'leave' and x."kind" = 'leave'
     join "better_supabase"."ledger_transactions" r on r."id" = y."transaction_id"
   where y."transaction_id" = v_transaction and x."owner_id" = adjust_leave_balance.user_id;
-  perform "better_supabase".emit_event('leave.adjusted', jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', adjust_leave_balance.user_id, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period), 'leave-ledger-entries/' || v_entry::text, (adjust_leave_balance.tenant)::text, null, 'better-supabase/leave');
+  perform "better_supabase".emit_event('leave_balance.adjusted', jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', adjust_leave_balance.user_id, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period), 'leave-ledger-entries/' || v_entry::text, (adjust_leave_balance.tenant)::text, null, 'better-supabase/leave');
   perform better_supabase.audit_event(
-    event_type => 'leave.adjusted',
+    event_type => 'leave_balance.adjusted',
     category => 'data',
     target_type => 'leave_balance',
     record_id => v_entry::text,
@@ -1732,9 +1732,9 @@ begin
       returning * into v_row;
     select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
   end if;
-  perform "better_supabase".emit_event('leave.requested', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform "better_supabase".emit_event('leave_request.requested', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
   perform better_supabase.audit_event(
-    event_type => 'leave.requested',
+    event_type => 'leave_request.requested',
     category => 'data',
     target_type => 'leave_request',
     record_id => v_row."id"::text,
@@ -1779,9 +1779,9 @@ begin
   end if;
   perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
   from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
-  perform "better_supabase".emit_event('leave.approved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform "better_supabase".emit_event('leave_request.approved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
   perform better_supabase.audit_event(
-    event_type => 'leave.approved',
+    event_type => 'leave_request.approved',
     category => 'data',
     target_type => 'leave_request',
     record_id => v_row."id"::text,
@@ -1834,9 +1834,9 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
-  perform "better_supabase".emit_event('leave.cancelled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform "better_supabase".emit_event('leave_request.cancelled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
   perform better_supabase.audit_event(
-    event_type => 'leave.cancelled',
+    event_type => 'leave_request.cancelled',
     category => 'data',
     target_type => 'leave_request',
     record_id => v_row."id"::text,
@@ -1976,9 +1976,9 @@ begin
       select * into v_row from "better_supabase"."leave_requests" x where x."id" = v_row."id";
     end if;
   end if;
-  perform "better_supabase".emit_event('leave.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform "better_supabase".emit_event('leave_request.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
   perform better_supabase.audit_event(
-    event_type => 'leave.updated',
+    event_type => 'leave_request.updated',
     category => 'data',
     target_type => 'leave_request',
     record_id => v_row."id"::text,
@@ -2061,9 +2061,9 @@ begin
   perform "better_supabase"."leave_post"(v_row."tenant_id", v_row."user_id", v_row."type_id", 'taken', -v_row."amount", extract(year from v_row."starts_on")::integer, v_row."id")
   from "better_supabase"."leave_types" t where t."id" = v_row."type_id" and t."tracked";
   select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
-  perform "better_supabase".emit_event('leave.split', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
+  perform "better_supabase".emit_event('leave_request.split', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'userId', v_row."user_id", 'typeId', v_row."type_id", 'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'amount', v_row."amount"::text, 'approvalId', v_row."approval_id"), 'leave-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leave');
   perform better_supabase.audit_event(
-    event_type => 'leave.split',
+    event_type => 'leave_request.split',
     category => 'data',
     target_type => 'leave_request',
     record_id => v_row."id"::text,

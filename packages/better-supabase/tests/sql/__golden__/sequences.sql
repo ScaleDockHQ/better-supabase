@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:b3983189a217383b22efadc6b68f625e2414688bda5379fcb77e31ce4fb876e8
+-- @bsb-hash sha256:b76e04366aa68516e9a56befcd9c06bb306cff119e6da6cd1f2be1de49135bb4
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -462,7 +462,11 @@ begin
       end loop;
     end if;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
       'replied', count(*) filter (where m."exit_reason" = 'replied'))
@@ -976,7 +980,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:daf4122bffab630e6805cc62c917a51e23925484eccc29ea731eee4b81915b67
+-- @bsb-hash sha256:d8cf7ed1d8419e55518ad63a37a0b448e70d61fa73b79e443337c3c791b3e28c
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1451,17 +1455,31 @@ begin
       end loop;
     end if;
   end if;
-  perform "better_supabase".emit_event('sequence.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'sequences/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/sequences');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('sequence.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'sequences/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/sequences');
   perform better_supabase.audit_event(
-    event_type => 'sequence.saved',
+    event_type => 'sequence.created',
     category => 'data',
     target_type => 'sequence',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    summary => 'saved a sequence',
+    summary => 'created a sequence',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
   );
+  else
+    perform "better_supabase".emit_event('sequence.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'sequences/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/sequences');
+  perform better_supabase.audit_event(
+    event_type => 'sequence.updated',
+    category => 'data',
+    target_type => 'sequence',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'updated a sequence',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
       'replied', count(*) filter (where m."exit_reason" = 'replied'))
@@ -2084,7 +2102,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:e50d40435369b921f663362bf94f854fbbabf91f1d3cc938459b2cb1bfd2693b
+-- @bsb-hash sha256:43f402d8ca47bea357bb9313ab97447af6b915ee94dae038eb9bbe2aa3b4d78b
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2550,7 +2568,11 @@ begin
       end loop;
     end if;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
       'replied', count(*) filter (where m."exit_reason" = 'replied'))
@@ -3064,7 +3086,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:b066873515c21c4ad56e268faddfb9134d42931fc56df9b6374fc35b58e1951a
+-- @bsb-hash sha256:27662c034e9280b2c3524af7dc00593669fb3772cd7be5686e7c9125bff27d62
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3525,7 +3547,11 @@ begin
       end loop;
     end if;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
       'replied', count(*) filter (where m."exit_reason" = 'replied'))
@@ -4151,7 +4177,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:c5d7229b99767b740cc54e60c506d26fc9a7a017def994a1020c17899e870a28
+-- @bsb-hash sha256:9ee6d5e8f72d7f6d086718be5bd23d847569245e77c45a4da20eccd527c7781c
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4615,7 +4641,11 @@ begin
       end loop;
     end if;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
       'replied', count(*) filter (where m."exit_reason" = 'replied'))
@@ -5129,7 +5159,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:8f7345402213817ddaf6c723be97924028a5707214aae949eb0785b0aaa72436
+-- @bsb-hash sha256:a4346b87a7263c3522716ffd16de3a71365934dd619c3eb5c5519f09f7230260
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5590,7 +5620,11 @@ begin
       end loop;
     end if;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
       'replied', count(*) filter (where m."exit_reason" = 'replied'))

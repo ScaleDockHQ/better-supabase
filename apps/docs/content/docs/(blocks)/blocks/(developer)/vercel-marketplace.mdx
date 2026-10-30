@@ -211,7 +211,7 @@ export const GET = marketplace.usageRoute({
 
 `blocks.vercel-marketplace.options.currency` (default `usd`) is the currency an invoice takes when the webhook names none.
 
-The block writes `marketplace_installation.upserted`, `marketplace_installation.removed` and `marketplace_invoice.state_changed` to the [outbox](/docs/blocks/outbox) and the [audit log](/docs/blocks/audit) when they are installed.
+The block writes `marketplace_installation.created`, `marketplace_installation.updated`, `marketplace_installation.deleted` and `marketplace_invoice.status_changed` to the [outbox](/docs/blocks/outbox) and the [audit log](/docs/blocks/audit) when they are installed.
 
 ## Without the client
 

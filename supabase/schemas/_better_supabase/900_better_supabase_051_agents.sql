@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:114d603ec1bef8aafb6712179e019db6c56c21734fe5917d0ae24d740f27c9b7
+-- @bsb-hash sha256:0b7c97ca3e26e247f0caf955cd6e140b4f0bf4dfa874ab78aa6fc18e48e6ffce
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -201,9 +201,10 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('agent.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
+  if save_agent.id is null then
+    perform "better_supabase".emit_event('agent.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
-    event_type => 'agent.saved',
+    event_type => 'agent.created',
     category => 'ai',
     target_type => 'agent',
     record_id => v_row."id"::text,
@@ -211,6 +212,18 @@ begin
     tenant => (v_row."organization_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
   );
+  else
+    perform "better_supabase".emit_event('agent.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
+  perform better_supabase.audit_event(
+    event_type => 'agent.updated',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then

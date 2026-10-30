@@ -334,7 +334,7 @@ export type TasksEvents = RenamedEvents<TasksEvents, WorkItemsRenames>;
 
 `renameBlock` renames the client's methods (`createWorkItem` to `createTask`),
 the keys of their arguments and results (`workItemId` to `taskId`) and the
-block's event types (`work_item.created` to `task.created`). The block keeps
+block's event types (`task.created` to `task.created`). The block keeps
 its name, SQL and ports, and hooks see the renamed client. The tenant rename
 stays in SQL: payloads and client types keep `organizationId`. See
 [Typed blocks](/docs/blocks/typed-blocks) for the config key.

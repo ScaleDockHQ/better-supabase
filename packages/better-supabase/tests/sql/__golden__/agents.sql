@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:5865fbb62cbf697ab6d4e761df686ced725bf4255a15984abcb30674c74cf229
+-- @bsb-hash sha256:e19037cedf2f5175b218671de002cb5106ad39594689833d59558269fed46b49
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -202,7 +202,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_agent.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then
@@ -531,7 +535,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:94635e0e6775467dcbd5350b08f40029445325d6a45b3f149ecc7c8346e7dfe2
+-- @bsb-hash sha256:30148fea4357ea7c374357c9e328de42e260d46a083bb7bf23b1df652537fbd9
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -732,9 +736,10 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('agent.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
+  if save_agent.id is null then
+    perform "better_supabase".emit_event('agent.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
-    event_type => 'agent.saved',
+    event_type => 'agent.created',
     category => 'ai',
     target_type => 'agent',
     record_id => v_row."id"::text,
@@ -742,6 +747,18 @@ begin
     tenant => (v_row."organization_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
   );
+  else
+    perform "better_supabase".emit_event('agent.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
+  perform better_supabase.audit_event(
+    event_type => 'agent.updated',
+    category => 'ai',
+    target_type => 'agent',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then
@@ -1104,7 +1121,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:e4ac7b453c45965c59319c51cf666b0be3d478aaea454109e7085c618b1784bf
+-- @bsb-hash sha256:75eb5e00d437b1d941d025333fbfbc567bbd20f8d85b0a6a04e919774803ba7a
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1310,7 +1327,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_agent.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then
@@ -1639,7 +1660,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:8eaa75dd69b64af292bfdc6ad335180759c7189e23b83890fba6dbd938cf076b
+-- @bsb-hash sha256:aac96dd2d12264e2869df01845b6c1626f8ac3eb7331e91e05217876331ba589
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1840,7 +1861,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_agent.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then
@@ -2263,7 +2288,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:c0ba61eef2f70ad8e8fccdea9022e6abbe9e84af681651581172b89fdb49603c
+-- @bsb-hash sha256:9866cff0208d98f94fa03dd529b3055409549e96da43e942c6a3b64cb7d9fd37
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2470,7 +2495,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_agent.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then
@@ -2799,7 +2828,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:d01f39c112f68d5cd33eb402dbb590a6cc37a41613c725ce6fbfcba3df942e98
+-- @bsb-hash sha256:81d5e57cca2f081b78e991559a9451d7ecb1c42a3419653922a4cdc4d51b40b0
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3000,7 +3029,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_agent.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then

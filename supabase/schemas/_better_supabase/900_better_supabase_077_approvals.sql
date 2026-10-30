@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@1 managed
--- @bsb-hash sha256:8b6479c3d7b6dd70b68b2c465300777a74754fb956c352ad5698cf1414b3766f
+-- @bsb-hash sha256:5127309674f412b87d1419eae09a0f7937fd44e3d814af06c6c21a5ef5741b5c
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -700,16 +700,29 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('approval_policy.saved', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action"), 'approval-policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/approvals');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('approval_policy.created', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action"), 'approval-policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
-    event_type => 'approval_policy.saved',
+    event_type => 'approval_policy.created',
     category => 'configuration',
     target_type => 'approval_policy',
     record_id => v_row."id"::text,
-    summary => 'saved approval policy ' || v_row."name",
+    summary => 'created approval policy ' || v_row."name",
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action")
   );
+  else
+    perform "better_supabase".emit_event('approval_policy.updated', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action"), 'approval-policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/approvals');
+  perform better_supabase.audit_event(
+    event_type => 'approval_policy.updated',
+    category => 'configuration',
+    target_type => 'approval_policy',
+    record_id => v_row."id"::text,
+    summary => 'updated approval policy ' || v_row."name",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'action', v_row."action", 'effect', v_row."effect", 'name', v_row."name", 'conditions', v_row."conditions", 'mode', v_row."mode", 'steps', v_row."steps", 'selfApproval', v_row."self_approval", 'expiresIn', v_row."expires_in"::text, 'enabled', v_row."enabled", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'fields', jsonb_build_object('description', v_row."description"));
 exception
   when invalid_text_representation or invalid_datetime_format or not_null_violation or check_violation then
@@ -739,9 +752,9 @@ begin
     raise exception 'managing approval policies needs approvals.manage' using errcode = '42501', hint = 'APPROVAL_FORBIDDEN';
   end if;
   delete from "better_supabase"."approval_policies" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('approval_policy.removed', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action"), 'approval-policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/approvals');
+  perform "better_supabase".emit_event('approval_policy.deleted', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'id', v_row."id", 'subjectType', v_row."subject_type", 'action', v_row."action"), 'approval-policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/approvals');
   perform better_supabase.audit_event(
-    event_type => 'approval_policy.removed',
+    event_type => 'approval_policy.deleted',
     category => 'configuration',
     target_type => 'approval_policy',
     record_id => v_row."id"::text,

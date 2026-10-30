@@ -29,7 +29,7 @@ export interface IncidentResolvedEventData {
   readonly severity: string;
 }
 
-/** `postmortem.published`. */
+/** `incident_postmortem.published`. */
 export interface PostmortemPublishedEventData {
   readonly organizationId: string;
   readonly postmortemId: string;
@@ -49,7 +49,7 @@ export type IncidentsEvents = {
   readonly "incident.opened": IncidentOpenedEventData;
   readonly "incident.updated": IncidentUpdatedEventData;
   readonly "incident.resolved": IncidentResolvedEventData;
-  readonly "postmortem.published": PostmortemPublishedEventData;
+  readonly "incident_postmortem.published": PostmortemPublishedEventData;
   readonly "status_component.changed": StatusComponentChangedEventData;
 };
 
@@ -58,6 +58,6 @@ export const incidentsEvents: Events<IncidentsEvents> = defineEvents({
   "incident.opened": event<IncidentOpenedEventData>(),
   "incident.updated": event<IncidentUpdatedEventData>(),
   "incident.resolved": event<IncidentResolvedEventData>(),
-  "postmortem.published": event<PostmortemPublishedEventData>(),
+  "incident_postmortem.published": event<PostmortemPublishedEventData>(),
   "status_component.changed": event<StatusComponentChangedEventData>(),
 });

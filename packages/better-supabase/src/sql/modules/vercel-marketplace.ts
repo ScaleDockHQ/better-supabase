@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import {
   fail,
   lockTable,
@@ -19,15 +20,19 @@ import {
 import { asText } from "./over-app.ts";
 
 const EVENTS: BlockSqlEvents<VercelMarketplaceEvents> = {
-  "marketplace_installation.upserted": {
+  "marketplace_installation.created": {
     subject: "marketplace-installations",
     payload: ["installationId", "configurationId", "teamId"],
   },
-  "marketplace_installation.removed": {
+  "marketplace_installation.updated": {
     subject: "marketplace-installations",
     payload: ["installationId", "configurationId", "teamId"],
   },
-  "marketplace_invoice.state_changed": {
+  "marketplace_installation.deleted": {
+    subject: "marketplace-installations",
+    payload: ["installationId", "configurationId", "teamId"],
+  },
+  "marketplace_invoice.status_changed": {
     subject: "marketplace-invoices",
     payload: ["installationId", "invoiceId", "externalId", "state"],
   },
@@ -457,7 +462,9 @@ as $$
 #variable_conflict use_column
 declare
   v_row ${i};
+  v_inserted boolean;
 begin${guard}
+  v_inserted := not exists (select 1 from ${i} x where x.${ic("configurationId")} = upsert_marketplace_installation.configuration_id);
   insert into ${i} (${installationInsert.columns})
   values (${installationInsert.values})
   on conflict (${ic("configurationId")}) do update set
@@ -476,7 +483,7 @@ begin${guard}
       ],
     ])}
   returning * into v_row;
-  ${installationEvent("marketplace_installation.upserted", "v_row")}
+  ${createdOrUpdated("v_inserted", (verb) => installationEvent(`marketplace_installation.${verb}`, "v_row"))}
   return ${json("installations", "v_row")};
 end;
 $$;
@@ -524,7 +531,7 @@ begin${guard}
     returning * into v_row;
   end if;
   update ${r} y set ${rc("status")} = 'deleted' where y.${rc("installation")} = v_row.${ic("id")} and y.${rc("status")} <> 'deleted';
-  ${installationEvent("marketplace_installation.removed", "v_row")}
+  ${installationEvent("marketplace_installation.deleted", "v_row")}
   return ${json("installations", "v_row")};
 end;
 $$;
@@ -638,7 +645,7 @@ begin${guard}
     select y.* into v_row from ${v} y where y.${vc("installation")} = v_installation and y.${vc("externalId")} = record_marketplace_invoice.external_id;
   elsif v_before is distinct from ${asText(ctx, "invoices", `v_row.${vc("state")}`)} then
     ${ctx.record({
-      type: "marketplace_invoice.state_changed",
+      type: "marketplace_invoice.status_changed",
       payload: `jsonb_build_object('installationId', v_installation, 'invoiceId', v_row.${vc("id")}, 'externalId', v_row.${vc("externalId")}, 'state', v_row.${vc("state")})`,
       subject: `'marketplace-invoices/' || v_row.${vc("id")}`,
       audit: {

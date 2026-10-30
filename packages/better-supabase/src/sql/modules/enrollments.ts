@@ -29,7 +29,11 @@ const ENROLLMENT_PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<EnrollmentsEvents> = {
-  "enrollment_program.saved": {
+  "enrollment_program.created": {
+    subject: "enrollment-programs",
+    payload: PROGRAM_PAYLOAD,
+  },
+  "enrollment_program.updated": {
     subject: "enrollment-programs",
     payload: PROGRAM_PAYLOAD,
   },

@@ -89,9 +89,9 @@ describe("engagements module, recordings", () => {
 
   it("emits recording events with outbox installed", () => {
     const sql = sqlOf({ recordings: true }, ["outbox"]);
-    expect(sql).toContain("'engagement.recorded'");
-    expect(sql).toContain("'engagement.transcribed'");
-    expect(sql).toContain("'engagement.summarized'");
+    expect(sql).toContain("'activity.recorded'");
+    expect(sql).toContain("'activity.transcribed'");
+    expect(sql).toContain("'activity.summarized'");
   });
 
   it("queues a transcription with jobs installed", () => {
@@ -167,7 +167,7 @@ describe("engagements module, bookings", () => {
     expect(sql).toContain(
       "'meeting', coalesce(v_title, 'Booking'), new.\"notes\"",
     );
-    expect(sql).toContain("engagement.completed");
+    expect(sql).toContain("activity.completed");
     expect(sql).not.toContain('"company_people"');
   });
 

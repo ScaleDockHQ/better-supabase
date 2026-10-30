@@ -3,7 +3,10 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `approval_policy.saved` and `approval_policy.removed`. */
+/**
+ * `approval_policy.created`, `approval_policy.updated` and
+ * `approval_policy.deleted`.
+ */
 export interface ApprovalPolicyEventData {
   readonly organizationId: string;
   /** The tenant policy. */
@@ -22,8 +25,9 @@ export type ApprovalsEvents = {
   readonly "approval.delegated": CollaborationEventData;
   readonly "approval.consumed": CollaborationEventData;
   readonly "approval.escalated": CollaborationEventData;
-  readonly "approval_policy.saved": ApprovalPolicyEventData;
-  readonly "approval_policy.removed": ApprovalPolicyEventData;
+  readonly "approval_policy.created": ApprovalPolicyEventData;
+  readonly "approval_policy.updated": ApprovalPolicyEventData;
+  readonly "approval_policy.deleted": ApprovalPolicyEventData;
 };
 
 /** The `approvals` block's event types, for its manifest and `onBlockEvent`. */
@@ -36,6 +40,7 @@ export const approvalsEvents: Events<ApprovalsEvents> = defineEvents({
   "approval.delegated": event<CollaborationEventData>(),
   "approval.consumed": event<CollaborationEventData>(),
   "approval.escalated": event<CollaborationEventData>(),
-  "approval_policy.saved": event<ApprovalPolicyEventData>(),
-  "approval_policy.removed": event<ApprovalPolicyEventData>(),
+  "approval_policy.created": event<ApprovalPolicyEventData>(),
+  "approval_policy.updated": event<ApprovalPolicyEventData>(),
+  "approval_policy.deleted": event<ApprovalPolicyEventData>(),
 });

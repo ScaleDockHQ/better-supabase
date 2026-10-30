@@ -1,9 +1,38 @@
-import type { BlockSqlContext } from "../context.ts";
+import type { AutomationsEvents } from "../../blocks/automations/events.ts";
+import type { BlockSqlContext, BlockSqlEvents } from "../context.ts";
 
 import { SUBJECT_TYPE_SQL_PATTERN } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { FILTER_OPERATORS } from "../../list/filter-query.ts";
 import { lockTable } from "../shared.ts";
+
+const RULE_PAYLOAD = [
+  "organizationId",
+  "ruleId",
+  "name",
+  "subjectType",
+  "trigger",
+  "version",
+] as const;
+
+export const AUTOMATION_EVENTS: BlockSqlEvents<AutomationsEvents> = {
+  "automation.created": { subject: "rules", payload: RULE_PAYLOAD },
+  "automation.updated": { subject: "rules", payload: RULE_PAYLOAD },
+  "automation.enabled": { subject: "rules", payload: RULE_PAYLOAD },
+  "automation.disabled": { subject: "rules", payload: RULE_PAYLOAD },
+  "automation.deleted": { subject: "rules", payload: RULE_PAYLOAD },
+  "automation.matched": {
+    subject: "rules",
+    payload: [
+      "organizationId",
+      "ruleId",
+      "version",
+      "subjectType",
+      "subjectId",
+      "trigger",
+    ],
+  },
+};
 
 export const SUBJECT_TYPE: string = SUBJECT_TYPE_SQL_PATTERN;
 export const TRIGGER = "^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$";

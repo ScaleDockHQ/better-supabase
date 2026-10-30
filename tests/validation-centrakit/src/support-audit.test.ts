@@ -45,11 +45,11 @@ describe.skipIf(!live)(
         expect(
           await s.rows(
             `select event_type, category, source, scope, actor_kind, actor_id::text, target_id, organization_id::text
-           from centrakit.audit_logs where event_type = 'support.started'`,
+           from centrakit.audit_logs where event_type = 'support_session.started'`,
           ),
         ).toEqual([
           {
-            event_type: "support.started",
+            event_type: "support_session.started",
             category: "security",
             source: "saas",
             scope: "organization",

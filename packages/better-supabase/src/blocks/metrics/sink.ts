@@ -3,7 +3,7 @@ import type { Metrics } from "./metrics.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
 import { nowInstant } from "../../core/temporal.ts";
-import { stripTypePrefix } from "../../events/cloud-event.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 
 export interface MetricsSinkOptions {
   /**
@@ -68,8 +68,7 @@ export function metricsSink(
       const windows = new Map<string, Map<string, Window>>();
 
       for (const event of events) {
-        const entry =
-          options.on[stripTypePrefix(event.type, options.typePrefix)];
+        const entry = options.on[eventTypeOf(event, options.typePrefix)];
 
         if (entry === undefined) {
           continue;

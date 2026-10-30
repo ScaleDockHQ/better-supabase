@@ -134,8 +134,8 @@ describe("createDomains", () => {
     expect(domainsBlock.events.types).toEqual([
       "hostname.added",
       "hostname.verified",
-      "hostname.primary_set",
-      "hostname.removed",
+      "hostname.primary_changed",
+      "hostname.deleted",
     ]);
   });
 });

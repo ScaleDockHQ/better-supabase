@@ -122,7 +122,7 @@ begin
   insert into ${G} (${grantColumns})
   values (${grantValues})
   returning ${g("id")} into v_id;
-  ${record("drive.node_shared", "v_node", ", 'principalType', v_type, 'principalId', drive_share.principal_id, 'role', drive_share.role", accessAudit("v_node", "shared"))}
+  ${record("drive_node.shared", "v_node", ", 'principalType', v_type, 'principalId', drive_share.principal_id, 'role', drive_share.role", accessAudit("v_node", "shared"))}
   ${ctx.hook("after_drive_node_share", [
     ["uuid", `v_node.${n("id")}`],
     ["uuid", "v_id"],
@@ -158,7 +158,7 @@ begin
   if not found then
     return false;
   end if;
-  ${record("drive.node_unshared", "v_node", ", 'principalType', v_type, 'principalId', drive_unshare.principal_id", accessAudit("v_node", "unshared"))}
+  ${record("drive_node.unshared", "v_node", ", 'principalType', v_type, 'principalId', drive_unshare.principal_id", accessAudit("v_node", "unshared"))}
   return true;
 end;
 $$;

@@ -5,6 +5,7 @@ import type {
 } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   activeMembership,
@@ -588,18 +589,20 @@ ${stepsCheck("v_steps", stepsInvalid, manager)}
     where x.${p("id")} = v_old.${p("id")}
     returning * into v_row;
   end if;
-  ${ctx.record({
-    type: "approval_policy.saved",
-    payload: `jsonb_build_object('organizationId', v_row.${p("tenant")}::text, 'id', v_row.${p("id")}, 'subjectType', v_row.${p("subjectType")}, 'action', v_row.${p("action")})`,
-    subject: `'approval-policies/' || v_row.${p("id")}::text`,
-    tenant: `v_row.${p("tenant")}`,
-    audit: {
-      category: "configuration",
-      targetType: "approval_policy",
-      recordId: `v_row.${p("id")}::text`,
-      summary: `'saved approval policy ' || v_row.${p("name")}`,
-    },
-  })}
+  ${createdOrUpdated(`v_old.${p("id")} is null`, (verb) =>
+    ctx.record({
+      type: `approval_policy.${verb}`,
+      payload: `jsonb_build_object('organizationId', v_row.${p("tenant")}::text, 'id', v_row.${p("id")}, 'subjectType', v_row.${p("subjectType")}, 'action', v_row.${p("action")})`,
+      subject: `'approval-policies/' || v_row.${p("id")}::text`,
+      tenant: `v_row.${p("tenant")}`,
+      audit: {
+        category: "configuration",
+        targetType: "approval_policy",
+        recordId: `v_row.${p("id")}::text`,
+        summary: `'${verb} approval policy ' || v_row.${p("name")}`,
+      },
+    }),
+  )}
   return ${json("v_row")};
 exception
   when invalid_text_representation or invalid_datetime_format or not_null_violation or check_violation then
@@ -626,7 +629,7 @@ begin
   end if;
   delete from ${t} x where x.${p("id")} = v_row.${p("id")};
   ${ctx.record({
-    type: "approval_policy.removed",
+    type: "approval_policy.deleted",
     payload: `jsonb_build_object('organizationId', v_row.${p("tenant")}::text, 'id', v_row.${p("id")}, 'subjectType', v_row.${p("subjectType")}, 'action', v_row.${p("action")})`,
     subject: `'approval-policies/' || v_row.${p("id")}::text`,
     tenant: `v_row.${p("tenant")}`,

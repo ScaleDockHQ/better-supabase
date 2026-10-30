@@ -27,7 +27,7 @@ describe("forecasts module", () => {
     const sql = sqlOf();
 
     expect(sql).toContain('"better_supabase"."deal_forecast"(');
-    expect(sql).toContain("'forecast.snapshotted'");
+    expect(sql).toContain("'forecast_snapshot.created'");
     expect(sql).toContain("'forecast-snapshots/' ||");
   });
 

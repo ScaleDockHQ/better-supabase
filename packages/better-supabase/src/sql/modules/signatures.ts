@@ -28,23 +28,23 @@ import { OPERATIONS } from "./permissions-model.ts";
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
 
 const EVENTS: BlockSqlEvents<SignaturesEvents> = {
-  "signature.requested": {
+  "signature_request.requested": {
     subject: "signature-requests",
     payload: [...SUBJECT_PAYLOAD, "id", "versionId"],
   },
-  "signature.signed": {
+  "signature_request.signed": {
     subject: "signature-requests",
     payload: [...SUBJECT_PAYLOAD, "id", "signatureId", "signer", "method"],
   },
-  "signature.completed": {
+  "signature_request.completed": {
     subject: "signature-requests",
     payload: [...SUBJECT_PAYLOAD, "id", "versionId", "meaning"],
   },
-  "signature.declined": {
+  "signature_request.declined": {
     subject: "signature-requests",
     payload: [...SUBJECT_PAYLOAD, "id", "signer"],
   },
-  "signature.cancelled": {
+  "signature_request.cancelled": {
     subject: "signature-requests",
     payload: [...SUBJECT_PAYLOAD, "id"],
   },
@@ -429,7 +429,7 @@ begin
   insert into ${requests} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("version")}, ${r("contentHash")}, ${r("signers")}, ${r("order")}, ${r("approval")}, ${r("message")}${hasMeaning ? `, ${r("meaning")}` : ""}, ${r("requestedBy")})
   values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), '')${hasMeaning ? ", create_signature_request.meaning" : ""}, auth.uid())
   returning * into v_row;${writeExtraColumns(requests, extras, "create_signature_request.fields", `x.${r("id")} = v_row.${r("id")}`, "v_row")}
-  ${requestRecord("signature.requested", "v_row", `, 'versionId', v_row.${r("version")}`, `'requested signatures on ' || v_row.${r("subjectType")} || ' ' || v_row.${r("subjectId")}`)}
+  ${requestRecord("signature_request.requested", "v_row", `, 'versionId', v_row.${r("version")}`, `'requested signatures on ' || v_row.${r("subjectType")} || ' ' || v_row.${r("subjectId")}`)}
   ${ctx.hook("after_signature_request", [["uuid", `v_row.${r("id")}`]])}
   return ${requestJson("v_row")};
 end;
@@ -553,12 +553,12 @@ begin
     left(v_headers ->> 'user-agent', 512),
     v_at)
   returning * into v_row;
-  ${requestRecord("signature.signed", "v_req", `, 'signatureId', v_row.${s("id")}, 'signer', v_me, 'method', v_row.${s("method")}`, `'signed ' || v_req.${r("subjectType")} || ' ' || v_req.${r("subjectId")}`)}${approvalStep}
+  ${requestRecord("signature_request.signed", "v_req", `, 'signatureId', v_row.${s("id")}, 'signer', v_me, 'method', v_row.${s("method")}`, `'signed ' || v_req.${r("subjectType")} || ' ' || v_req.${r("subjectId")}`)}${approvalStep}
   if v_count + 1 >= cardinality(v_req.${r("signers")}) then
     update ${requests} x set ${r("status")} = 'completed', ${r("completedAt")} = v_at
       where x.${r("id")} = v_req.${r("id")}
       returning * into v_req;
-    ${requestRecord("signature.completed", "v_req", `, 'versionId', v_req.${r("version")}, 'meaning', ${meaning("v_req")}`, false)}
+    ${requestRecord("signature_request.completed", "v_req", `, 'versionId', v_req.${r("version")}, 'meaning', ${meaning("v_req")}`, false)}
   end if;
   ${ctx.hook("after_signature_sign", [
     ["uuid", `v_row.${s("id")}`],
@@ -593,7 +593,7 @@ begin
   update ${requests} x set ${r("status")} = 'declined', ${r("completedAt")} = now()
     where x.${r("id")} = v_req.${r("id")}
     returning * into v_req;
-  ${requestRecord("signature.declined", "v_req", ", 'signer', v_me", `'declined to sign' || coalesce(': ' || left(decline_signature_request.reason, 200), '')`)}
+  ${requestRecord("signature_request.declined", "v_req", ", 'signer', v_me", `'declined to sign' || coalesce(': ' || left(decline_signature_request.reason, 200), '')`)}
   return ${requestJson("v_req")};
 end;
 $$;
@@ -622,7 +622,7 @@ begin
   update ${requests} x set ${r("status")} = 'cancelled', ${r("completedAt")} = now()
     where x.${r("id")} = v_req.${r("id")}
     returning * into v_req;
-  ${requestRecord("signature.cancelled", "v_req", "", "'cancelled a signature request'")}
+  ${requestRecord("signature_request.cancelled", "v_req", "", "'cancelled a signature request'")}
   return ${requestJson("v_req")};
 end;
 $$;

@@ -688,12 +688,12 @@ function complete(ctx: BlockSqlContext, n: HookNames): string {
       if found then
         v_result := 'disabled';
         ${ctx.record({
-          type: "webhook.disabled",
+          type: "webhook_endpoint.disabled",
           payload:
             "jsonb_build_object('endpointId', v_endpoint, 'organizationId', v_tenant::text, 'failingSince', v_since)",
           subject: "'webhooks/' || v_endpoint::text",
           tenant: "v_tenant::text",
-          key: "'webhook.disabled:' || v_endpoint::text || ':' || v_since::text",
+          key: "'webhook_endpoint.disabled:' || v_endpoint::text || ':' || v_since::text",
           audit: {
             category: "integration",
             targetType: "webhook_endpoint",
@@ -939,7 +939,7 @@ begin
   insert into ${t} (${columns.map(([column]) => column).join(", ")})
   values (${columns.map(([, expression]) => expression).join(", ")});
   ${ctx.record({
-    type: "webhook.secret_rotated",
+    type: "webhook_endpoint.secret_rotated",
     payload:
       "jsonb_build_object('endpointId', rotate_webhook_secret.endpoint, 'organizationId', v_tenant::text)",
     subject: "'webhooks/' || rotate_webhook_secret.endpoint::text",

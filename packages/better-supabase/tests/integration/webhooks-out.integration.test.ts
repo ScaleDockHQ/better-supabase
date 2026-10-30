@@ -492,7 +492,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       expect(
         await s.value(
-          "(select count(*)::int from better_supabase.outbox_events where type = 'webhook.disabled')",
+          "(select count(*)::int from better_supabase.outbox_events where type = 'webhook_endpoint.disabled')",
         ),
       ).toBe(1);
     } finally {

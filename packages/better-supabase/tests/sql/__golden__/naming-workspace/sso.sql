@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@1 managed
--- @bsb-hash sha256:14c3c85070934b73e781d6d3237b1d14311673dd9698a1bcf1eb796da9090d4b
+-- @bsb-hash sha256:516e89c1a789c1b9f300692d6f269b7248020b3e5ffd597c705291a185578662
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -740,7 +740,11 @@ begin
     end if;
   end if;
   perform "better_supabase"."scim_sync_member"(v_row."id");
-  null;
+  if scim_save_user.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('groups', (
       select coalesce(jsonb_agg(jsonb_build_object('value', sg."id", 'display', sg."display_name") order by sg."display_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_groups" sg on sg."id" = sm."group_id"
@@ -882,7 +886,11 @@ begin
   for v_member in select distinct w.member from unnest(v_before || v_members) w(member) loop
     perform "better_supabase"."scim_sync_member"(v_member);
   end loop;
-  null;
+  if scim_save_group.id is null then
+    null;
+  else
+    null;
+  end if;
   return (select to_jsonb(x.*) || jsonb_build_object('members', (
       select coalesce(jsonb_agg(jsonb_build_object('value', su."id", 'display', coalesce(su."display_name", su."user_name")) order by su."user_name"), '[]'::jsonb)
       from "better_supabase"."scim_group_members" sm join "better_supabase"."scim_users" su on su."id" = sm."scim_user_id"

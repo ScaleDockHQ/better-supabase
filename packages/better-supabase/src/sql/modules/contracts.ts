@@ -46,8 +46,15 @@ const EVENTS: BlockSqlEvents<ContractsEvents> = {
     subject: "contracts",
     payload: ["organizationId", "contractId", "endsOn", "renewedCount"],
   },
-  "obligation.saved": { subject: "obligations", payload: OBLIGATION_PAYLOAD },
-  "obligation.status_changed": {
+  "contract_obligation.created": {
+    subject: "obligations",
+    payload: OBLIGATION_PAYLOAD,
+  },
+  "contract_obligation.updated": {
+    subject: "obligations",
+    payload: OBLIGATION_PAYLOAD,
+  },
+  "contract_obligation.status_changed": {
     subject: "obligations",
     payload: OBLIGATION_PAYLOAD,
   },

@@ -197,7 +197,7 @@ An approved request changes the node's grants, not its record team. Adding someo
 
 ## Ownership and offboarding
 
-`transferOwnership` hands everything one member holds at the top role to another member: their top-role grants on nodes, and with `drives` on, their drive grants and the drives they own. It needs `drive.manage` or the service role, and the new owner must be a member (`DRIVE_PRINCIPAL_NOT_FOUND`). Each moved node records `drive.node_ownership_transferred` and each drive `drive.ownership_transferred`.
+`transferOwnership` hands everything one member holds at the top role to another member: their top-role grants on nodes, and with `drives` on, their drive grants and the drives they own. It needs `drive.manage` or the service role, and the new owner must be a member (`DRIVE_PRINCIPAL_NOT_FOUND`). Each moved node records `drive_node.ownership_transferred` and each drive `drive.ownership_transferred`.
 
 ```ts
 const moved = await db.drive
@@ -267,7 +267,7 @@ if (sent.passwordRequired) {
 
 `uploadToRequest` resolves the token, creates the file in the folder under a free name, uploads the bytes and commits them. Each file counts one use of the link, and the files a link takes are counted per link under the scope `drive_link_upload` when the [rate-limit](/docs/blocks/sql) module is installed: 20 an hour, unless `set_rate_limit('drive_link_upload', ...)` sets another rule. Past the limit the call fails with `rate_limited` and the hint `DRIVE_LINK_RATE_LIMITED`. A wrong or missing password returns `{ passwordRequired: true }` instead of an error. A view or download link fails with `DRIVE_LINK_ROLE_INVALID`.
 
-A file that came through a request has the `source` `request` and no creator, and `drive.node_created` carries that `source`, so a sink can tell the folder's owner a file arrived. Unlike files mirrored from a connection, request files aren't read-only: the folder's editors rename, move and trash them like any other file. When your node table's `source` column is an enum, add `request` to it.
+A file that came through a request has the `source` `request` and no creator, and `drive_node.created` carries that `source`, so a sink can tell the folder's owner a file arrived. Unlike files mirrored from a connection, request files aren't read-only: the folder's editors rename, move and trash them like any other file. When your node table's `source` column is an enum, add `request` to it.
 
 Pass a [Standard Schema](https://standardschema.dev) for the `extraColumns`
 as `fields` to `createDrive`: every node the client returns has its `fields`
@@ -463,7 +463,7 @@ A [saved view](/docs/blocks/saved-views) over `drive_node` then filters the driv
 
 ## The bin
 
-With trash installed, `trash(id)` moves a node and everything under it to the bin as one batch, and `bin(organizationId)` lists the batches. `restore(binId)` puts the batch back, applying the conflict policy if the name is taken again. A node whose folder is still in the bin can't come back until the folder does. `purge(binId)` deletes it for good and records `drive.node_purged` with the object paths. Run `prune()` from the service role to delete the purged objects from storage:
+With trash installed, `trash(id)` moves a node and everything under it to the bin as one batch, and `bin(organizationId)` lists the batches. `restore(binId)` puts the batch back, applying the conflict policy if the name is taken again. A node whose folder is still in the bin can't come back until the folder does. `purge(binId)` deletes it for good and records `drive_node.purged` with the object paths. Run `prune()` from the service role to delete the purged objects from storage:
 
 ```ts
 const drive = createDrive({ transport: serviceTransport, storage });
@@ -589,7 +589,7 @@ with the hint `DRIVE_FORBIDDEN`, and the upload stays uncommitted.
 
 ## Events and hooks
 
-The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared`, `drive.node_purged`, `drive.node_hold_placed`, `drive.node_hold_released`, `drive.node_locked`, `drive.node_unlocked`, `drive.node_download_blocked_changed` and `drive.node_ownership_transferred`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared`, `drive.unshared`, `drive.download_blocked_changed`, `drive.ownership_transferred`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing, unsharing, download blocks and ownership transfers also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
+The drive records `drive_node.created`, `drive_node.renamed`, `drive_node.moved`, `drive_node.shared`, `drive_node.unshared`, `drive_node.purged`, `drive_node.hold_placed`, `drive_node.hold_released`, `drive_node.locked`, `drive_node.unlocked`, `drive_node.download_blocked_changed` and `drive_node.ownership_transferred`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared`, `drive.unshared`, `drive.download_blocked_changed`, `drive.ownership_transferred`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing, unsharing, download blocks and ownership transfers also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
 
 ## Without the client
 

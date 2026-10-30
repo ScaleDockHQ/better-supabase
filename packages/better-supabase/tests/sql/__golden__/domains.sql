@@ -316,7 +316,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@1 managed
--- @bsb-hash sha256:a023abcf93a868c63007b252d794f8025a3abc5ad0eef75d22cb6709629d8a74
+-- @bsb-hash sha256:29b6f98001884e83b843ac3be8a8dae706ccabdd8131e6d731db407e396b4945
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -564,9 +564,9 @@ begin
   end if;
   update "better_supabase"."organization_hostnames" x set "is_primary" = false where x."organization_id" = v_row."organization_id" and x."is_primary";
   update "better_supabase"."organization_hostnames" x set "is_primary" = true where x."id" = v_row."id" returning * into v_row;
-  perform "better_supabase".emit_event('hostname.primary_set', jsonb_build_object('organizationId', v_row."organization_id"::text, 'hostnameId', v_row."id"::text, 'hostname', v_row."hostname"), 'hostnames/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/domains');
+  perform "better_supabase".emit_event('hostname.primary_changed', jsonb_build_object('organizationId', v_row."organization_id"::text, 'hostnameId', v_row."id"::text, 'hostname', v_row."hostname"), 'hostnames/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/domains');
   perform better_supabase.audit_event(
-    event_type => 'hostname.primary_set',
+    event_type => 'hostname.primary_changed',
     category => 'configuration',
     target_type => 'hostname',
     record_id => v_row."id"::text,
@@ -597,9 +597,9 @@ begin
     return false;
   end if;
   delete from "better_supabase"."organization_hostnames" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('hostname.removed', jsonb_build_object('organizationId', v_row."organization_id"::text, 'hostnameId', v_row."id"::text, 'hostname', v_row."hostname"), 'hostnames/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/domains');
+  perform "better_supabase".emit_event('hostname.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'hostnameId', v_row."id"::text, 'hostname', v_row."hostname"), 'hostnames/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/domains');
   perform better_supabase.audit_event(
-    event_type => 'hostname.removed',
+    event_type => 'hostname.deleted',
     category => 'configuration',
     target_type => 'hostname',
     record_id => v_row."id"::text,

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:862338da4e929397f8adfda110d68000a6b1009bc7496bf0c4ed6470c378f959
+-- @bsb-hash sha256:1b04ec2a0dcc6571f7154aed02ba40763d1a1a9b739a363ad1d8632156eaf758
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -506,13 +506,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.started',
+    event_type => 'support_session.started',
     category => 'security',
     target_type => 'user',
     record_id => target::text,
     tenant => (tenant)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only, 'request_id', approval_id, 'approved_by', approver),
-    idempotency_key => 'support.started:' || session_id,
+    idempotency_key => 'support_session.started:' || session_id,
     actor_id => admin,
     support_session => session_id,
     impersonated_by => admin,
@@ -578,13 +578,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.ended',
+    event_type => 'support_session.ended',
     category => 'security',
     target_type => 'user',
     record_id => ended ->> 'target_user_id',
     tenant => ((ended ->> 'tenant')::uuid)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
+    idempotency_key => 'support_session.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end,
     support_session => session_id,
     impersonated_by => (ended ->> 'admin_id')::uuid,
@@ -851,7 +851,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:7099059407233473f0526d7414682f8cfb09efde395d498c8808b6ad16a71cf9
+-- @bsb-hash sha256:2b1df2a0f6a010446b6e7e7dc0a315a59d90479bbe8e2ea8296df3afe3293b45
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1394,15 +1394,15 @@ begin
         using session_id;
     end if;
   end;
-  perform "better_supabase".emit_event('support.started', jsonb_build_object('sessionId', started ->> 'id', 'adminId', started ->> 'admin_id', 'targetUserId', started ->> 'target_user_id', 'reason', started ->> 'reason', 'readOnly', (started ->> 'read_only')::boolean, 'expiresAt', started ->> 'expires_at', 'organizationId', started ->> 'tenant'), 'support-sessions/' || session_id, (tenant)::text, 'support.started:' || session_id, 'better-supabase/impersonation');
+  perform "better_supabase".emit_event('support_session.started', jsonb_build_object('sessionId', started ->> 'id', 'adminId', started ->> 'admin_id', 'targetUserId', started ->> 'target_user_id', 'reason', started ->> 'reason', 'readOnly', (started ->> 'read_only')::boolean, 'expiresAt', started ->> 'expires_at', 'organizationId', started ->> 'tenant'), 'support-sessions/' || session_id, (tenant)::text, 'support_session.started:' || session_id, 'better-supabase/impersonation');
   perform better_supabase.audit_event(
-    event_type => 'support.started',
+    event_type => 'support_session.started',
     category => 'security',
     target_type => 'user',
     record_id => target::text,
     tenant => (tenant)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only, 'request_id', approval_id, 'approved_by', approver),
-    idempotency_key => 'support.started:' || session_id,
+    idempotency_key => 'support_session.started:' || session_id,
     actor_id => admin,
     support_session => session_id,
     impersonated_by => admin,
@@ -1467,15 +1467,15 @@ begin
         using session_id;
     end if;
   end;
-  perform "better_supabase".emit_event('support.ended', jsonb_build_object('sessionId', ended ->> 'id', 'adminId', ended ->> 'admin_id', 'targetUserId', ended ->> 'target_user_id', 'reason', ended ->> 'reason', 'readOnly', (ended ->> 'read_only')::boolean, 'expiresAt', ended ->> 'expires_at', 'organizationId', ended ->> 'tenant', 'endedBy', ended_by), 'support-sessions/' || session_id, ((ended ->> 'tenant')::uuid)::text, 'support.ended:' || session_id, 'better-supabase/impersonation');
+  perform "better_supabase".emit_event('support_session.ended', jsonb_build_object('sessionId', ended ->> 'id', 'adminId', ended ->> 'admin_id', 'targetUserId', ended ->> 'target_user_id', 'reason', ended ->> 'reason', 'readOnly', (ended ->> 'read_only')::boolean, 'expiresAt', ended ->> 'expires_at', 'organizationId', ended ->> 'tenant', 'endedBy', ended_by), 'support-sessions/' || session_id, ((ended ->> 'tenant')::uuid)::text, 'support_session.ended:' || session_id, 'better-supabase/impersonation');
   perform better_supabase.audit_event(
-    event_type => 'support.ended',
+    event_type => 'support_session.ended',
     category => 'security',
     target_type => 'user',
     record_id => ended ->> 'target_user_id',
     tenant => ((ended ->> 'tenant')::uuid)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
+    idempotency_key => 'support_session.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end,
     support_session => session_id,
     impersonated_by => (ended ->> 'admin_id')::uuid,
@@ -1742,7 +1742,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:c66f4ee39faafdab71bf4523828908dbb8342bdcc567c9335ed8660a903f6542
+-- @bsb-hash sha256:f2a9d9e96533b420d95cb18ae90b0ffd98cd03f70e88a8ed6090677eca6f4b59
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2247,13 +2247,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.started',
+    event_type => 'support_session.started',
     category => 'security',
     target_type => 'user',
     record_id => target::text,
     tenant => (tenant)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only, 'request_id', approval_id, 'approved_by', approver),
-    idempotency_key => 'support.started:' || session_id,
+    idempotency_key => 'support_session.started:' || session_id,
     actor_id => admin,
     support_session => session_id,
     impersonated_by => admin,
@@ -2319,13 +2319,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.ended',
+    event_type => 'support_session.ended',
     category => 'security',
     target_type => 'user',
     record_id => ended ->> 'target_user_id',
     tenant => ((ended ->> 'tenant')::uuid)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
+    idempotency_key => 'support_session.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end,
     support_session => session_id,
     impersonated_by => (ended ->> 'admin_id')::uuid,
@@ -2592,7 +2592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:6a3ce9eeed76c48ac522f3066992e48459bdddcd46b8d47d50ca494f9de42b43
+-- @bsb-hash sha256:6fffc1d30864ea0d303fe55a5accdbc961b3a943be6be9e50b38032fa1a81faa
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3097,13 +3097,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.started',
+    event_type => 'support_session.started',
     category => 'security',
     target_type => 'user',
     record_id => target::text,
     tenant => (tenant)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only, 'request_id', approval_id, 'approved_by', approver),
-    idempotency_key => 'support.started:' || session_id,
+    idempotency_key => 'support_session.started:' || session_id,
     actor_id => admin,
     support_session => session_id,
     impersonated_by => admin,
@@ -3169,13 +3169,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.ended',
+    event_type => 'support_session.ended',
     category => 'security',
     target_type => 'user',
     record_id => ended ->> 'target_user_id',
     tenant => ((ended ->> 'tenant')::uuid)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
+    idempotency_key => 'support_session.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end,
     support_session => session_id,
     impersonated_by => (ended ->> 'admin_id')::uuid,
@@ -3554,7 +3554,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:76f8c8ba610e429e7bdf92dc7cf096954a396f471f4162dd1b90af4066b78c64
+-- @bsb-hash sha256:0a72e72bcbdc4d1bd972f4b059b1445c57176f5aeab733dcb1985ee2c0c15762
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4047,13 +4047,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.started',
+    event_type => 'support_session.started',
     category => 'security',
     target_type => 'user',
     record_id => target::text,
     tenant => (tenant)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only, 'request_id', approval_id, 'approved_by', approver),
-    idempotency_key => 'support.started:' || session_id,
+    idempotency_key => 'support_session.started:' || session_id,
     actor_id => admin,
     support_session => session_id,
     impersonated_by => admin,
@@ -4119,13 +4119,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.ended',
+    event_type => 'support_session.ended',
     category => 'security',
     target_type => 'user',
     record_id => ended ->> 'target_user_id',
     tenant => ((ended ->> 'tenant')::uuid)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
+    idempotency_key => 'support_session.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end,
     support_session => session_id,
     impersonated_by => (ended ->> 'admin_id')::uuid,
@@ -4392,7 +4392,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:522cfdaf2121a5eb83bf7291aa00554524e15014f45f6765d6a739e4f42a8cfb
+-- @bsb-hash sha256:8b1443ae90661b2958886aa2a2da1f4f49776384f23ad88d12be61b1f9108d75
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4897,13 +4897,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.started',
+    event_type => 'support_session.started',
     category => 'security',
     target_type => 'user',
     record_id => target::text,
     tenant => (tenant)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only, 'request_id', approval_id, 'approved_by', approver),
-    idempotency_key => 'support.started:' || session_id,
+    idempotency_key => 'support_session.started:' || session_id,
     actor_id => admin,
     support_session => session_id,
     impersonated_by => admin,
@@ -4969,13 +4969,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.ended',
+    event_type => 'support_session.ended',
     category => 'security',
     target_type => 'user',
     record_id => ended ->> 'target_user_id',
     tenant => ((ended ->> 'tenant')::uuid)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
+    idempotency_key => 'support_session.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end,
     support_session => session_id,
     impersonated_by => (ended ->> 'admin_id')::uuid,

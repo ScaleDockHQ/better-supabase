@@ -221,7 +221,7 @@ export default defineConfig({
 
 | Event                                                                                       | Data                                                                                                             |
 | ------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `job.opened`, `job.closed`                                                                  | `organizationId`, `jobId`, `title`                                                                               |
+| `job_opening.opened`, `job_opening.closed`                                                  | `organizationId`, `jobId`, `title`                                                                               |
 | `application.created`, `application.hired`, `application.rejected`, `application.retracted` | `organizationId`, `applicationId`, `subjectType`, `subjectId`, `jobId`, `candidateType`, `candidateId`, `reason` |
 | `scorecard.submitted`, `interview.scheduled`                                                | the same, with `reviewerId` and `recommendation`, or `interviewId` and `startsAt`                                |
 

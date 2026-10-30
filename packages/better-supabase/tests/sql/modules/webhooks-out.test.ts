@@ -143,7 +143,7 @@ describe("webhooks-out module", () => {
     expect(sql).toContain("webhook_deliveries_tenant_created_idx");
     expect(sql).toContain("'webhooks.manage'");
     expect(sql).toContain("'webhooks.read'");
-    expect(sql).toContain("emit_event('webhook.disabled'");
+    expect(sql).toContain("emit_event('webhook_endpoint.disabled'");
   });
 
   it("rejects options it would splice into SQL or can't honor", () => {

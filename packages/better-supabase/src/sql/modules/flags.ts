@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import {
   addExtraColumns,
   extraFieldsJson,
@@ -21,9 +22,10 @@ import {
 import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<FlagsEvents> = {
-  "flag.saved": { subject: "flags", payload: ["key"] },
+  "flag.created": { subject: "flags", payload: ["key"] },
+  "flag.updated": { subject: "flags", payload: ["key"] },
   "flag.deleted": { subject: "flags", payload: ["key"] },
-  "flag.override_set": {
+  "flag.override_changed": {
     subject: "flags",
     payload: [
       "key",
@@ -310,7 +312,7 @@ function build(ctx: BlockSqlContext): string {
     });
 
   const overrideEvent = ctx.record({
-    type: "flag.override_set",
+    type: "flag.override_changed",
     payload:
       "jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)",
     subject: "'flags/' || set_flag_override.key",
@@ -680,6 +682,7 @@ as $$
 declare
   d jsonb := coalesce(definition, '{}');
   saved jsonb;
+  v_inserted boolean;
 begin
   ${denied}
   if d ? 'rollout_variants' and jsonb_typeof(d -> 'rollout_variants') = 'array' and exists (
@@ -689,6 +692,7 @@ begin
   ) then
     ${fail("FLAGS_ROLLOUT_VARIANTS", "Each rollout variant needs a known variant and a weight from 0 to 100", "22023")}
   end if;
+  v_inserted := not exists (select 1 from ${flags} x where x.${f("key")} = save_flag.key);
   insert into ${flags} as x (${[f("key"), ...written.map(([logical]) => f(logical))].join(", ")}${insertExtraColumns(flags, extras, "coalesce(d -> 'fields', '{}'::jsonb)").columns})
   values (
     ${["save_flag.key", ...written.map(([, value]) => value)].join(",\n    ")}${insertExtraColumns(flags, extras, "coalesce(d -> 'fields', '{}'::jsonb)").values}
@@ -704,7 +708,7 @@ begin
     save_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
-  ${flagEvent("flag.saved", "save_flag.key")}
+  ${createdOrUpdated("v_inserted", (verb) => flagEvent(`flag.${verb}`, "save_flag.key"))}
   return saved;
 end;
 $$;

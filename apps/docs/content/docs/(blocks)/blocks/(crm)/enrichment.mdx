@@ -7,7 +7,7 @@ The `enrichment` block looks a [parties](/docs/blocks/contacts) company or
 person up with a data provider and stores the profile it returns, one result
 per record and provider. A match fills the record's empty columns (a
 company's `domain` and `website`, a person's `phone` and `title`) and never
-overwrites a value a member typed. Every result writes a `party.enriched`
+overwrites a value a member typed. Every result writes a `company.enriched` or `person.enriched`
 event.
 
 ```bash
@@ -115,7 +115,7 @@ due for the next run.
 
 ## Events
 
-Every stored result writes `party.enriched` to the
+Every stored result writes `company.enriched` or `person.enriched` to the
 [outbox](/docs/blocks/outbox) with the subject, the provider, the status and
 the filled columns. Handle it to re-run [segments](/docs/blocks/segments) or
 [assignment](/docs/blocks/assignment) on the new values. See

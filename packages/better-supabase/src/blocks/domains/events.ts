@@ -13,14 +13,14 @@ export interface HostnameEventData {
 export type DomainsEvents = {
   readonly "hostname.added": HostnameEventData;
   readonly "hostname.verified": HostnameEventData;
-  readonly "hostname.primary_set": HostnameEventData;
-  readonly "hostname.removed": HostnameEventData;
+  readonly "hostname.primary_changed": HostnameEventData;
+  readonly "hostname.deleted": HostnameEventData;
 };
 
 /** The `domains` block's event types, for its manifest and `onBlockEvent`. */
 export const domainsEvents: Events<DomainsEvents> = defineEvents({
   "hostname.added": event<HostnameEventData>(),
   "hostname.verified": event<HostnameEventData>(),
-  "hostname.primary_set": event<HostnameEventData>(),
-  "hostname.removed": event<HostnameEventData>(),
+  "hostname.primary_changed": event<HostnameEventData>(),
+  "hostname.deleted": event<HostnameEventData>(),
 });

@@ -51,7 +51,7 @@ begin
   update ${T} x set ${n("legalHoldUntil")} = drive_hold.until${touch}
   where x.${n("id")} = v_node.${n("id")}
   returning * into v_node;
-  ${record("drive.node_hold_placed", "v_node", `, 'legalHoldUntil', v_node.${n("legalHoldUntil")}`, dataAudit("v_node", "held"))}
+  ${record("drive_node.hold_placed", "v_node", `, 'legalHoldUntil', v_node.${n("legalHoldUntil")}`, dataAudit("v_node", "held"))}
   return ${withRole("v_node")};
 end;
 $$;
@@ -80,7 +80,7 @@ begin
   update ${T} x set ${n("legalHoldUntil")} = null${touch}
   where x.${n("id")} = v_node.${n("id")}
   returning * into v_node;
-  ${record("drive.node_hold_released", "v_node", "", dataAudit("v_node", "released"))}
+  ${record("drive_node.hold_released", "v_node", "", dataAudit("v_node", "released"))}
   return ${withRole("v_node")};
 end;
 $$;

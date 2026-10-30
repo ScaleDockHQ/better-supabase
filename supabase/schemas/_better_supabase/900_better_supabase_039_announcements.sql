@@ -1,6 +1,6 @@
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:5fc17939c57b0c4b2384a82982f745f551c884acd9be44bce16bfd9dd6234d42
+-- @bsb-hash sha256:fe923eb8c53eb4533b75d505489aeb3c201a45f0ec64aebd546ff9b4b51a617b
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -215,14 +215,25 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('announcement.saved', jsonb_build_object('announcementId', v_row."id"), 'announcements/' || v_row."id"::text, null, null, 'better-supabase/announcements');
+  if save_announcement.id is null then
+    perform "better_supabase".emit_event('announcement.created', jsonb_build_object('announcementId', v_row."id"), 'announcements/' || v_row."id"::text, null, null, 'better-supabase/announcements');
   perform better_supabase.audit_event(
-    event_type => 'announcement.saved',
+    event_type => 'announcement.created',
     category => 'configuration',
     target_type => 'announcement',
     record_id => v_row."id"::text,
     metadata => jsonb_build_object('announcementId', v_row."id")
   );
+  else
+    perform "better_supabase".emit_event('announcement.updated', jsonb_build_object('announcementId', v_row."id"), 'announcements/' || v_row."id"::text, null, null, 'better-supabase/announcements');
+  perform better_supabase.audit_event(
+    event_type => 'announcement.updated',
+    category => 'configuration',
+    target_type => 'announcement',
+    record_id => v_row."id"::text,
+    metadata => jsonb_build_object('announcementId', v_row."id")
+  );
+  end if;
   return to_jsonb(v_row);
 end;
 $$;

@@ -4,6 +4,7 @@ import type { Names, PipelineBinding } from "./pipelines-bindings.ts";
 import { rankKeys } from "../../core/rank-keys.ts";
 import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   columnsObject,
@@ -742,7 +743,7 @@ begin
   exception when unique_violation then
     ${fail("PIPELINE_STAGE_KEY_TAKEN", "another stage of this pipeline has this key", "23505")}
   end;
-  ${configured("pipeline_stage.saved", "jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)", "'pipelines/' || v_pipeline::text", "v_tenant::text", "'saved stage ' || save_pipeline_stage.name")}
+  ${createdOrUpdated("save_pipeline_stage.stage is null", (verb) => configured(`pipeline_stage.${verb}`, "jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage, 'key', save_pipeline_stage.key, 'category', save_pipeline_stage.category)", "'pipelines/' || v_pipeline::text", "v_tenant::text", `'${verb} stage ' || save_pipeline_stage.name`))}
   ${ctx.hook("after_pipeline_stage_save", [["uuid", "v_stage"]])}
   return (select ${names.json("stages", "x")} from ${t("stages")} x where x.${s("id")} = v_stage);
 end;

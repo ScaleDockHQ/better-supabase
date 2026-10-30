@@ -84,7 +84,7 @@ const result = await admin.verifyDomain(domainId, { actorId: user.id });
 // SSO_DOMAIN_RECORD_MISSING until the record is published
 ```
 
-A verified domain emits `organization.domain_verified` through the outbox.
+A verified domain emits `sso_domain.verified` through the outbox.
 Change the record's prefix with `blocks.sso.options.txtPrefix`.
 
 ## Auto-join

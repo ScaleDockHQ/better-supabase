@@ -10,8 +10,8 @@ import { defineEvents, event } from "../../core/event-map.ts";
 /** The events of the `waitlist` block: type to data. */
 export type WaitlistEvents = {
   readonly "organization.member_added": OrganizationEventData;
-  readonly "waitlist.approved": WaitlistEventData;
-  readonly "waitlist.rejected": WaitlistEventData;
+  readonly "waitlist_entry.approved": WaitlistEventData;
+  readonly "waitlist_entry.rejected": WaitlistEventData;
   readonly "invite_code.created": InviteCodeEventData;
   readonly "invite_code.revoked": InviteCodeEventData;
 };
@@ -19,8 +19,8 @@ export type WaitlistEvents = {
 /** The `waitlist` block's event types, for its manifest and `onBlockEvent`. */
 export const waitlistEvents: Events<WaitlistEvents> = defineEvents({
   "organization.member_added": event<OrganizationEventData>(),
-  "waitlist.approved": event<WaitlistEventData>(),
-  "waitlist.rejected": event<WaitlistEventData>(),
+  "waitlist_entry.approved": event<WaitlistEventData>(),
+  "waitlist_entry.rejected": event<WaitlistEventData>(),
   "invite_code.created": event<InviteCodeEventData>(),
   "invite_code.revoked": event<InviteCodeEventData>(),
 });

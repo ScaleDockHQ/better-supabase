@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:871c6960bedcfecf9e4633cae0c676ebe552a76ce1ab4019059c14bcde6ff69d
+-- @bsb-hash sha256:9e2d479defa2ea21ccc987ee0cba11bfb8f2d827ce884c9b0f2341e4791558d3
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,6 +129,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "better_supabase"."saved_views";
   v_last text;
   v_rank text;
@@ -213,7 +214,11 @@ begin
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin

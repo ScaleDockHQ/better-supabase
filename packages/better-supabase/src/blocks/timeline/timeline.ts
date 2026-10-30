@@ -19,7 +19,7 @@ import type { BlockTemporalOptions, CursorPageOptions } from "../shared.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
-import { stripTypePrefix } from "../../events/cloud-event.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 import { defineListQuery } from "../../list/list-query.ts";
 import {
   applyTemporal,
@@ -250,7 +250,7 @@ export function activitySink(options: ActivitySinkOptions): EventSink {
           continue;
         }
 
-        const type = stripTypePrefix(event.type, options.typePrefix);
+        const type = eventTypeOf(event, options.typePrefix);
 
         if (options.types && !matches(options.types, type)) {
           continue;

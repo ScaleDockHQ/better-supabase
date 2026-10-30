@@ -67,6 +67,7 @@ describe("resolveNames", () => {
       "Ticket",
       "workspace_id",
     ]);
+    expect(resolved.eventNaming.rename("task.created")).toBe("ticket.created");
     expect(rename(resolved.functionNouns.rename("create_task"))).toBe(
       "create_ticket",
     );

@@ -26,11 +26,11 @@ const EVENTS: BlockSqlEvents<DomainsEvents> = {
     subject: "hostnames",
     payload: ["organizationId", "hostnameId", "hostname"],
   },
-  "hostname.primary_set": {
+  "hostname.primary_changed": {
     subject: "hostnames",
     payload: ["organizationId", "hostnameId", "hostname"],
   },
-  "hostname.removed": {
+  "hostname.deleted": {
     subject: "hostnames",
     payload: ["organizationId", "hostnameId", "hostname"],
   },
@@ -337,7 +337,7 @@ begin
   end if;
   update ${t} x set ${c("primary")} = false where x.${c("tenant")} = v_row.${c("tenant")} and x.${c("primary")};
   update ${t} x set ${c("primary")} = true where x.${c("id")} = v_row.${c("id")} returning * into v_row;
-  ${hostnameEvent("hostname.primary_set", "v_row")}
+  ${hostnameEvent("hostname.primary_changed", "v_row")}
   return ${publicRow("v_row")};
 end;
 $$;
@@ -357,7 +357,7 @@ begin
     return false;
   end if;
   delete from ${t} x where x.${c("id")} = v_row.${c("id")};
-  ${hostnameEvent("hostname.removed", "v_row")}
+  ${hostnameEvent("hostname.deleted", "v_row")}
   return true;
 end;
 $$;

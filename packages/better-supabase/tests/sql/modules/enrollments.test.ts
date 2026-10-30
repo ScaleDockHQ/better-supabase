@@ -33,7 +33,7 @@ describe("enrollments module", () => {
 
     expect(sql).toContain("'enrollment.step_completed'");
     expect(sql).toContain("'enrollment.completed'");
-    expect(sql).toContain("'enrollment_program.saved'");
+    expect(sql).toContain("'enrollment_program.created'");
     expect(sql).toContain("audit_event");
   });
 

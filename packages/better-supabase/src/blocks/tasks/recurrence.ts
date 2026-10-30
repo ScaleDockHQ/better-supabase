@@ -2,7 +2,7 @@ import type { EventSink } from "../../events/cloud-event.ts";
 import type { WorkItemRecurrence, Tasks } from "./tasks.ts";
 
 import { temporal } from "../../core/temporal-required.ts";
-import { stripTypePrefix } from "../../events/cloud-event.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 import { expandRule } from "../reminders/rrule.ts";
 import { isRecord, optionalText } from "../shared.ts";
 
@@ -33,7 +33,7 @@ export function nextWorkItemOccurrence(
 export interface WorkItemRecurrenceSinkOptions {
   /**
    * The closed event's type without `typePrefix`, after `blocks.tasks.names`
-   * (`task.closed`). Default `work_item.closed`.
+   * (`task.closed`). Default `task.closed`.
    */
   readonly type?: string;
   /** Stripped from each event type. Defaults to `dev.better-supabase`. */
@@ -53,14 +53,14 @@ export function workItemRecurrenceSink(
   workItems: Pick<Tasks, "get" | "repeat">,
   options: WorkItemRecurrenceSinkOptions = {},
 ): EventSink {
-  const type = options.type ?? "work_item.closed";
+  const type = options.type ?? "task.closed";
   const now = options.now ?? (() => temporal().Now.instant());
 
   return {
     async send(events) {
       for (const event of events) {
         if (
-          stripTypePrefix(event.type, options.typePrefix) !== type ||
+          eventTypeOf(event, options.typePrefix) !== type ||
           !isRecord(event.data) ||
           event.data["state"] !== "completed"
         ) {

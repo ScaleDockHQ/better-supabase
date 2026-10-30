@@ -33,6 +33,12 @@ export interface BlockNaming {
   /** The block's own entities the config renames, such as `work_item` to `task`. */
   readonly entities?: readonly EntityRename[];
   /**
+   * Renames event types alone start from, before `entities`: an entity renamed
+   * since 0.47 names its events after its current singular (`task` to
+   * `ticket`), while its keys keep the old noun.
+   */
+  readonly events?: readonly EntityRename[];
+  /**
    * The tenant columns `blocks.<name>.columns.<table>.tenant` renames: the
    * column's name in the database to its default name, such as `org_id` to
    * `tenant_id`, so the block's client reads rows by the default name.

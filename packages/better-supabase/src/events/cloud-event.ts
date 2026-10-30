@@ -31,6 +31,27 @@ export function stripTypePrefix(
   return type.startsWith(prefix) ? type.slice(prefix.length) : type;
 }
 
+/**
+ * The CloudEvents extension an outbox relay with `legacyEventTypes` sets to the
+ * current event type, while `type` carries the old name.
+ */
+export const CURRENT_TYPE_EXTENSION = "currenttype";
+
+/**
+ * The event's current type without `typePrefix`: the `currenttype` extension
+ * when a relay with `legacyEventTypes` set it, otherwise the stripped `type`.
+ */
+export function eventTypeOf(
+  event: CloudEvent,
+  typePrefix: string = DEFAULT_TYPE_PREFIX,
+): string {
+  const current = event[CURRENT_TYPE_EXTENSION];
+
+  return typeof current === "string" && current !== ""
+    ? current
+    : stripTypePrefix(event.type, typePrefix);
+}
+
 export interface CloudEventOptions {
   /** URI-reference of the producer, e.g. `https://crm.example.com` or `/crm`. */
   readonly source: string;
@@ -76,8 +97,8 @@ export interface EventSink {
 }
 
 /**
- * A block event as a CloudEvent: `dev.better-supabase.support.started` with the
- * event data and the actor (`actorId`) as `data` and the tenant as
+ * A block event as a CloudEvent: `dev.better-supabase.support_session.started`
+ * with the event data and the actor (`actorId`) as `data` and the tenant as
  * `partitionkey`.
  */
 export function blockCloudEvent(
@@ -103,16 +124,16 @@ export function blockCloudEvent(
 }
 
 export interface ForwardBlockOptions extends CloudEventOptions {
-  /** Only forward events that match, e.g. `support.*`. Defaults to all. */
+  /** Only forward events that match, e.g. `support_session.*`. Defaults to all. */
   readonly types?: readonly BlockEventPattern[];
   /** Sink failures never fail the block call. Defaults to the `Logger`. */
   readonly onError?: (error: unknown, events: readonly CloudEvent[]) => void;
 }
 
 /**
- * Sends a CloudEvent for every block event (`support.*`, `organization.*`, ...)
- * to `sink`. Returns a function that stops forwarding. Like `forwardMutations`,
- * sends are tracked on `betterSupabase.events`.
+ * Sends a CloudEvent for every block event (`support_session.*`,
+ * `organization.*`, ...) to `sink`. Returns a function that stops forwarding.
+ * Like `forwardMutations`, sends are tracked on `betterSupabase.events`.
  */
 export function forwardBlockEvents(
   betterSupabase: { readonly events: EventHub },

@@ -9,9 +9,9 @@ export type CatalogEvents = {
   readonly "product.updated": CommerceEventData;
   readonly "product.status_changed": CommerceEventData;
   readonly "product.deleted": CommerceEventData;
-  readonly "variant.created": CommerceEventData;
-  readonly "variant.updated": CommerceEventData;
-  readonly "variant.deleted": CommerceEventData;
+  readonly "product_variant.created": CommerceEventData;
+  readonly "product_variant.updated": CommerceEventData;
+  readonly "product_variant.deleted": CommerceEventData;
   readonly "catalog.price_changed": CommerceEventData;
   readonly "storefront.published": CommerceEventData;
   readonly "storefront.unpublished": CommerceEventData;
@@ -23,9 +23,9 @@ export const catalogEvents: Events<CatalogEvents> = defineEvents({
   "product.updated": event<CommerceEventData>(),
   "product.status_changed": event<CommerceEventData>(),
   "product.deleted": event<CommerceEventData>(),
-  "variant.created": event<CommerceEventData>(),
-  "variant.updated": event<CommerceEventData>(),
-  "variant.deleted": event<CommerceEventData>(),
+  "product_variant.created": event<CommerceEventData>(),
+  "product_variant.updated": event<CommerceEventData>(),
+  "product_variant.deleted": event<CommerceEventData>(),
   "catalog.price_changed": event<CommerceEventData>(),
   "storefront.published": event<CommerceEventData>(),
   "storefront.unpublished": event<CommerceEventData>(),

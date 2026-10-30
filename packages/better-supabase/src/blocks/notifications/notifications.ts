@@ -45,7 +45,7 @@ import { DbException, dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
 import { validate } from "../../core/standard.ts";
 import { subjectReaders } from "../../core/subject-readers.ts";
-import { stripTypePrefix } from "../../events/cloud-event.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 import { allowedSubscribers } from "../../realtime/subscribers.ts";
 import {
   DEFAULT_BLOCK_SCHEMA,
@@ -1098,7 +1098,7 @@ export function createNotifications<
           const items: SinkNotification<K>[] = [];
 
           for (const event of events) {
-            const type = stripTypePrefix(event.type, sinkOptions.typePrefix);
+            const type = eventTypeOf(event, sinkOptions.typePrefix);
             const mapped = await sinkOptions.map({ ...event, type });
 
             if (mapped === null) {

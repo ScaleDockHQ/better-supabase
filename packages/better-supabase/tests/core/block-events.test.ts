@@ -124,12 +124,12 @@ describe("block events", () => {
   it("names the attributes an event carries", () => {
     expect(
       blockEventAttributes({
-        type: "support.started",
+        type: "support_session.started",
         data: { sessionId: "s1", adminId: "a", targetUserId: "u" },
         time: Temporal.Now.instant(),
       }),
     ).toEqual({
-      "better_supabase.block.event": "support.started",
+      "better_supabase.block.event": "support_session.started",
       "better_supabase.support.session_id": "s1",
     });
   });

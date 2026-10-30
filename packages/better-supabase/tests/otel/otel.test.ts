@@ -333,7 +333,7 @@ describe("otel", () => {
     const stop = traceBlockEvents({ events }, { tracer });
     emitBlockEvent(
       events,
-      "support.denied",
+      "support_session.denied",
       { adminId: "a1", targetUserId: "u1", denial: "permission" },
       { tenant: "t1", actorId: "a1" },
     );
@@ -346,16 +346,16 @@ describe("otel", () => {
       },
     } as unknown as Span);
 
-    emitBlockEvent(events, "webhook.failed", { endpointId: "e1" });
+    emitBlockEvent(events, "webhook_endpoint.failed", { endpointId: "e1" });
     active.mockRestore();
     stop();
     emitBlockEvent(events, "organization.created", { organizationId: "o2" });
     expect(spans.map((span) => [span.name, span.status?.code])).toEqual([
-      ["block support.denied", SpanStatusCode.ERROR],
+      ["block support_session.denied", SpanStatusCode.ERROR],
       ["block organization.created", undefined],
     ]);
     expect(spans[0]?.attributes).toEqual({
-      "better_supabase.block.event": "support.denied",
+      "better_supabase.block.event": "support_session.denied",
       "better_supabase.tenant": "t1",
       "better_supabase.actor.id": "a1",
     });
@@ -364,9 +364,9 @@ describe("otel", () => {
     });
     expect(added).toEqual([
       [
-        "webhook.failed",
+        "webhook_endpoint.failed",
         {
-          "better_supabase.block.event": "webhook.failed",
+          "better_supabase.block.event": "webhook_endpoint.failed",
           "better_supabase.webhook.endpoint_id": "e1",
         },
       ],

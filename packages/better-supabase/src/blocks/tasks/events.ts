@@ -5,22 +5,22 @@ import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `tasks` block: type to data. */
 export type TasksEvents = {
-  readonly "work_item.created": WorkItemEventData;
-  readonly "work_item.updated": WorkItemEventData;
-  readonly "work_item.assigned": WorkItemEventData;
-  readonly "work_item.closed": WorkItemEventData;
-  readonly "work_item.reopened": WorkItemEventData;
-  readonly "work_item.archived": WorkItemEventData;
-  readonly "work_item.deleted": WorkItemEventData;
+  readonly "task.created": WorkItemEventData;
+  readonly "task.updated": WorkItemEventData;
+  readonly "task.assigned": WorkItemEventData;
+  readonly "task.closed": WorkItemEventData;
+  readonly "task.reopened": WorkItemEventData;
+  readonly "task.archived": WorkItemEventData;
+  readonly "task.deleted": WorkItemEventData;
 };
 
 /** The `tasks` block's event types, for its manifest and `onBlockEvent`. */
 export const tasksEvents: Events<TasksEvents> = defineEvents({
-  "work_item.created": event<WorkItemEventData>(),
-  "work_item.updated": event<WorkItemEventData>(),
-  "work_item.assigned": event<WorkItemEventData>(),
-  "work_item.closed": event<WorkItemEventData>(),
-  "work_item.reopened": event<WorkItemEventData>(),
-  "work_item.archived": event<WorkItemEventData>(),
-  "work_item.deleted": event<WorkItemEventData>(),
+  "task.created": event<WorkItemEventData>(),
+  "task.updated": event<WorkItemEventData>(),
+  "task.assigned": event<WorkItemEventData>(),
+  "task.closed": event<WorkItemEventData>(),
+  "task.reopened": event<WorkItemEventData>(),
+  "task.archived": event<WorkItemEventData>(),
+  "task.deleted": event<WorkItemEventData>(),
 });

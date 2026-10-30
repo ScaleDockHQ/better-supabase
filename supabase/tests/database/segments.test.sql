@@ -131,9 +131,9 @@ select is(
   'the company that left gets a segment.left event'
 );
 select is(
-  (select count(*)::int from better_supabase.outbox_events where type = 'segment.saved'),
+  (select count(*)::int from better_supabase.outbox_events where type in ('segment.created', 'segment.updated')),
   2,
-  'saving a segment emits segment.saved'
+  'saving a segment emits segment.created or segment.updated'
 );
 
 -- The member reads what the owner built.

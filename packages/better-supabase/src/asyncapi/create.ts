@@ -40,7 +40,10 @@ export interface AsyncApiOptions<
  *   realtimeUrl: "wss://example.supabase.co/realtime/v1/websocket",
  *   events: {
  *     tables: ["customers"],
- *     cloudEvents: { source: "/crm", blocks: { "support.started": true } },
+ *     cloudEvents: {
+ *       source: "/crm",
+ *       blocks: { "support_session.started": true },
+ *     },
  *   },
  * });
  * ```

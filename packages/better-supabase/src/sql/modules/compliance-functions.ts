@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -251,7 +252,9 @@ ${
   end if;
 `
     : ""
-}  if save_control.control_id is null then
+}  v_new := false;
+  if save_control.control_id is null then
+    v_new := not exists (select 1 from ${controls} x where x.${k("framework")} = v_framework.${f("id")} and x.${k("code")} = trim(save_control.code));
     insert into ${controls} (${k("tenant")}, ${k("framework")}, ${k("code")}, ${k("title")}${insertCol("controls", "description")}${insertCol("controls", "owner")}${insertCol("controls", "source")}${insertCol("controls", "jurisdiction")}, ${k("applicable")})
     values (v_framework.${f("tenant")}, v_framework.${f("id")}, trim(save_control.code), trim(save_control.title)${insertVal("controls", "description", "nullif(trim(save_control.description), '')")}${insertVal("controls", "owner", "save_control.owner_id")}${insertVal("controls", "source", "nullif(trim(save_control.source), '')")}${insertVal("controls", "jurisdiction", "nullif(trim(save_control.jurisdiction), '')")}, coalesce(save_control.applicable, true))
     on conflict (${k("framework")}, ${k("code")}) do update
@@ -267,18 +270,20 @@ ${
       ${controlNotFound}
     end if;
   end if;${writeExtraColumns(controls, extras, "save_control.fields", `x.${k("id")} = v_row.${k("id")}`, "v_row")}
-  ${ctx.record({
-    type: "control.saved",
-    payload: `jsonb_build_object('organizationId', v_row.${k("tenant")}, 'controlId', v_row.${k("id")}, 'frameworkId', v_row.${k("framework")}, 'code', v_row.${k("code")})`,
-    subject: `'controls/' || v_row.${k("id")}::text`,
-    tenant: `v_row.${k("tenant")}`,
-    audit: {
-      category: "data",
-      targetType: "control",
-      recordId: `v_row.${k("id")}::text`,
-      summary: `'saved control ' || v_row.${k("code")}`,
-    },
-  })}
+  ${createdOrUpdated("v_new", (verb) =>
+    ctx.record({
+      type: `control.${verb}`,
+      payload: `jsonb_build_object('organizationId', v_row.${k("tenant")}, 'controlId', v_row.${k("id")}, 'frameworkId', v_row.${k("framework")}, 'code', v_row.${k("code")})`,
+      subject: `'controls/' || v_row.${k("id")}::text`,
+      tenant: `v_row.${k("tenant")}`,
+      audit: {
+        category: "data",
+        targetType: "control",
+        recordId: `v_row.${k("id")}::text`,
+        summary: `'${verb} control ' || v_row.${k("code")}`,
+      },
+    }),
+  )}
   return ${controlJson("v_row")};
 end;
 $$;

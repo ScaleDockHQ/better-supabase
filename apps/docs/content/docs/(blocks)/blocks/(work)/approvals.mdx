@@ -386,7 +386,7 @@ returns jsonb language sql stable as $$
 $$;
 ```
 
-The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired`, `approval.delegated`, `approval.consumed` and `approval.escalated`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Tenant policies record `approval_policy.saved` and `approval_policy.removed` with `organizationId`, `id`, `subjectType` and `action`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide`, `after_approval_decide` and `approval_notification`.
+The module records `approval.requested`, `approval.approved`, `approval.rejected`, `approval.cancelled`, `approval.expired`, `approval.delegated`, `approval.consumed` and `approval.escalated`, each with `organizationId`, `subjectType`, `subjectId`, the request `id`, `action`, `status` and `step`. Tenant policies record `approval_policy.created`, `approval_policy.updated` and `approval_policy.deleted` with `organizationId`, `id`, `subjectType` and `action`. Every event but `approval.expired` also goes to the [audit log](/docs/blocks/audit). It calls `before_approval_request`, `after_approval_request`, `before_approval_decide`, `after_approval_decide` and `approval_notification`.
 
 ## With ReUI
 

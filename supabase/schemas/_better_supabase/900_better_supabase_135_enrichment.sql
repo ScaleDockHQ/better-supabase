@@ -1,6 +1,6 @@
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:3680e89cdf16e927d421fcb211fd2b3973126c09c49f93fc020ab4be9c5058e0
+-- @bsb-hash sha256:12306a3fd8cdcfac27d6ad5b7d3a7257f3b237dfb31526588c6568f8c7ac4b34
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -241,7 +241,11 @@ begin
       "requested_by" = excluded."requested_by"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('party.enriched', jsonb_build_object('organizationId', v_tenant, 'subjectType', record_enrichment.subject_type, 'subjectId', record_enrichment.subject_id, 'provider', record_enrichment.provider, 'status', v_status, 'filled', to_jsonb(v_filled)), 'enrichments/' || v_row."id"::text, (v_tenant::text)::text, null, 'better-supabase/enrichment');
+  if v_company."id" is not null then
+    perform "better_supabase".emit_event('company.enriched', jsonb_build_object('organizationId', v_tenant, 'subjectType', record_enrichment.subject_type, 'subjectId', record_enrichment.subject_id, 'provider', record_enrichment.provider, 'status', v_status, 'filled', to_jsonb(v_filled)), 'enrichments/' || v_row."id"::text, (v_tenant::text)::text, null, 'better-supabase/enrichment');
+  else
+    perform "better_supabase".emit_event('person.enriched', jsonb_build_object('organizationId', v_tenant, 'subjectType', record_enrichment.subject_type, 'subjectId', record_enrichment.subject_id, 'provider', record_enrichment.provider, 'status', v_status, 'filled', to_jsonb(v_filled)), 'enrichments/' || v_row."id"::text, (v_tenant::text)::text, null, 'better-supabase/enrichment');
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', case when v_row."company_id" is not null then 'company' else 'person' end, 'subjectId', coalesce(v_row."company_id", v_row."person_id"), 'provider', v_row."provider", 'status', v_row."status", 'data', v_row."data", 'filled', to_jsonb(v_row."filled"), 'fetchedAt', v_row."fetched_at", 'requestedBy', v_row."requested_by");
 end;
 $$;

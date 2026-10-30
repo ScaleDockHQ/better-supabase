@@ -88,7 +88,7 @@ select throws_ok(
 reset role;
 select is(
   (select count(*) from better_supabase.outbox_events
-   where type in ('engagement.recorded', 'engagement.transcribed', 'engagement.summarized')),
+   where type in ('activity.recorded', 'activity.transcribed', 'activity.summarized')),
   3::bigint,
   'recording, transcribing and summarizing each record an event'
 );

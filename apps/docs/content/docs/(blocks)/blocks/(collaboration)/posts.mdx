@@ -148,7 +148,7 @@ blocks: {
 
 ## Events
 
-The block writes `post_board.saved`, and per post `post.created`,
+The block writes `post_board.created`, `post_board.updated`, and per post `post.created`,
 `post.updated`, `post.status_changed`, `post.moderated`, `post.merged` and
 `post.deleted`, to the [outbox](/docs/blocks/outbox). See
 [Events](/docs/extending/events).

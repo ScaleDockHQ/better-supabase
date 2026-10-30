@@ -751,7 +751,7 @@ begin
     return false;
   end if;
   update ${t} e set ${c("enabled")} = set_incoming_webhook_enabled.enabled where ${e("id")} = endpoint;
-  ${hookEvent("incoming_webhook.enabled_set", "endpoint", "tenant", "integration", ", 'enabled', set_incoming_webhook_enabled.enabled")}
+  ${hookEvent("incoming_webhook.enabled_changed", "endpoint", "tenant", "integration", ", 'enabled', set_incoming_webhook_enabled.enabled")}
   return true;
 end;
 $$;
@@ -832,7 +832,7 @@ const EVENTS: BlockSqlEvents<IncomingWebhooksEvents> = {
     subject: "organizations",
     payload: ["organizationId", "endpointId", "name", "verify"],
   },
-  "incoming_webhook.enabled_set": {
+  "incoming_webhook.enabled_changed": {
     subject: "organizations",
     payload: ["organizationId", "endpointId", "enabled"],
   },

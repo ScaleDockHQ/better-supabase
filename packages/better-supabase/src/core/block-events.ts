@@ -6,20 +6,20 @@ import { cloneValue } from "./clone.ts";
 import { nowInstant } from "./temporal.ts";
 
 /**
- * `support.*`: support sessions, where a platform admin views the app as a
- * user.
+ * `support_session.*`: support sessions, where a platform admin views the app
+ * as a user.
  */
 export interface SupportEventData {
-  /** Absent on `support.denied`. */
+  /** Absent on `support_session.denied`. */
   readonly sessionId?: string;
   readonly adminId: string;
   readonly targetUserId: string;
   readonly reason?: string;
   readonly readOnly?: boolean;
   readonly expiresAt?: Temporal.Instant;
-  /** `support.denied`: which check refused it. */
+  /** `support_session.denied`: which check refused it. */
   readonly denial?: "authorize" | "permission" | "policy" | "store";
-  /** `support.ended`: who or what ended it. */
+  /** `support_session.ended`: who or what ended it. */
   readonly endedBy?: "admin" | "expired" | "revoked";
   /** The organization the session is scoped to, when it has one. */
   readonly organizationId?: string | null;
@@ -67,11 +67,11 @@ export interface NotificationDeliveryEventData
   readonly providerEventId?: string | null;
 }
 
-/** `webhook.*`: outgoing webhooks. */
+/** `webhook_endpoint.*`: outgoing webhooks. */
 export interface WebhookEventData {
   readonly endpointId: string;
   readonly organizationId?: string;
-  /** `webhook.disabled`: when the endpoint started failing. */
+  /** `webhook_endpoint.disabled`: when the endpoint started failing. */
   readonly failingSince?: string;
   readonly deliveryId?: string;
   readonly eventType?: string;
@@ -165,7 +165,7 @@ export interface OrganizationDomainEventData {
   readonly userId?: string | null;
 }
 
-/** `waitlist.*`, from the waitlist module. */
+/** `waitlist_entry.*`, from the waitlist module. */
 export interface WaitlistEventData {
   readonly entryId: string;
   readonly email: string;
@@ -217,11 +217,14 @@ export interface SettingEventData {
 /** `flag.*`, from the flags module. */
 export interface FlagEventData {
   readonly key: string;
-  /** `flag.override_set`: the variant, or `null` when the override was removed. */
+  /**
+   * `flag.override_changed`: the variant, or `null` when the override was
+   * removed.
+   */
   readonly variant?: string | null;
   readonly organizationId?: string | null;
   readonly userId?: string | null;
-  /** `flag.override_set` on a custom context, such as `brand`. */
+  /** `flag.override_changed` on a custom context, such as `brand`. */
   readonly context?: string | null;
   readonly contextKey?: string | null;
 }
@@ -274,7 +277,10 @@ export interface AiProviderKeyEventData {
   readonly name: string;
 }
 
-/** `ai_tool_policy.set` and `ai_tool_approval.decided`, from the ai-chat module. */
+/**
+ * `ai_tool_policy.updated` and `ai_tool_approval.decided`, from the ai-chat
+ * module.
+ */
 export interface AiToolEventData {
   readonly organizationId: string;
   readonly tool: string;
@@ -334,8 +340,8 @@ export interface WorkflowRunEventData {
 }
 
 /**
- * `workflow.published` and `workflow_alert.triggered`, from the workflow-editor
- * module.
+ * `workflow_definition.published` and `workflow_alert.triggered`, from the
+ * workflow-editor module.
  */
 export interface WorkflowEventData {
   readonly organizationId?: string | null;
@@ -498,7 +504,7 @@ export interface AccessRequestEventData {
   /** The action a record request asks for, such as `read`. */
   readonly action?: string | null;
   /**
-   * For `access.ended`: `expired` or `revoked`. For
+   * For `access_request.ended`: `expired` or `revoked`. For
    * `access_request.emergency_opened`: the reason the user gave.
    */
   readonly reason?: string | null;
@@ -620,53 +626,53 @@ export type CommerceSubjectEventData = CommerceEventData & SubjectEventData;
 
 /** Events from the drive module. `subjectId` is the node. */
 export interface DriveEventData extends SubjectEventData {
-  /** For `drive.node_created`: `folder` or `file`. */
+  /** For `drive_node.created`: `folder` or `file`. */
   readonly kind?: "folder" | "file";
-  /** For `drive.node_created` and `drive.node_renamed`. */
+  /** For `drive_node.created` and `drive_node.renamed`. */
   readonly name?: string;
-  /** For `drive.node_renamed`. */
+  /** For `drive_node.renamed`. */
   readonly previousName?: string;
-  /** For `drive.node_created` and `drive.node_moved`; `null` at the root. */
+  /** For `drive_node.created` and `drive_node.moved`; `null` at the root. */
   readonly parentId?: string | null;
-  /** For `drive.node_moved`. */
+  /** For `drive_node.moved`. */
   readonly previousParentId?: string | null;
   /**
-   * For `drive.node_created`: `internal`, or `request` for a file sent through
+   * For `drive_node.created`: `internal`, or `request` for a file sent through
    * a file request link.
    */
   readonly source?: string;
   /**
-   * For `drive.node_shared` and `drive.node_unshared`: `user`, `team` or
+   * For `drive_node.shared` and `drive_node.unshared`: `user`, `team` or
    * `role`.
    */
   readonly principalType?: string;
   readonly principalId?: string;
-  /** For `drive.node_shared`. */
+  /** For `drive_node.shared`. */
   readonly role?: string;
-  /** For `drive.node_hold_placed`: when the legal hold ends. */
+  /** For `drive_node.hold_placed`: when the legal hold ends. */
   readonly legalHoldUntil?: string;
   /**
-   * For `drive.node_locked` and `drive.node_unlocked`: who holds, or held, the
+   * For `drive_node.locked` and `drive_node.unlocked`: who holds, or held, the
    * lock.
    */
   readonly lockedBy?: string;
-  /** For `drive.node_locked`: when the lock ends. */
+  /** For `drive_node.locked`: when the lock ends. */
   readonly lockedUntil?: string;
-  /** For `drive.node_unlocked`: someone other than the holder broke it. */
+  /** For `drive_node.unlocked`: someone other than the holder broke it. */
   readonly forced?: boolean;
   /**
-   * For `drive.node_ownership_transferred` and `drive.ownership_transferred`:
+   * For `drive_node.ownership_transferred` and `drive.ownership_transferred`:
    * the user who held the node or drive, and the user who holds it now.
    */
   readonly fromUserId?: string;
   readonly toUserId?: string;
   /**
-   * For `drive.node_download_blocked_changed` and
+   * For `drive_node.download_blocked_changed` and
    * `drive.download_blocked_changed`.
    */
   readonly downloadBlocked?: boolean;
   /**
-   * For `drive.node_purged`: the stored objects to delete, as `{ bucket, path
+   * For `drive_node.purged`: the stored objects to delete, as `{ bucket, path
    * }`.
    */
   readonly objects?: readonly {
@@ -675,26 +681,26 @@ export interface DriveEventData extends SubjectEventData {
   }[];
   /** For the controlled document events: the document's number. */
   readonly documentNumber?: string;
-  /** For `drive.node_document_saved`. */
+  /** For `drive_node.document_saved`. */
   readonly documentType?: string;
-  /** For `drive.node_document_saved` and `drive.node_review_requested`. */
+  /** For `drive_node.document_saved` and `drive_node.review_requested`. */
   readonly ownerId?: string | null;
   /**
-   * For `drive.node_submitted` and `drive.node_released`: the attachment sent
+   * For `drive_node.submitted` and `drive_node.released`: the attachment sent
    * for release, or released.
    */
   readonly attachmentId?: string;
-  /** For `drive.node_submitted`: the approval request. */
+  /** For `drive_node.submitted`: the approval request. */
   readonly requestId?: string;
-  /** For `drive.node_released`: the version that is now effective. */
+  /** For `drive_node.released`: the version that is now effective. */
   readonly versionId?: string;
-  /** For `drive.node_obsoleted`. */
+  /** For `drive_node.obsoleted`. */
   readonly reason?: string | null;
-  /** For `drive.node_reviewed`: `unchanged` or `revise`. */
+  /** For `drive_node.reviewed`: `unchanged` or `revise`. */
   readonly outcome?: "unchanged" | "revise";
-  /** For `drive.node_reviewed`. */
+  /** For `drive_node.reviewed`. */
   readonly note?: string | null;
-  /** For `drive.node_reviewed` and `drive.node_review_requested`. */
+  /** For `drive_node.reviewed` and `drive_node.review_requested`. */
   readonly nextReviewOn?: string;
 }
 
@@ -741,13 +747,13 @@ export interface SignatureEventData extends SubjectEventData {
   /** The signature request. */
   readonly id: string;
   readonly versionId?: string;
-  /** For `signature.signed`: the signature. */
+  /** For `signature_request.signed`: the signature. */
   readonly signatureId?: string;
-  /** For `signature.signed` and `signature.declined`. */
+  /** For `signature_request.signed` and `signature_request.declined`. */
   readonly signer?: string;
-  /** For `signature.signed`: `drawn`, `typed` or `click`. */
+  /** For `signature_request.signed`: `drawn`, `typed` or `click`. */
   readonly method?: string;
-  /** For `signature.completed`: what signing meant, such as `approved`. */
+  /** For `signature_request.completed`: what signing meant, such as `approved`. */
   readonly meaning?: string | null;
 }
 
@@ -869,7 +875,7 @@ export type BlockEvent<
   };
 }[K];
 
-/** A type, or a `prefix.*` pattern such as `support.*`. */
+/** A type, or a `prefix.*` pattern such as `support_session.*`. */
 export type BlockEventPattern<M extends EventMap = EventMap> =
   | BlockEventType<M>
   | `${BlockEventType<M> extends `${infer P}.${string}` ? P : never}.*`;

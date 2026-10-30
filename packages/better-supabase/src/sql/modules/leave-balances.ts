@@ -90,7 +90,7 @@ export function leaveBalanceFunctions(
     `${employee && has("user") ? `${owner.userOf(value)}, ` : ""}${value}`;
 
   const adjusted = ctx.record({
-    type: "leave.adjusted",
+    type: "leave_balance.adjusted",
     payload: `jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', ${employee ? "v_user, 'employeeId', v_owner" : "v_user"}, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period)`,
     subject: `'leave-ledger-entries/' || v_entry::text`,
     tenant: "adjust_leave_balance.tenant",

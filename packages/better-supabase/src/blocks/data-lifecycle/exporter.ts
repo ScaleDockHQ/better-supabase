@@ -8,6 +8,7 @@ import type { DataExport, LifecycleStorage } from "./data-lifecycle.ts";
 import { toCsv } from "../../core/csv.ts";
 import { dbError } from "../../core/errors.ts";
 import { err, ok } from "../../core/result.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 import {
   applyTemporal,
   blockCall,
@@ -240,9 +241,7 @@ export function createDataExporter(options: DataExporterOptions): DataExporter {
     sink: () => ({
       async send(events) {
         for (const event of events) {
-          const type = event.type.startsWith(prefix)
-            ? event.type.slice(prefix.length)
-            : event.type;
+          const type = eventTypeOf(event, prefix);
 
           if (type !== "data_export.requested" || !isRecord(event.data)) {
             continue;

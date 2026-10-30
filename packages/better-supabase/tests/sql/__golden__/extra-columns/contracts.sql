@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:d7b9fba252927b946cc7f61f37bec4a64e996a4322bba7536462ee1e6e7fba5a
+-- @bsb-hash sha256:5d179241869ba8d866fd8097c2ab9823d7df3ed823e4f28d928091d4f4d36e86
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -617,7 +617,11 @@ begin
       raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
-  null;
+  if save_contract_obligation.obligation_id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;

@@ -16,8 +16,8 @@ pnpm better-supabase add outbox
 
 Once the module is installed, the other SQL modules write their events to
 it: `organizations` emits `organization.created`, `organization.switched` and the member
-events, and `impersonation` emits `support.started` and
-`support.ended`. Set
+events, and `impersonation` emits `support_session.started` and
+`support_session.ended`. Set
 `blocks.<module>.events` to `false` to keep one module out of the outbox.
 
 ## Emitting from SQL
@@ -125,6 +125,15 @@ Each type gets `typePrefix` (`dev.better-supabase` by default) in front, the
 payload is the `data` and the tenant is the `partitionkey`. The actor is not
 sent: context attributes must not carry personal data, so put it in the
 payload when receivers need it.
+
+0.47 renamed some event types (`work_item.created` is `task.created`, and each
+`saved` event is `created` or `updated`). Set `legacyEventTypes: true` to relay
+a renamed type under its old name, for receivers that still match it, with the
+new name in the `currenttype` extension, which the library's sinks read. Your
+own sinks get the current type, without the prefix, from `eventTypeOf(event)`
+in `better-supabase/events`. The option is deprecated and goes away in the next minor;
+[From 0.46 to 0.47](/docs/migration/0.46-to-0.47#event-types) lists the
+renames.
 
 A claim leases the consumer to one worker for `lease` (one minute by
 default), so two cron runs never send the same batch at the same time.

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:baa5e7d76ca135ea7a2e87073baa5b09d60d5133822408d01132f3371da05c88
+-- @bsb-hash sha256:f7cf0dcff9fb1ac972e87e8e34350fd4299e8d54f92d2d3c648ba994be8e568c
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -406,7 +406,11 @@ begin
       raise exception 'a course with this key already exists' using errcode = '23505', hint = 'COURSE_EXISTS';
     end;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
@@ -1321,7 +1325,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:ac8b2291da5f56f3299ffb6325d91ebc7e4e1d8f2e6f7899a38ab3d8928bb321
+-- @bsb-hash sha256:98564e848752c117ebe8e04f68f27c0274f26b2d00411534bf73834e0a0cd653
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1746,17 +1750,31 @@ begin
       raise exception 'a course with this key already exists' using errcode = '23505', hint = 'COURSE_EXISTS';
     end;
   end if;
-  perform "better_supabase".emit_event('course.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('course.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
   perform better_supabase.audit_event(
-    event_type => 'course.saved',
+    event_type => 'course.created',
     category => 'data',
     target_type => 'course',
     record_id => v_row."id"::text,
     target_label => v_row."title",
-    summary => 'saved a course',
+    summary => 'created a course',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
   );
+  else
+    perform "better_supabase".emit_event('course.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'courses/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/courses');
+  perform better_supabase.audit_event(
+    event_type => 'course.updated',
+    category => 'data',
+    target_type => 'course',
+    record_id => v_row."id"::text,
+    target_label => v_row."title",
+    summary => 'updated a course',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
+  );
+  end if;
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
@@ -2764,7 +2782,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:290716a772e19b18f18812ac5054bf9cac281864a6eea5fd3e3875f890db52bb
+-- @bsb-hash sha256:9eb7a040baafee190003e83da1682e5ad9fd07e5b1b670ca6952903dbbddbeb6
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3174,7 +3192,11 @@ begin
       raise exception 'a course with this key already exists' using errcode = '23505', hint = 'COURSE_EXISTS';
     end;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return "app_private"."course_json"(v_row."id");
 end;
 $$;
@@ -4089,7 +4111,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:5dca3b50a0986dd224914da7b6afa06eec55c2a887a13f009037bc177a0d840e
+-- @bsb-hash sha256:a9c4dda279429eedbb85d2d138a5279f08f0292dd9a36902e9f224a9c696e8c8
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4494,7 +4516,11 @@ begin
       raise exception 'a course with this key already exists' using errcode = '23505', hint = 'COURSE_EXISTS';
     end;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
@@ -5584,7 +5610,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:36f47ee8761db20a89c7beb1d9bcee3e005576b48cca997e4eb74ca0986d4f63
+-- @bsb-hash sha256:084a0083467368c16e602a1f773dc199b2874724e070d9e161899435520435dc
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5989,7 +6015,11 @@ begin
       raise exception 'a course with this key already exists' using errcode = '23505', hint = 'COURSE_EXISTS';
     end;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;
@@ -6904,7 +6934,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:15c8d7034c560706af78d7420543a9512f71689f2a2aac4447d240d7e86b3ff3
+-- @bsb-hash sha256:5261565c20a2341e2782f4f0f879eb4f113c9918ce58476ce14f4ed2bb164af5
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7309,7 +7339,11 @@ begin
       raise exception 'a course with this key already exists' using errcode = '23505', hint = 'COURSE_EXISTS';
     end;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;

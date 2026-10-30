@@ -28,6 +28,7 @@ import { optionalRecordRefOf } from "../../core/block-subjects.ts";
 import { requireTenant } from "../../core/block-tenant.ts";
 import { dbError } from "../../core/errors.ts";
 import { AsyncResult, err, ok, toDbError } from "../../core/result.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 import { fromStorageError } from "../../storage/errors.ts";
 import { ttlSeconds } from "../../storage/ttl.ts";
 import { transformFor } from "../../storage/variants.ts";
@@ -1049,9 +1050,7 @@ export function createAttachmentScanner(
     sink: () => ({
       async send(events) {
         for (const event of events) {
-          const type = event.type.startsWith(prefix)
-            ? event.type.slice(prefix.length)
-            : event.type;
+          const type = eventTypeOf(event, prefix);
 
           if (type !== "attachment.uploaded" || !isRecord(event.data)) {
             continue;
@@ -1211,9 +1210,7 @@ export function createObjectScanner(
     sink: () => ({
       async send(events) {
         for (const event of events) {
-          const type = event.type.startsWith(prefix)
-            ? event.type.slice(prefix.length)
-            : event.type;
+          const type = eventTypeOf(event, prefix);
 
           if (type !== "object.uploaded" || !isRecord(event.data)) {
             continue;

@@ -36,7 +36,7 @@ import {
 } from "./workflow-editor-starts.ts";
 
 const EVENTS: BlockSqlEvents<WorkflowEditorEvents> = {
-  "workflow.published": {
+  "workflow_definition.published": {
     subject: "workflows",
     payload: ["organizationId", "definitionId", "versionId", "version"],
   },
@@ -799,11 +799,11 @@ begin
   where x.${cv("id")} = v_row.${cv("id")}
   returning * into v_row;
   ${ctx.record({
-    type: "workflow.published",
+    type: "workflow_definition.published",
     payload: `jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row.${cv("definition")}, 'versionId', v_row.${cv("id")}, 'version', v_row.${cv("version")})`,
     subject: `'workflows/' || v_row.${cv("definition")}::text`,
     tenant: "v_tenant",
-    key: `'workflow.published:' || v_row.${cv("id")}::text`,
+    key: `'workflow_definition.published:' || v_row.${cv("id")}::text`,
     audit: {
       category: "configuration",
       targetType: "workflow_version",

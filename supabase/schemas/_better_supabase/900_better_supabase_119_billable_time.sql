@@ -1,6 +1,6 @@
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:6835e7bac333e1f4336057474cbffcc8e22713049daeb5fb93fff555840cd7e6
+-- @bsb-hash sha256:bcbde263ec51256c6bac70acc116ae44a5c7987e23afe17634c4caa0b8225b25
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -619,9 +619,9 @@ begin
       and (v_scope ->> 'ends' is null or x."started_at" < (v_scope ->> 'ends')::timestamptz)
       and (v_scope -> 'entryIds' is null or x."id"::text in (select jsonb_array_elements_text(v_scope -> 'entryIds')))) u
   where u.id::text in (select jsonb_array_elements_text(v_entries));
-  perform "better_supabase".emit_event('time.invoiced', jsonb_build_object('organizationId', invoice_from_time.tenant, 'invoiceId', v_invoice ->> 'id', 'entryIds', v_entries, 'currency', v_currency, 'total', v_total::text), 'invoices/' || (v_invoice ->> 'id'), (invoice_from_time.tenant::text)::text, null, 'better-supabase/billable-time');
+  perform "better_supabase".emit_event('time_entry.invoiced', jsonb_build_object('organizationId', invoice_from_time.tenant, 'invoiceId', v_invoice ->> 'id', 'entryIds', v_entries, 'currency', v_currency, 'total', v_total::text), 'invoices/' || (v_invoice ->> 'id'), (invoice_from_time.tenant::text)::text, null, 'better-supabase/billable-time');
   perform better_supabase.audit_event(
-    event_type => 'time.invoiced',
+    event_type => 'time_entry.invoiced',
     category => 'billing',
     target_type => 'invoice',
     record_id => v_invoice ->> 'id',

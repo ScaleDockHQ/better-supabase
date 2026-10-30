@@ -8,15 +8,16 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Columns } from "./module-columns.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
-  withExtraFields,
   raise,
+  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
-  revokeTable,
+  withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -67,7 +68,11 @@ const SKILLS = {
 } as const;
 
 const EVENTS: BlockSqlEvents<AgentsEvents> = {
-  "agent.saved": {
+  "agent.created": {
+    subject: "organizations",
+    payload: ["organizationId", "agentId", "slug"],
+  },
+  "agent.updated": {
     subject: "organizations",
     payload: ["organizationId", "agentId", "slug"],
   },
@@ -434,7 +439,7 @@ begin
     ${agentUpdate.join(",\n    ")}
   where x.${a.id} = v_row.${a.id}
   returning * into v_row;${writeExtraColumns(agents, extras, "save_agent.fields", `x.${a.id} = v_row.${a.id}`, "v_row")}
-  ${agentEvent("agent.saved", "v_row")}
+  ${createdOrUpdated("save_agent.id is null", (verb) => agentEvent(`agent.${verb}`, "v_row"))}
   return ${json("v_row")};
 exception
   when unique_violation then

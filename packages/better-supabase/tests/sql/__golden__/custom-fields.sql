@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:a7b00bc83c285668752b4c6564da39f8269569671299cffbd1dcaaf4f5080e17
+-- @bsb-hash sha256:9c42e5c477e4a252509bb4fbf57f9de2d81b0354cc4dee7ed43d76f0c291707e
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -162,6 +162,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -182,8 +183,12 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
-  returning "id" into v_id;
-  null;
+  returning "id", xmax = 0 into v_id, v_inserted;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -410,7 +415,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:75a06a88cf506eca42b8670bba13fb1ff71d0cba3ba0202259e6bb8f3f51b5ef
+-- @bsb-hash sha256:08122b2fffe2d42c468bf8926420a0d5c018c4ab518a85b7946ac01875b9fa4b
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -571,6 +576,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -591,8 +597,12 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
-  returning "id" into v_id;
-  perform "better_supabase".emit_event('custom_field.saved', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+  returning "id", xmax = 0 into v_id, v_inserted;
+  if v_inserted then
+    perform "better_supabase".emit_event('field_definition.created', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+  else
+    perform "better_supabase".emit_event('field_definition.updated', jsonb_build_object('organizationId', save_field_definition.tenant, 'id', v_id, 'entity', save_field_definition.entity), 'custom-fields/' || coalesce(v_id::text, save_field_definition.key), (save_field_definition.tenant)::text, null, 'better-supabase/custom-fields');
+  end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -675,7 +685,7 @@ begin
     raise exception 'not allowed to manage custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
   end if;
   delete from "better_supabase"."field_definitions" where "id" = delete_field_definition.definition;
-  perform "better_supabase".emit_event('custom_field.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_field_definition.definition), 'custom-fields/' || delete_field_definition.definition::text, (v_tenant)::text, null, 'better-supabase/custom-fields');
+  perform "better_supabase".emit_event('field_definition.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_field_definition.definition), 'custom-fields/' || delete_field_definition.definition::text, (v_tenant)::text, null, 'better-supabase/custom-fields');
   return true;
 end;
 $$;
@@ -858,7 +868,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:ac05fe7fea926c685e51b9b524e572c29b7b1584855ceab48cb44c943c10cb2c
+-- @bsb-hash sha256:3958c39547b03810a2cedaac880cebf4e9cd884b81b5c229df825272abe372e5
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1024,6 +1034,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -1044,8 +1055,12 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
-  returning "id" into v_id;
-  null;
+  returning "id", xmax = 0 into v_id, v_inserted;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -1272,7 +1287,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:70bad148c2a137532a9fad91e62081d74ca8fc4cf1e90249062d136cf8935b7f
+-- @bsb-hash sha256:d43630c7e9c50e91ed075a9d420efeb450ce42978a844f2ab2bb78fdff7cb68b
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1433,6 +1448,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -1453,8 +1469,12 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
-  returning "id" into v_id;
-  null;
+  returning "id", xmax = 0 into v_id, v_inserted;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -1775,7 +1795,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:82a637e7ff83f9b06763ea4069ec99e161a2245c5de005bfdeac6bea524346c3
+-- @bsb-hash sha256:abf408df7425b6456e005bb71ad2745f3717c4e643284c4400ee738098f8aa7f
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1917,6 +1937,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -1937,8 +1958,12 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("tenant_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
-  returning "id" into v_id;
-  null;
+  returning "id", xmax = 0 into v_id, v_inserted;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;
@@ -2165,7 +2190,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:d6b674d39bc56c246e4b3d61f5eb44ef1188fd85c9417699a0d03b7a65498ce3
+-- @bsb-hash sha256:8ecbecec7377c5e4da6a80cb22c6907399f533755717125719f0793ebf75944c
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2326,6 +2351,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid;
+  v_inserted boolean;
   v_last text;
   v_rank text;
 begin
@@ -2346,8 +2372,12 @@ begin
   values (save_field_definition.tenant, save_field_definition.entity, save_field_definition.key, save_field_definition.label, save_field_definition.type, coalesce(save_field_definition.sensitive, false), v_rank)
   on conflict ("org_id", "entity", "key")
   do update set "label" = excluded."label", "sensitive" = excluded."sensitive"
-  returning "id" into v_id;
-  null;
+  returning "id", xmax = 0 into v_id, v_inserted;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_id);
 end;
 $$;

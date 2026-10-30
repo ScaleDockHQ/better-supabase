@@ -29,12 +29,12 @@ describe("waitlist module", () => {
     expect(sql).toContain(
       'waitlist_admit"(text, text) to service_role, supabase_auth_admin',
     );
-    expect(sql).not.toContain("'waitlist.approved'");
+    expect(sql).not.toContain("'waitlist_entry.approved'");
   });
 
-  it("emits waitlist.approved and member_added with the outbox", () => {
+  it("emits waitlist_entry.approved and member_added with the outbox", () => {
     const sql = sqlOf(["outbox", "waitlist"]);
-    expect(sql).toContain("'waitlist.approved'");
+    expect(sql).toContain("'waitlist_entry.approved'");
     expect(sql).toContain("'organization.member_added'");
   });
 

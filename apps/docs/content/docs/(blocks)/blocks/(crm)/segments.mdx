@@ -141,7 +141,7 @@ blocks: {
 
 ## Events
 
-The block writes `segment.saved` and `segment.removed`, and per record
+The block writes `segment.created`, `segment.updated` and `segment.deleted`, and per record
 `segment.entered` and `segment.left`, to the [outbox](/docs/blocks/outbox).
 A member event names the segment and the record (`subjectType`,
 `subjectId`), so the [watcher sink](/docs/blocks/notifications#watchers)

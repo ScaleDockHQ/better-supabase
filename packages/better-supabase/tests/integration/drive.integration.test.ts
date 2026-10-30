@@ -273,15 +273,15 @@ describe.skipIf(!live)("drive", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type from better_supabase.outbox_events where organization_id = $1 and type like 'drive.%' order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 
       expect(events.map((event) => event.type)).toEqual([
-        "drive.node_created",
-        "drive.node_moved",
-        "drive.node_shared",
-        "drive.node_unshared",
+        "drive_node.created",
+        "drive_node.moved",
+        "drive_node.shared",
+        "drive_node.unshared",
       ]);
     } finally {
       await s.close();
@@ -442,7 +442,7 @@ describe.skipIf(!live)("drive", () => {
       ).toBe(0);
 
       const purged = await s.value<{ objects: { path: string }[] }>(
-        "(select payload from better_supabase.outbox_events where type = 'drive.node_purged' and payload ->> 'subjectId' = $1)",
+        "(select payload from better_supabase.outbox_events where type = 'drive_node.purged' and payload ->> 'subjectId' = $1)",
         [created.node.id],
       );
 
@@ -1262,7 +1262,7 @@ describe.skipIf(!live)("drive", () => {
       ).toBe(0);
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type from better_supabase.outbox_events where organization_id = $1 and type like 'drive.%' order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 
@@ -1271,13 +1271,13 @@ describe.skipIf(!live)("drive", () => {
         "drive.connection_removed",
         "drive.created",
         "drive.deleted",
-        "drive.node_created",
-        "drive.node_hold_placed",
-        "drive.node_hold_released",
-        "drive.node_purged",
         "drive.renamed",
         "drive.shared",
         "drive.unshared",
+        "drive_node.created",
+        "drive_node.hold_placed",
+        "drive_node.hold_released",
+        "drive_node.purged",
       ]);
     } finally {
       await s.close();
@@ -1365,14 +1365,14 @@ describe.skipIf(!live)("drive", () => {
       ).toBe(0);
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type from better_supabase.outbox_events where organization_id = $1 and type like 'drive.%' order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 
       expect(events.map((event) => event.type)).toEqual([
         "drive.created",
-        "drive.node_created",
-        "drive.node_purged",
+        "drive_node.created",
+        "drive_node.purged",
       ]);
     } finally {
       await s.close();

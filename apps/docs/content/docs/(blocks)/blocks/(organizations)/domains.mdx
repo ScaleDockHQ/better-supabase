@@ -129,7 +129,7 @@ Cache the answer for a minute or so when every request goes through the proxy: a
 
 ## Events
 
-The block records `hostname.added`, `hostname.verified`, `hostname.primary_set` and `hostname.removed` with `organizationId`, `hostnameId` and `hostname`, and writes them to the audit log under `configuration`. See [events](/docs/extending/events).
+The block records `hostname.added`, `hostname.verified`, `hostname.primary_changed` and `hostname.deleted` with `organizationId`, `hostnameId` and `hostname`, and writes them to the audit log under `configuration`. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods, such as a rule on how many hostnames a plan may add; see [extending blocks](/docs/extending/blocks).
 

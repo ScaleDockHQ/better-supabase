@@ -184,11 +184,11 @@ With the [notifications](/docs/blocks/notifications) module installed, the owner
 
 ## Events
 
-| Event                                                       | When                            | Data                                                                                                          |
-| ----------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
-| `pipeline.stage_changed`                                    | a record moved to another stage | `organizationId`, `subjectType`, `subjectId`, `pipelineId`, `fromStageId`, `toStageId`, `category`, `outcome` |
-| `pipeline.created`, `pipeline.updated`, `pipeline.archived` | an admin changed a pipeline     | `organizationId`, `pipelineId`, `subjectType`, `key`                                                          |
-| `pipeline_stage.saved`, `pipeline_stage.archived`           | an admin changed a stage        | `organizationId`, `pipelineId`, `stageId`, `key`, `category`                                                  |
+| Event                                                                         | When                            | Data                                                                                                          |
+| ----------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `pipeline.stage_changed`                                                      | a record moved to another stage | `organizationId`, `subjectType`, `subjectId`, `pipelineId`, `fromStageId`, `toStageId`, `category`, `outcome` |
+| `pipeline.created`, `pipeline.updated`, `pipeline.archived`                   | an admin changed a pipeline     | `organizationId`, `pipelineId`, `subjectType`, `key`                                                          |
+| `pipeline_stage.created`, `pipeline_stage.updated`, `pipeline_stage.archived` | an admin changed a stage        | `organizationId`, `pipelineId`, `stageId`, `key`, `category`                                                  |
 
 `pipeline.stage_changed` carries the record as its subject, so the [activity feed](/docs/blocks/timeline) shows it on the record's timeline. Pipeline and stage changes are written to the audit log as configuration changes.
 
