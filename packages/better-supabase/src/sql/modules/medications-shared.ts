@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { extraFieldsJson, fail } from "../shared.ts";
+import { caseKindsOf } from "./cases-sql.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const WHERE = "blocks.medications.options";
@@ -42,6 +43,34 @@ export function missedAfterMinutes(ctx: BlockSqlContext): number {
   }
 
   return minutes;
+}
+
+/**
+ * `options.missedCaseKind`: the case kind a missed dose opens, when the cases
+ * block is installed in managed mode. Undefined opens no case.
+ */
+export function missedCaseKind(ctx: BlockSqlContext): string | undefined {
+  const key = ctx.option("missedCaseKind");
+
+  if (key === undefined) {
+    return undefined;
+  }
+
+  if (typeof key !== "string" || key === "") {
+    throw new TypeError(`${WHERE}.missedCaseKind takes a case kind key`);
+  }
+
+  if (!ctx.installed("cases") || ctx.of("cases").mode === "custom") {
+    return undefined;
+  }
+
+  if (!caseKindsOf(ctx.of("cases")).some((kind) => kind.key === key)) {
+    throw new TypeError(
+      `${WHERE}.missedCaseKind: "${key}" is not one of blocks.cases.options.kinds`,
+    );
+  }
+
+  return key;
 }
 
 /** `options.timeZone`: the IANA zone schedule times and chart days are in. */

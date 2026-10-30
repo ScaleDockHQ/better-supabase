@@ -397,6 +397,23 @@ export interface BlockNameRegistry {
     readonly primary: "care_plan";
     readonly formerKeys: never;
   };
+  readonly "cases": {
+    readonly tables: {
+      readonly "kinds": "id" | "tenant" | "key" | "name" | "prefix" | "pipeline" | "investigationForm" | "effectivenessForm" | "effectivenessAfterDays" | "requiresRootCause" | "requiresActions" | "requiresEffectiveness" | "requiresRevisions" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "cases": "id" | "tenant" | "kind" | "number" | "sequence" | "title" | "description" | "severity" | "source" | "reporter" | "reporterContact" | "owner" | "occurredAt" | "detectedAt" | "dueOn" | "pipeline" | "stage" | "stageEnteredAt" | "status" | "rootCause" | "rootCauseSubmission" | "effective" | "effectivenessDueOn" | "effectivenessNotifiedFor" | "effectivenessNote" | "effectivenessSubmission" | "closedAt" | "closedBy" | "closeNote" | "rank" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "actions": "id" | "tenant" | "case" | "task" | "type" | "required" | "createdAt";
+    };
+    readonly functions: "archive_case_kind" | "cancel_case" | "case_blockers_of" | "case_close_blockers" | "case_from_submission" | "case_stats" | "close_case" | "create_case_action" | "ensure_case_kinds" | "get_case" | "link_case_action" | "list_case_kinds" | "list_cases" | "notify_due_case_effectiveness" | "open_case" | "open_case_as" | "record_case_effectiveness" | "record_case_root_cause" | "remove_case_action" | "reopen_case" | "save_case_kind" | "schedule_case_effectiveness" | "update_case";
+    readonly actions: "read" | "create" | "write" | "close" | "manage";
+    readonly hooks: "before_case_open" | "after_case_open" | "before_case_close" | "after_case_close";
+    readonly entities: {
+      readonly "case": "id" | "tenant_id" | "kind_id" | "number" | "sequence" | "title" | "description" | "severity" | "source" | "reporter_id" | "reporter_contact" | "owner_id" | "occurred_at" | "detected_at" | "due_on" | "pipeline_id" | "stage_id" | "stage_entered_at" | "status" | "root_cause" | "root_cause_submission_id" | "effective" | "effectiveness_due_on" | "effectiveness_notified_for" | "effectiveness_note" | "effectiveness_submission_id" | "closed_at" | "closed_by" | "close_note" | "rank" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "case_kind": "id" | "tenant_id" | "key" | "name" | "prefix" | "pipeline_id" | "investigation_form_id" | "effectiveness_form_id" | "effectiveness_after_days" | "requires_root_cause" | "requires_actions" | "requires_effectiveness" | "requires_revisions" | "archived_at" | "created_at" | "updated_at";
+      readonly "case_action": "id" | "tenant_id" | "case_id" | "task_id" | "type" | "required" | "created_at";
+    };
+    readonly primary: "case";
+    readonly formerKeys: never;
+  };
   readonly "catalog": {
     readonly tables: {
       readonly "products": "id" | "tenant" | "slug" | "title" | "description" | "kind" | "status" | "createdAt" | "updatedAt" | "price" | "currency" | "trackInventory";

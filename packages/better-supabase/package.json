@@ -1070,6 +1070,11 @@
       "types": "./dist/blocks/risks/index.d.ts",
       "default": "./dist/blocks/risks/index.js"
     },
+    "./blocks/cases": {
+      "@better-supabase/source": "./src/blocks/cases/index.ts",
+      "types": "./dist/blocks/cases/index.d.ts",
+      "default": "./dist/blocks/cases/index.js"
+    },
     "./blocks/shifts": {
       "@better-supabase/source": "./src/blocks/shifts/index.ts",
       "types": "./dist/blocks/shifts/index.d.ts",
@@ -1965,6 +1970,10 @@
       "./blocks/risks": {
         "types": "./dist/blocks/risks/index.d.ts",
         "default": "./dist/blocks/risks/index.js"
+      },
+      "./blocks/cases": {
+        "types": "./dist/blocks/cases/index.d.ts",
+        "default": "./dist/blocks/cases/index.js"
       },
       "./blocks/shifts": {
         "types": "./dist/blocks/shifts/index.d.ts",

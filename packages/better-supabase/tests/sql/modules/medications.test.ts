@@ -58,6 +58,30 @@ describe("medications module", () => {
     expect(sqlOf()).not.toContain("notification_events");
   });
 
+  it("opens a case for a missed dose only with cases installed", () => {
+    const layout: Layout = {
+      modules: { medications: { options: { missedCaseKind: "incident" } } },
+    };
+
+    const withCases = [...BASE, "pipelines", "cases"];
+
+    expect(sqlOf(withCases, layout)).toContain(
+      '"better_supabase"."open_case_as"(',
+    );
+    expect(sqlOf(BASE, layout)).not.toContain("open_case_as");
+    expect(sqlOf(withCases)).not.toContain("open_case_as");
+    expect(() =>
+      sqlOf(withCases, {
+        modules: { medications: { options: { missedCaseKind: "spill" } } },
+      }),
+    ).toThrow("missedCaseKind");
+    expect(() =>
+      sqlOf(BASE, {
+        modules: { medications: { options: { missedCaseKind: "" } } },
+      }),
+    ).toThrow("missedCaseKind");
+  });
+
   it("takes the missed delay and time zone from the options", () => {
     const sql = sqlOf(BASE, {
       modules: {

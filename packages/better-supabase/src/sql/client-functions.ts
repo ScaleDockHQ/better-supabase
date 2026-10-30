@@ -49,6 +49,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   bulk: "bulk_apply bulk_run bulk_step start_bulk",
   calendar:
     "calendar_free_busy cancel_calendar_occurrence create_calendar delete_calendar delete_calendar_event import_calendar_events list_calendar_events list_calendar_working_hours list_calendars remove_calendar_attendee respond_calendar_event save_calendar_event set_calendar_attendee set_calendar_working_hours split_calendar_event",
+  cases:
+    "archive_case_kind cancel_case case_close_blockers case_stats close_case create_case_action get_case link_case_action list_case_kinds list_cases notify_due_case_effectiveness open_case record_case_effectiveness record_case_root_cause remove_case_action reopen_case save_case_kind update_case",
   "care-plans":
     "add_care_plan_action add_care_plan_goal add_care_plan_problem archive_care_plan create_care_plan due_care_plan_reviews end_care_plan_action get_care_plan list_care_plan_measures list_care_plans publish_care_plan record_care_plan_evaluation request_care_plan_agreement review_care_plan_action start_care_plan_action update_care_plan update_care_plan_action update_care_plan_goal update_care_plan_problem",
   catalog:
