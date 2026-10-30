@@ -1,0 +1,62 @@
+---
+title: Information security
+description: The isms preset installs security controls and policies, a risk register, internal audits, security incidents as cases, acknowledgements and a drive for documented information.
+---
+
+The `isms` preset is for an information security management system in the
+style of ISMS.online or Hyperproof, for ISO 27001. A company maps the Annex A
+controls, assesses its information security risks and links each to the
+controls that treat it, audits the controls, handles security incidents as
+cases and has every employee acknowledge the security policies.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "isms" });
+```
+
+`npx better-supabase init --preset isms` starts a new project from it, and
+`npx better-supabase add --preset isms` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                             | Role in the app                                                   |
+| ------------------------------------------------- | ----------------------------------------------------------------- |
+| [compliance](/docs/blocks/compliance)             | Controls with evidence, recurring evidence tasks and policies     |
+| [risks](/docs/blocks/risks)                       | The risk register and its treatment plan                          |
+| [inspections](/docs/blocks/inspections)           | Internal audits of the controls, with findings                    |
+| [cases](/docs/blocks/cases)                       | Security incidents, nonconformities and audit findings            |
+| [acknowledgements](/docs/blocks/acknowledgements) | Read and understood records for the security policies             |
+| [drive](/docs/blocks/drive)                       | Documented information: the scope, the statement of applicability |
+
+The blocks require versions, pipelines, forms, attachments and enrollments,
+which the preset installs with them.
+
+## How the blocks connect
+
+A risk links to the controls that treat it through `mitigated_by`, and the
+heatmap shows the residual risk after them. An inspection `assesses` the
+controls it audits, each finding names its control, and a nonconformity
+raises a `finding` case. A security incident is an `incident` case, and when
+it shows a risk came true it links to that risk through `materialized_as`.
+Each published policy version asks the members to acknowledge it.
+
+The preset leaves out the drive's document control. Add `numbering`,
+`approvals` and `state-machine` and set `blocks.drive.options.control` to
+release documents through an approval
+([controlled documents](/docs/blocks/drive-documents)), or start from
+[`qms`](/docs/presets/qms), which has both.
+
+## With ReUI
+
+- [Control posture](/docs/registry/ui-recipes/control-posture) per framework.
+- [Risk register](/docs/registry/ui-recipes/risk-register) and
+  [risk heatmap](/docs/registry/ui-recipes/risk-heatmap).
+- [Case board](/docs/registry/ui-recipes/case-board) for incidents.
+- [Acknowledgement inbox](/docs/registry/ui-recipes/acknowledgement-inbox).

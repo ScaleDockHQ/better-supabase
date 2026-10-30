@@ -48,6 +48,60 @@ const PUBLIC_MEDIA: NonNullable<Preset["instances"]> = {
   },
 };
 
+/**
+ * The quality blocks behind `qms` and `ehs`: cases, audits, risks and
+ * qualifications on the work, people and document blocks they link through.
+ */
+const QUALITY: readonly string[] = [
+  "drive",
+  "attachments",
+  "versions",
+  "signatures",
+  "approvals",
+  "state-machine",
+  "numbering",
+  "pipelines",
+  "tasks",
+  "forms",
+  "relations",
+  "compliance",
+  "acknowledgements",
+  "cases",
+  "inspections",
+  "risks",
+  "qualifications",
+  "courses",
+  "enrollments",
+  "employees",
+  "contacts",
+  "assets",
+  "metrics",
+];
+
+/** Controlled documents in the drive, released by one approval. */
+const CONTROLLED_DOCUMENTS: NonNullable<Preset["instances"]> = {
+  drive: {
+    options: {
+      control: {
+        types: ["manual", "policy", "procedure", "work_instruction", "form"],
+      },
+    },
+  },
+  approvals: {
+    options: {
+      policies: {
+        drive_node: {
+          release: {
+            steps: [
+              { approvers: { permission: "approvals.manage" }, required: 1 },
+            ],
+          },
+        },
+      },
+    },
+  },
+};
+
 const SAAS: readonly string[] = [
   "organizations",
   "invitations",
@@ -98,6 +152,9 @@ export type PresetName =
   | "nonprofit"
   | "itsm"
   | "compliance"
+  | "qms"
+  | "ehs"
+  | "isms"
   | "construction"
   | "claims"
   | "community"
@@ -626,6 +683,39 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     group: "verticals",
     blocks: [...SAAS, "compliance", "attachments"],
   },
+  qms: {
+    name: "qms",
+    title: "Quality management",
+    description:
+      "SaaS plus controlled documents, cases for nonconformities, complaints and changes, audits and inspections, a risk register, qualifications and acknowledgements.",
+    group: "verticals",
+    blocks: [...SAAS, ...QUALITY, "posts"],
+    instances: CONTROLLED_DOCUMENTS,
+  },
+  ehs: {
+    name: "ehs",
+    title: "Environment, health and safety",
+    description:
+      "SaaS plus incidents and near misses as cases, safety inspections, a risk register, training and licences as qualifications, equipment in assets and acknowledged procedures.",
+    group: "verticals",
+    blocks: [...SAAS, ...QUALITY],
+  },
+  isms: {
+    name: "isms",
+    title: "Information security",
+    description:
+      "SaaS plus security controls and policies, a risk register, internal audits, security incidents as cases, acknowledgements and a drive for documented information.",
+    group: "verticals",
+    blocks: [
+      ...SAAS,
+      "compliance",
+      "risks",
+      "inspections",
+      "cases",
+      "acknowledgements",
+      "drive",
+    ],
+  },
   construction: {
     name: "construction",
     title: "Construction",
@@ -849,6 +939,9 @@ export const PRESET_NAMES: readonly PresetName[] = [
   "nonprofit",
   "itsm",
   "compliance",
+  "qms",
+  "ehs",
+  "isms",
   "construction",
   "claims",
   "community",

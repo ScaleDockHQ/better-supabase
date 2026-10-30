@@ -1,0 +1,70 @@
+---
+title: Environment, health and safety
+description: The ehs preset installs incidents and near misses as cases, safety inspections, a risk register, training and licences as qualifications, equipment in assets and acknowledged procedures.
+---
+
+The `ehs` preset is for an environment, health and safety app in the style of
+Intelex or SafetyCulture, for ISO 45001 or ISO 14001. Workers report
+incidents and near misses, supervisors run site inspections from a
+checklist, the company keeps a register of hazards and their controls, and
+nobody operates a forklift without a valid licence.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "ehs" });
+```
+
+`npx better-supabase init --preset ehs` starts a new project from it, and
+`npx better-supabase add --preset ehs` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset installs the same blocks as [`qms`](/docs/presets/qms) without
+the posts board, and leaves the drive's document control off. The blocks
+that carry the app:
+
+| Block                                             | Role in the app                                                    |
+| ------------------------------------------------- | ------------------------------------------------------------------ |
+| [cases](/docs/blocks/cases)                       | Incidents, near misses and observations, each kind on its pipeline |
+| [inspections](/docs/blocks/inspections)           | Site and equipment inspections with a checklist form and findings  |
+| [risks](/docs/blocks/risks)                       | The hazard and aspect register, scored before and after controls   |
+| [qualifications](/docs/blocks/qualifications)     | Training, licences and medical checks, with expiry and gaps        |
+| [courses](/docs/blocks/courses)                   | Safety training that grants a qualification with its certificate   |
+| [assets](/docs/blocks/assets)                     | Equipment, vehicles and sites, and their inspection certificates   |
+| [acknowledgements](/docs/blocks/acknowledgements) | Read and understood records for procedures and toolbox talks       |
+| [forms](/docs/blocks/forms)                       | Checklists and a public incident report form                       |
+| [tasks](/docs/blocks/tasks)                       | The actions on a case                                              |
+| [drive](/docs/blocks/drive)                       | Procedures, permits and safety data sheets                         |
+| [metrics](/docs/blocks/metrics)                   | Safety indicators such as incidents per month                      |
+
+It also installs versions, signatures, approvals, state-machine, numbering,
+pipelines, relations, compliance, enrollments, employees, contacts and
+attachments, which the blocks above use.
+
+## How the blocks connect
+
+A worker reports an incident through a public form whose submission handler
+is the cases block's `case_from_submission`, which opens a case of the kind
+the answers name ([intake through forms](/docs/blocks/cases#intake-through-forms)).
+A `near_miss` case closes with a root cause, and an `incident` case also needs
+its actions done. A risk links to the controls and work items that reduce it
+through `mitigated_by`, and to the incidents it caused through
+`materialized_as`. An inspection's nonconformity raises a case before the
+inspection closes. A qualification requirement on a role, a team or an asset
+kind shows who may not do the work yet in the gap report.
+
+To put procedures under document control as in `qms`, set
+`blocks.drive.options.control`
+([controlled documents](/docs/blocks/drive-documents)).
+
+## With ReUI
+
+- [Case board](/docs/registry/ui-recipes/case-board) for incidents, and
+  [case detail](/docs/registry/ui-recipes/case-detail) for one.
+- [Inspection run](/docs/registry/ui-recipes/inspection-run) on a tablet.
+- [Risk heatmap](/docs/registry/ui-recipes/risk-heatmap).
+- [Qualification matrix](/docs/registry/ui-recipes/qualification-matrix).

@@ -1,0 +1,127 @@
+---
+title: Quality management
+description: The qms preset installs controlled documents, cases for nonconformities, complaints and changes, audits and inspections, a risk register, qualifications and acknowledgements, linked through relations.
+---
+
+The `qms` preset is for a quality management system in the style of
+MasterControl or Qualio, for ISO 9001, ISO 13485 or a similar standard. A
+company releases its procedures as controlled documents that staff
+acknowledge, opens a case for each nonconformity or complaint and closes it
+with a root cause and actions, runs internal audits whose findings raise
+cases, keeps a risk register and tracks who is qualified for which work.
+
+## Config
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+
+export default defineConfig({ preset: "qms" });
+```
+
+`npx better-supabase init --preset qms` starts a new project from it, and
+`npx better-supabase add --preset qms` adds it to one you have
+([CLI](/docs/cli/presets)).
+
+## Blocks
+
+The preset is [`saas`](/docs/presets#named-presets) plus these blocks, and
+whatever they require:
+
+| Block                                             | Role in the app                                                        |
+| ------------------------------------------------- | ---------------------------------------------------------------------- |
+| [drive](/docs/blocks/drive-documents)             | Controlled documents: numbers, owners, release and periodic review     |
+| [versions](/docs/blocks/versions)                 | The released versions of documents, policies and risk assessments      |
+| [approvals](/docs/blocks/approvals)               | The release of a controlled document                                   |
+| [acknowledgements](/docs/blocks/acknowledgements) | Read and understood records for documents and policies                 |
+| [compliance](/docs/blocks/compliance)             | Clauses as controls with evidence, and quality policies                |
+| [cases](/docs/blocks/cases)                       | Nonconformities, complaints, incidents, changes and audit findings     |
+| [tasks](/docs/blocks/tasks)                       | Corrective and preventive actions on a case                            |
+| [pipelines](/docs/blocks/pipelines)               | The stages of each case kind                                           |
+| [inspections](/docs/blocks/inspections)           | Audit programmes, internal and supplier audits, findings               |
+| [forms](/docs/blocks/forms)                       | Audit checklists and the complaint intake form                         |
+| [risks](/docs/blocks/risks)                       | The risk register, its matrix, treatments and reviews                  |
+| [qualifications](/docs/blocks/qualifications)     | Competence: who holds which qualification, what each role requires     |
+| [courses](/docs/blocks/courses)                   | Training that grants a qualification with its certificate              |
+| [employees](/docs/blocks/employees)               | Job titles that qualification requirements name                        |
+| [contacts](/docs/blocks/contacts)                 | Suppliers and customers: complaint sources and supplier qualifications |
+| [assets](/docs/blocks/assets)                     | Equipment and its calibration as qualifications                        |
+| [relations](/docs/blocks/relations)               | The links between cases, documents, controls and risks                 |
+| [numbering](/docs/blocks/numbering)               | `DOC-`, `NC-`, `AUD-` and `RSK-` numbers                               |
+| [state-machine](/docs/blocks/state-machine)       | The lifecycle of a controlled document                                 |
+| [signatures](/docs/blocks/signatures)             | A signature on an acknowledgement                                      |
+| [attachments](/docs/blocks/attachments)           | Evidence and qualification certificates                                |
+| [metrics](/docs/blocks/metrics)                   | Quality objectives such as complaints per month                        |
+| [posts](/docs/blocks/posts)                       | A board for improvement ideas from staff                               |
+
+The preset also installs [enrollments](/docs/blocks/enrollments) for course
+progress, and posts brings comments, reactions, messaging and moderation with
+it. The `audit` block from `saas` keeps who changed each record.
+
+## Options it sets
+
+The preset turns on the drive's
+[document control](/docs/blocks/drive-documents) with the types `manual`,
+`policy`, `procedure`, `work_instruction` and `form`, and gives the release
+one approval step that any member with `approvals.manage` can decide:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  preset: "qms",
+  blocks: {
+    drive: {
+      options: {
+        control: { types: ["sop", "policy", "form"], reviewMonths: 24 },
+      },
+    },
+  },
+});
+```
+
+An entry of your own replaces the preset's keys one level deep, so setting
+`blocks.drive.options` replaces the whole `options` object of the preset.
+Repeat `control` there, as above, when you change another drive option, and
+set `blocks.approvals.options.policies.drive_node.release` to require more
+approvers.
+
+## How the blocks connect
+
+The blocks link through [relations](/docs/blocks/relations) kinds rather than
+foreign keys, so each block also works on its own:
+
+| From                | To                         | Through                                                        |
+| ------------------- | -------------------------- | -------------------------------------------------------------- |
+| Controlled document | versions, approvals        | `submitDocument` files a release request; approval releases it |
+| Controlled document | acknowledgements           | each release asks the assigned readers again                   |
+| Compliance policy   | acknowledgements           | `publishPolicy` asks the members to acknowledge the version    |
+| Case                | pipelines, tasks, forms    | a pipeline per kind, actions as work items, intake from a form |
+| Case                | controlled document        | `affects`: a `change` case closes after the document's release |
+| Inspection          | forms, cases               | a checklist form; `raiseCase` opens a case per nonconformity   |
+| Inspection          | compliance control         | `assesses`, and each finding names the control it concerns     |
+| Risk                | compliance control, task   | `mitigated_by`: the risk's barriers                            |
+| Risk                | case                       | `materialized_as`: the cases a risk turned into                |
+| Qualification       | courses, employees, assets | a certificate grants it; job titles and asset kinds require it |
+
+A nonconformity found in an audit shows most of them at once. The finding
+raises a `finding` case, which closes once it has a root cause and its
+corrective actions, as work items, are done. When the fix changes a
+procedure, a `change` case `affects` that document and can't close until a
+new version of it is released, and that release asks the procedure's readers
+to acknowledge it.
+
+## With ReUI
+
+Each part of the app has a recipe built from ReUI components:
+
+- [Document register](/docs/registry/ui-recipes/document-register): the
+  controlled documents in a Data Grid with Filters on type and status.
+- [Case board](/docs/registry/ui-recipes/case-board) and
+  [case detail](/docs/registry/ui-recipes/case-detail): a Kanban per kind,
+  and the actions with the close blockers in an Alert.
+- [Inspection programme calendar](/docs/registry/ui-recipes/inspection-program-calendar)
+  and [inspection run](/docs/registry/ui-recipes/inspection-run).
+- [Risk register](/docs/registry/ui-recipes/risk-register) and
+  [risk heatmap](/docs/registry/ui-recipes/risk-heatmap).
+- [Qualification matrix](/docs/registry/ui-recipes/qualification-matrix) and
+  [my qualifications](/docs/registry/ui-recipes/my-qualifications).
+- [Acknowledgement inbox](/docs/registry/ui-recipes/acknowledgement-inbox)
+  for what each member still has to read.
