@@ -32,6 +32,7 @@ import {
   CircleUserIcon,
   ClipboardCheckIcon,
   ClipboardListIcon,
+  ClipboardPlusIcon,
   ClockIcon,
   ContactIcon,
   CpuIcon,
@@ -316,6 +317,7 @@ export const BLOCK_ICONS = {
   consents: FileCheckIcon,
   incidents: SirenIcon,
   risks: Grid3x3Icon,
+  "care-plans": ClipboardPlusIcon,
   // Database primitives
   "updated-at": ClockIcon,
   "realtime-tables": RadioIcon,

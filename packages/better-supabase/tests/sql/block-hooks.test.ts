@@ -228,6 +228,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_observation_mark_error",
     "after_observation_mark_error",
   ],
+  "care-plans": [
+    "before_care_plan_create",
+    "after_care_plan_create",
+    "before_care_plan_publish",
+    "after_care_plan_publish",
+    "before_care_plan_evaluation_create",
+    "after_care_plan_evaluation_create",
+  ],
 };
 
 /** Modules that call their hooks only for configured items. */

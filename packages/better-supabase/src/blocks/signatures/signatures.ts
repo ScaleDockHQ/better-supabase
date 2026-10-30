@@ -133,8 +133,8 @@ export interface SignatureRequestInput<
   readonly message?: string;
   /**
    * What signing means, one of `blocks.signatures.options.meanings`. The
-   * defaults are `authored`, `reviewed`, `approved`, `released` and
-   * `acknowledged`.
+   * defaults are `authored`, `reviewed`, `approved`, `released`, `acknowledged`
+   * and `agreed`.
    */
   readonly meaning?: string;
   /** The extra columns to set. */

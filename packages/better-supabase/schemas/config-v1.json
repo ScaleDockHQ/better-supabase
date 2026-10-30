@@ -1620,6 +1620,7 @@
               "bookings",
               "bulk",
               "calendar",
+              "care-plans",
               "catalog",
               "channels",
               "chat-sdk-state",
@@ -1783,6 +1784,7 @@
                   "bookings",
                   "bulk",
                   "calendar",
+                  "care-plans",
                   "catalog",
                   "channels",
                   "chat-sdk-state",
@@ -1984,6 +1986,9 @@
             },
             "calendar": {
               "$ref": "#/$defs/blocks/calendar"
+            },
+            "care-plans": {
+              "$ref": "#/$defs/blocks/care-plans"
             },
             "catalog": {
               "$ref": "#/$defs/blocks/catalog"
@@ -4333,6 +4338,39 @@
               },
               "ruleDialect": {},
               "readOnly": {}
+            }
+          }
+        }
+      },
+      "care-plans": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "codeSystems": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "measureKinds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "guestRead": {
+                "type": "boolean"
+              },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
             }
           }
         }

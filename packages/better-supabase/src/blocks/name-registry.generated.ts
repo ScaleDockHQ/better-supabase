@@ -352,6 +352,26 @@ export interface BlockNameRegistry {
     };
     readonly primary: "calendar_event";
   };
+  readonly "care-plans": {
+    readonly tables: {
+      readonly "plans": "id" | "tenant" | "subjectType" | "subjectId" | "title" | "status" | "version" | "startsOn" | "reviewOn" | "owner" | "signature" | "agreedAt" | "publishedVersion" | "publishedAt" | "publishedBy" | "archivedAt" | "reviewNotifiedFor" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "problems": "id" | "tenant" | "plan" | "codeSystem" | "code" | "title" | "description" | "status" | "rank" | "createdAt" | "updatedAt";
+      readonly "goals": "id" | "tenant" | "plan" | "problem" | "title" | "targetOn" | "status" | "measure" | "rank" | "createdAt" | "updatedAt";
+      readonly "actions": "id" | "tenant" | "plan" | "goal" | "kind" | "title" | "instructions" | "frequency" | "teamRole" | "measureKind" | "task" | "bookingSeries" | "requiresApproval" | "approval" | "reviewEvery" | "reviewedAt" | "reviewNotifiedAt" | "startsOn" | "endsOn" | "status" | "startedAt" | "endedAt" | "endReason" | "rank" | "createdAt" | "updatedAt";
+      readonly "evaluations": "id" | "tenant" | "plan" | "goal" | "evaluatedAt" | "status" | "outcome" | "submission" | "author";
+    };
+    readonly functions: "add_care_plan_action" | "add_care_plan_goal" | "add_care_plan_problem" | "archive_care_plan" | "care_plan_action_approved" | "care_plan_action_end" | "care_plan_action_start" | "care_plan_json" | "create_care_plan" | "due_care_plan_reviews" | "end_care_plan_action" | "get_care_plan" | "list_care_plan_measures" | "list_care_plans" | "publish_care_plan" | "record_care_plan_evaluation" | "request_care_plan_agreement" | "review_care_plan_action" | "start_care_plan_action" | "update_care_plan" | "update_care_plan_action" | "update_care_plan_goal" | "update_care_plan_problem";
+    readonly actions: "read" | "write" | "evaluate" | "publish" | "manage";
+    readonly hooks: "before_care_plan_create" | "after_care_plan_create" | "before_care_plan_publish" | "after_care_plan_publish" | "before_care_plan_evaluation_create" | "after_care_plan_evaluation_create";
+    readonly entities: {
+      readonly "care_plan": "id" | "tenant_id" | "subject_type" | "subject_id" | "title" | "status" | "version" | "starts_on" | "review_on" | "owner_id" | "signature_id" | "agreed_at" | "published_version_id" | "published_at" | "published_by" | "archived_at" | "review_notified_for" | "created_by" | "created_at" | "updated_at";
+      readonly "care_plan_problem": "id" | "tenant_id" | "plan_id" | "code_system" | "code" | "title" | "description" | "status" | "rank" | "created_at" | "updated_at";
+      readonly "care_plan_goal": "id" | "tenant_id" | "plan_id" | "problem_id" | "title" | "target_on" | "status" | "measure" | "rank" | "created_at" | "updated_at";
+      readonly "care_plan_action": "id" | "tenant_id" | "plan_id" | "goal_id" | "kind" | "title" | "instructions" | "frequency" | "team_role" | "measure_kind" | "task_id" | "booking_series_id" | "requires_approval" | "approval_id" | "review_every" | "reviewed_at" | "review_notified_at" | "starts_on" | "ends_on" | "status" | "started_at" | "ended_at" | "end_reason" | "rank" | "created_at" | "updated_at";
+      readonly "care_plan_evaluation": "id" | "tenant_id" | "plan_id" | "goal_id" | "evaluated_at" | "status" | "outcome" | "submission_id" | "author_id";
+    };
+    readonly primary: "care_plan";
+  };
   readonly "catalog": {
     readonly tables: {
       readonly "products": "id" | "tenant" | "slug" | "title" | "description" | "kind" | "status" | "createdAt" | "updatedAt" | "price" | "currency" | "trackInventory";

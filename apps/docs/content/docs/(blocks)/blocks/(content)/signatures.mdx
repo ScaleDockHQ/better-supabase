@@ -51,7 +51,7 @@ With the [approvals](/docs/blocks/approvals) module, `approvalRequestId` links a
 
 ## Meanings
 
-A request can say what signing means with `meaning`, such as `approved` for a release sign-off or `reviewed` for a review. The meaning is stored on the request, returned by `get` and `list`, and sent with `signature.completed`. The allowed meanings are `authored`, `reviewed`, `approved`, `released` and `acknowledged`; set `blocks.signatures.options.meanings` to your own list of lowercase names. A meaning outside the list fails with `SIGNATURE_REQUEST_MEANING_UNKNOWN`.
+A request can say what signing means with `meaning`, such as `approved` for a release sign-off or `reviewed` for a review. The meaning is stored on the request, returned by `get` and `list`, and sent with `signature.completed`. The allowed meanings are `authored`, `reviewed`, `approved`, `released`, `acknowledged` and `agreed` (a care plan agreement uses `agreed`); set `blocks.signatures.options.meanings` to your own list of lowercase names. A meaning outside the list fails with `SIGNATURE_REQUEST_MEANING_UNKNOWN`.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({

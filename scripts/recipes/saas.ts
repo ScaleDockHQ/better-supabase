@@ -491,6 +491,47 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "care-plan-editor",
+    title: "Care plan editor",
+    blocks: ["care-plans"],
+    kind: "component",
+    description:
+      "A client's care plan as a tree of problems, goals and actions, with the status of each and the actions that wait for an approval.",
+    web: {
+      file: `${WEB_APP}/src/features/care-plans/components/care-plan-editor.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "empty",
+        "skeleton",
+        "@reui/frame",
+      ],
+      glue: [],
+    },
+  },
+  {
+    slug: "care-plan-evaluations",
+    title: "Care plan evaluations",
+    blocks: ["care-plans"],
+    kind: "component",
+    description:
+      "The evaluations of a care plan's goals in a data grid, the newest first, with the goal status each one found.",
+    web: {
+      file: `${WEB_APP}/src/features/care-plans/components/care-plan-evaluations.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "empty",
+        "skeleton",
+        "@reui/data-grid",
+        "@reui/frame",
+      ],
+      glue: [],
+    },
+  },
+  {
     slug: "hiring-board",
     title: "Hiring board",
     blocks: ["hiring"],

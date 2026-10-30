@@ -121,6 +121,7 @@ const SIGNATURE_MEANINGS: readonly string[] = [
   "approved",
   "released",
   "acknowledged",
+  "agreed",
 ];
 
 const MEANING = /^[a-z][a-z0-9_]{0,62}$/;

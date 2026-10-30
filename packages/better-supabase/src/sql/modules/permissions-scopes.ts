@@ -264,4 +264,11 @@ export const MODULE_PERMISSION_SCOPES: {
     administer: "tenant",
     manage: "tenant",
   },
+  "care-plans": {
+    read: "tenant",
+    write: "tenant",
+    evaluate: "tenant",
+    publish: "tenant",
+    manage: "tenant",
+  },
 };
