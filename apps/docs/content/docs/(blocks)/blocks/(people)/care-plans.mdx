@@ -1,0 +1,273 @@
+---
+title: Care plans
+description: Care plans for any client subject, with coded problems, goals with a measure, actions that start when the plan is published, evaluations over time, agreement through a signature and restrictive measures that start only once approved.
+---
+
+`care-plans` keeps one plan per client: the problems found, the goals that
+answer them and the actions that reach those goals. You draft a plan, publish
+it as the client's active plan, evaluate its goals over time and draft the next
+version when the care changes. The client is any registered subject, such as a
+contact, a patient table of your own or a household, so the block serves home
+care, youth care, clinics, social work and coaching alike.
+
+```bash
+better-supabase add care-plans
+```
+
+```ts
+import { createCarePlans } from "better-supabase/blocks/care-plans";
+```
+
+The module requires `memberships`, `permissions` and `subjects`. It works with
+these blocks when they are installed:
+
+| Block                                       | What it adds                                                              |
+| ------------------------------------------- | ------------------------------------------------------------------------- |
+| [versions](/docs/blocks/versions)           | a frozen snapshot of each published plan                                  |
+| [signatures](/docs/blocks/signatures)       | agreement to a plan, a signature request with meaning `agreed`            |
+| [approvals](/docs/blocks/approvals)         | restrictive measures that wait for an approval before they start          |
+| [tasks](/docs/blocks/tasks)                 | a work item for each action of kind `task` when it starts                 |
+| [guests](/docs/blocks/guests)               | read access to the published plans for a representative, with `guestRead` |
+| [notifications](/docs/blocks/notifications) | a notice to the plan's owner when a review comes due                      |
+| `outbox` and [audit](/docs/blocks/audit)    | the events below, and an audit entry for every change                     |
+
+## Tables
+
+| Table                   | Holds                                                                                             |
+| ----------------------- | ------------------------------------------------------------------------------------------------- |
+| `care_plans`            | A plan per client and version: title, status, start and review dates, owner, agreement, published |
+| `care_plan_problems`    | A problem with its code system and code, description and status (`active` or `resolved`)          |
+| `care_plan_goals`       | A goal under a problem, with a target date, a `measure` object and a status                       |
+| `care_plan_actions`     | An action toward a goal: its kind, frequency, team role, review interval, status and links        |
+| `care_plan_evaluations` | Every evaluation of a goal: the status found, the outcome, the author and the form submission     |
+
+A plan is a subject of type `care_plan`, so comments, attachments, tags and the
+other subject blocks work on it. Members with `care_plans.read` read a plan
+only when they can also read its client, so a record team that limits who sees
+a client limits who sees the client's plans. Writes go through the functions
+below.
+
+| Permission            | Allows                                                      | Default role  |
+| --------------------- | ----------------------------------------------------------- | ------------- |
+| `care_plans.read`     | reading plans of the clients the member can read            | owner, member |
+| `care_plans.write`    | drafting plans, problems, goals and actions                 | owner         |
+| `care_plans.evaluate` | evaluating goals and reviewing actions of an active plan    | owner         |
+| `care_plans.publish`  | publishing, archiving and asking for agreement              | owner         |
+| `care_plans.manage`   | starting and ending actions, and measures without approvals | owner         |
+
+## Drafting a plan
+
+Server code calls the `carePlans` instance on `db`, in the caller's
+organization:
+
+```ts
+const plan = await db.carePlans
+  .create({
+    subjectType: "contact",
+    subjectId: clientId,
+    title: "Living at home safely",
+    reviewOn: Temporal.PlainDate.from("2027-05-01"),
+    ownerId,
+  })
+  .orThrow();
+
+const problem = await db.carePlans
+  .addProblem(plan.id, {
+    codeSystem: "omaha",
+    code: "25",
+    title: "Risk of falls",
+  })
+  .orThrow();
+
+const goal = await db.carePlans
+  .addGoal(problem.id, {
+    title: "No falls at night",
+    targetOn: Temporal.PlainDate.from("2027-01-01"),
+    measure: { observation: "falls", target: 0 },
+  })
+  .orThrow();
+
+await db.carePlans
+  .addAction(goal.id, {
+    kind: "intervention",
+    title: "Night round",
+    frequency: { frequency: 1, period: 1, periodUnit: "d" },
+    teamRole: "nurse",
+  })
+  .orThrow();
+```
+
+A plan's version is one more than the client's last plan. Pass
+`copyFromPlanId` to start from an earlier plan of the same client: its
+problems, goals and the actions that haven't ended are copied into the draft.
+
+A problem's `codeSystem` must be one of `options.codeSystems` (default
+`custom`). Codes are never bundled: add the systems you use, such as `omaha`,
+`icf`, `nanda`, `snomed` or `icd-10`, and keep their codes in your app.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  "care-plans": {
+    options: {
+      codeSystems: ["omaha", "custom"],
+      measureKinds: ["seclusion", "supervision", "bed_rail"],
+      guestRead: true,
+    },
+  },
+},
+```
+
+Problems, goals and actions take a `rank` key for their order; without one they
+go after the last. `frequency` and `measure` are objects your app shapes, such
+as a FHIR Timing `repeat` and a goal target.
+
+| Kind           | What it is                                                             |
+| -------------- | ---------------------------------------------------------------------- |
+| `intervention` | care the team gives, the default                                       |
+| `appointment`  | a recurring booking, linked through `bookingSeriesId`                  |
+| `task`         | a work item the tasks block creates when the action starts             |
+| `measure`      | a restrictive measure; it always requires an approval before it starts |
+
+## Publishing
+
+`publish` needs `care_plans.publish` and a plan with at least one problem. It
+makes the draft the client's active plan, archives the active plan before it
+and ends that plan's actions with the reason `superseded`. With versions
+installed it freezes the published plan as a version. Then it starts the
+plan's actions: an action without an approval starts at once, and a measure
+asks for its approval.
+
+```ts
+const active = await db.carePlans.publish(plan.id).orThrow();
+```
+
+A client has at most one active plan. On an active plan only the status of a
+problem or goal changes, and an action changes only how it runs
+(`bookingSeriesId`, `endsOn`, `frequency`, `instructions`, `reviewEvery` and
+`teamRole`). Anything else goes into the next version: create a draft with
+`copyFromPlanId` and publish it. `archive` ends the plan's actions with the
+reason `plan archived`.
+
+## Evaluations and reviews
+
+`evaluate` records what a goal reached and sets the goal's status. It needs
+`care_plans.evaluate` and an active plan. Pass `submissionId` when a
+[forms](/docs/blocks/forms) submission recorded the evaluation.
+
+```ts
+await db.carePlans
+  .evaluate(goal.id, {
+    status: "achieved",
+    outcome: "No falls in three months",
+  })
+  .orThrow();
+```
+
+`reviewAction` records a review of an active action, and `reviewEvery` (a
+`Temporal.Duration`) says how often one is due. Run `dueReviews` daily with the
+service role; the block's `reviews` schedule does that at 06:00. It records
+`care_plan.review_date_reached` when a plan's `reviewOn` has passed and
+`care_plan_action.review_date_reached` when an action's review is overdue, once each,
+and notifies the plan's owner. For reminders ahead of the date, point
+[reminders](/docs/blocks/reminders) at the column:
+
+```ts title="better-supabase.config.ts"
+reminders: {
+  on: { care_plan: { table: "better_supabase.care_plans", at: "review_on" } },
+},
+```
+
+## Restrictive measures
+
+An action of kind `measure`, or one with `requiresApproval`, starts only once
+approved. With approvals installed, publishing asks for an approval of subject
+type `care_plan_action` and action `start`, by default from a member with
+`care_plans.manage`. The final approval starts the action. Tenants tighten that
+policy with conditions and a second approver through
+[approval policies](/docs/blocks/approvals). Without approvals, only a member
+with `care_plans.manage` starts a measure with `startAction`.
+
+```ts
+const measures = await db.carePlans.measures().orThrow();
+// The measures in force: [{ title, measureKind, planTitle, subjectId, approvalId, ... }]
+```
+
+`measures` is the organization's register of restrictive measures, the ones in
+force unless you pass `activeOnly: false`. `measureKind` must be one of
+`options.measureKinds` when you set it. Give a measure a `reviewEvery` so its
+review comes due.
+
+## Agreement
+
+With signatures installed, `requestAgreement` asks the members who speak for
+the client (the client, a representative) to agree to an active plan. It needs
+`care_plans.publish` and the signatures request permission. The signature
+request has meaning `agreed` and points at the published version; when every
+signer has signed, the plan records `agreedAt` and `care_plan.agreed`.
+
+```ts
+await db.carePlans
+  .requestAgreement(active.id, [clientUserId, representativeId])
+  .orThrow();
+```
+
+| Method                                  | Returns                                                    |
+| --------------------------------------- | ---------------------------------------------------------- |
+| `create(input)`                         | the draft plan                                             |
+| `update(planId, change)`                | the plan                                                   |
+| `addProblem(planId, input)`             | the problem                                                |
+| `updateProblem(problemId, change)`      | the problem                                                |
+| `addGoal(problemId, input)`             | the goal                                                   |
+| `updateGoal(goalId, change)`            | the goal                                                   |
+| `addAction(goalId, input)`              | the action                                                 |
+| `updateAction(actionId, change)`        | the action                                                 |
+| `publish(planId)`                       | the active plan                                            |
+| `archive(planId)`                       | the archived plan                                          |
+| `get(planId)`                           | the plan with its problems, goals, actions and evaluations |
+| `list(subjectType, subjectId, options)` | the client's plans, the newest version first               |
+| `evaluate(goalId, input)`               | the evaluation                                             |
+| `startAction(actionId)`                 | the action, started or still waiting for its approval      |
+| `endAction(actionId, reason)`           | the ended action                                           |
+| `reviewAction(actionId, note)`          | the action with its review time                            |
+| `measures(options)`                     | the restrictive measures with their plan and client        |
+| `requestAgreement(planId, signers)`     | the plan with its agreement request                        |
+| `dueReviews()`                          | how many due reviews it reported                           |
+
+`list` leaves out archived plans unless you pass `includeArchived: true`.
+
+## Errors
+
+| Hint                                 | Cause                                                           |
+| ------------------------------------ | --------------------------------------------------------------- |
+| `CARE_PLAN_FORBIDDEN`                | the caller lacks the permission, or can't read the client       |
+| `CARE_PLAN_INVALID`                  | a field is invalid, or the plan isn't active for this call      |
+| `CARE_PLAN_NOT_DRAFT`                | the change needs a draft plan                                   |
+| `CARE_PLAN_ARCHIVED`                 | the plan is archived                                            |
+| `CARE_PLAN_NOT_FOUND`                | no plan, problem or action with this id                         |
+| `CARE_PLAN_GOAL_NOT_FOUND`           | no goal with this id                                            |
+| `CARE_PLAN_ACTION_APPROVAL_REQUIRED` | the action waits for its approval, or needs `care_plans.manage` |
+| `CARE_PLAN_CODE_SYSTEM_UNKNOWN`      | the code system isn't one of `options.codeSystems`              |
+
+## Events
+
+`care_plan.created`, `care_plan.updated`, `care_plan.published`,
+`care_plan.archived`, `care_plan.agreed`, `care_plan.review_date_reached`,
+`care_plan_goal.status_changed`, `care_plan_evaluation.created`,
+`care_plan_action.started`, `care_plan_action.ended`,
+`care_plan_action.review_date_reached` and `care_plan_action.reviewed`. The
+[events page](/docs/extending/events) lists their payloads.
+
+The [care plan editor](/docs/registry/ui-recipes/care-plan-editor) and
+[care plan evaluations](/docs/registry/ui-recipes/care-plan-evaluations)
+recipes render the tree and the evaluation history.
+
+## Without the client
+
+`db.carePlans` is this client. Code that does not go through `bsb.db()` builds
+it with a transport and an organization id:
+
+```ts
+const carePlans = createCarePlans({ transport, tenant: organizationId });
+
+const plans = await carePlans.list("contact", clientId).orThrow();
+```

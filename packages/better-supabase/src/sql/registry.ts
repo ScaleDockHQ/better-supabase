@@ -33,6 +33,7 @@ import { BILLING } from "./modules/billing.ts";
 import { BOOKINGS } from "./modules/bookings.ts";
 import { BULK } from "./modules/bulk.ts";
 import { CALENDAR } from "./modules/calendar.ts";
+import { CARE_PLANS } from "./modules/care-plans.ts";
 import { CATALOG } from "./modules/catalog.ts";
 import { CHANNELS } from "./modules/channels.ts";
 import { CHAT_SDK_STATE } from "./modules/chat-sdk-state.ts";
@@ -396,6 +397,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(CONSENTS),
       built(OBSERVATIONS),
       built(MEDICATIONS),
+      built(CARE_PLANS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

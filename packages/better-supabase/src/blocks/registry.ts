@@ -23,6 +23,7 @@ import { billingBlock } from "./billing/manifest.ts";
 import { bookingsBlock } from "./bookings/manifest.ts";
 import { bulkBlock } from "./bulk/manifest.ts";
 import { calendarBlock } from "./calendar/manifest.ts";
+import { carePlansBlock } from "./care-plans/manifest.ts";
 import { catalogBlock } from "./catalog/manifest.ts";
 import { channelsBlock } from "./channels/manifest.ts";
 import { collectionsBlock } from "./collections/manifest.ts";
@@ -175,6 +176,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   bookingsBlock,
   bulkBlock,
   calendarBlock,
+  carePlansBlock,
   catalogBlock,
   collectionsBlock,
   commentsBlock,

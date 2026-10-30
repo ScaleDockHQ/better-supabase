@@ -171,6 +171,12 @@ may be your own enum or domain.
   - `better_supabase.calendar_grants`, once mapped: `id`, `tenant_id`, `calendar_id`, `user_id`, `role`; typed: `role`
   - `better_supabase.calendar_event_rules`, once mapped: `event_id`; typed: `freq`, `by_day`, `by_month_day`, `by_month`, `by_set_pos`
   - `better_supabase.calendar_event_dates`, once mapped: `id`, `event_id`, `kind`, `starts_at`; typed: `kind`
+- `care-plans`
+  - `better_supabase.care_plans`: `id`, `tenant_id`, `subject_type`, `subject_id`, `title`, `status`, `version`, `starts_on`, `review_on`, `owner_id`, `signature_id`, `agreed_at`, `published_at`, `published_by`, `archived_at`, `review_notified_for`, `created_at`, `updated_at`
+  - `better_supabase.care_plan_problems`: `id`, `tenant_id`, `plan_id`, `code_system`, `code`, `title`, `description`, `status`, `rank`, `created_at`, `updated_at`
+  - `better_supabase.care_plan_goals`: `id`, `tenant_id`, `plan_id`, `problem_id`, `title`, `target_on`, `status`, `measure`, `rank`, `created_at`, `updated_at`
+  - `better_supabase.care_plan_actions`: `id`, `tenant_id`, `plan_id`, `goal_id`, `kind`, `title`, `instructions`, `frequency`, `team_role`, `measure_kind`, `task_id`, `booking_series_id`, `requires_approval`, `approval_id`, `review_every`, `reviewed_at`, `review_notified_at`, `starts_on`, `ends_on`, `status`, `started_at`, `ended_at`, `end_reason`, `rank`, `created_at`, `updated_at`
+  - `better_supabase.care_plan_evaluations`: `id`, `tenant_id`, `plan_id`, `goal_id`, `evaluated_at`, `status`, `outcome`, `submission_id`, `author_id`
 - `catalog`
   - `better_supabase.products`: `id`, `tenant_id`, `slug`, `title`, `status`, `created_at`, `updated_at`; typed: `status`, `kind`
   - `better_supabase.product_options`: `id`, `tenant_id`, `product_id`, `name`, `rank`

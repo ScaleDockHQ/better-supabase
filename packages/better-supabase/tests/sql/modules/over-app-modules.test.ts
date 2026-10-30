@@ -106,6 +106,7 @@ const MODULES = [
   "risks",
   "accounting",
   "observations",
+  "care-plans",
 ] as const;
 
 interface Setup {

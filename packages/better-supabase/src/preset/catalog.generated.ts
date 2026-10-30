@@ -7805,6 +7805,174 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "care-plans",
+      "title": "Care plans",
+      "category": "people",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects"
+      ],
+      "integrates": [
+        "versions",
+        "signatures",
+        "approvals",
+        "tasks",
+        "guests",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "care-plans",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "plans",
+      "entities": {
+        "specs": {
+          "care_plan": {
+            "table": "plans",
+            "singular": "care_plan",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              }
+            }
+          },
+          "care_plan_problem": {
+            "table": "problems",
+            "singular": "care_plan_problem"
+          },
+          "care_plan_goal": {
+            "table": "goals",
+            "singular": "care_plan_goal"
+          },
+          "care_plan_action": {
+            "table": "actions",
+            "singular": "care_plan_action"
+          },
+          "care_plan_evaluation": {
+            "table": "evaluations",
+            "singular": "care_plan_evaluation"
+          }
+        },
+        "tables": {
+          "plans": {
+            "name": "care_plans",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "title": "title",
+              "status": "status",
+              "version": "version",
+              "startsOn": "starts_on",
+              "reviewOn": "review_on",
+              "owner": "owner_id",
+              "signature": "signature_id",
+              "agreedAt": "agreed_at",
+              "publishedVersion": "published_version_id",
+              "publishedAt": "published_at",
+              "publishedBy": "published_by",
+              "archivedAt": "archived_at",
+              "reviewNotifiedFor": "review_notified_for",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "problems": {
+            "name": "care_plan_problems",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "plan": "plan_id",
+              "codeSystem": "code_system",
+              "code": "code",
+              "title": "title",
+              "description": "description",
+              "status": "status",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "goals": {
+            "name": "care_plan_goals",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "plan": "plan_id",
+              "problem": "problem_id",
+              "title": "title",
+              "targetOn": "target_on",
+              "status": "status",
+              "measure": "measure",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "actions": {
+            "name": "care_plan_actions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "plan": "plan_id",
+              "goal": "goal_id",
+              "kind": "kind",
+              "title": "title",
+              "instructions": "instructions",
+              "frequency": "frequency",
+              "teamRole": "team_role",
+              "measureKind": "measure_kind",
+              "task": "task_id",
+              "bookingSeries": "booking_series_id",
+              "requiresApproval": "requires_approval",
+              "approval": "approval_id",
+              "reviewEvery": "review_every",
+              "reviewedAt": "reviewed_at",
+              "reviewNotifiedAt": "review_notified_at",
+              "startsOn": "starts_on",
+              "endsOn": "ends_on",
+              "status": "status",
+              "startedAt": "started_at",
+              "endedAt": "ended_at",
+              "endReason": "end_reason",
+              "rank": "rank",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "evaluations": {
+            "name": "care_plan_evaluations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "plan": "plan_id",
+              "goal": "goal_id",
+              "evaluatedAt": "evaluated_at",
+              "status": "status",
+              "outcome": "outcome",
+              "submission": "submission_id",
+              "author": "author_id"
+            }
+          }
+        },
+        "keys": {
+          "read": "care_plans.read",
+          "write": "care_plans.write",
+          "evaluate": "care_plans.evaluate",
+          "publish": "care_plans.publish",
+          "manage": "care_plans.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -9970,6 +10138,552 @@ export const PRESET_CATALOG: PresetCatalog = {
           "calendar_event.deleted"
         ]
       }
+    },
+    {
+      "name": "care-plans",
+      "sql": [
+        "care-plans"
+      ],
+      "category": "people",
+      "client": {
+        "export": "carePlansBlock",
+        "subpath": "better-supabase/blocks/care-plans"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "CarePlan",
+          "fields": true
+        },
+        {
+          "name": "CarePlanAction"
+        },
+        {
+          "name": "CarePlanActionChange"
+        },
+        {
+          "name": "CarePlanActionEndedEventData"
+        },
+        {
+          "name": "CarePlanActionEventData"
+        },
+        {
+          "name": "CarePlanActionInput"
+        },
+        {
+          "name": "CarePlanActionKind"
+        },
+        {
+          "name": "CarePlanActionReviewDateReachedEventData"
+        },
+        {
+          "name": "CarePlanActionReviewedEventData"
+        },
+        {
+          "name": "CarePlanActionStatus"
+        },
+        {
+          "name": "CarePlanAgreedEventData"
+        },
+        {
+          "name": "CarePlanChange",
+          "fields": true
+        },
+        {
+          "name": "CarePlanChildEventData"
+        },
+        {
+          "name": "CarePlanEvaluation"
+        },
+        {
+          "name": "CarePlanEvaluationCreatedEventData"
+        },
+        {
+          "name": "CarePlanEvaluationInput"
+        },
+        {
+          "name": "CarePlanEventData"
+        },
+        {
+          "name": "CarePlanGoal"
+        },
+        {
+          "name": "CarePlanGoalChange"
+        },
+        {
+          "name": "CarePlanGoalInput"
+        },
+        {
+          "name": "CarePlanGoalStatus"
+        },
+        {
+          "name": "CarePlanGoalStatusChangedEventData"
+        },
+        {
+          "name": "CarePlanInput",
+          "fields": true
+        },
+        {
+          "name": "CarePlanJson"
+        },
+        {
+          "name": "CarePlanMeasure"
+        },
+        {
+          "name": "CarePlanProblem"
+        },
+        {
+          "name": "CarePlanProblemChange"
+        },
+        {
+          "name": "CarePlanProblemInput"
+        },
+        {
+          "name": "CarePlanProblemStatus"
+        },
+        {
+          "name": "CarePlanPublishedEventData"
+        },
+        {
+          "name": "CarePlanReviewDateReachedEventData"
+        },
+        {
+          "name": "CarePlans",
+          "fields": true
+        },
+        {
+          "name": "CarePlansEvents"
+        },
+        {
+          "name": "CarePlansOptions"
+        },
+        {
+          "name": "CarePlansSqlOptions"
+        },
+        {
+          "name": "CarePlanStatus"
+        },
+        {
+          "name": "CarePlanSummary",
+          "fields": true
+        }
+      ],
+      "entitySchemas": {
+        "care_plan": {
+          "input": {
+            "title": "CarePlanInput",
+            "fields": {
+              "subjectType": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 63
+              },
+              "subjectId": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true
+              },
+              "reviewOn": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "copyFromPlanId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CarePlanInput",
+              "type": "object",
+              "properties": {
+                "subjectType": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 63
+                },
+                "subjectId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "startsOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "reviewOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "copyFromPlanId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "subjectType",
+                "subjectId",
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "care_plan_problem": {
+          "input": {
+            "title": "CarePlanProblemInput",
+            "fields": {
+              "codeSystem": {
+                "kind": "string",
+                "optional": true,
+                "description": "One of `options.codeSystems`."
+              },
+              "code": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 200
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "rank": {
+                "kind": "string",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CarePlanProblemInput",
+              "type": "object",
+              "properties": {
+                "codeSystem": {
+                  "type": "string",
+                  "description": "One of `options.codeSystems`."
+                },
+                "code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 200
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "rank": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "care_plan_goal": {
+          "input": {
+            "title": "CarePlanGoalInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "targetOn": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true
+              },
+              "measure": {
+                "kind": "json",
+                "optional": true,
+                "nullable": true,
+                "description": "What counts as reaching the goal, an object."
+              },
+              "rank": {
+                "kind": "string",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CarePlanGoalInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "targetOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "measure": {
+                  "description": "What counts as reaching the goal, an object."
+                },
+                "rank": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "care_plan_action": {
+          "input": {
+            "title": "CarePlanActionInput",
+            "fields": {
+              "kind": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "intervention",
+                  "appointment",
+                  "task",
+                  "measure"
+                ]
+              },
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "instructions": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "frequency": {
+                "kind": "json",
+                "optional": true,
+                "nullable": true,
+                "description": "How often the action happens, an object."
+              },
+              "teamRole": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 63
+              },
+              "measureKind": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 63,
+                "description": "For a measure: one of `options.measureKinds`."
+              },
+              "bookingSeriesId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "requiresApproval": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "reviewEvery": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "description": "An ISO 8601 duration, such as `P1M`."
+              },
+              "startsOn": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true
+              },
+              "endsOn": {
+                "kind": "plainDate",
+                "optional": true,
+                "nullable": true
+              },
+              "rank": {
+                "kind": "string",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "CarePlanActionInput",
+              "type": "object",
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "intervention",
+                    "appointment",
+                    "task",
+                    "measure"
+                  ]
+                },
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "instructions": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "frequency": {
+                  "description": "How often the action happens, an object."
+                },
+                "teamRole": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 63
+                },
+                "measureKind": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 63,
+                  "description": "For a measure: one of `options.measureKinds`."
+                },
+                "bookingSeriesId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "requiresApproval": {
+                  "type": "boolean"
+                },
+                "reviewEvery": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "An ISO 8601 duration, such as `P1M`."
+                },
+                "startsOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "endsOn": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "date"
+                },
+                "rank": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "title"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "CarePlansEvents",
+        "types": [
+          "care_plan.created",
+          "care_plan.updated",
+          "care_plan.published",
+          "care_plan.archived",
+          "care_plan.agreed",
+          "care_plan.review_date_reached",
+          "care_plan_goal.status_changed",
+          "care_plan_evaluation.created",
+          "care_plan_action.started",
+          "care_plan_action.ended",
+          "care_plan_action.review_date_reached",
+          "care_plan_action.reviewed"
+        ]
+      },
+      "schedules": [
+        {
+          "name": "reviews",
+          "cron": "0 6 * * *",
+          "runs": "dueReviews()",
+          "description": "Reports the care plans and actions whose review has come due."
+        }
+      ]
     },
     {
       "name": "catalog",

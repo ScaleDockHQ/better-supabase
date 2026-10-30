@@ -1085,6 +1085,11 @@
       "types": "./dist/blocks/medications/index.d.ts",
       "default": "./dist/blocks/medications/index.js"
     },
+    "./blocks/care-plans": {
+      "@better-supabase/source": "./src/blocks/care-plans/index.ts",
+      "types": "./dist/blocks/care-plans/index.d.ts",
+      "default": "./dist/blocks/care-plans/index.js"
+    },
     "./blocks/contracts": {
       "@better-supabase/source": "./src/blocks/contracts/index.ts",
       "types": "./dist/blocks/contracts/index.d.ts",
@@ -1967,6 +1972,10 @@
       "./blocks/medications": {
         "types": "./dist/blocks/medications/index.d.ts",
         "default": "./dist/blocks/medications/index.js"
+      },
+      "./blocks/care-plans": {
+        "types": "./dist/blocks/care-plans/index.d.ts",
+        "default": "./dist/blocks/care-plans/index.js"
       },
       "./blocks/contracts": {
         "types": "./dist/blocks/contracts/index.d.ts",

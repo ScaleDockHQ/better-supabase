@@ -18,6 +18,7 @@ import type { BillingSqlOptions } from "./billing/options.ts";
 import type { BookingsSqlOptions } from "./bookings/options.ts";
 import type { BulkSqlOptions } from "./bulk/options.ts";
 import type { CalendarSqlOptions } from "./calendar/options.ts";
+import type { CarePlansSqlOptions } from "./care-plans/options.ts";
 import type { CatalogSqlOptions } from "./catalog/options.ts";
 import type { CollectionsSqlOptions } from "./collections/options.ts";
 import type { CommentsSqlOptions } from "./comments/options.ts";
@@ -153,6 +154,7 @@ import { billingSqlOptions } from "./billing/options.ts";
 import { bookingsSqlOptions } from "./bookings/options.ts";
 import { bulkSqlOptions } from "./bulk/options.ts";
 import { calendarSqlOptions } from "./calendar/options.ts";
+import { carePlansSqlOptions } from "./care-plans/options.ts";
 import { catalogSqlOptions } from "./catalog/options.ts";
 import { collectionsSqlOptions } from "./collections/options.ts";
 import { commentsSqlOptions } from "./comments/options.ts";
@@ -299,6 +301,7 @@ export interface BlockOptionsRegistry {
   readonly bookings: BookingsSqlOptions;
   readonly bulk: BulkSqlOptions;
   readonly calendar: CalendarSqlOptions;
+  readonly "care-plans": CarePlansSqlOptions;
   readonly catalog: CatalogSqlOptions;
   readonly channels: None;
   readonly "chat-sdk-state": None;
@@ -459,6 +462,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   bookings: bookingsSqlOptions,
   bulk: bulkSqlOptions,
   calendar: calendarSqlOptions,
+  "care-plans": carePlansSqlOptions,
   catalog: catalogSqlOptions,
   channels: NO_OPTIONS,
   "chat-sdk-state": NO_OPTIONS,

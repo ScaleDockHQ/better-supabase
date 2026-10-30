@@ -473,6 +473,9 @@ export default defineConfig({
     // Medication charts on customers: orders with a dose and schedule,
     // planned doses recorded as given or refused, missed doses notified.
     medications: {},
+    // Care plans keep each customer's problems, goals and actions; a
+    // restrictive measure waits for an approval before it starts.
+    "care-plans": {},
     incidents: {},
     reminders: {},
     "drive-files": {},

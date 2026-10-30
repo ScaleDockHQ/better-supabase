@@ -77,6 +77,7 @@ const PURE_BARRELS = [
   "blocks/consents",
   "blocks/observations",
   "blocks/medications",
+  "blocks/care-plans",
   "blocks/security-events",
   "blocks/reminders",
   "blocks/imports",

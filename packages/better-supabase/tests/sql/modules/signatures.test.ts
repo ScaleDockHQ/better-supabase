@@ -106,7 +106,7 @@ describe("signatures module", () => {
       `alter table "better_supabase"."signature_requests" add column if not exists "meaning" text;`,
     );
     expect(sql).toContain(
-      "not in ('authored', 'reviewed', 'approved', 'released', 'acknowledged')",
+      "not in ('authored', 'reviewed', 'approved', 'released', 'acknowledged', 'agreed')",
     );
     expect(sql).toContain("SIGNATURE_REQUEST_MEANING_UNKNOWN");
     expect(sql).toContain(

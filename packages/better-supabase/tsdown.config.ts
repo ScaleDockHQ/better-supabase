@@ -112,6 +112,7 @@ const entries = [
   "blocks/consents/index",
   "blocks/observations/index",
   "blocks/medications/index",
+  "blocks/care-plans/index",
   "blocks/security-events/index",
   "blocks/identities/index",
   "blocks/service-accounts/index",

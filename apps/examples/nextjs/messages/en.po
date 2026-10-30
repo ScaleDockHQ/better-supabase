@@ -82,6 +82,16 @@ msgctxt "calendar.-SCdYi"
 msgid "Your organization's events by month."
 msgstr "Your organization's events by month."
 
+#: src/app/[locale]/(app)/care-plans/page.tsx
+msgctxt "care-plans.y10hgk"
+msgid "Care plans"
+msgstr "Care plans"
+
+#: src/app/[locale]/(app)/care-plans/page.tsx
+msgctxt "care-plans.rTFlYI"
+msgid "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
+msgstr "A client's problems, goals and actions in the active plan, and what each goal evaluation found."
+
 #: src/app/[locale]/(app)/chat/page.tsx
 msgctxt "chat.WTrOy3"
 msgid "Chat"
@@ -2863,6 +2873,203 @@ msgstr "Monday to Friday, in your time zone. Free/busy and find-a-time use them.
 msgctxt "calendar.jvo0vs"
 msgid "Save"
 msgstr "Save"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.3a5wL8"
+msgid "Active"
+msgstr "Active"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.0HT-Ib"
+msgid "Archived"
+msgstr "Archived"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.kp0NPF"
+msgid "Planned"
+msgstr "Planned"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.q1WWIr"
+msgid "In progress"
+msgstr "In progress"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.tIzbKl"
+msgid "Achieved"
+msgstr "Achieved"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.8fLnGC"
+msgid "Not achieved"
+msgstr "Not achieved"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.PFtMy9"
+msgid "Canceled"
+msgstr "Canceled"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.juWSL-"
+msgid "Intervention"
+msgstr "Intervention"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.82aMWa"
+msgid "Appointment"
+msgstr "Appointment"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.0wJ7N-"
+msgid "Task"
+msgstr "Task"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.5Mwol8"
+msgid "Restrictive measure"
+msgstr "Restrictive measure"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.uPFUUe"
+msgid "Awaiting approval"
+msgstr "Awaiting approval"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.nDyaq_"
+msgid "Running"
+msgstr "Running"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.TP_cMX"
+msgid "Ended"
+msgstr "Ended"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.d9AKqd"
+msgid "Target {date}"
+msgstr "Target {date}"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.a6ttRe"
+msgid "No actions toward this goal yet."
+msgstr "No actions toward this goal yet."
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.W6nSYE"
+msgid "Resolved"
+msgstr "Resolved"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.RMOj6u"
+msgid "{client}, version {version, number}"
+msgstr "{client}, version {version, number}"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.fYCuoD"
+msgid "{client}, version {version, number}, review on {date}"
+msgstr "{client}, version {version, number}, review on {date}"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.Du3mXR"
+msgid "Care plan"
+msgstr "Care plan"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.PDogoC"
+msgid "The client's problems, the goals that answer them and the actions toward each goal."
+msgstr "The client's problems, the goals that answer them and the actions toward each goal."
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.-rh8v7"
+msgid "The care plan didn't load"
+msgstr "The care plan didn't load"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.TvF17N"
+msgid "No care plan yet"
+msgstr "No care plan yet"
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.C_MtU_"
+msgid "Add a customer, then draft a care plan for them."
+msgstr "Add a customer, then draft a care plan for them."
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.CSuN2d"
+msgid "Draft a plan for {client} with a problem, a goal and an action, then publish it."
+msgstr "Draft a plan for {client} with a problem, a goal and an action, then publish it."
+
+#: src/features/care-plans/components/care-plan-editor.tsx
+msgctxt "care-plans.LZaNd1"
+msgid "Read the care plans guide"
+msgstr "Read the care plans guide"
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.P7PLVj"
+msgid "Date"
+msgstr "Date"
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.0VV_sK"
+msgid "Goal"
+msgstr "Goal"
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.iaHymw"
+msgid "Outcome"
+msgstr "Outcome"
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.etWStg"
+msgid "Evaluations"
+msgstr "Evaluations"
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.QI37us"
+msgid "What each evaluation found for a goal. A new status becomes the goal's status."
+msgstr "What each evaluation found for a goal. A new status becomes the goal's status."
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.JiAG0V"
+msgid "The evaluations didn't load"
+msgstr "The evaluations didn't load"
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.Qvjhzt"
+msgid "No evaluations yet"
+msgstr "No evaluations yet"
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.TMnu_U"
+msgid "Evaluate a goal of the active plan to record what it reached."
+msgstr "Evaluate a goal of the active plan to record what it reached."
+
+#: src/features/care-plans/components/care-plan-evaluations.tsx
+msgctxt "care-plans.2ncFXE"
+msgid "Read about evaluations"
+msgstr "Read about evaluations"
 
 #: src/features/chat/components/channel-sidebar.tsx
 msgctxt "chat.LUrJwE"
@@ -8628,6 +8835,11 @@ msgstr "Observations"
 msgctxt "navigation.gOuYI7"
 msgid "Medications"
 msgstr "Medications"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.y10hgk"
+msgid "Care plans"
+msgstr "Care plans"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
