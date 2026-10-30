@@ -917,9 +917,9 @@ begin
   if not found then
     raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
-  perform "better_supabase".emit_event('postmortem.published', jsonb_build_object('organizationId', v_row."tenant_id", 'postmortemId', v_post."id", 'incidentId', v_row."id"), 'incidents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/incidents');
+  perform "better_supabase".emit_event('incident_postmortem.published', jsonb_build_object('organizationId', v_row."tenant_id", 'postmortemId', v_post."id", 'incidentId', v_row."id"), 'incidents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/incidents');
   perform better_supabase.audit_event(
-    event_type => 'postmortem.published',
+    event_type => 'incident_postmortem.published',
     category => 'data',
     target_type => 'incident',
     record_id => v_row."id"::text,
