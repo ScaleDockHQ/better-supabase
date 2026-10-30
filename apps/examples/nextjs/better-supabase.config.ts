@@ -448,6 +448,9 @@ export default defineConfig({
     // Risks link their barriers to controls and snapshot assessments as
     // versions.
     risks: {},
+    // Nonconformities, complaints, incidents and more, each on its kind's
+    // pipeline, with actions as work items and a close guard.
+    cases: {},
     // Vital signs on a customer's record, with the seeded vitals definitions;
     // a critical value alerts the record's leads.
     observations: { options: { defaults: "vitals" } },
@@ -473,8 +476,9 @@ export default defineConfig({
     // Consent per customer and purpose, backed by a signature or a form.
     consents: {},
     // Medication charts on customers: orders with a dose and schedule,
-    // planned doses recorded as given or refused, missed doses notified.
-    medications: {},
+    // planned doses recorded as given or refused, missed doses notified and
+    // opened as incident cases.
+    medications: { options: { missedCaseKind: "incident" } },
     // Care plans keep each customer's problems, goals and actions; a
     // restrictive measure waits for an approval before it starts.
     "care-plans": {},
