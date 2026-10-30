@@ -1,7 +1,7 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_146_care_plans.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:490bee8207fd4bfa2acb8c13a13cf2dea63fe178c05d8a636c3496fb6b4a4ba7
+-- @bsb-hash sha256:3b2ff1f07ef0af424e1f1cf300fddffe557e2bd22565ffd237f2af73bb6b5151
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1433,7 +1433,7 @@ grant execute on function "better_supabase"."request_care_plan_agreement"(uuid, 
 
 -- Reports each active plan whose review date has come, once per date, and
 -- each active action whose reviewEvery has lapsed since its last review,
--- once per lapse: a review_due event and, with notifications, a notification
+-- once per lapse: a review_date_reached event and, with notifications, a notification
 -- to the plan's owner. Run it daily from a job (the care-plans.reviews timer).
 create or replace function "better_supabase"."due_care_plan_reviews"()
 returns integer
@@ -1614,7 +1614,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -1628,10 +1628,10 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_146_care_plans.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:31f933adebe357af3c67808d04bb01b2db0c3dfabf6a01a149e75d1528955bfa
+-- @bsb-hash sha256:e6f7c88a2da0e2d1aa5f72217de080880f1e51cc0a9cac7a7f3b7e5595cec55b
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3301,7 +3301,7 @@ create trigger "bsb_care_plans_signature_settled" after update of "status" on "b
 
 -- Reports each active plan whose review date has come, once per date, and
 -- each active action whose reviewEvery has lapsed since its last review,
--- once per lapse: a review_due event and, with notifications, a notification
+-- once per lapse: a review_date_reached event and, with notifications, a notification
 -- to the plan's owner. Run it daily from a job (the care-plans.reviews timer).
 create or replace function "better_supabase"."due_care_plan_reviews"()
 returns integer
@@ -3322,9 +3322,9 @@ begin
       and x."review_notified_for" is distinct from x."review_on"
     for update skip locked
   loop
-    perform "better_supabase".emit_event('care_plan.review_due', jsonb_build_object('organizationId', v_plan."tenant_id", 'id', v_plan."id", 'subjectType', v_plan."subject_type", 'subjectId', v_plan."subject_id", 'title', v_plan."title", 'status', v_plan."status", 'version', v_plan."version", 'ownerId', v_plan."owner_id", 'reviewOn', v_plan."review_on"), 'care-plans/' || v_plan."id"::text, (v_plan."tenant_id")::text, null, 'better-supabase/care-plans');
+    perform "better_supabase".emit_event('care_plan.review_date_reached', jsonb_build_object('organizationId', v_plan."tenant_id", 'id', v_plan."id", 'subjectType', v_plan."subject_type", 'subjectId', v_plan."subject_id", 'title', v_plan."title", 'status', v_plan."status", 'version', v_plan."version", 'ownerId', v_plan."owner_id", 'reviewOn', v_plan."review_on"), 'care-plans/' || v_plan."id"::text, (v_plan."tenant_id")::text, null, 'better-supabase/care-plans');
   perform better_supabase.audit_event(
-    event_type => 'care_plan.review_due',
+    event_type => 'care_plan.review_date_reached',
     category => 'data',
     target_type => 'care_plan',
     record_id => v_plan."id"::text,
@@ -3337,14 +3337,14 @@ begin
       v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
       perform "better_supabase"."notify"(jsonb_build_object(
-        'type', 'care_plan.review_due',
+        'type', 'care_plan.review_date_reached',
         'tenant', v_plan."tenant_id",
         'actor', null,
         'subject_type', 'care_plan',
         'subject_id', v_plan."id"::text,
         'summary', v_plan."title",
         'recipients', to_jsonb(array[v_plan."owner_id"]),
-        'key', 'care_plan.review_due:' || v_plan."id"::text || ':' || v_plan."review_on"::text,
+        'key', 'care_plan.review_date_reached:' || v_plan."id"::text || ':' || v_plan."review_on"::text,
         'data', jsonb_build_object('planId', v_plan."id", 'reviewOn', v_plan."review_on")
       ));
       perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
@@ -3362,9 +3362,9 @@ begin
   loop
     v_due := coalesce(v_row."reviewed_at", v_row."started_at") + v_row."review_every";
     select * into v_plan from "better_supabase"."care_plans" x where x."id" = v_row."plan_id";
-    perform "better_supabase".emit_event('care_plan_action.review_due', jsonb_build_object('organizationId', v_plan."tenant_id", 'planId', v_plan."id", 'subjectType', v_plan."subject_type", 'subjectId', v_plan."subject_id") || jsonb_build_object('actionId', v_row."id", 'kind', v_row."kind", 'title', v_row."title", 'ownerId', v_plan."owner_id", 'dueAt', v_due), 'care-plans/' || v_plan."id"::text, (v_plan."tenant_id")::text, null, 'better-supabase/care-plans');
+    perform "better_supabase".emit_event('care_plan_action.review_date_reached', jsonb_build_object('organizationId', v_plan."tenant_id", 'planId', v_plan."id", 'subjectType', v_plan."subject_type", 'subjectId', v_plan."subject_id") || jsonb_build_object('actionId', v_row."id", 'kind', v_row."kind", 'title', v_row."title", 'ownerId', v_plan."owner_id", 'dueAt', v_due), 'care-plans/' || v_plan."id"::text, (v_plan."tenant_id")::text, null, 'better-supabase/care-plans');
   perform better_supabase.audit_event(
-    event_type => 'care_plan_action.review_due',
+    event_type => 'care_plan_action.review_date_reached',
     category => 'data',
     target_type => 'care_plan',
     record_id => v_plan."id"::text,
@@ -3377,14 +3377,14 @@ begin
       v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
       perform "better_supabase"."notify"(jsonb_build_object(
-        'type', 'care_plan_action.review_due',
+        'type', 'care_plan_action.review_date_reached',
         'tenant', v_plan."tenant_id",
         'actor', null,
         'subject_type', 'care_plan',
         'subject_id', v_plan."id"::text,
         'summary', v_plan."title",
         'recipients', to_jsonb(array[v_plan."owner_id"]),
-        'key', 'care_plan_action.review_due:' || v_row."id"::text || ':' || v_due::text,
+        'key', 'care_plan_action.review_date_reached:' || v_row."id"::text || ':' || v_due::text,
         'data', jsonb_build_object('planId', v_plan."id", 'actionId', v_row."id", 'dueAt', v_due)
       ));
       perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
@@ -3532,7 +3532,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -3546,10 +3546,10 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_care_plans.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:0ca3b970032a21958e17181dd529bc066a8c6894f226f74e34f65525ce560fdb
+-- @bsb-hash sha256:d4f1c600878bc9c1cd76fca4f6b81bb81cfde30520f481c2473285560987849b
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4986,7 +4986,7 @@ grant execute on function "app_private"."request_care_plan_agreement"(uuid, uuid
 
 -- Reports each active plan whose review date has come, once per date, and
 -- each active action whose reviewEvery has lapsed since its last review,
--- once per lapse: a review_due event and, with notifications, a notification
+-- once per lapse: a review_date_reached event and, with notifications, a notification
 -- to the plan's owner. Run it daily from a job (the care-plans.reviews timer).
 create or replace function "app_private"."due_care_plan_reviews"()
 returns integer
@@ -5167,7 +5167,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -5181,10 +5181,10 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_146_care_plans.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:96e310d1c94323267efc5cc5f40c360971690a889244cc9807b1e3e8e5ed2870
+-- @bsb-hash sha256:938b1eeb5337aad8cd31e3c4525ffeb793713a2e81101934337b1d70f354ac1c
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6616,7 +6616,7 @@ grant execute on function "better_supabase"."request_care_plan_agreement"(uuid, 
 
 -- Reports each active plan whose review date has come, once per date, and
 -- each active action whose reviewEvery has lapsed since its last review,
--- once per lapse: a review_due event and, with notifications, a notification
+-- once per lapse: a review_date_reached event and, with notifications, a notification
 -- to the plan's owner. Run it daily from a job (the care-plans.reviews timer).
 create or replace function "better_supabase"."due_care_plan_reviews"()
 returns integer
@@ -7017,7 +7017,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -7031,10 +7031,10 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_care_plans.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:73aa662799bceb7be0215ba60953aa7af192aa4e5e6e0df7f883650aec6e9a3e
+-- @bsb-hash sha256:b7843ba42a8b698ef9eddce7143c0e36889997baf6da84c8cabc24030c777aea
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8433,7 +8433,7 @@ grant execute on function "better_supabase"."request_care_plan_agreement"(uuid, 
 
 -- Reports each active plan whose review date has come, once per date, and
 -- each active action whose reviewEvery has lapsed since its last review,
--- once per lapse: a review_due event and, with notifications, a notification
+-- once per lapse: a review_date_reached event and, with notifications, a notification
 -- to the plan's owner. Run it daily from a job (the care-plans.reviews timer).
 create or replace function "better_supabase"."due_care_plan_reviews"()
 returns integer
@@ -8614,7 +8614,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -8628,10 +8628,10 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_care_plans.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:5a055f0a74992b5df60c85d2fcd44ddc5114f82d0847c801f6bbe67a59e88912
+-- @bsb-hash sha256:aaf735f84cffd0ac3d5d2000e81cb9b2e59dc0aec58b3f13cc6e7c82d878094e
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10063,7 +10063,7 @@ grant execute on function "better_supabase"."request_care_plan_agreement"(uuid, 
 
 -- Reports each active plan whose review date has come, once per date, and
 -- each active action whose reviewEvery has lapsed since its last review,
--- once per lapse: a review_due event and, with notifications, a notification
+-- once per lapse: a review_date_reached event and, with notifications, a notification
 -- to the plan's owner. Run it daily from a job (the care-plans.reviews timer).
 create or replace function "better_supabase"."due_care_plan_reviews"()
 returns integer
@@ -10244,7 +10244,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_148_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
