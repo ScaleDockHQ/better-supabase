@@ -180,11 +180,6 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
           "centrakit.inbound_webhook_events",
           "centrakit.workflow_events",
         ],
-        // The latest upgrade drops list_comments, which gains an
-        // include_deleted argument, and the schema files create it again.
-        "warning BS235": [
-          "supabase/migrations/20261030133241_better_supabase_block_upgrade.sql:4",
-        ],
         // The adopt options that keep CentraKit's own token storage, secret column,
         // audit values and event sources.
         "warning BS314": [
