@@ -47,7 +47,7 @@ import type {
   Loaded,
 } from "../care-plans-queries";
 
-export function PlanStatusBadge({ status }: { status: CarePlanStatus }) {
+function PlanStatusBadge({ status }: { status: CarePlanStatus }) {
   const t = useExtracted("care-plans");
 
   switch (status) {
