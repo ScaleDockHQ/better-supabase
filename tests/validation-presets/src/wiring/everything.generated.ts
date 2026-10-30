@@ -21,6 +21,7 @@ import { billingBlock } from "better-supabase/blocks/billing";
 import { bookingsBlock } from "better-supabase/blocks/bookings";
 import { bulkBlock } from "better-supabase/blocks/bulk";
 import { calendarBlock } from "better-supabase/blocks/calendar";
+import { carePlansBlock } from "better-supabase/blocks/care-plans";
 import { catalogBlock } from "better-supabase/blocks/catalog";
 import { collectionsBlock } from "better-supabase/blocks/collections";
 import { commentsBlock } from "better-supabase/blocks/comments";
@@ -156,6 +157,7 @@ export const blockSet = defineBlocks(blockConfig, {
   bookings: bookingsBlock,
   bulk: bulkBlock,
   calendar: calendarBlock,
+  carePlans: carePlansBlock,
   catalog: catalogBlock,
   collections: collectionsBlock,
   comments: commentsBlock,
