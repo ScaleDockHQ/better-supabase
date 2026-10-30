@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_145_care_plans.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
 -- @bsb-hash sha256:490bee8207fd4bfa2acb8c13a13cf2dea63fe178c05d8a636c3496fb6b4a4ba7
@@ -1614,7 +1614,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_145_care_plans.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -1628,7 +1628,7 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_145_care_plans.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
 -- @bsb-hash sha256:31f933adebe357af3c67808d04bb01b2db0c3dfabf6a01a149e75d1528955bfa
@@ -3532,7 +3532,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_145_care_plans.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -3546,7 +3546,7 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_145_care_plans.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
 -- @bsb-hash sha256:0ca3b970032a21958e17181dd529bc066a8c6894f226f74e34f65525ce560fdb
@@ -5167,7 +5167,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_145_care_plans.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -5181,7 +5181,7 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_145_care_plans.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
 -- @bsb-hash sha256:96e310d1c94323267efc5cc5f40c360971690a889244cc9807b1e3e8e5ed2870
@@ -7017,7 +7017,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_145_care_plans.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -7031,7 +7031,7 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_145_care_plans.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
 -- @bsb-hash sha256:73aa662799bceb7be0215ba60953aa7af192aa4e5e6e0df7f883650aec6e9a3e
@@ -8614,7 +8614,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_145_care_plans.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
@@ -8628,7 +8628,7 @@ values ('care-plans', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_145_care_plans.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
 -- @bsb-hash sha256:5a055f0a74992b5df60c85d2fcd44ddc5114f82d0847c801f6bbe67a59e88912
@@ -10244,7 +10244,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_145_care_plans.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_146_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block-data care-plans
 -- @bsb-hash sha256:34a4d6e1f181a5c140dcd50eb8a2994ffa2f7f8a4fca1661583b103e5da02950
