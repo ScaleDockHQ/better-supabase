@@ -126,6 +126,7 @@ import { SERVICE_PRINCIPALS } from "./modules/service-accounts.ts";
 import { SESSIONS } from "./modules/sessions.ts";
 import { SETTINGS } from "./modules/settings.ts";
 import { SHARE_LINKS } from "./modules/share-links.ts";
+import { SHIFTS } from "./modules/shifts.ts";
 import { SHIPMENTS } from "./modules/shipments.ts";
 import { SIGNATURES } from "./modules/signatures.ts";
 import { SIGNING_KEYS } from "./modules/signing-keys.ts";
@@ -384,6 +385,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(CONTENT),
       built(QUALIFICATIONS),
       built(RISKS),
+      built(SHIFTS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

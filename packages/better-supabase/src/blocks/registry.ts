@@ -118,6 +118,7 @@ import { serviceAccountsBlock } from "./service-accounts/manifest.ts";
 import { sessionsBlock } from "./sessions/manifest.ts";
 import { settingsBlock } from "./settings/manifest.ts";
 import { shareLinksBlock } from "./share-links/manifest.ts";
+import { shiftsBlock } from "./shifts/manifest.ts";
 import { shipmentsBlock } from "./shipments/manifest.ts";
 import { signaturesBlock } from "./signatures/manifest.ts";
 import { signingKeysBlock } from "./signing-keys/manifest.ts";
@@ -203,6 +204,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   contentBlock,
   qualificationsBlock,
   risksBlock,
+  shiftsBlock,
   driveBlock,
   employeesBlock,
   activitiesBlock,

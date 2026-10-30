@@ -137,3 +137,4 @@ add one, and link it from the code or config it explains.
 | [0131](0131-merge-overlapping-blocks.md)                      | Inbox contacts, sequence enrollments, AI file versions and postmortem actions move onto the blocks that own them                                   |
 | [0132](0132-quality-blocks.md)                                | Quality management from five cross-cutting blocks: acknowledgements, cases, inspections, risks and qualifications                                  |
 | [0133](0133-drive-roles-sharing-and-controlled-documents.md)  | Drive commenter and upload-only roles, link passwords and download control, preview and text ports, controlled documents                           |
+| [0138](0138-shifts.md)                                        | Shifts in their own block: templates, draft and published shifts, assignments checked against overlap, leave, qualifications and rest              |

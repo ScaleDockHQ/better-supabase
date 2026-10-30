@@ -437,6 +437,9 @@ export default defineConfig({
     // Risks link their barriers to controls and snapshot assessments as
     // versions.
     risks: {},
+    // Rosters: shifts from templates, assignments checked for leave,
+    // qualifications and rest time, open shift requests and swaps.
+    shifts: {},
     incidents: {},
     reminders: {},
     "drive-files": {},

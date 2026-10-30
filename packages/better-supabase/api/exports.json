@@ -8994,6 +8994,54 @@
       "RpcClient"
     ]
   },
+  "./blocks/shifts": {
+    "values": [
+      "createShifts",
+      "dbTransport",
+      "extendBlock",
+      "rpcTransport",
+      "shiftAvailabilityInputSchema",
+      "shiftInputSchema",
+      "shiftsBlock",
+      "shiftsEvents",
+      "shiftTemplateInputSchema",
+      "sqlTransport",
+      "withBlockHooks",
+      "wrapTransport"
+    ],
+    "types": [
+      "BlockHooks",
+      "BlockTransport",
+      "BlockTransportMiddleware",
+      "MyShift",
+      "RosterShift",
+      "RpcClient",
+      "Shift",
+      "ShiftAssignment",
+      "ShiftAssignmentCreatedEventData",
+      "ShiftAssignmentReleasedEventData",
+      "ShiftAssignmentStatus",
+      "ShiftAssignmentWarning",
+      "ShiftAvailability",
+      "ShiftAvailabilityInput",
+      "ShiftAvailabilityKind",
+      "ShiftCanceledEventData",
+      "ShiftCreatedEventData",
+      "ShiftHours",
+      "ShiftInput",
+      "ShiftPublishedEventData",
+      "Shifts",
+      "ShiftsEvents",
+      "ShiftsOptions",
+      "ShiftStatus",
+      "ShiftSwap",
+      "ShiftSwapDecidedEventData",
+      "ShiftSwapRequestedEventData",
+      "ShiftSwapStatus",
+      "ShiftTemplate",
+      "ShiftTemplateInput"
+    ]
+  },
   "./blocks/contracts": {
     "values": [
       "contractChangesSchema",

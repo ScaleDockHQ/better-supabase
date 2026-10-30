@@ -137,6 +137,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_qualification_revoke",
     "after_qualification_revoke",
   ],
+  shifts: [
+    "before_shift_save",
+    "after_shift_save",
+    "before_shift_cancel",
+    "after_shift_cancel",
+    "before_shift_assignment_create",
+    "after_shift_assignment_create",
+  ],
   collections: [
     "before_collection_create",
     "after_collection_create",

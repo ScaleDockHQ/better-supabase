@@ -249,6 +249,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0132: Quality management is five cross-cutting blocks (`acknowledgements`, `cases`, `inspections`, `risks`, `qualifications`) linked through `relations` kinds.
 - 0133: Drive gets commenter and upload-only roles, link passwords and download control with previews on their own path, versioned text and preview ports, and controlled documents.
 - 0134: Record teams (`subjects.<type>.team`, `subject_members`) grant per-record actions in `can_subject`; emergency access and read logging build on them.
+- 0138: Shifts are their own block; every assignment, request approval and swap runs one SQL check for overlap, approved leave, qualifications and rest.
 
 ## Pre-release pins
 

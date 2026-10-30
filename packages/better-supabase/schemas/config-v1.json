@@ -1710,6 +1710,7 @@
               "sessions",
               "settings",
               "share-links",
+              "shifts",
               "shipments",
               "signatures",
               "signing-keys",
@@ -1867,6 +1868,7 @@
                   "sessions",
                   "settings",
                   "share-links",
+                  "shifts",
                   "shipments",
                   "signatures",
                   "signing-keys",
@@ -2252,6 +2254,9 @@
             },
             "share-links": {
               "$ref": "#/$defs/blocks/share-links"
+            },
+            "shifts": {
+              "$ref": "#/$defs/blocks/shifts"
             },
             "shipments": {
               "$ref": "#/$defs/blocks/shipments"
@@ -6602,6 +6607,36 @@
               "fullRows": {
                 "type": "boolean",
                 "default": false
+              }
+            }
+          }
+        }
+      },
+      "shifts": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "minRestHours": {
+                "type": "number",
+                "default": 11
+              },
+              "qualificationCheck": {
+                "type": "string",
+                "default": "block"
+              },
+              "timeZone": {
+                "type": "string",
+                "default": "UTC"
+              },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }
