@@ -408,6 +408,16 @@ msgctxt "navigation.6D4Ghb"
 msgid "Toggle sidebar"
 msgstr "Toggle sidebar"
 
+#: src/app/[locale]/(app)/manufacturing/page.tsx
+msgctxt "manufacturing.z3FEm2"
+msgid "Manufacturing"
+msgstr "Manufacturing"
+
+#: src/app/[locale]/(app)/manufacturing/page.tsx
+msgctxt "manufacturing.72yJZj"
+msgid "Production orders from draft to done, consuming components from stock and receiving the output at its cost."
+msgstr "Production orders from draft to done, consuming components from stock and receiving the output at its cost."
+
 #: src/app/[locale]/(app)/medications/page.tsx
 msgctxt "medications.gOuYI7"
 msgid "Medications"
@@ -8734,6 +8744,86 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
 
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.W6nwjo"
+msgid "Draft"
+msgstr "Draft"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.GnNfTd"
+msgid "Released"
+msgstr "Released"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.q1WWIr"
+msgid "In progress"
+msgstr "In progress"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.JXdbo8"
+msgid "Done"
+msgstr "Done"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.kQuSP0"
+msgid "{produced} of {planned} made"
+msgstr "{produced} of {planned} made"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.B2yYsP"
+msgid "{planned} to make"
+msgstr "{planned} to make"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.eq1e8s"
+msgid "Unknown product"
+msgstr "Unknown product"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.K6blXA"
+msgid "{quantity}, due {date}"
+msgstr "{quantity}, due {date}"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.BEwAxd"
+msgid "Production orders"
+msgstr "Production orders"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.JezMAF"
+msgid "Each order in its status. Drag a draft to Released to allocate its components, and a running order to Done to receive its output."
+msgstr "Each order in its status. Drag a draft to Released to allocate its components, and a running order to Done to receive its output."
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.olpiHT"
+msgid "The production orders didn't load"
+msgstr "The production orders didn't load"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.99S_qd"
+msgid "No production orders"
+msgstr "No production orders"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.CCRtx8"
+msgid "Give a product a bill of materials, then create an order for it through the API or from material requirements."
+msgstr "Give a product a bill of materials, then create an order for it through the API or from material requirements."
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.9MRsjL"
+msgid "Read the manufacturing guide"
+msgstr "Read the manufacturing guide"
+
 #: src/features/medications/components/medication-chart.tsx
 msgctxt "medications.Ydnmc6"
 msgid "The medication chart didn't load"
@@ -9214,6 +9304,11 @@ msgstr "Shop"
 msgctxt "navigation.MlzEfB"
 msgid "Inventory"
 msgstr "Inventory"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.z3FEm2"
+msgid "Manufacturing"
+msgstr "Manufacturing"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.X7jl6w"

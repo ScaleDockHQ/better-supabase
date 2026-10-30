@@ -26,6 +26,7 @@ import {
   MessageSquareTextIcon,
   FileTextIcon,
   StoreIcon,
+  FactoryIcon,
   BoxesIcon,
   ReceiptIcon,
   FolderIcon,
@@ -102,6 +103,7 @@ const ICONS = {
   quotes: FileTextIcon,
   shop: StoreIcon,
   inventory: BoxesIcon,
+  manufacturing: FactoryIcon,
   orders: ReceiptIcon,
   dispatch: CalendarRangeIcon,
   myDay: RouteIcon,
@@ -225,6 +227,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "inventory": {
         return t("Inventory");
+      }
+
+      case "manufacturing": {
+        return t("Manufacturing");
       }
 
       case "orders": {
