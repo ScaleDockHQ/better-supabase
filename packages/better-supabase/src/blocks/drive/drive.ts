@@ -421,10 +421,8 @@ export interface DrivePage {
 }
 
 /** `F` types the nodes' extra columns, from the `fields` schema. */
-export interface Drive<
-  F extends object = Record<never, never>,
-> extends DriveDocuments<DriveNode<F>>,
-    DriveAccess {
+export interface Drive<F extends object = Record<never, never>>
+  extends DriveDocuments<DriveNode<F>>, DriveAccess {
   createFolder(
     organizationId: string,
     folder: NewDriveFolder<F>,
