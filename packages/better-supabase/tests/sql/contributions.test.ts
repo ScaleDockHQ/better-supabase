@@ -146,7 +146,7 @@ describe("block contributions", () => {
       render({
         approvals: {},
         "time-tracking": {},
-        shifts: {
+        overtime: {
           block: "time-tracking",
           entities: { entry: "shift" },
           uses: { approvals: "approvals" },
