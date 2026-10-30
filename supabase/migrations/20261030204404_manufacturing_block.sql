@@ -2242,9 +2242,9 @@ begin
   update "better_supabase"."production_orders" x set "status" = 'canceled', "canceled_at" = now(), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('production_order.canceled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'variantId', v_row."variant_id", 'quantity', v_row."quantity"::text, 'status', v_row."status", 'reason', cancel_production_order.reason), 'production-orders/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/manufacturing');
+  perform "better_supabase".emit_event('production_order.cancelled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'variantId', v_row."variant_id", 'quantity', v_row."quantity"::text, 'status', v_row."status", 'reason', cancel_production_order.reason), 'production-orders/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/manufacturing');
   perform better_supabase.audit_event(
-    event_type => 'production_order.canceled',
+    event_type => 'production_order.cancelled',
     category => 'data',
     target_type => 'production_order',
     record_id => v_row."id"::text,
@@ -18019,12 +18019,12 @@ CREATE INDEX bom_components_parent_idx ON better_supabase.bom_components USING b
 
 CREATE INDEX bom_components_variant_idx ON better_supabase.bom_components USING btree (variant_id);
 
+CREATE INDEX bom_operations_center_idx ON better_supabase.bom_operations USING btree (tenant_id, work_center_id);
+
 CREATE INDEX bom_operations_instructions_idx ON better_supabase.bom_operations USING btree (instructions_node_id)
   WHERE (instructions_node_id IS NOT NULL);
 
 CREATE INDEX bom_operations_parent_idx ON better_supabase.bom_operations USING btree (tenant_id, bom_id, SEQUENCE);
-
-CREATE INDEX bom_operations_work_center_idx ON better_supabase.bom_operations USING btree (tenant_id, work_center_id);
 
 CREATE UNIQUE INDEX boms_active_key ON better_supabase.boms USING btree (variant_id)
   WHERE (status = 'active'::text);
@@ -18040,6 +18040,8 @@ CREATE INDEX production_consumptions_parent_idx ON better_supabase.production_co
 
 CREATE INDEX production_consumptions_variant_idx ON better_supabase.production_consumptions USING btree (variant_id);
 
+CREATE INDEX production_order_operations_center_idx ON better_supabase.production_order_operations USING btree (tenant_id, work_center_id, status);
+
 CREATE INDEX production_order_operations_inspection_idx ON better_supabase.production_order_operations USING btree (inspection_id)
   WHERE (inspection_id IS NOT NULL);
 
@@ -18047,10 +18049,6 @@ CREATE INDEX production_order_operations_operation_idx ON better_supabase.produc
   WHERE (operation_id IS NOT NULL);
 
 CREATE INDEX production_order_operations_parent_idx ON better_supabase.production_order_operations USING btree (tenant_id, order_id, SEQUENCE);
-
-CREATE INDEX production_order_operations_work_center_idx ON better_supabase.production_order_operations USING btree (tenant_id, work_center_id, status);
-
-CREATE INDEX production_orders_bom_idx ON better_supabase.production_orders USING btree (tenant_id, bom_id);
 
 CREATE INDEX production_orders_location_idx ON better_supabase.production_orders USING btree (location_id);
 
@@ -18060,6 +18058,8 @@ CREATE INDEX production_orders_output_lot_idx ON better_supabase.production_orde
 CREATE INDEX production_orders_tenant_idx ON better_supabase.production_orders USING btree (tenant_id, status, due_on);
 
 CREATE INDEX production_orders_variant_idx ON better_supabase.production_orders USING btree (variant_id, status);
+
+CREATE INDEX production_orders_version_idx ON better_supabase.production_orders USING btree (tenant_id, bom_id);
 
 CREATE INDEX stock_lot_links_child_idx ON better_supabase.stock_lot_links USING btree (child_lot_id);
 

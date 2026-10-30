@@ -17,9 +17,6 @@ export const PRODUCTION_OPERATION_STATUSES = [
   "done",
 ] as const;
 
-/** The directions `lot_genealogy` walks. */
-export const LOT_GENEALOGY_DIRECTIONS = ["up", "down"] as const;
-
 /** What `material_requirements` suggests for a shortage. */
 export const REQUIREMENT_ACTIONS = ["produce", "purchase"] as const;
 

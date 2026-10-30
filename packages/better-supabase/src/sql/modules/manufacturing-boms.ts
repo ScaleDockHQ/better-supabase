@@ -10,7 +10,7 @@ import { BOM_MAX_DEPTH } from "./manufacturing-values.ts";
 const DEPTH = String(BOM_MAX_DEPTH);
 
 /** The JSON of a bill of materials with its components and operations. */
-export function bomDetail(q: ManufacturingSql, row: string): string {
+function bomDetail(q: ManufacturingSql, row: string): string {
   const { b, c, o } = q;
 
   return `(${q.bomJson(row)} || jsonb_build_object(
@@ -24,7 +24,7 @@ export function bomDetail(q: ManufacturingSql, row: string): string {
 }
 
 /** The tenant of a catalog variant, as a SQL expression. */
-export function variantTenant(q: ManufacturingSql, variant: string): string {
+function variantTenant(q: ManufacturingSql, variant: string): string {
   const v = (column: string): string => q.catalog.col("variants", column);
 
   return `(select cv.${v("tenant")} from ${q.catalog.table("variants")} cv where cv.${v("id")} = ${variant})`;

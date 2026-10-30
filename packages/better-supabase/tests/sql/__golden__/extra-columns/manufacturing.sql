@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:1d3e06e7f488fdd7763fe78c74f393d2f0e0c3a858e1740173f0ec6aa47834e8
+-- @bsb-hash sha256:601e79c76b4123e4b2649c5750c76a6ff9c773ac2a353bd53b6a8840fd325909
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -192,7 +192,7 @@ create table if not exists "better_supabase"."bom_operations" (
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
 );
 create index if not exists "bom_operations_parent_idx" on "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence");
-create index if not exists "bom_operations_work_center_idx" on "better_supabase"."bom_operations" ("tenant_id", "work_center_id");
+create index if not exists "bom_operations_center_idx" on "better_supabase"."bom_operations" ("tenant_id", "work_center_id");
 create index if not exists "bom_operations_instructions_idx" on "better_supabase"."bom_operations" ("instructions_node_id") where "instructions_node_id" is not null;
 alter table "better_supabase"."bom_operations" enable row level security;
 revoke all on "better_supabase"."bom_operations" from public, anon, authenticated;
@@ -265,7 +265,7 @@ create table if not exists "better_supabase"."production_orders" (
 );
 alter table "better_supabase"."production_orders" add column if not exists "app_note" text;
 create index if not exists "production_orders_tenant_idx" on "better_supabase"."production_orders" ("tenant_id", "status", "due_on");
-create index if not exists "production_orders_bom_idx" on "better_supabase"."production_orders" ("tenant_id", "bom_id");
+create index if not exists "production_orders_version_idx" on "better_supabase"."production_orders" ("tenant_id", "bom_id");
 create index if not exists "production_orders_variant_idx" on "better_supabase"."production_orders" ("variant_id", "status");
 create index if not exists "production_orders_location_idx" on "better_supabase"."production_orders" ("location_id");
 create index if not exists "production_orders_output_lot_idx" on "better_supabase"."production_orders" ("output_lot_id") where "output_lot_id" is not null;
@@ -301,7 +301,7 @@ create table if not exists "better_supabase"."production_order_operations" (
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
 );
 create index if not exists "production_order_operations_parent_idx" on "better_supabase"."production_order_operations" ("tenant_id", "order_id", "sequence");
-create index if not exists "production_order_operations_work_center_idx" on "better_supabase"."production_order_operations" ("tenant_id", "work_center_id", "status");
+create index if not exists "production_order_operations_center_idx" on "better_supabase"."production_order_operations" ("tenant_id", "work_center_id", "status");
 create index if not exists "production_order_operations_operation_idx" on "better_supabase"."production_order_operations" ("operation_id") where "operation_id" is not null;
 create index if not exists "production_order_operations_inspection_idx" on "better_supabase"."production_order_operations" ("inspection_id") where "inspection_id" is not null;
 alter table "better_supabase"."production_order_operations" enable row level security;

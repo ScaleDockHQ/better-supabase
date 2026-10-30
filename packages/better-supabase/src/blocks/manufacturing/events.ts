@@ -38,8 +38,8 @@ export interface ProductionOrderCompletedEventData extends ProductionOrderEventD
   readonly outputLotId: string | null;
 }
 
-/** `production_order.canceled`. */
-export interface ProductionOrderCanceledEventData extends ProductionOrderEventData {
+/** `production_order.cancelled`. */
+export interface ProductionOrderCancelledEventData extends ProductionOrderEventData {
   readonly reason: string | null;
 }
 
@@ -48,7 +48,7 @@ export type ManufacturingEvents = {
   readonly "bom.activated": BomActivatedEventData;
   readonly "production_order.released": ProductionOrderEventData;
   readonly "production_order.completed": ProductionOrderCompletedEventData;
-  readonly "production_order.canceled": ProductionOrderCanceledEventData;
+  readonly "production_order.cancelled": ProductionOrderCancelledEventData;
 };
 
 /** The `manufacturing` block's event types, for its manifest and `onBlockEvent`. */
@@ -56,5 +56,5 @@ export const manufacturingEvents: Events<ManufacturingEvents> = defineEvents({
   "bom.activated": event<BomActivatedEventData>(),
   "production_order.released": event<ProductionOrderEventData>(),
   "production_order.completed": event<ProductionOrderCompletedEventData>(),
-  "production_order.canceled": event<ProductionOrderCanceledEventData>(),
+  "production_order.cancelled": event<ProductionOrderCancelledEventData>(),
 });

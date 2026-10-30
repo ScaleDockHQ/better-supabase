@@ -49,7 +49,7 @@ const EVENTS: BlockSqlEvents<ManufacturingEvents> = {
     subject: "production-orders",
     payload: [...ORDER, "producedQuantity", "scrapQuantity", "outputLotId"],
   },
-  "production_order.canceled": {
+  "production_order.cancelled": {
     subject: "production-orders",
     payload: [...ORDER, "reason"],
   },
@@ -364,7 +364,7 @@ create table if not exists ${q.operations} (
   foreign key (${o("tenant")}, ${o("workCenter")}) references ${q.workCenters} (${w("tenant")}, ${w("id")}) on delete restrict
 );${appKey("operations", "bom_sequence", `${o("bom")}, ${o("sequence")}`)}
 create index if not exists ${name("operations", "parent_idx")} on ${q.operations} (${o("tenant")}, ${o("bom")}, ${o("sequence")});
-create index if not exists ${name("operations", "work_center_idx")} on ${q.operations} (${o("tenant")}, ${o("workCenter")});
+create index if not exists ${name("operations", "center_idx")} on ${q.operations} (${o("tenant")}, ${o("workCenter")});
 create index if not exists ${name("operations", "instructions_idx")} on ${q.operations} (${o("instructions")}) where ${o("instructions")} is not null;
 ${lockTable(q.operations, { read: true })}
 ${readPolicy("operations", o("tenant"))}
@@ -424,7 +424,7 @@ create table if not exists ${q.orders} (
   foreign key (${po("tenant")}, ${po("bom")}) references ${q.boms} (${b("tenant")}, ${b("id")}) on delete restrict
 );${addExtraColumns(q.orders, q.extras)}${appKey("orders", "tenant_number", `${po("tenant")}, ${po("number")}`)}${appKey("orders", "tenant_id", `${po("tenant")}, ${po("id")}`)}
 create index if not exists ${name("orders", "tenant_idx")} on ${q.orders} (${po("tenant")}, ${po("status")}, ${po("dueOn")});
-create index if not exists ${name("orders", "bom_idx")} on ${q.orders} (${po("tenant")}, ${po("bom")});
+create index if not exists ${name("orders", "version_idx")} on ${q.orders} (${po("tenant")}, ${po("bom")});
 create index if not exists ${name("orders", "variant_idx")} on ${q.orders} (${po("variant")}, ${po("status")});
 create index if not exists ${name("orders", "location_idx")} on ${q.orders} (${po("location")});
 create index if not exists ${name("orders", "output_lot_idx")} on ${q.orders} (${po("outputLot")}) where ${po("outputLot")} is not null;
@@ -454,7 +454,7 @@ create table if not exists ${q.orderOperations} (
   foreign key (${op("tenant")}, ${op("workCenter")}) references ${q.workCenters} (${w("tenant")}, ${w("id")}) on delete restrict
 );${appKey("orderOperations", "order_sequence", `${op("order")}, ${op("sequence")}`)}
 create index if not exists ${name("orderOperations", "parent_idx")} on ${q.orderOperations} (${op("tenant")}, ${op("order")}, ${op("sequence")});
-create index if not exists ${name("orderOperations", "work_center_idx")} on ${q.orderOperations} (${op("tenant")}, ${op("workCenter")}, ${op("status")});
+create index if not exists ${name("orderOperations", "center_idx")} on ${q.orderOperations} (${op("tenant")}, ${op("workCenter")}, ${op("status")});
 create index if not exists ${name("orderOperations", "operation_idx")} on ${q.orderOperations} (${op("operation")}) where ${op("operation")} is not null;
 create index if not exists ${name("orderOperations", "inspection_idx")} on ${q.orderOperations} (${op("inspection")}) where ${op("inspection")} is not null;
 ${lockTable(q.orderOperations, { read: true })}

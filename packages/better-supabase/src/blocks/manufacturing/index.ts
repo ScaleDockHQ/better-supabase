@@ -73,7 +73,7 @@ export { manufacturingEvents } from "./events.ts";
 export type {
   BomActivatedEventData,
   ManufacturingEvents,
-  ProductionOrderCanceledEventData,
+  ProductionOrderCancelledEventData,
   ProductionOrderCompletedEventData,
   ProductionOrderEventData,
 } from "./events.ts";

@@ -11,13 +11,13 @@ import { linked, manufacturingSql } from "./manufacturing-sql.ts";
 import { asService } from "./orders-shared.ts";
 
 /** The allocations' document type for a production order. */
-export const PRODUCTION_DOCUMENT = "production_order";
+const PRODUCTION_DOCUMENT = "production_order";
 
 /**
  * The JSON of a production order with its operations, components and
  * consumptions.
  */
-export function orderDetail(q: ManufacturingSql, row: string): string {
+function orderDetail(q: ManufacturingSql, row: string): string {
   const { b, c, po, op, pc } = q;
   const a = (column: string): string => q.inventory.col("allocations", column);
 
@@ -545,7 +545,7 @@ begin
   update ${q.orders} x set ${po("status")} = 'canceled', ${po("canceledAt")} = now(), ${po("updatedAt")} = now()
   where x.${po("id")} = v_row.${po("id")}
   returning * into v_row;
-  ${q.recordOrder("production_order.canceled", "v_row", "production order canceled", ", 'reason', cancel_production_order.reason")}
+  ${q.recordOrder("production_order.cancelled", "v_row", "production order canceled", ", 'reason', cancel_production_order.reason")}
   return ${detail("v_row")};
 end;
 $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:652b6fe7a6a39aab7c8907cf25274326497f2c26cd0d6aeeca08ac3b6d935228
+-- @bsb-hash sha256:8a9f6d579ba6910c6862df6769ebf62d1b020f5bdb364c8d7f80b9fb14bd6d95
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -191,7 +191,7 @@ create table if not exists "better_supabase"."bom_operations" (
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
 );
 create index if not exists "bom_operations_parent_idx" on "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence");
-create index if not exists "bom_operations_work_center_idx" on "better_supabase"."bom_operations" ("tenant_id", "work_center_id");
+create index if not exists "bom_operations_center_idx" on "better_supabase"."bom_operations" ("tenant_id", "work_center_id");
 create index if not exists "bom_operations_instructions_idx" on "better_supabase"."bom_operations" ("instructions_node_id") where "instructions_node_id" is not null;
 alter table "better_supabase"."bom_operations" enable row level security;
 revoke all on "better_supabase"."bom_operations" from public, anon, authenticated;
@@ -263,7 +263,7 @@ create table if not exists "better_supabase"."production_orders" (
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete restrict
 );
 create index if not exists "production_orders_tenant_idx" on "better_supabase"."production_orders" ("tenant_id", "status", "due_on");
-create index if not exists "production_orders_bom_idx" on "better_supabase"."production_orders" ("tenant_id", "bom_id");
+create index if not exists "production_orders_version_idx" on "better_supabase"."production_orders" ("tenant_id", "bom_id");
 create index if not exists "production_orders_variant_idx" on "better_supabase"."production_orders" ("variant_id", "status");
 create index if not exists "production_orders_location_idx" on "better_supabase"."production_orders" ("location_id");
 create index if not exists "production_orders_output_lot_idx" on "better_supabase"."production_orders" ("output_lot_id") where "output_lot_id" is not null;
@@ -299,7 +299,7 @@ create table if not exists "better_supabase"."production_order_operations" (
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
 );
 create index if not exists "production_order_operations_parent_idx" on "better_supabase"."production_order_operations" ("tenant_id", "order_id", "sequence");
-create index if not exists "production_order_operations_work_center_idx" on "better_supabase"."production_order_operations" ("tenant_id", "work_center_id", "status");
+create index if not exists "production_order_operations_center_idx" on "better_supabase"."production_order_operations" ("tenant_id", "work_center_id", "status");
 create index if not exists "production_order_operations_operation_idx" on "better_supabase"."production_order_operations" ("operation_id") where "operation_id" is not null;
 create index if not exists "production_order_operations_inspection_idx" on "better_supabase"."production_order_operations" ("inspection_id") where "inspection_id" is not null;
 alter table "better_supabase"."production_order_operations" enable row level security;
@@ -375,7 +375,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select ceil(production_quantity.quantity * power(10::numeric, s.scale)) / power(10::numeric, s.scale)
+  select round(ceil(production_quantity.quantity * power(10::numeric, s.scale)) / power(10::numeric, s.scale), s.scale)
   from (select coalesce((select x."scale" from "better_supabase"."stock_items" x where x."variant_id" = production_quantity.variant), 0) as scale) s;
 $$;
 revoke execute on function "better_supabase"."production_quantity"(uuid, numeric) from public, anon, authenticated;
@@ -1351,11 +1351,10 @@ begin
   perform "better_supabase"."move_stock"(v_row."tenant_id", v_row."variant_id", v_row."location_id", complete_production_order.produced, 'production', 'production_order', v_row."id"::text, null, jsonb_strip_nulls(jsonb_build_object('lotId', v_lot, 'serials', complete_production_order.lot -> 'serials',
       'unitCost', round((v_material + v_labor)::numeric / complete_production_order.produced, 6)::text, 'currency', v_item_currency)));
   if v_lot is not null then
-    insert into "better_supabase"."stock_lot_links" as x ("tenant_id", "parent_lot_id", "child_lot_id", "order_id", "quantity")
+    insert into "better_supabase"."stock_lot_links" ("tenant_id", "parent_lot_id", "child_lot_id", "order_id", "quantity")
     select v_row."tenant_id", v_lot, z."lot_id", v_row."id", sum(z."quantity")
     from "better_supabase"."production_consumptions" z where z."order_id" = v_row."id" and z."lot_id" is not null and z."lot_id" <> v_lot
-    group by z."lot_id"
-    on conflict ("parent_lot_id", "child_lot_id", "order_id") do update set "quantity" = excluded."quantity";
+    group by z."lot_id";
   end if;
   update "better_supabase"."production_orders" x set "status" = 'done', "produced_quantity" = complete_production_order.produced, "scrap_quantity" = v_scrap,
     "output_lot_id" = v_lot, "material_cost" = v_material, "labor_cost" = v_labor, "currency" = v_currency,
@@ -1456,9 +1455,9 @@ begin
   update "better_supabase"."production_orders" x set "status" = 'canceled', "canceled_at" = now(), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('production_order.canceled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'variantId', v_row."variant_id", 'quantity', v_row."quantity"::text, 'status', v_row."status", 'reason', cancel_production_order.reason), 'production-orders/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/manufacturing');
+  perform "better_supabase".emit_event('production_order.cancelled', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'number', v_row."number", 'variantId', v_row."variant_id", 'quantity', v_row."quantity"::text, 'status', v_row."status", 'reason', cancel_production_order.reason), 'production-orders/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/manufacturing');
   perform better_supabase.audit_event(
-    event_type => 'production_order.canceled',
+    event_type => 'production_order.cancelled',
     category => 'data',
     target_type => 'production_order',
     record_id => v_row."id"::text,
@@ -1788,6 +1787,9 @@ declare
   v_default_location uuid;
   v_claims text;
 begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_from_requirements.tenant is not null and coalesce(better_supabase.can('tenant', create_from_requirements.tenant, 'manufacturing.write'), false))) then
     raise exception 'not allowed to plan production' using errcode = '42501', hint = 'MANUFACTURING_FORBIDDEN';
   end if;
