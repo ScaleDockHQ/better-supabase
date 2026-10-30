@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:6c670c859fc40daccb77b2521064b6553f241102e71c69b1618b844f606abb50
+-- @bsb-hash sha256:0b5cbd41e88871e34be2664ec031538a0a72663e17ae0b48d7bfc11814eefe24
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,6 +67,7 @@ create table if not exists "better_supabase"."subject_members" (
   "role" text not null default 'member',
   "starts_on" date,
   "ends_on" date,
+  "ends_at" timestamptz,
   "emergency" boolean not null default false,
   "reason" text,
   "created_by" uuid default auth.uid(),
@@ -78,6 +79,7 @@ create unique index if not exists subject_members_user_key on "better_supabase".
 create unique index if not exists subject_members_team_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "team_id", "role") where "team_id" is not null;
 create index if not exists subject_members_user_idx on "better_supabase"."subject_members" ("user_id", "tenant_id");
 create index if not exists subject_members_team_idx on "better_supabase"."subject_members" ("team_id");
+alter table "better_supabase"."subject_members" add column if not exists "ends_at" timestamptz;
 alter table "better_supabase"."subject_members" enable row level security;
 revoke all on "better_supabase"."subject_members" from public, anon, authenticated;
 grant select on "better_supabase"."subject_members" to authenticated;
@@ -103,6 +105,7 @@ begin
       and (m."user_id" = auth.uid() or (m."team_id" is not null and m."team_id" in (select "better_supabase"."team_ids_of"(auth.uid()))))
         and (m."starts_on" is null or m."starts_on" <= current_date)
         and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())
   );
 end;
 $$;
@@ -1438,7 +1441,8 @@ begin
           where tm."team_id" = m."team_id"
             and tm."user_id" = can_subject_for.member)))
         and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)))
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())))
           when 'write' then (coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."organization_id", 'customers.write'), false) or exists (
             select 1 from "better_supabase"."subject_members" m
             where m."subject_type" = 'customer'
@@ -1449,7 +1453,8 @@ begin
           where tm."team_id" = m."team_id"
             and tm."user_id" = can_subject_for.member)))
         and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)))
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())))
           else false
         end
       );
@@ -1604,10 +1609,11 @@ begin
       'id', v_row."id", 'organizationId', v_row."tenant_id",
       'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id",
       'userId', v_row."user_id", 'teamId', v_row."team_id", 'role', v_row."role",
-      'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on",
+      'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'endsAt', v_row."ends_at",
       'emergency', v_row."emergency", 'reason', v_row."reason",
       'active', (v_row."starts_on" is null or v_row."starts_on" <= current_date)
-        and (v_row."ends_on" is null or v_row."ends_on" >= current_date),
+        and (v_row."ends_on" is null or v_row."ends_on" >= current_date)
+        and (v_row."ends_at" is null or v_row."ends_at" > now()),
       'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
@@ -1656,10 +1662,11 @@ begin
       'id', v_row."id", 'organizationId', v_row."tenant_id",
       'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id",
       'userId', v_row."user_id", 'teamId', v_row."team_id", 'role', v_row."role",
-      'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on",
+      'startsOn', v_row."starts_on", 'endsOn', v_row."ends_on", 'endsAt', v_row."ends_at",
       'emergency', v_row."emergency", 'reason', v_row."reason",
       'active', (v_row."starts_on" is null or v_row."starts_on" <= current_date)
-        and (v_row."ends_on" is null or v_row."ends_on" >= current_date),
+        and (v_row."ends_on" is null or v_row."ends_on" >= current_date)
+        and (v_row."ends_at" is null or v_row."ends_at" > now()),
       'createdBy', v_row."created_by", 'createdAt', v_row."created_at");
 end;
 $$;
@@ -1679,10 +1686,11 @@ as $$
       'id', m."id", 'organizationId', m."tenant_id",
       'subjectType', m."subject_type", 'subjectId', m."subject_id",
       'userId', m."user_id", 'teamId', m."team_id", 'role', m."role",
-      'startsOn', m."starts_on", 'endsOn', m."ends_on",
+      'startsOn', m."starts_on", 'endsOn', m."ends_on", 'endsAt', m."ends_at",
       'emergency', m."emergency", 'reason', m."reason",
       'active', (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date),
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now()),
       'createdBy', m."created_by", 'createdAt', m."created_at")
     order by m."role", m."created_at", m."id"), '[]'::jsonb)
   from "better_supabase"."subject_members" m
@@ -1735,6 +1743,7 @@ begin
       and (m."user_id" = v_me or (m."team_id" is not null and m."team_id" in (select "better_supabase"."team_ids_of"(v_me))))
         and (m."starts_on" is null or m."starts_on" <= current_date)
         and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())
     group by m."subject_type", m."subject_id"
     order by m."subject_type", m."subject_id"
     limit v_size
@@ -1748,6 +1757,138 @@ end;
 $$;
 revoke execute on function "better_supabase"."my_subjects"(uuid, text, integer, text) from public, anon;
 grant execute on function "better_supabase"."my_subjects"(uuid, text, integer, text) to authenticated, service_role;
+
+-- The tenant of a record whose type has a team; null for another type or a
+-- missing row.
+create or replace function "better_supabase"."record_team_tenant"(subject_type text, subject_id text)
+returns uuid
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  case record_team_tenant.subject_type
+    when 'customer' then
+      select s."organization_id" into v_tenant from "public"."customers" s
+      where s."id" = (record_team_tenant.subject_id)::uuid and s."archived_at" is null;
+    else
+      v_tenant := null;
+  end case;
+  return v_tenant;
+exception
+  when invalid_text_representation then
+    return null;
+end;
+$$;
+revoke execute on function "better_supabase"."record_team_tenant"(text, text) from public, anon, authenticated;
+
+-- The users who lead a record's team today, directly or through a team.
+create or replace function "better_supabase"."record_team_leads"(subject_type text, subject_id text)
+returns uuid[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(distinct l.id), '{}'::uuid[])
+  from (
+    select m."user_id" as id from "better_supabase"."subject_members" m
+    where m."subject_type" = record_team_leads.subject_type
+      and m."subject_id" = record_team_leads.subject_id
+      and m."role" = 'lead' and m."user_id" is not null
+      and (m."starts_on" is null or m."starts_on" <= current_date)
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())
+    union
+    select tm."user_id" from "better_supabase"."subject_members" m
+    join "better_supabase"."team_members" tm on tm."team_id" = m."team_id"
+    where m."subject_type" = record_team_leads.subject_type
+      and m."subject_id" = record_team_leads.subject_id
+      and m."role" = 'lead' and (m."starts_on" is null or m."starts_on" <= current_date)
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())
+  ) l;
+$$;
+revoke execute on function "better_supabase"."record_team_leads"(text, text) from public, anon, authenticated;
+
+-- Puts a user on a record's team until ends_at, for an approved request or an
+-- emergency. A membership that already counts without an end is left alone,
+-- and the result is null, so ending the request never closes it.
+create or replace function "better_supabase"."grant_subject_member"(subject_type text, subject_id text, user_id uuid, ends_at timestamptz, emergency boolean, reason text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant uuid := "better_supabase"."record_team_tenant"(grant_subject_member.subject_type, grant_subject_member.subject_id);
+  v_row "better_supabase"."subject_members";
+begin
+  if v_tenant is null then
+    raise exception 'subject not found' using errcode = 'P0002', hint = 'SUBJECT_MEMBER_NOT_FOUND';
+  end if;
+  select * into v_row from "better_supabase"."subject_members" m
+  where m."subject_type" = grant_subject_member.subject_type
+      and m."subject_id" = grant_subject_member.subject_id
+    and m."user_id" = grant_subject_member.user_id and m."role" = 'member'
+    and m."ends_on" is null and m."ends_at" is null and (m."starts_on" is null or m."starts_on" <= current_date)
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now());
+  if found then
+    return null;
+  end if;
+  insert into "better_supabase"."subject_members" ("tenant_id", "subject_type", "subject_id", "user_id", "role", "ends_on", "ends_at", "emergency", "reason", "created_by")
+  values (v_tenant, grant_subject_member.subject_type, grant_subject_member.subject_id, grant_subject_member.user_id, 'member', grant_subject_member.ends_at::date, grant_subject_member.ends_at, coalesce(grant_subject_member.emergency, false), grant_subject_member.reason, auth.uid())
+  on conflict ("subject_type", "subject_id", "user_id", "role") where "user_id" is not null
+  do update set "starts_on" = null, "ends_on" = excluded."ends_on", "ends_at" = excluded."ends_at",
+    "emergency" = excluded."emergency", "reason" = excluded."reason"
+  returning * into v_row;
+  perform "better_supabase".emit_event('subject_member.added', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'userId', v_row."user_id", 'teamId', v_row."team_id", 'role', v_row."role", 'endsOn', v_row."ends_on"), 'subjects/' || v_row."subject_type" || '/' || v_row."subject_id", (v_row."tenant_id")::text, null, 'better-supabase/subjects');
+  perform better_supabase.audit_event(
+    event_type => 'subject_member.added',
+    category => 'access',
+    target_type => 'subject_member',
+    record_id => v_row."id"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'userId', v_row."user_id", 'teamId', v_row."team_id", 'role', v_row."role", 'endsOn', v_row."ends_on")
+  );
+  return v_row."id";
+end;
+$$;
+revoke execute on function "better_supabase"."grant_subject_member"(text, text, uuid, timestamptz, boolean, text) from public, anon, authenticated;
+
+-- Ends a granted membership now, when its request ends early.
+create or replace function "better_supabase"."close_subject_member"(member_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."subject_members";
+begin
+  update "better_supabase"."subject_members" m set "ends_at" = now()
+  where m."id" = close_subject_member.member_id
+    and (m."ends_at" is null or m."ends_at" > now())
+  returning * into v_row;
+  if found then
+    perform "better_supabase".emit_event('subject_member.ended', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'userId', v_row."user_id", 'teamId', v_row."team_id", 'role', v_row."role", 'endsOn', v_row."ends_on"), 'subjects/' || v_row."subject_type" || '/' || v_row."subject_id", (v_row."tenant_id")::text, null, 'better-supabase/subjects');
+  perform better_supabase.audit_event(
+    event_type => 'subject_member.ended',
+    category => 'access',
+    target_type => 'subject_member',
+    record_id => v_row."id"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'userId', v_row."user_id", 'teamId', v_row."team_id", 'role', v_row."role", 'endsOn', v_row."ends_on")
+  );
+  end if;
+end;
+$$;
+revoke execute on function "better_supabase"."close_subject_member"(uuid) from public, anon, authenticated;
 
 -- The caller's own reminders sent in the last week, for my_work. Reminders
 -- have no read policy, so this reads them past it, keeping only the caller's.

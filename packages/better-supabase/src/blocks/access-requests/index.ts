@@ -6,6 +6,13 @@ export {
   type AccessRequestsOptions,
   type AccessRequestStatus,
   createAccessRequests,
+  type EmergencyAccessInput,
+  type EmergencyListOptions,
+  type EmergencyReview,
+  type EmergencyReviewInput,
+  type RecordAccessInput,
+  type RecordAccessRequest,
+  type RoleAccessRequest,
 } from "./access-requests.ts";
 
 export {

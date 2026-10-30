@@ -455,7 +455,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_019_permissions.sql
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:839036989019dadbada7f9f01430509e22ac1bbe74f6927111b640be8a092824
+-- @bsb-hash sha256:97e7e1944923081cb268e0c88e899045971745f03cd350e856670ee350afd50c
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -568,8 +568,10 @@ set search_path = ''
 as $$
   select case op
     when 'access-requests.create' then 'access_requests.create'
+    when 'access-requests.emergency' then 'access_requests.emergency'
     when 'access-requests.manage' then 'access_requests.manage'
     when 'access-requests.read' then 'access_requests.read'
+    when 'access-requests.review' then 'access_requests.review'
     when 'accounting.close' then 'accounting.close'
     when 'accounting.manage' then 'accounting.manage'
     when 'accounting.post' then 'accounting.post'

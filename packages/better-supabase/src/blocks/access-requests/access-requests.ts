@@ -60,13 +60,10 @@ export type AccessRequestStatus =
   | "expired"
   | "ended";
 
-export interface AccessRequest {
+interface AccessRequestBase {
   readonly id: string;
   readonly organizationId: string;
   readonly userId: string;
-  readonly role: string;
-  /** The role the member held before the grant; unset for a new member. */
-  readonly previousRole?: string;
   readonly reason?: string;
   readonly duration?: Temporal.Duration;
   readonly status: AccessRequestStatus;
@@ -79,12 +76,79 @@ export interface AccessRequest {
   readonly createdAt: Temporal.Instant;
 }
 
+/** A request for a role in the organization. */
+export interface RoleAccessRequest extends AccessRequestBase {
+  readonly target: "role";
+  readonly role: string;
+  /** The role the member held before the grant; unset for a new member. */
+  readonly previousRole?: string;
+}
+
+/** What a reviewer decided about an emergency access. */
+export interface EmergencyReview {
+  readonly verdict: "justified" | "unjustified";
+  readonly note?: string;
+  readonly reviewedBy: string;
+  readonly reviewedAt: Temporal.Instant;
+}
+
+/** A request for access to one record, or an emergency access to it. */
+export interface RecordAccessRequest extends AccessRequestBase {
+  readonly target: "record";
+  /** A `config.subjects` type with a record team, such as `client`. */
+  readonly subjectType: string;
+  readonly subjectId: string;
+  /** The action asked for, such as `read`; emergency access is `read`. */
+  readonly action: string;
+  /** Opened with `openEmergency`, so granted at once and reviewed later. */
+  readonly emergency: boolean;
+  /** Set once a reviewer has looked at an emergency access. */
+  readonly review?: EmergencyReview;
+}
+
+/** A role request or a record request; `target` tells them apart. */
+export type AccessRequest = RoleAccessRequest | RecordAccessRequest;
+
 export interface AccessRequestInput {
   readonly organizationId: string;
   readonly role: string;
   readonly reason?: string;
   /** How long the role lasts. Default: `options.maxDuration`, else no end. */
   readonly duration?: Temporal.Duration;
+}
+
+export interface RecordAccessInput {
+  /** A `config.subjects` type with `team`, such as `client`. */
+  readonly subjectType: string;
+  readonly subjectId: string;
+  /** One of the type's `team.actions`. Default: `read`. */
+  readonly action?: string;
+  readonly reason?: string;
+  /**
+   * How long the access lasts, at most `options.maxDuration`. Default: 7 days,
+   * or `options.maxDuration` when that is shorter.
+   */
+  readonly duration?: Temporal.Duration;
+}
+
+export interface EmergencyAccessInput {
+  readonly subjectType: string;
+  readonly subjectId: string;
+  /** Why the access can't wait for an approval; at least 10 characters. */
+  readonly reason: string;
+}
+
+export interface EmergencyReviewInput {
+  readonly verdict: "justified" | "unjustified";
+  readonly note?: string;
+}
+
+export interface EmergencyListOptions {
+  /** Only the accesses nobody reviewed yet. Default: `true`. */
+  readonly unreviewed?: boolean;
+  readonly pageSize?: number;
+  /** Accesses opened before this time, for the next page. */
+  readonly before?: Temporal.Instant;
 }
 
 export interface AccessRequestListOptions {
@@ -105,8 +169,31 @@ export interface AccessRequests<F extends object = Record<never, never>> {
    */
   request(
     input: AccessRequestInput & Partial<F>,
-  ): AsyncResult<AccessRequest & F>;
-  /** Ends a granted role early: a manager, or the holder giving it up. */
+  ): AsyncResult<RoleAccessRequest & F>;
+  /**
+   * Asks for access to one record. The record's team leads approve it, or the
+   * holders of `subjects.manage` when it has no lead; the approval puts the
+   * caller on the record's team until the duration ends.
+   */
+  requestRecord(input: RecordAccessInput): AsyncResult<RecordAccessRequest & F>;
+  /**
+   * Opens read access to one record at once, for `options.emergency.maxHours`.
+   * Needs `access_requests.emergency`; team leads and reviewers are notified.
+   */
+  openEmergency(
+    input: EmergencyAccessInput,
+  ): AsyncResult<RecordAccessRequest & F>;
+  /** Records a verdict on an emergency access. Needs `access_requests.review`. */
+  reviewEmergency(
+    id: string,
+    input: EmergencyReviewInput,
+  ): AsyncResult<RecordAccessRequest & F>;
+  /** Emergency accesses in an organization, newest first. */
+  emergencies(
+    organizationId: string,
+    options?: EmergencyListOptions,
+  ): AsyncResult<readonly (RecordAccessRequest & F)[]>;
+  /** Ends granted access early: a manager, or the holder giving it up. */
   end(id: string): AsyncResult<AccessRequest & F>;
   get(id: string): AsyncResult<AccessRequest & F>;
   /** Newest first. */
@@ -149,9 +236,59 @@ function durationOf(value: unknown): { readonly duration?: Temporal.Duration } {
   return text === undefined ? {} : { duration: temporal().Duration.from(text) };
 }
 
+function reviewOf(value: unknown): { readonly review?: EmergencyReview } {
+  if (value === null || value === undefined) {
+    return {};
+  }
+
+  const row = recordOf(value, "review");
+  const verdict = row["verdict"];
+  const note = optionalText(row["note"]);
+
+  if (verdict !== "justified" && verdict !== "unjustified") {
+    throw new TypeError(`unknown emergency verdict ${String(verdict)}`);
+  }
+
+  return {
+    review: {
+      verdict,
+      ...(note === undefined ? {} : { note }),
+      reviewedBy: textOf(row["reviewedBy"]),
+      reviewedAt: requiredInstant(row["reviewedAt"], "reviewedAt"),
+    },
+  };
+}
+
+function targetOf(
+  row: Readonly<Record<string, unknown>>,
+):
+  | Pick<RoleAccessRequest, "target" | "role" | "previousRole">
+  | Pick<
+      RecordAccessRequest,
+      "target" | "subjectType" | "subjectId" | "action" | "emergency" | "review"
+    > {
+  if (row["target"] === "record") {
+    return {
+      target: "record",
+      subjectType: textOf(row["subjectType"]),
+      subjectId: textOf(row["subjectId"]),
+      action: textOf(row["action"]),
+      emergency: row["emergency"] === true,
+      ...reviewOf(row["review"]),
+    };
+  }
+
+  const previousRole = optionalText(row["previousRole"]);
+
+  return {
+    target: "role",
+    role: textOf(row["role"]),
+    ...(previousRole === undefined ? {} : { previousRole }),
+  };
+}
+
 function requestOf(value: unknown, fn: string): AccessRequest {
   const row = recordOf(value, fn);
-  const previousRole = optionalText(row["previousRole"]);
   const reason = optionalText(row["reason"]);
   const approvalId = optionalText(row["approvalId"]);
 
@@ -159,10 +296,9 @@ function requestOf(value: unknown, fn: string): AccessRequest {
     id: textOf(row["id"]),
     organizationId: textOf(row["organizationId"]),
     userId: textOf(row["userId"]),
-    role: textOf(row["role"]),
+    ...targetOf(row),
     status: statusOf(row["status"]),
     createdAt: requiredInstant(row["createdAt"], "createdAt"),
-    ...(previousRole === undefined ? {} : { previousRole }),
     ...(reason === undefined ? {} : { reason }),
     ...(approvalId === undefined ? {} : { approvalId }),
     ...durationOf(row["duration"]),
@@ -170,6 +306,26 @@ function requestOf(value: unknown, fn: string): AccessRequest {
     ...instant(row["expiresAt"], "expiresAt"),
     ...instant(row["endedAt"], "endedAt"),
   };
+}
+
+function roleRequestOf(value: unknown, fn: string): RoleAccessRequest {
+  const request = requestOf(value, fn);
+
+  if (request.target !== "role") {
+    throw new TypeError(`${fn} returned a record request`);
+  }
+
+  return request;
+}
+
+function recordRequestOf(value: unknown, fn: string): RecordAccessRequest {
+  const request = requestOf(value, fn);
+
+  if (request.target !== "record") {
+    throw new TypeError(`${fn} returned a role request`);
+  }
+
+  return request;
 }
 
 /** The `access-requests` SQL module as typed calls. */
@@ -189,17 +345,63 @@ export function createAccessRequests<
       ([raw, row]) => withFields(fields, raw, row),
     );
 
+  const oneRecord = (fn: string, args: Readonly<Record<string, unknown>>) =>
+    call(
+      fn,
+      args,
+      (value) => [value, recordRequestOf(value, fn)] as const,
+    ).andThen(([raw, row]) => withFields(fields, raw, row));
+
   const client: AccessRequests<FieldsOf<S>> = {
     request: ({ organizationId, role, reason, duration, ...extra }) =>
       AsyncResult.from(() => extraFieldsArg(fields, extra)).andThen((more) =>
-        one("request_access", {
-          tenant: organizationId,
-          role,
-          reason: reason ?? null,
-          duration: duration?.toString() ?? null,
-          ...more,
-        }),
+        call(
+          "request_access",
+          {
+            tenant: organizationId,
+            role,
+            reason: reason ?? null,
+            duration: duration?.toString() ?? null,
+            ...more,
+          },
+          (value) => [value, roleRequestOf(value, "request_access")] as const,
+        ).andThen(([raw, row]) => withFields(fields, raw, row)),
       ),
+    requestRecord: ({ subjectType, subjectId, action, reason, duration }) =>
+      oneRecord("request_record_access", {
+        subject_type: subjectType,
+        subject_id: subjectId,
+        action: action ?? "read",
+        reason: reason ?? null,
+        duration: duration?.toString() ?? null,
+      }),
+    openEmergency: ({ subjectType, subjectId, reason }) =>
+      oneRecord("open_emergency_access", {
+        subject_type: subjectType,
+        subject_id: subjectId,
+        reason,
+      }),
+    reviewEmergency: (id, { verdict, note }) =>
+      oneRecord("review_emergency_access", {
+        request_id: id,
+        verdict,
+        note: note ?? null,
+      }),
+    emergencies: (organizationId, list = {}) =>
+      call(
+        "list_emergency_access",
+        {
+          tenant: organizationId,
+          unreviewed: list.unreviewed ?? true,
+          page_size: list.pageSize ?? null,
+          before: list.before?.toString() ?? null,
+        },
+        (value) =>
+          recordsOf(value, "list_emergency_access").map(
+            (raw) =>
+              [raw, recordRequestOf(raw, "list_emergency_access")] as const,
+          ),
+      ).andThen((rows) => allWithFields(fields, rows)),
     end: (id) => one("end_access", { request_id: id }),
     get: (id) => one("get_access_request", { request_id: id }),
     list: (organizationId, list = {}) =>

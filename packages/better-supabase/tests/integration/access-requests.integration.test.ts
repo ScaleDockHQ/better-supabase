@@ -3,6 +3,7 @@ import * as v from "valibot";
 import { afterAll, describe, expect, it } from "vitest";
 
 import type { Result } from "../../src/core/result.ts";
+import type { TestUser } from "./block-session.ts";
 
 import { createAccessRequests } from "../../src/blocks/access-requests/index.ts";
 import {
@@ -251,6 +252,202 @@ describe.skipIf(!live)("access requests", () => {
       });
       const [listed] = await access.list(tenant).orThrow();
       expect(listed).toMatchObject({ id: request.id, ticket: "OPS-1" });
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("grants a record through its lead and opens emergency access for review", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.rows(
+        `create table public.bsb_clients (
+           id uuid primary key default gen_random_uuid(),
+           organization_id uuid not null,
+           name text not null
+         )`,
+      );
+      await s.rows("grant select on public.bsb_clients to authenticated");
+      await s.install([...MODULES, "subjects"], {
+        subjects: {
+          client: {
+            table: "public.bsb_clients",
+            idType: "uuid",
+            title: "name",
+            permissions: { read: "clients.read" },
+            team: { actions: ["read"] },
+          },
+        },
+      });
+
+      const owner = await s.user("owner");
+      const admin = await s.user("admin");
+      const lead = await s.user("lead");
+      const requester = await s.user("requester");
+
+      const tenant = await s.organization(owner, {
+        admin,
+        member: lead,
+        member2: requester,
+      });
+
+      await s.service();
+
+      const [row] = await s.rows<{ id: string }>(
+        "insert into public.bsb_clients (organization_id, name) values ($1, 'Ada') returning id",
+        [tenant],
+      );
+
+      const client = row!.id;
+
+      await s.asRole(owner);
+      await s.value(
+        "better_supabase.add_subject_member('client', $1, $2, role => 'lead')",
+        [client, lead.id],
+      );
+
+      const transport = sqlTransport(s.sql);
+      const access = createAccessRequests({ transport });
+      const approvals = createApprovals({ transport });
+
+      const canRead = async (user: TestUser) => {
+        await s.asRole(user);
+
+        const allowed = await s.value<boolean>(
+          "better_supabase.can_subject('client', $1, 'read')",
+          [client],
+        );
+
+        await s.service();
+
+        return allowed;
+      };
+
+      const recipients = async (type: string, subject: string) => {
+        await s.service();
+
+        const rows = await s.rows<{ user_id: string }>(
+          `select r.user_id::text from better_supabase.notification_recipients r
+           join better_supabase.notification_events e on e.id = r.event_id
+           where e.type = $1 and e.subject_id = $2 order by 1`,
+          [type, subject],
+        );
+
+        return rows.map((each) => each.user_id).toSorted();
+      };
+
+      await s.asRole(requester);
+      expect(
+        await access
+          .requestRecord({
+            subjectType: "client",
+            subjectId: client,
+            action: "write",
+          })
+          .then(hint),
+      ).toBe("ACCESS_REQUEST_RECORD_INVALID");
+
+      const request = await access
+        .requestRecord({
+          subjectType: "client",
+          subjectId: client,
+          reason: "Covering for the lead",
+          duration: temporal().Duration.from({ days: 2 }),
+        })
+        .orThrow();
+
+      expect(request).toMatchObject({
+        target: "record",
+        subjectType: "client",
+        subjectId: client,
+        action: "read",
+        status: "pending",
+      });
+      expect(
+        await access
+          .requestRecord({ subjectType: "client", subjectId: client })
+          .then(hint),
+      ).toBe("ACCESS_REQUEST_PENDING");
+      expect(await recipients("approval.requested", request.id)).toEqual([
+        lead.id,
+      ]);
+
+      await s.asRole(lead);
+      await approvals.approve(request.approvalId!).orThrow();
+      expect(await canRead(requester)).toBe(true);
+
+      await s.asRole(requester);
+      expect((await access.end(request.id).orThrow()).status).toBe("ended");
+      expect(await canRead(requester)).toBe(false);
+      expect(await canRead(lead)).toBe(true);
+
+      await s.asRole(requester);
+      expect(
+        await access
+          .openEmergency({
+            subjectType: "client",
+            subjectId: client,
+            reason: "The client is in the ward now",
+          })
+          .then(hint),
+      ).toBe("ACCESS_REQUEST_FORBIDDEN");
+
+      await s.asRole(admin);
+      expect(
+        await access
+          .openEmergency({
+            subjectType: "client",
+            subjectId: client,
+            reason: "now",
+          })
+          .then(hint),
+      ).toBe("ACCESS_REQUEST_REASON_REQUIRED");
+
+      const emergency = await access
+        .openEmergency({
+          subjectType: "client",
+          subjectId: client,
+          reason: "The client is in the ward now",
+        })
+        .orThrow();
+
+      expect(emergency).toMatchObject({
+        target: "record",
+        emergency: true,
+        status: "granted",
+      });
+      expect(await canRead(admin)).toBe(true);
+      expect(
+        await recipients("access_request.emergency_opened", client),
+      ).toEqual([owner.id, lead.id].toSorted());
+
+      await s.asRole(admin);
+      expect(
+        await access
+          .reviewEmergency(emergency.id, { verdict: "justified" })
+          .then(hint),
+      ).toBe("ACCESS_REQUEST_REVIEW_INVALID");
+
+      await s.asRole(owner);
+      expect(await access.emergencies(tenant).orThrow()).toHaveLength(1);
+
+      const reviewed = await access
+        .reviewEmergency(emergency.id, {
+          verdict: "unjustified",
+          note: "No ward visit that day",
+        })
+        .orThrow();
+
+      expect(reviewed.review).toMatchObject({
+        verdict: "unjustified",
+        note: "No ward visit that day",
+        reviewedBy: owner.id,
+      });
+      expect(await access.emergencies(tenant).orThrow()).toEqual([]);
+      expect(
+        await access.emergencies(tenant, { unreviewed: false }).orThrow(),
+      ).toHaveLength(1);
     } finally {
       await s.close();
     }

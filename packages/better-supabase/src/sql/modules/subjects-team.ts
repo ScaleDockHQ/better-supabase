@@ -65,11 +65,13 @@ export const SUBJECT_MEMBERS_TABLE: BlockSqlTableSpec = {
     role: "role",
     startsOn: "starts_on",
     endsOn: "ends_on",
+    endsAt: "ends_at",
     emergency: "emergency",
     reason: "reason",
     createdBy: "created_by",
     createdAt: "created_at",
   },
+  optional: ["endsAt"],
 };
 
 /** The most rows one `my_subjects` call returns. */
@@ -139,8 +141,30 @@ function activeFor(
     `${alias}.${ctx.col("members", column)}`;
 
   return `(${c("user")} = ${user}${viaTeam(ctx, c("team"), user, through)})
-        and (${c("startsOn")} is null or ${c("startsOn")} <= current_date)
-        and (${c("endsOn")} is null or ${c("endsOn")} >= current_date)`;
+        and ${datesInclude(ctx, alias)}`;
+}
+
+/** Row `alias` of `subject_members` counts now: its days and its end time. */
+function datesInclude(ctx: BlockSqlContext, alias: string): string {
+  const c = (column: string): string =>
+    `${alias}.${ctx.col("members", column)}`;
+
+  const endsAt = ctx.has("members", "endsAt")
+    ? `\n        and (${c("endsAt")} is null or ${c("endsAt")} > now())`
+    : "";
+
+  return `(${c("startsOn")} is null or ${c("startsOn")} <= current_date)
+        and (${c("endsOn")} is null or ${c("endsOn")} >= current_date)${endsAt}`;
+}
+
+/** The role a lead holds: `lead`, else the first of `recordTeam.roles`. */
+function leadRole(roles: readonly string[]): string {
+  return roles.includes("lead") ? "lead" : (roles[0] ?? "lead");
+}
+
+/** The role an approved request adds: `member`, else the last role. */
+function memberRole(roles: readonly string[]): string {
+  return roles.includes("member") ? "member" : (roles.at(-1) ?? "member");
 }
 
 /**
@@ -229,7 +253,7 @@ export function recordTeamTable(ctx: BlockSqlContext): string {
   ${c("team")} ${teamType(ctx)}${teamRef},
   ${c("role")} text not null default 'member',
   ${c("startsOn")} date,
-  ${c("endsOn")} date,
+  ${c("endsOn")} date,${ctx.has("members", "endsAt") ? `\n  ${c("endsAt")} timestamptz,` : ""}
   ${c("emergency")} boolean not null default false,
   ${c("reason")} text,
   ${c("createdBy")} uuid default auth.uid(),
@@ -241,7 +265,7 @@ create unique index if not exists ${rename("subject_members_user_key")} on ${t} 
 create unique index if not exists ${rename("subject_members_team_key")} on ${t} (${c("subjectType")}, ${c("subjectId")}, ${c("team")}, ${c("role")}) where ${c("team")} is not null;
 create index if not exists ${rename("subject_members_user_idx")} on ${t} (${c("user")}, ${c("tenant")});
 create index if not exists ${rename("subject_members_team_idx")} on ${t} (${c("team")});
-${lockTable(t, { read: true })}
+${ctx.has("members", "endsAt") ? `alter table ${t} add column if not exists ${c("endsAt")} timestamptz;\n` : ""}${lockTable(t, { read: true })}
 `
     : "";
 
@@ -333,10 +357,9 @@ export function recordTeamSql(
       'id', ${a("id")}, 'organizationId', ${a("tenant")},
       'subjectType', ${a("subjectType")}, 'subjectId', ${a("subjectId")},
       'userId', ${a("user")}, 'teamId', ${a("team")}, 'role', ${a("role")},
-      'startsOn', ${a("startsOn")}, 'endsOn', ${a("endsOn")},
+      'startsOn', ${a("startsOn")}, 'endsOn', ${a("endsOn")},${ctx.has("members", "endsAt") ? ` 'endsAt', ${a("endsAt")},` : ""}
       'emergency', ${a("emergency")}, 'reason', ${a("reason")},
-      'active', (${a("startsOn")} is null or ${a("startsOn")} <= current_date)
-        and (${a("endsOn")} is null or ${a("endsOn")} >= current_date),
+      'active', ${datesInclude(ctx, alias)},
       'createdBy', ${a("createdBy")}, 'createdAt', ${a("createdAt")})`;
   };
 
@@ -564,6 +587,157 @@ begin
 end;
 $$;
 ${userGrant(`${fn("my_subjects")}(${ctx.idType}, text, integer, text)`)}
+${recordAccessSql(ctx, withTeam, roles, record)}`;
+}
+
+/**
+ * What access requests (ADR 0134) use to time-box team rows: the record's
+ * tenant, its leads, and the grants it opens and closes. Granted to nobody, so
+ * only security definer code of another module calls them. Empty without the
+ * `endsAt` column, which an adopted table may leave out.
+ */
+function recordAccessSql(
+  ctx: BlockSqlContext,
+  withTeam: readonly RegisteredSubject[],
+  roles: readonly string[],
+  record: (type: keyof typeof RECORD_TEAM_EVENTS, row: string) => string,
+): string {
+  if (!ctx.has("members", "endsAt")) {
+    return "";
+  }
+
+  const t = ctx.table("members");
+  const c = (column: string): string => ctx.col("members", column);
+  const fn = (name: string): string => ctx.fn(name);
+  const teams = teamsOf(ctx);
+  const lead = sqlString(leadRole(roles));
+  const member = sqlString(memberRole(roles));
+
+  const lookup =
+    withTeam.length === 0
+      ? "    when '' then null;"
+      : withTeam
+          .map(
+            (subject) => `    when ${sqlString(subject.type)} then
+      select s.${subject.tenant!} into v_tenant from ${subject.qualified} s
+      where ${live(subject, "record_team_tenant.subject_id")};`,
+          )
+          .join("\n");
+
+  const onRecord = (alias: string, fnName: string): string =>
+    `${alias}.${c("subjectType")} = ${fnName}.subject_type
+      and ${alias}.${c("subjectId")} = ${fnName}.subject_id`;
+
+  const teamLeads =
+    teams === undefined
+      ? ""
+      : `
+    union
+    select tm.${teams.col("members", "user")} from ${t} m
+    join ${teams.table("members")} tm on tm.${teams.col("members", "team")} = m.${c("team")}
+    where ${onRecord("m", "record_team_leads")}
+      and m.${c("role")} = ${lead} and ${datesInclude(ctx, "m")}`;
+
+  return `
+-- The tenant of a record whose type has a team; null for another type or a
+-- missing row.
+create or replace function ${fn("record_team_tenant")}(subject_type text, subject_id text)
+returns ${ctx.idType}
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant ${ctx.idType};
+begin
+  case record_team_tenant.subject_type
+${lookup}
+    else
+      v_tenant := null;
+  end case;
+  return v_tenant;
+exception
+  when invalid_text_representation then
+    return null;
+end;
+$$;
+revoke execute on function ${fn("record_team_tenant")}(text, text) from public, anon, authenticated;
+
+-- The users who lead a record's team today, directly or through a team.
+create or replace function ${fn("record_team_leads")}(subject_type text, subject_id text)
+returns uuid[]
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(array_agg(distinct l.id), '{}'::uuid[])
+  from (
+    select m.${c("user")} as id from ${t} m
+    where ${onRecord("m", "record_team_leads")}
+      and m.${c("role")} = ${lead} and m.${c("user")} is not null
+      and ${datesInclude(ctx, "m")}${teamLeads}
+  ) l;
+$$;
+revoke execute on function ${fn("record_team_leads")}(text, text) from public, anon, authenticated;
+
+-- Puts a user on a record's team until ends_at, for an approved request or an
+-- emergency. A membership that already counts without an end is left alone,
+-- and the result is null, so ending the request never closes it.
+create or replace function ${fn("grant_subject_member")}(subject_type text, subject_id text, user_id uuid, ends_at timestamptz, emergency boolean, reason text)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_tenant ${ctx.idType} := ${fn("record_team_tenant")}(grant_subject_member.subject_type, grant_subject_member.subject_id);
+  v_row ${t};
+begin
+  if v_tenant is null then
+    ${fail("SUBJECT_MEMBER_NOT_FOUND", "subject not found", "P0002")}
+  end if;
+  select * into v_row from ${t} m
+  where ${onRecord("m", "grant_subject_member")}
+    and m.${c("user")} = grant_subject_member.user_id and m.${c("role")} = ${member}
+    and m.${c("endsOn")} is null and m.${c("endsAt")} is null and ${datesInclude(ctx, "m")};
+  if found then
+    return null;
+  end if;
+  insert into ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")}, ${c("user")}, ${c("role")}, ${c("endsOn")}, ${c("endsAt")}, ${c("emergency")}, ${c("reason")}, ${c("createdBy")})
+  values (v_tenant, grant_subject_member.subject_type, grant_subject_member.subject_id, grant_subject_member.user_id, ${member}, grant_subject_member.ends_at::date, grant_subject_member.ends_at, coalesce(grant_subject_member.emergency, false), grant_subject_member.reason, auth.uid())
+  on conflict (${c("subjectType")}, ${c("subjectId")}, ${c("user")}, ${c("role")}) where ${c("user")} is not null
+  do update set ${c("startsOn")} = null, ${c("endsOn")} = excluded.${c("endsOn")}, ${c("endsAt")} = excluded.${c("endsAt")},
+    ${c("emergency")} = excluded.${c("emergency")}, ${c("reason")} = excluded.${c("reason")}
+  returning * into v_row;
+  ${record("subject_member.added", "v_row")}
+  return v_row.${c("id")};
+end;
+$$;
+revoke execute on function ${fn("grant_subject_member")}(text, text, uuid, timestamptz, boolean, text) from public, anon, authenticated;
+
+-- Ends a granted membership now, when its request ends early.
+create or replace function ${fn("close_subject_member")}(member_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row ${t};
+begin
+  update ${t} m set ${c("endsAt")} = now()
+  where m.${c("id")} = close_subject_member.member_id
+    and (m.${c("endsAt")} is null or m.${c("endsAt")} > now())
+  returning * into v_row;
+  if found then
+    ${record("subject_member.ended", "v_row")}
+  end if;
+end;
+$$;
+revoke execute on function ${fn("close_subject_member")}(uuid) from public, anon, authenticated;
 `;
 }
 

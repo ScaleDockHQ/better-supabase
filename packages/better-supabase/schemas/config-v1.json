@@ -3522,6 +3522,7 @@
                 "type": "boolean",
                 "default": false
               },
+              "emergency": {},
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {

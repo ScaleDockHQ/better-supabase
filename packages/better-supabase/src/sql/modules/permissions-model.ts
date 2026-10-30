@@ -400,6 +400,8 @@ export const OPERATIONS = {
   "access-requests.read": "access_requests.read",
   "access-requests.create": "access_requests.create",
   "access-requests.manage": "access_requests.manage",
+  "access-requests.emergency": "access_requests.emergency",
+  "access-requests.review": "access_requests.review",
   "documents.read": "documents.read",
   "documents.write": "documents.write",
   "documents.suggest": "documents.suggest",

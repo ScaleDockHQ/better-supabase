@@ -127,7 +127,13 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   reactions: { read: "tenant", create: "tenant", manage: "tenant" },
   approvals: { read: "tenant", request: "tenant", manage: "tenant" },
-  "access-requests": { read: "tenant", create: "tenant", manage: "tenant" },
+  "access-requests": {
+    read: "tenant",
+    create: "tenant",
+    manage: "tenant",
+    emergency: "tenant",
+    review: "tenant",
+  },
   documents: {
     read: "tenant",
     write: "tenant",

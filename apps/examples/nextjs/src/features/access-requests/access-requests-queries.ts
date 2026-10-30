@@ -77,18 +77,24 @@ export async function loadAccessRequests(): Promise<AccessRequestsData | null> {
 
   return {
     canDecide: can(permissions, "members.update_role"),
-    requests: requests.map((request) => ({
-      approvalId: request.approvalId ?? null,
-      createdAt: request.createdAt.toString(),
-      duration: request.duration?.toString() ?? null,
-      expiresAt: request.expiresAt?.toString() ?? null,
-      id: request.id,
-      reason: request.reason ?? null,
-      requester: names.get(request.userId) ?? request.userId,
-      role: request.role,
-      status: request.status,
-      userId: request.userId,
-    })),
+    requests: requests.flatMap((request) =>
+      request.target === "role"
+        ? [
+            {
+              approvalId: request.approvalId ?? null,
+              createdAt: request.createdAt.toString(),
+              duration: request.duration?.toString() ?? null,
+              expiresAt: request.expiresAt?.toString() ?? null,
+              id: request.id,
+              reason: request.reason ?? null,
+              requester: names.get(request.userId) ?? request.userId,
+              role: request.role,
+              status: request.status,
+              userId: request.userId,
+            },
+          ]
+        : [],
+    ),
     role: roleOf(session),
     userId: auth.user.id,
   };

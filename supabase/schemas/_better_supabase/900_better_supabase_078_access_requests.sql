@@ -1,7 +1,7 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:1d305865ddcf361017fa743549001887518f66acb147d63ae10bc80db2cf3d17
--- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
+-- @bsb-hash sha256:92327923ecf45a7438f5d53607d029879ef60653fb45a2ca33d02b11784edf09
+-- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -59,7 +59,17 @@ create table if not exists "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") between 1 and 200),
+  "role" text check (length("role") between 1 and 200),
+  "target" text not null default 'role' check ("target" in ('role', 'record')),
+  "subject_type" text check (length("subject_type") between 1 and 200),
+  "subject_id" text check (length("subject_id") between 1 and 200),
+  "action" text check (length("action") between 1 and 200),
+  "emergency" boolean not null default false,
+  "member_id" uuid,
+  "review_verdict" text check ("review_verdict" in ('justified', 'unjustified')),
+  "review_note" text check (length("review_note") <= 2000),
+  "reviewed_by" uuid,
+  "reviewed_at" timestamptz,
   "previous_role" text,
   "reason" text check ("reason" is null or length("reason") <= 2000),
   "duration" interval check ("duration" is null or "duration" > interval '0'),
@@ -72,6 +82,19 @@ create table if not exists "better_supabase"."access_requests" (
 create index if not exists "access_requests_tenant_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc);
 create index if not exists "access_requests_approval_idx" on "better_supabase"."access_requests" ("approval_id") where "approval_id" is not null;
 create index if not exists "access_requests_expiry_idx" on "better_supabase"."access_requests" ("expires_at") where "granted_at" is not null and "ended_at" is null;
+alter table "better_supabase"."access_requests" alter column "role" drop not null;
+alter table "better_supabase"."access_requests" add column if not exists "target" text not null default 'role' check ("target" in ('role', 'record'));
+alter table "better_supabase"."access_requests" add column if not exists "subject_type" text check (length("subject_type") between 1 and 200);
+alter table "better_supabase"."access_requests" add column if not exists "subject_id" text check (length("subject_id") between 1 and 200);
+alter table "better_supabase"."access_requests" add column if not exists "action" text check (length("action") between 1 and 200);
+alter table "better_supabase"."access_requests" add column if not exists "emergency" boolean not null default false;
+alter table "better_supabase"."access_requests" add column if not exists "member_id" uuid;
+alter table "better_supabase"."access_requests" add column if not exists "review_verdict" text check ("review_verdict" in ('justified', 'unjustified'));
+alter table "better_supabase"."access_requests" add column if not exists "review_note" text check (length("review_note") <= 2000);
+alter table "better_supabase"."access_requests" add column if not exists "reviewed_by" uuid;
+alter table "better_supabase"."access_requests" add column if not exists "reviewed_at" timestamptz;
+create index if not exists "access_requests_subject_idx" on "better_supabase"."access_requests" ("subject_type", "subject_id", "user_id") where "subject_type" is not null;
+create index if not exists "access_requests_emergency_idx" on "better_supabase"."access_requests" ("tenant_id", "created_at" desc) where "emergency";
 alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
@@ -128,7 +151,7 @@ begin
   perform pg_advisory_xact_lock(hashtextextended('access_request:' || request_access.tenant::text || ':' || v_me::text, 0));
   if exists (
     select 1 from "better_supabase"."access_requests" r join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
-    where r."tenant_id" = request_access.tenant and r."user_id" = v_me and x."status" = 'pending'
+    where r."tenant_id" = request_access.tenant and r."user_id" = v_me and x."status" = 'pending' and r."target" = 'role'
   ) then
     raise exception 'you already have a pending access request here' using errcode = '23505', hint = 'ACCESS_REQUEST_PENDING';
   end if;
@@ -151,14 +174,14 @@ begin
   update "better_supabase"."access_requests" r set "approval_id" = (v_approval ->> 'id')::uuid
   where r."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('access.requested', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+  perform "better_supabase".emit_event('access.requested', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
   perform better_supabase.audit_event(
     event_type => 'access.requested',
     category => 'membership',
     target_type => 'user',
     record_id => v_row."user_id"::text,
     tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at")
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action")
   );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_access_request"(uuid)');
@@ -168,7 +191,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'pending', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'emergency', v_row."emergency", 'review', case when v_row."reviewed_at" is null then null else jsonb_build_object('verdict', v_row."review_verdict", 'note', v_row."review_note", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at") end, 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'pending', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."request_access"(uuid, text, text, interval) from public, anon;
@@ -185,6 +208,8 @@ as $$
 declare
   v_row "better_supabase"."access_requests"%rowtype;
   v_previous text;
+  v_ends timestamptz;
+  v_member uuid;
 begin
   select * into v_row from "better_supabase"."access_requests" r where r."id" = grant_access_request.request_id for update;
   if not found or v_row."granted_at" is not null then
@@ -198,6 +223,34 @@ begin
         using v_row."id";
     end if;
   end;
+  if v_row."target" = 'record' then
+    v_ends := now() + v_row."duration";
+    v_member := "better_supabase"."grant_subject_member"(v_row."subject_type", v_row."subject_id", v_row."user_id", v_ends, v_row."emergency", v_row."reason");
+    update "better_supabase"."access_requests" r
+    set "granted_at" = now(), "expires_at" = v_ends, "member_id" = v_member
+    where r."id" = v_row."id"
+    returning * into v_row;
+    if not v_row."emergency" then
+      perform "better_supabase".emit_event('access.request_approved', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+  perform better_supabase.audit_event(
+    event_type => 'access.request_approved',
+    category => 'membership',
+    target_type => 'user',
+    record_id => v_row."user_id"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action")
+  );
+    end if;
+    declare
+    v_hook regprocedure := to_regprocedure('"public"."after_access_grant"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+    return;
+  end if;
   select (select r."key" from "better_supabase"."roles" r where r."id" = m."role") into v_previous from "public"."memberships" m
   where m."organization_id" = v_row."tenant_id" and m."user_id" = v_row."user_id"
   for update;
@@ -214,14 +267,14 @@ begin
       "expires_at" = case when v_row."duration" is null then null else now() + v_row."duration" end
   where r."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('access.request_approved', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+  perform "better_supabase".emit_event('access.request_approved', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
   perform better_supabase.audit_event(
     event_type => 'access.request_approved',
     category => 'membership',
     target_type => 'user',
     record_id => v_row."user_id"::text,
     tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at")
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action")
   );
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_access_grant"(uuid)');
@@ -259,30 +312,36 @@ begin
   if v_row."granted_at" is null or v_row."ended_at" is not null then
     raise exception 'this access isn''t active' using errcode = '22023', hint = 'ACCESS_NOT_GRANTED';
   end if;
-  -- Only a role that is still the granted one goes back; a later change wins.
-  if exists (
-    select 1 from "public"."memberships" m
-    where m."organization_id" = v_row."tenant_id" and m."user_id" = v_row."user_id"
-      and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = v_row."role"
-  ) then
-    if v_row."previous_role" is null then
-      delete from "public"."memberships" where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
-    else
-      update "public"."memberships" set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_row."previous_role")::text or r."key" = (v_row."previous_role")::text) order by (r."id"::text = (v_row."previous_role")::text) desc limit 1)
-      where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
+  if v_row."target" = 'record' then
+    if v_row."member_id" is not null then
+        perform "better_supabase"."close_subject_member"(v_row."member_id");
+      end if;
+  else
+    -- Only a role that is still the granted one goes back; a later change wins.
+    if exists (
+      select 1 from "public"."memberships" m
+      where m."organization_id" = v_row."tenant_id" and m."user_id" = v_row."user_id"
+        and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = v_row."role"
+    ) then
+      if v_row."previous_role" is null then
+        delete from "public"."memberships" where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
+      else
+        update "public"."memberships" set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_row."previous_role")::text or r."key" = (v_row."previous_role")::text) order by (r."id"::text = (v_row."previous_role")::text) desc limit 1)
+        where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
+      end if;
     end if;
   end if;
   update "better_supabase"."access_requests" r set "ended_at" = now() where r."id" = v_row."id" returning * into v_row;
-  perform "better_supabase".emit_event('access.ended', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'reason', 'revoked'), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+  perform "better_supabase".emit_event('access.ended', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'reason', 'revoked'), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
   perform better_supabase.audit_event(
     event_type => 'access.ended',
     category => 'membership',
     target_type => 'user',
     record_id => v_row."user_id"::text,
     tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'reason', 'revoked')
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'reason', 'revoked')
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'ended', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'emergency', v_row."emergency", 'review', case when v_row."reviewed_at" is null then null else jsonb_build_object('verdict', v_row."review_verdict", 'note', v_row."review_note", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at") end, 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'ended', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."end_access"(uuid) from public, anon;
@@ -306,28 +365,30 @@ begin
     limit greatest(coalesce(expire_access_grants.max_grants, 200), 1)
     for update skip locked
   loop
-  -- Only a role that is still the granted one goes back; a later change wins.
-  if exists (
-    select 1 from "public"."memberships" m
-    where m."organization_id" = v_row."tenant_id" and m."user_id" = v_row."user_id"
-      and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = v_row."role"
-  ) then
-    if v_row."previous_role" is null then
-      delete from "public"."memberships" where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
-    else
-      update "public"."memberships" set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_row."previous_role")::text or r."key" = (v_row."previous_role")::text) order by (r."id"::text = (v_row."previous_role")::text) desc limit 1)
-      where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
+    if v_row."target" = 'role' then
+      -- Only a role that is still the granted one goes back; a later change wins.
+      if exists (
+        select 1 from "public"."memberships" m
+        where m."organization_id" = v_row."tenant_id" and m."user_id" = v_row."user_id"
+          and (select r."key" from "better_supabase"."roles" r where r."id" = m."role") = v_row."role"
+      ) then
+        if v_row."previous_role" is null then
+          delete from "public"."memberships" where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
+        else
+          update "public"."memberships" set "role" = (select r."id" from "better_supabase"."roles" r where (r."id"::text = (v_row."previous_role")::text or r."key" = (v_row."previous_role")::text) order by (r."id"::text = (v_row."previous_role")::text) desc limit 1)
+          where "organization_id" = v_row."tenant_id" and "user_id" = v_row."user_id";
+        end if;
+      end if;
     end if;
-  end if;
     update "better_supabase"."access_requests" r set "ended_at" = now() where r."id" = v_row."id" returning * into v_row;
-    perform "better_supabase".emit_event('access.ended', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'reason', 'expired'), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+    perform "better_supabase".emit_event('access.ended', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'reason', 'expired'), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
   perform better_supabase.audit_event(
     event_type => 'access.ended',
     category => 'membership',
     target_type => 'user',
     record_id => v_row."user_id"::text,
     tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'reason', 'expired')
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'reason', 'expired')
   );
     v_count := v_count + 1;
   end loop;
@@ -354,7 +415,7 @@ begin
     raise exception 'access request not found' using errcode = 'P0002', hint = 'ACCESS_REQUEST_NOT_FOUND';
   end if;
   select * into v_approval from "better_supabase"."approval_requests" x where x."id" = v_row."approval_id";
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', case when v_row."ended_at" is not null then 'ended' when v_row."granted_at" is not null then 'granted' else coalesce(v_approval."status", 'pending') end, 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'emergency', v_row."emergency", 'review', case when v_row."reviewed_at" is null then null else jsonb_build_object('verdict', v_row."review_verdict", 'note', v_row."review_note", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at") end, 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', case when v_row."ended_at" is not null then 'ended' when v_row."granted_at" is not null then 'granted' else coalesce(v_approval."status", 'pending') end, 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_access_request"(uuid) from public, anon;
@@ -372,7 +433,7 @@ set intervalstyle = 'iso_8601'
 as $$
   select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' when r."granted_at" is not null then 'granted' else coalesce(x."status", 'pending') end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
     from "better_supabase"."access_requests" r
     left join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
     where r."tenant_id" = list_access_requests.tenant
@@ -385,6 +446,242 @@ as $$
 $$;
 revoke execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
 grant execute on function "better_supabase"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+
+-- Asks for access to one record: its team leads approve, or the holders of
+-- subjects.manage when it has no lead. The final approval adds a team row
+-- (or the record's accessGrant) that ends after the duration.
+create or replace function "better_supabase"."request_record_access"(subject_type text, subject_id text, action text default 'read', reason text default null, duration interval default interval '7 days')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set intervalstyle = 'iso_8601'
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_tenant uuid;
+  v_duration interval := coalesce(request_record_access.duration, interval '7 days');
+  v_leads uuid[];
+  v_row "better_supabase"."access_requests"%rowtype;
+  v_approval jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to request access' using errcode = '42501', hint = 'ACCESS_SIGN_IN';
+  end if;
+  if not (request_record_access.subject_type = any (array['customer']::text[])) or (case request_record_access.subject_type
+      when 'customer' then not (request_record_access.action = any (array['read', 'write']::text[]))
+      else true end) then
+    raise exception 'this record or action can''t be requested' using errcode = '22023', hint = 'ACCESS_REQUEST_RECORD_INVALID';
+  end if;
+  v_tenant := "better_supabase"."record_team_tenant"(request_record_access.subject_type, request_record_access.subject_id);
+  if v_tenant is null then
+    raise exception 'record not found' using errcode = 'P0002', hint = 'ACCESS_REQUEST_RECORD_INVALID';
+  end if;
+  if not exists (select 1 from "public"."memberships" m where m."organization_id" = v_tenant and m."user_id" = auth.uid()) or not coalesce(better_supabase.can('tenant', v_tenant, 'access_requests.create'), false) then
+    raise exception 'not allowed to request access here' using errcode = '42501', hint = 'ACCESS_REQUEST_FORBIDDEN';
+  end if;
+  if "better_supabase"."can_subject"(request_record_access.subject_type, request_record_access.subject_id, request_record_access.action) then
+    raise exception 'you already have this access' using errcode = '22023', hint = 'ACCESS_REQUEST_RECORD_INVALID';
+  end if;
+  if v_duration <= interval '0' then
+    raise exception 'duration must be positive' using errcode = '22023', hint = 'ACCESS_DURATION_INVALID';
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended('access_request:' || request_record_access.subject_type || ':' || request_record_access.subject_id || ':' || v_me::text, 0));
+  if exists (
+    select 1 from "better_supabase"."access_requests" r join "better_supabase"."approval_requests" x on x."id" = r."approval_id"
+    where r."subject_type" = request_record_access.subject_type and r."subject_id" = request_record_access.subject_id
+      and r."user_id" = v_me and x."status" = 'pending'
+  ) then
+    raise exception 'you already have a pending access request for this record' using errcode = '23505', hint = 'ACCESS_REQUEST_PENDING';
+  end if;
+  insert into "better_supabase"."access_requests" ("tenant_id", "user_id", "target", "subject_type", "subject_id", "action", "reason", "duration")
+  values (v_tenant, v_me, 'record', request_record_access.subject_type, request_record_access.subject_id, request_record_access.action, request_record_access.reason, v_duration)
+  returning * into v_row;
+  v_leads := "better_supabase"."record_team_leads"(request_record_access.subject_type, request_record_access.subject_id);
+  v_approval := "better_supabase"."open_approval"(
+    v_tenant, 'access_request', v_row."id"::text, 'grant',
+    '{"steps":[{"approvers":{"permission":"members.update_role"},"required":1}],"selfApproval":false,"expiresIn":null,"run":null}'::jsonb || jsonb_build_object('steps', jsonb_build_array(jsonb_build_object(
+      'approvers', case when cardinality(v_leads) > 0 then jsonb_build_object('users', to_jsonb(v_leads)) else jsonb_build_object('permission', 'subjects.manage') end,
+      'required', 1))),
+    request_record_access.reason,
+    jsonb_build_object('subjectType', request_record_access.subject_type, 'subjectId', request_record_access.subject_id, 'action', request_record_access.action, 'userId', v_me, 'duration', v_duration::text)
+  );
+  update "better_supabase"."access_requests" r set "approval_id" = (v_approval ->> 'id')::uuid
+  where r."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('access.requested', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+  perform better_supabase.audit_event(
+    event_type => 'access.requested',
+    category => 'membership',
+    target_type => 'user',
+    record_id => v_row."user_id"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'emergency', v_row."emergency", 'review', case when v_row."reviewed_at" is null then null else jsonb_build_object('verdict', v_row."review_verdict", 'note', v_row."review_note", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at") end, 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'pending', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."request_record_access"(text, text, text, text, interval) from public, anon;
+grant execute on function "better_supabase"."request_record_access"(text, text, text, text, interval) to authenticated, service_role;
+
+-- Break-the-glass: read access to one record right away, for at most
+-- options.emergency.maxHours, with a reason that a reviewer checks later.
+create or replace function "better_supabase"."open_emergency_access"(subject_type text, subject_id text, reason text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set intervalstyle = 'iso_8601'
+as $$
+#variable_conflict use_column
+declare
+  v_me uuid := auth.uid();
+  v_tenant uuid;
+  v_row "better_supabase"."access_requests"%rowtype;
+  v_claims text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if v_me is null then
+    raise exception 'sign in to open emergency access' using errcode = '42501', hint = 'ACCESS_SIGN_IN';
+  end if;
+  if length(btrim(coalesce(open_emergency_access.reason, ''))) < 10 then
+    raise exception 'say why you need emergency access, in at least 10 characters' using errcode = '22023', hint = 'ACCESS_REQUEST_REASON_REQUIRED';
+  end if;
+  if not (open_emergency_access.subject_type = any (array['customer']::text[])) or (case open_emergency_access.subject_type
+      when 'customer' then not ('read' = any (array['read', 'write']::text[]))
+      else true end) then
+    raise exception 'this record or action can''t be requested' using errcode = '22023', hint = 'ACCESS_REQUEST_RECORD_INVALID';
+  end if;
+  v_tenant := "better_supabase"."record_team_tenant"(open_emergency_access.subject_type, open_emergency_access.subject_id);
+  if v_tenant is null then
+    raise exception 'record not found' using errcode = 'P0002', hint = 'ACCESS_REQUEST_RECORD_INVALID';
+  end if;
+  if not exists (select 1 from "public"."memberships" m where m."organization_id" = v_tenant and m."user_id" = auth.uid()) or not coalesce(better_supabase.can('tenant', v_tenant, 'access_requests.emergency'), false) then
+    raise exception 'not allowed to open emergency access here' using errcode = '42501', hint = 'ACCESS_REQUEST_FORBIDDEN';
+  end if;
+  insert into "better_supabase"."access_requests" ("tenant_id", "user_id", "target", "subject_type", "subject_id", "action", "emergency", "reason", "duration")
+  values (v_tenant, v_me, 'record', open_emergency_access.subject_type, open_emergency_access.subject_id, 'read', true, btrim(open_emergency_access.reason), interval '8 hours')
+  returning * into v_row;
+  perform "better_supabase"."grant_access_request"(v_row."id");
+  select * into v_row from "better_supabase"."access_requests" r where r."id" = v_row."id";
+  v_claims := current_setting('request.jwt.claims', true);
+  perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
+  perform "better_supabase"."notify"(jsonb_build_object(
+      'type', 'access_request.emergency_opened',
+      'tenant', v_tenant,
+      'actor', v_me,
+      'subject_type', open_emergency_access.subject_type,
+      'subject_id', open_emergency_access.subject_id,
+      'summary', btrim(open_emergency_access.reason),
+      'recipients', to_jsonb("better_supabase"."record_team_leads"(open_emergency_access.subject_type, open_emergency_access.subject_id)),
+      'permission', 'access_requests.review',
+      'watchers', false,
+      'key', 'access_request.emergency_opened:' || v_row."id"::text,
+      'data', jsonb_build_object('accessRequestId', v_row."id")
+    ));
+  perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
+  perform "better_supabase".emit_event('access_request.emergency_opened', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'reason', v_row."reason"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+  perform better_supabase.audit_event(
+    event_type => 'access_request.emergency_opened',
+    category => 'membership',
+    target_type => 'user',
+    record_id => v_row."user_id"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'reason', v_row."reason")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'emergency', v_row."emergency", 'review', case when v_row."reviewed_at" is null then null else jsonb_build_object('verdict', v_row."review_verdict", 'note', v_row."review_note", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at") end, 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', 'granted', 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."open_emergency_access"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."open_emergency_access"(text, text, text) to authenticated, service_role;
+
+-- Records whether an emergency access was justified. Needs
+-- access_requests.review; nobody reviews their own.
+create or replace function "better_supabase"."review_emergency_access"(request_id uuid, verdict text, note text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+set intervalstyle = 'iso_8601'
+as $$
+#variable_conflict use_column
+declare
+  v_row "better_supabase"."access_requests"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if review_emergency_access.verdict is null or review_emergency_access.verdict not in ('justified', 'unjustified') then
+    raise exception 'verdict must be justified or unjustified' using errcode = '22023', hint = 'ACCESS_REQUEST_REVIEW_INVALID';
+  end if;
+  if length(review_emergency_access.note) > 2000 then
+    raise exception 'a note is at most 2000 characters' using errcode = '22023', hint = 'ACCESS_REQUEST_REVIEW_INVALID';
+  end if;
+  select * into v_row from "better_supabase"."access_requests" r where r."id" = review_emergency_access.request_id and r."emergency" for update;
+  if not found then
+    raise exception 'emergency access not found' using errcode = 'P0002', hint = 'ACCESS_REQUEST_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'access_requests.review'), false)) then
+    raise exception 'not allowed to review emergency access' using errcode = '42501', hint = 'ACCESS_REQUEST_FORBIDDEN';
+  end if;
+  if v_row."user_id" = auth.uid() then
+    raise exception 'you can''t review your own emergency access' using errcode = '22023', hint = 'ACCESS_REQUEST_REVIEW_INVALID';
+  end if;
+  if v_row."reviewed_at" is not null then
+    raise exception 'this emergency access is already reviewed' using errcode = '22023', hint = 'ACCESS_REQUEST_REVIEW_INVALID';
+  end if;
+  update "better_supabase"."access_requests" r
+  set "review_verdict" = review_emergency_access.verdict,
+      "review_note" = nullif(btrim(review_emergency_access.note), ''),
+      "reviewed_by" = auth.uid(),
+      "reviewed_at" = now()
+  where r."id" = v_row."id"
+  returning * into v_row;
+  perform "better_supabase".emit_event('access_request.emergency_reviewed', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'verdict', v_row."review_verdict"), 'access-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/access-requests');
+  perform better_supabase.audit_event(
+    event_type => 'access_request.emergency_reviewed',
+    category => 'membership',
+    target_type => 'user',
+    record_id => v_row."user_id"::text,
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'userId', v_row."user_id", 'role', v_row."role", 'id', v_row."id", 'approvalId', v_row."approval_id", 'expiresAt', v_row."expires_at", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'verdict', v_row."review_verdict")
+  );
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'userId', v_row."user_id", 'role', v_row."role", 'target', v_row."target", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'action', v_row."action", 'emergency', v_row."emergency", 'review', case when v_row."reviewed_at" is null then null else jsonb_build_object('verdict', v_row."review_verdict", 'note', v_row."review_note", 'reviewedBy', v_row."reviewed_by", 'reviewedAt', v_row."reviewed_at") end, 'previousRole', v_row."previous_role", 'reason', v_row."reason", 'duration', v_row."duration"::text, 'status', case when v_row."ended_at" is not null then 'ended' else 'granted' end, 'approvalId', v_row."approval_id", 'grantedAt', v_row."granted_at", 'expiresAt', v_row."expires_at", 'endedAt', v_row."ended_at", 'createdAt', v_row."created_at");
+end;
+$$;
+revoke execute on function "better_supabase"."review_emergency_access"(uuid, text, text) from public, anon;
+grant execute on function "better_supabase"."review_emergency_access"(uuid, text, text) to authenticated, service_role;
+
+-- Emergency accesses in an organization, newest first; by default the ones
+-- nobody has reviewed. Empty for a caller without access_requests.review.
+create or replace function "better_supabase"."list_emergency_access"(tenant uuid, unreviewed boolean default true, page_size integer default null, before timestamptz default null)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+set intervalstyle = 'iso_8601'
+as $$
+  select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+  from (
+    select jsonb_build_object('id', r."id", 'organizationId', r."tenant_id", 'userId', r."user_id", 'role', r."role", 'target', r."target", 'subjectType', r."subject_type", 'subjectId', r."subject_id", 'action', r."action", 'emergency', r."emergency", 'review', case when r."reviewed_at" is null then null else jsonb_build_object('verdict', r."review_verdict", 'note', r."review_note", 'reviewedBy', r."reviewed_by", 'reviewedAt', r."reviewed_at") end, 'previousRole', r."previous_role", 'reason', r."reason", 'duration', r."duration"::text, 'status', case when r."ended_at" is not null then 'ended' else 'granted' end, 'approvalId', r."approval_id", 'grantedAt', r."granted_at", 'expiresAt', r."expires_at", 'endedAt', r."ended_at", 'createdAt', r."created_at") as item, r."created_at" as created
+    from "better_supabase"."access_requests" r
+    where r."tenant_id" = list_emergency_access.tenant and r."emergency"
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_emergency_access.tenant, 'access_requests.review'), false))
+      and (not coalesce(list_emergency_access.unreviewed, true) or r."reviewed_at" is null)
+      and (list_emergency_access.before is null or r."created_at" < list_emergency_access.before)
+    order by r."created_at" desc
+    limit least(greatest(coalesce(list_emergency_access.page_size, 50), 1), 200)
+  ) items
+$$;
+revoke execute on function "better_supabase"."list_emergency_access"(uuid, boolean, integer, timestamptz) from public, anon;
+grant execute on function "better_supabase"."list_emergency_access"(uuid, boolean, integer, timestamptz) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -491,6 +788,42 @@ set search_path = ''
 as $$ select "better_supabase"."list_access_requests"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."list_access_requests"(uuid, text, boolean, integer, timestamptz) from public, anon;
 grant execute on function "api"."list_access_requests"(uuid, text, boolean, integer, timestamptz) to authenticated, service_role;
+
+create or replace function "api"."request_record_access"(subject_type text, subject_id text, action text default 'read', reason text default null, duration interval default interval '7 days')
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."request_record_access"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."request_record_access"(text, text, text, text, interval) from public, anon;
+grant execute on function "api"."request_record_access"(text, text, text, text, interval) to authenticated, service_role;
+
+create or replace function "api"."open_emergency_access"(subject_type text, subject_id text, reason text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."open_emergency_access"($1, $2, $3) $$;
+revoke execute on function "api"."open_emergency_access"(text, text, text) from public, anon;
+grant execute on function "api"."open_emergency_access"(text, text, text) to authenticated, service_role;
+
+create or replace function "api"."review_emergency_access"(request_id uuid, verdict text, note text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."review_emergency_access"($1, $2, $3) $$;
+revoke execute on function "api"."review_emergency_access"(uuid, text, text) from public, anon;
+grant execute on function "api"."review_emergency_access"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."list_emergency_access"(tenant uuid, unreviewed boolean default true, page_size integer default null, before timestamptz default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."list_emergency_access"($1, $2, $3, $4) $$;
+revoke execute on function "api"."list_emergency_access"(uuid, boolean, integer, timestamptz) from public, anon;
+grant execute on function "api"."list_emergency_access"(uuid, boolean, integer, timestamptz) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

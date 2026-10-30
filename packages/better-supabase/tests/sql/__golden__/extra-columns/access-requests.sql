@@ -2,7 +2,7 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
 -- @bsb-hash sha256:8ebe00a10e2b2f66a2bc91a4e9c9bcff34b560d38229e898e49a31a298f79215
--- Members ask for a role, for a set time if they like. The request goes through approvals; the final approval grants the role, and the grant ends early on request or when it expires.
+-- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

@@ -83,7 +83,7 @@ describe("access requests client", () => {
     expect(requested).not.toHaveProperty("grantedAt");
 
     const granted = await access.get("r1").orThrow();
-    expect(granted.previousRole).toBe("member");
+    expect(granted).toMatchObject({ target: "role", previousRole: "member" });
     expect(granted.expiresAt?.toString()).toBe("2026-10-01T02:05:00Z");
     expect(granted).not.toHaveProperty("endedAt");
 
@@ -146,5 +146,208 @@ describe("access requests client", () => {
       reason: null,
       duration: null,
     });
+  });
+
+  it("requests record access, opens and reviews emergency access", async () => {
+    const RECORD = {
+      id: "r2",
+      organizationId: "o",
+      userId: "u1",
+      role: null,
+      target: "record",
+      subjectType: "client",
+      subjectId: "c1",
+      action: "read",
+      emergency: false,
+      review: null,
+      status: "pending",
+      approvalId: "a2",
+      duration: "P7D",
+      createdAt: "2026-10-01T00:00:00Z",
+    };
+
+    const EMERGENCY = {
+      ...RECORD,
+      id: "r3",
+      emergency: true,
+      status: "granted",
+      approvalId: null,
+      reason: "Patient in the ER",
+      duration: "PT8H",
+      grantedAt: "2026-10-01T00:00:00Z",
+      expiresAt: "2026-10-01T08:00:00Z",
+    };
+
+    const REVIEWED = {
+      ...EMERGENCY,
+      review: {
+        verdict: "justified",
+        note: "Checked the chart",
+        reviewedBy: "u2",
+        reviewedAt: "2026-10-02T00:00:00Z",
+      },
+    };
+
+    const fake = transport({
+      request_record_access: () => RECORD,
+      open_emergency_access: () => EMERGENCY,
+      review_emergency_access: () => REVIEWED,
+      list_emergency_access: () => [
+        EMERGENCY,
+        { ...REVIEWED, review: { ...REVIEWED.review, note: null } },
+      ],
+    });
+
+    const access = createAccessRequests({ transport: fake, schema: "app" });
+
+    const requested = await access
+      .requestRecord({ subjectType: "client", subjectId: "c1" })
+      .orThrow();
+
+    expect(requested).toMatchObject({
+      target: "record",
+      subjectType: "client",
+      subjectId: "c1",
+      action: "read",
+      emergency: false,
+    });
+    expect(requested).not.toHaveProperty("role");
+    expect(requested).not.toHaveProperty("review");
+
+    const opened = await access
+      .openEmergency({
+        subjectType: "client",
+        subjectId: "c1",
+        reason: "Patient in the ER",
+      })
+      .orThrow();
+
+    expect(opened.emergency).toBe(true);
+    expect(opened.expiresAt?.toString()).toBe("2026-10-01T08:00:00Z");
+
+    const reviewed = await access
+      .reviewEmergency("r3", {
+        verdict: "justified",
+        note: "Checked the chart",
+      })
+      .orThrow();
+
+    expect(reviewed.review).toMatchObject({
+      verdict: "justified",
+      note: "Checked the chart",
+      reviewedBy: "u2",
+    });
+    expect(reviewed.review?.reviewedAt.toString()).toBe("2026-10-02T00:00:00Z");
+
+    const listed = await access.emergencies("o").orThrow();
+    expect(listed).toHaveLength(2);
+    expect(listed[1]!.review).not.toHaveProperty("note");
+    await access
+      .emergencies("o", {
+        unreviewed: false,
+        pageSize: 10,
+        before: temporal().Instant.from("2026-10-03T00:00:00Z"),
+      })
+      .orThrow();
+    await access.requestRecord({
+      subjectType: "client",
+      subjectId: "c1",
+      action: "write",
+      reason: "Audit",
+      duration: temporal().Duration.from({ days: 1 }),
+    });
+    await access.reviewEmergency("r3", { verdict: "unjustified" });
+
+    expect(fake.calls).toEqual([
+      [
+        "request_record_access",
+        {
+          subject_type: "client",
+          subject_id: "c1",
+          action: "read",
+          reason: null,
+          duration: null,
+        },
+      ],
+      [
+        "open_emergency_access",
+        {
+          subject_type: "client",
+          subject_id: "c1",
+          reason: "Patient in the ER",
+        },
+      ],
+      [
+        "review_emergency_access",
+        { request_id: "r3", verdict: "justified", note: "Checked the chart" },
+      ],
+      [
+        "list_emergency_access",
+        { tenant: "o", unreviewed: true, page_size: null, before: null },
+      ],
+      [
+        "list_emergency_access",
+        {
+          tenant: "o",
+          unreviewed: false,
+          page_size: 10,
+          before: "2026-10-03T00:00:00Z",
+        },
+      ],
+      [
+        "request_record_access",
+        {
+          subject_type: "client",
+          subject_id: "c1",
+          action: "write",
+          reason: "Audit",
+          duration: "P1D",
+        },
+      ],
+      [
+        "review_emergency_access",
+        { request_id: "r3", verdict: "unjustified", note: null },
+      ],
+    ]);
+  });
+
+  it("rejects a reply of the wrong kind or with an unknown verdict", async () => {
+    const access = createAccessRequests({
+      transport: transport({
+        request_access: () => ({
+          ...PENDING,
+          target: "record",
+          subjectType: "client",
+          subjectId: "c1",
+          action: "read",
+        }),
+        request_record_access: () => PENDING,
+        review_emergency_access: () => ({
+          ...PENDING,
+          target: "record",
+          subjectType: "client",
+          subjectId: "c1",
+          action: "read",
+          emergency: true,
+          review: {
+            verdict: "maybe",
+            reviewedBy: "u2",
+            reviewedAt: "2026-10-02T00:00:00Z",
+          },
+        }),
+      }),
+      schema: "app",
+    });
+
+    expect(
+      (await access.request({ organizationId: "o", role: "admin" })).ok,
+    ).toBe(false);
+    expect(
+      (await access.requestRecord({ subjectType: "client", subjectId: "c1" }))
+        .ok,
+    ).toBe(false);
+    expect(
+      (await access.reviewEmergency("r1", { verdict: "justified" })).ok,
+    ).toBe(false);
   });
 });
