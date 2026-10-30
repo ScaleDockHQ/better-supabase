@@ -495,10 +495,14 @@ When the sessions block has an API schema (`blocks.sessions.api` or
 plain data (`session`, `sessionActive`, `authzVersion`, `tenant`, `data`), so
 it can cross into Client Components. When the Auth session ended,
 `sessionActive` is false, the entry is not kept, the user's tags are evicted,
-and with `redirect` the caller goes to `/sign-in?reason=session_not_found`.
-Calls with the same arguments share one query per request. Since the wrapper
-checks the session, the proxy can skip its own Auth call:
-`proxy({ verifySession: "bootstrap" })`. `bsb.bootstrap()` takes
+and with `redirect` the caller goes to `/sign-in?reason=session_not_found`,
+or `?reason=user_banned` for a banned user. `endReason` says which, and
+`reasons: { ended, banned }` sets other query values, as in the proxy's
+`verifySession`. Calls with the same arguments share one query per request.
+Since the wrapper checks the session, the proxy can skip its own Auth call:
+`proxy({ verifySession: "bootstrap" })`. A Server Component can't clear
+cookies, so the proxy clears them on the next request this process serves,
+such as the redirect to `/sign-in`. `bsb.bootstrap()` takes
 `scope: "remote"` and `key` like `bsb.cached()`.
 
 `bsb.getAccess(boot)` turns the result into the caller's `context`,

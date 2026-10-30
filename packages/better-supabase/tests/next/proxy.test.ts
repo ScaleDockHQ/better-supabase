@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AuthState } from "../../src/auth/resolve.ts";
 
+import { markSessionEnded } from "../../src/auth/ended.ts";
 import { writeSession } from "../../src/auth/session.ts";
 import { defineSupabase } from "../../src/core/define.ts";
 import { createNext } from "../../src/next/index.ts";
@@ -185,6 +186,37 @@ describe("proxy fast path", () => {
 
     expect(auth).not.toHaveBeenCalled();
     expect(state).toMatchObject({ kind: "user", user: { id: USER } });
+  });
+
+  it("clears the cookies of a session bsb.bootstrap() found ended", async () => {
+    const token = await signer.sign({ sub: USER, expiresIn: 3600 });
+
+    const cookie = writeSession([], NAME, {
+      access_token: token,
+      refresh_token: "r-ended",
+      expires_at: Math.floor(Date.now() / 1000) + 3600,
+    })
+      .map((write) => `${write.name}=${encodeURIComponent(write.value)}`)
+      .join("; ");
+
+    markSessionEnded(token, "banned");
+
+    const { response, auth: state } = await run(page(cookie), {
+      verifySession: "bootstrap",
+    });
+
+    expect(auth).not.toHaveBeenCalled();
+    expect(state).toMatchObject({ kind: "none" });
+    expect(response.headers.getSetCookie().join("\n")).toContain(NAME);
+    expect(response.headers.get("x-middleware-set-cookie")).toContain(
+      "Expires=Thu, 01 Jan 1970",
+    );
+  });
+
+  it("hands refreshed cookies to the render through x-middleware-set-cookie", async () => {
+    const { response } = await run(page(await expiring(20, "r-render")));
+
+    expect(response.headers.get("x-middleware-set-cookie")).toContain(NAME);
   });
 
   it("reports each phase that ran in Server-Timing", async () => {

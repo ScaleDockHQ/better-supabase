@@ -1,6 +1,6 @@
 -- better-supabase module: sessions
 -- @bsb-block sessions@1 managed
--- @bsb-hash sha256:c6d659509c871e208fdbd84f8f90c1bff8e077ce336acb29bbed460d7faa2526
+-- @bsb-hash sha256:37e77c9475484581b774c6a9526510c9761943a26f8575c839952011838a2171
 -- session_active() for restrictive policies: false once the caller's session was signed out or expired, or the user was banned or deleted, so revoked access tokens stop working before they expire. options.policies writes the policy on every table.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,6 +79,29 @@ $$;
 
 revoke execute on function better_supabase.session_active() from public, anon;
 grant execute on function better_supabase.session_active() to authenticated;
+
+-- Why session_active() is false: user_banned while the caller's user is banned,
+-- else session_not_found. The bootstrap wrappers return it as end_reason.
+create or replace function better_supabase.session_end_reason()
+returns text
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if exists (
+    select 1 from auth.users u
+    where u.id = auth.uid() and u.banned_until is not null and u.banned_until > now()
+  ) then
+    return 'user_banned';
+  end if;
+  return 'session_not_found';
+end;
+$$;
+
+revoke execute on function better_supabase.session_end_reason() from public, anon;
+grant execute on function better_supabase.session_end_reason() to authenticated;
 
 -- The last sign-in of many users in one query, for admin lists. auth.users
 -- isn't readable through the Data API, so only the service role calls this.
@@ -384,6 +407,7 @@ begin
   if not (select better_supabase.session_active()) then
     return jsonb_build_object(
       'session_active', false,
+      'end_reason', better_supabase.session_end_reason(),
       'authz_version', auth.jwt() -> 'authz_ver',
       'token_authz_version', auth.jwt() -> 'authz_ver',
       'tenant', args ->> 'tenant',
@@ -409,6 +433,7 @@ grant usage on schema "api" to anon, authenticated, service_role;
 
 -- Helpers for the module's policies and triggers have no entry point.
 drop function if exists "api"."session_active"();
+drop function if exists "api"."session_end_reason"();
 
 create or replace function "api"."actor_may_write"()
 returns boolean

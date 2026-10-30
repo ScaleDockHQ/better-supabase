@@ -2248,6 +2248,43 @@ describe("SessionProvider", () => {
     rendered.unmount();
     expect(unsubscribe).toHaveBeenCalledOnce();
   });
+
+  it("joins no topic when authzRefresh turns the refresh off for the session", async () => {
+    const client = {
+      channel: vi.fn(),
+      auth: { refreshSession: vi.fn(async () => ({})) },
+    };
+
+    const authzRefresh = vi.fn(() => false);
+
+    const session = {
+      kind: "user" as const,
+      user: { id: USER },
+      claims: { sub: USER },
+      expiresAt: null,
+      issuedAt: null,
+      authzVersion: 1,
+      aal: "aal1" as const,
+      anonymous: false,
+      amr: [],
+    };
+
+    const rendered = renderHook(
+      () => {
+        void SessionProvider({ session, client, authzRefresh, channel: false });
+
+        return useSession();
+      },
+      undefined,
+      null,
+    );
+
+    await vi.waitFor(() => {
+      expect(authzRefresh).toHaveBeenCalledWith(session);
+    });
+    expect(client.channel).not.toHaveBeenCalled();
+    rendered.unmount();
+  });
 });
 
 describe("native SessionProvider", () => {

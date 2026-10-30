@@ -149,7 +149,10 @@ own page.
 `verifySession: true` checks document loads without a redirect.
 `verifySession: "bootstrap"` skips the proxy's Auth call because each page's
 [`bsb.bootstrap()`](/docs/frameworks/next-cache-components#one-database-call-per-page)
-checks `session_active()` in its one query instead. Use
+checks `session_active()` in its one query instead. A session that check
+finds ended has its cookies cleared on its next request through the proxy.
+The proxy also copies its cookies into `x-middleware-set-cookie`, so the
+render after a refresh reads the new token. Use
 `shouldCheckSession(request, options)` to see whether a request is checked.
 A proxy that does not use `bsb.proxy` can run the same check with
 `sessionStatus` and `clearSessionCookies`

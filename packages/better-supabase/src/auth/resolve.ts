@@ -156,6 +156,12 @@ export interface ResolveAuthOptions {
   readonly refreshTimeoutMs?: number;
   readonly verifySession?: boolean;
   /**
+   * How the session behind a cookie's access token ended, when something other
+   * than Auth found out, such as `bsb.bootstrap()` (`endedSessionOf`). An ended
+   * session resolves like a `verifySession` rejection, without the Auth call.
+   */
+  readonly endedSession?: (token: string) => "ended" | "banned" | undefined;
+  /**
    * Accept `sb_secret_` keys (`apikey` header) as service callers: `true` for
    * any configured key, or the key names allowed (`['cron']`). Defaults to
    * false.
@@ -921,8 +927,12 @@ export async function resolveAuth(
       "cookie",
     );
 
+    const known =
+      state.kind === "user" ? options.endedSession?.(state.token) : undefined;
+
     const status =
-      state.kind === "user" && options.verifySession
+      known ??
+      (state.kind === "user" && options.verifySession
         ? await statusTimed(state.token, {
             url: options.env.url,
             publishableKey: options.env.publishableKey,
@@ -932,7 +942,7 @@ export async function resolveAuth(
               : { timeoutMs: options.refreshTimeoutMs }),
             ...(options.now ? { now: options.now } : {}),
           })
-        : undefined;
+        : undefined);
 
     if (status === "ended" || status === "banned") {
       return resolution(

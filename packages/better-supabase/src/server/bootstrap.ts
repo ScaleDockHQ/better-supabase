@@ -1,4 +1,4 @@
-import type { AuthState } from "../auth/resolve.ts";
+import type { AuthState, SessionRejection } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type { AnyAuthorizer, AuthzVersionCache } from "../core/authorizer.ts";
 import type { Executor } from "../core/executor.ts";
@@ -49,6 +49,12 @@ export interface Bootstrap<C = unknown, P = unknown, T = unknown> {
    */
   readonly stale: boolean;
   readonly sessionActive: boolean;
+  /**
+   * Why `sessionActive` is false: `user_banned` or `session_not_found`. Null
+   * while the session is active or signed out. A wrapper generated before 0.44
+   * reports `session_not_found` for both.
+   */
+  readonly endReason?: SessionRejection | null;
   readonly data: T | null;
 }
 
@@ -68,6 +74,8 @@ export interface Access<Ctx, C = unknown, P = unknown, Ref = string> {
  */
 export interface BootstrapRow {
   readonly sessionActive: boolean;
+  /** The wrapper's `end_reason` when the session isn't active. */
+  readonly endReason: SessionRejection | null;
   /**
    * The live version when the database keeps one, else the token's. A wrapper
    * generated before 0.40 returns the token's.
@@ -112,6 +120,7 @@ function signedOutBootstrap<C, P>(
     tokenAuthzVersion: null,
     stale: false,
     sessionActive: false,
+    endReason: null,
     data: null,
   };
 }
@@ -156,8 +165,15 @@ function bootstrapRow(value: unknown): BootstrapRow {
   const tenant = value["tenant"];
   const authzVersion = versionOf(value["authz_version"]);
 
+  const sessionActive = value["session_active"];
+
   return {
-    sessionActive: value["session_active"],
+    sessionActive,
+    endReason: sessionActive
+      ? null
+      : value["end_reason"] === "user_banned"
+        ? "user_banned"
+        : "session_not_found",
     authzVersion,
     tokenAuthzVersion:
       "token_authz_version" in value
@@ -184,6 +200,8 @@ export interface BootstrapDeps {
   readonly schema: (call: BootstrapCallOptions) => string;
   readonly evictSession: (userId: string) => Promise<void>;
   readonly versions: AuthzVersionCache | undefined;
+  /** Called with the caller's access token when the session ended. */
+  readonly onEnded?: (token: string, reason: SessionRejection) => void;
 }
 
 /**
@@ -234,6 +252,10 @@ export async function bootstrapWith<C, P, T>(
 
   if (!row.sessionActive) {
     if (support === undefined) {
+      if (ctx.auth.kind === "user") {
+        deps.onEnded?.(ctx.auth.token, row.endReason ?? "session_not_found");
+      }
+
       await deps.evictSession(view.user.id);
     }
   } else if (row.authzVersion !== null) {
@@ -243,6 +265,7 @@ export async function bootstrapWith<C, P, T>(
   return {
     session: view,
     sessionActive: row.sessionActive,
+    endReason: row.endReason,
     authzVersion: row.authzVersion,
     tokenAuthzVersion: row.tokenAuthzVersion,
     stale:

@@ -226,6 +226,7 @@ describe("bsb.bootstrap()", () => {
       authzVersion: 7,
       tokenAuthzVersion: 7,
       stale: false,
+      endReason: null,
       tenant: null,
       data: { unread: 3 },
     });
@@ -299,11 +300,39 @@ describe("bsb.bootstrap()", () => {
     ).rejects.toThrow("NEXT_REDIRECT /sign-in?reason=session_not_found");
   });
 
+  it("redirects a banned user with the banned reason", async () => {
+    await signIn();
+    row = {
+      ...row,
+      session_active: false,
+      end_reason: "user_banned",
+      data: null,
+    };
+    await expect(
+      bsb.bootstrap({
+        rpc: "home",
+        redirect: "/sign-in",
+        reasons: { banned: "disabled" },
+      }),
+    ).rejects.toThrow("NEXT_REDIRECT /sign-in?reason=disabled");
+  });
+
+  it("reports why the session ended", async () => {
+    await signIn();
+    row = { ...row, session_active: false, end_reason: "user_banned" };
+
+    await expect(bsb.bootstrap({ rpc: "home" })).resolves.toMatchObject({
+      sessionActive: false,
+      endReason: "user_banned",
+    });
+  });
+
   it("skips the call for a signed-out caller", async () => {
     const boot = await bsb.bootstrap({ rpc: "home" });
     expect(boot).toEqual({
       session: { kind: "none", reason: "none" },
       sessionActive: false,
+      endReason: null,
       authzVersion: null,
       tokenAuthzVersion: null,
       stale: false,

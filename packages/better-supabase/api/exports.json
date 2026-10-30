@@ -1499,6 +1499,7 @@
       "RequestMemo",
       "ResolveAuthOptions",
       "ResolvedState",
+      "ResolveRequestOptions",
       "ResourceHandler",
       "ResourceInput",
       "ResourceList",

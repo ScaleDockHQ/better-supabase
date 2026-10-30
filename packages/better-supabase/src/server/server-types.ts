@@ -368,6 +368,22 @@ export type AdminDb<
   readonly $authAdmin: SupabaseClient["auth"]["admin"];
 };
 
+/** Options for `resolve(request)`. */
+export interface ResolveRequestOptions {
+  readonly refresh?: boolean;
+  readonly cookies?: boolean;
+  readonly verifySession?: boolean;
+  /** How a cookie token's session ended, when the app already knows. */
+  readonly endedSession?: (token: string) => "ended" | "banned" | undefined;
+  /**
+   * With `refresh`, refresh a token expiring within this many seconds. Defaults
+   * to `auth.leeway`, else 60.
+   */
+  readonly leeway?: number;
+  /** Milliseconds per phase, for `Server-Timing`. */
+  readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
+}
+
 /**
  * A server built by `createServer`, `createHono` or `createNext`, handed to
  * another adapter to share.
@@ -391,18 +407,7 @@ export interface BetterServer<
   readonly events: EventHub;
   resolve(
     request: Request,
-    options?: {
-      readonly refresh?: boolean;
-      readonly cookies?: boolean;
-      readonly verifySession?: boolean;
-      /**
-       * With `refresh`, refresh a token expiring within this many seconds.
-       * Defaults to `auth.leeway`, else 60.
-       */
-      readonly leeway?: number;
-      /** Milliseconds per phase, for `Server-Timing`. */
-      readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
-    },
+    options?: ResolveRequestOptions,
   ): Promise<AuthResolution<C, P>>;
   /**
    * Resolves auth and binds repositories to the caller. Refreshes an expired

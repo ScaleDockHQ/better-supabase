@@ -14,7 +14,7 @@ import {
 } from "react";
 
 import type { SupportView } from "../auth/support-view.ts";
-import type { AuthSession } from "../auth/view.ts";
+import type { AuthSession, UserSession } from "../auth/view.ts";
 import type { AuthzVersionSource } from "../core/authz-topic.ts";
 import type { AuthzRefreshClient } from "./authz-refresh.ts";
 
@@ -90,20 +90,26 @@ export interface SessionProviderProps {
   readonly topic?: (userId: string) => string;
   /** The broadcast event. Defaults to `changed`. */
   readonly event?: string;
+  /**
+   * Whether to listen for authorization changes, or a test on the signed-in
+   * session. Defaults to true. A support session reads another user's data, so
+   * `(session) => !supportOf(session)` keeps it off that user's topic.
+   */
+  readonly authzRefresh?: boolean | ((session: UserSession) => boolean);
   readonly onError?: (error: Error) => void;
   readonly children?: ReactNode;
 }
 
 /**
- * The signed-in user's id, or `undefined` once the session resolves to
- * anonymous. `version` holds the token's `authz_ver`.
+ * The signed-in session, or `undefined` once the session resolves to anonymous.
+ * `version` holds the token's `authz_ver`.
  */
-function useUserId(
+function useUser(
   store: SessionStore,
   version: { current: number | null },
-): string | undefined {
+): UserSession | undefined {
   const value = useSyncExternalStore(store.subscribe, store.get, store.get);
-  const [userId, setUserId] = useState<string | undefined>(undefined);
+  const [user, setUser] = useState<UserSession | undefined>(undefined);
 
   useEffect(() => {
     let active = true;
@@ -111,9 +117,9 @@ function useUserId(
     Promise.resolve(value)
       .then((session) => {
         if (active) {
-          const user = session.kind === "user" ? session : undefined;
-          version.current = user?.authzVersion ?? null;
-          setUserId(user?.user.id);
+          const signedIn = session.kind === "user" ? session : undefined;
+          version.current = signedIn?.authzVersion ?? null;
+          setUser(signedIn);
         }
       })
       .catch(() => {
@@ -125,7 +131,7 @@ function useUserId(
     };
   }, [value, version]);
 
-  return userId;
+  return user;
 }
 
 /**
@@ -137,8 +143,14 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   const [store] = useState(() => createSessionStore(props.session));
   const handlers = useRef(props);
   const version = useRef<number | null>(null);
-  const userId = useUserId(store, version);
-  const { client, source, topic, event } = props;
+  const user = useUser(store, version);
+  const userId = user?.user.id;
+  const { client, source, topic, event, authzRefresh = true } = props;
+
+  const refreshes =
+    user !== undefined &&
+    (typeof authzRefresh === "function" ? authzRefresh(user) : authzRefresh);
+
   const channel = props.channel ?? "better-supabase:session";
 
   useEffect(() => {
@@ -147,7 +159,7 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
   });
 
   useEffect(() => {
-    if (!client || userId === undefined) {
+    if (!client || userId === undefined || !refreshes) {
       return;
     }
 
@@ -162,7 +174,7 @@ export function SessionProvider(props: SessionProviderProps): ReactNode {
       onChange: () => handlers.current.onAuthzChange?.(),
       onError: (error) => handlers.current.onError?.(error),
     });
-  }, [client, userId, channel, source, topic, event]);
+  }, [client, userId, refreshes, channel, source, topic, event]);
 
   return createElement(
     SessionContext.Provider,

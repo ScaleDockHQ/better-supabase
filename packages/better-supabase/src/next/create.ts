@@ -39,6 +39,7 @@ import type {
   ScopeOptions,
 } from "./types.ts";
 
+import { endedSessionOf, markSessionEnded } from "../auth/ended.ts";
 import { isSessionSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
@@ -87,6 +88,7 @@ import {
   isRedirect,
   mutableResponse,
   overrideRequestHeaders,
+  syncMiddlewareSetCookie,
   serverTimingValue,
 } from "./proxy.ts";
 import { recordServer } from "./record.ts";
@@ -630,6 +632,12 @@ export function createNext<
           schema: (call) => bootstrapSchema(call, options, betterSupabase),
           evictSession,
           versions: base.versions,
+          onEnded: (token, reason) => {
+            markSessionEnded(
+              token,
+              reason === "user_banned" ? "banned" : "ended",
+            );
+          },
         },
         ctx,
         bootstrapOptions,
@@ -650,7 +658,14 @@ export function createNext<
         cacheLife({ stale: 0, revalidate: 0, expire: 0 });
 
         if (bootstrapOptions.redirect !== undefined) {
-          redirect(`${bootstrapOptions.redirect}?reason=session_not_found`);
+          const reason =
+            result.endReason === "user_banned"
+              ? (bootstrapOptions.reasons?.banned ?? "user_banned")
+              : (bootstrapOptions.reasons?.ended ?? "session_not_found");
+
+          redirect(
+            `${bootstrapOptions.redirect}?reason=${encodeURIComponent(reason)}`,
+          );
         }
 
         return result;
@@ -733,6 +748,11 @@ export function createNext<
           .resolve(request, {
             refresh: true,
             ...(verifySession ? { verifySession } : {}),
+            // Under "bootstrap" the render's session check is the only one:
+            // a session it found ended clears its cookies here.
+            ...(proxyOptions.verifySession === "bootstrap"
+              ? { endedSession: (token: string) => endedSessionOf(token) }
+              : {}),
             ...(proxyOptions.leeway === undefined
               ? {}
               : { leeway: proxyOptions.leeway }),
@@ -803,8 +823,8 @@ export function createNext<
         return NextResponse.next();
       }
 
-      let response = resolution.apply(
-        mutableResponse(initial ?? NextResponse.next()),
+      let response = syncMiddlewareSetCookie(
+        resolution.apply(mutableResponse(initial ?? NextResponse.next())),
       );
 
       if (!custom && !isRedirect(response)) {

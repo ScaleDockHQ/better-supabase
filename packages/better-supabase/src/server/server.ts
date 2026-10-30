@@ -6,7 +6,6 @@ import { getEnv, pipeline, seedContext } from "@supabase/middleware";
 import type {
   AuthResolution,
   AuthState,
-  ResolvePhase,
   VerifiedUser,
 } from "../auth/resolve.ts";
 import type { SessionEncoding } from "../auth/session.ts";
@@ -33,6 +32,7 @@ import type {
   AdminDb,
   BetterServer,
   ContextOptions,
+  ResolveRequestOptions,
   ServerContext,
   ServerKeys,
   ServerOptions,
@@ -727,16 +727,12 @@ export function createServer<
 
   const resolve = async (
     request: Request,
-    resolveOptions: {
-      readonly refresh?: boolean;
-      readonly cookies?: boolean;
+    resolveOptions: ResolveRequestOptions & {
       readonly encode?: SessionEncoding;
-      readonly verifySession?: boolean;
-      readonly leeway?: number;
-      readonly onTiming?: (phase: ResolvePhase, ms: number) => void;
     } = {},
   ): Promise<AuthResolution<C, P>> => {
     const claims = options.auth?.claims ?? betterSupabase.claimsSchema;
+    const { endedSession } = resolveOptions;
     const userMetadata = betterSupabase.userMetadataSchema;
 
     const resolved = await resolveAuth(request, {
@@ -753,6 +749,7 @@ export function createServer<
         ? {}
         : { cookies: resolveOptions.cookies }),
       ...(resolveOptions.verifySession ? { verifySession: true } : {}),
+      ...(endedSession ? { endedSession } : {}),
       ...(resolveOptions.leeway === undefined
         ? {}
         : { leeway: resolveOptions.leeway }),
