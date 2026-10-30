@@ -1199,6 +1199,7 @@ export interface BlockNameRegistry {
       readonly "medication_administration": "id" | "tenant_id" | "order_id" | "scheduled_at" | "administered_at" | "status" | "dose" | "performer_id" | "checked_by" | "reason" | "note";
     };
     readonly primary: "medication";
+    readonly formerKeys: never;
   };
   readonly "memberships": {
     readonly tables: {

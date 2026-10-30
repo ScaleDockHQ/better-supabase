@@ -1,4 +1,5 @@
-import type { BlockSqlAudit, BlockSqlContext } from "../context.ts";
+import type { BlockSqlAudit } from "../audit-actions.ts";
+import type { BlockSqlContext } from "../context.ts";
 import type { DriveRoleHook } from "./drive-roles.ts";
 
 import { sqlString } from "../../core/template.ts";

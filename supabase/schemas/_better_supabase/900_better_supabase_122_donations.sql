@@ -1,6 +1,6 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:2cbaa20f66925c61fb6c252ae113a7624232b30b344352a92934fc99f7115393
+-- @bsb-hash sha256:d3e0c525f36be9d3450aad22ad2ff6334abf50fc2b39830ad110c10fbf0e6384
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -446,9 +446,9 @@ begin
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
-      when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
+      when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
-      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
+      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
@@ -467,10 +467,9 @@ begin
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
-      when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
-      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
@@ -480,7 +479,6 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (record_gift.donor_id)::uuid and s."tenant_id"::text = record_gift.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (record_gift.donor_id)::uuid and s."organization_id"::text = record_gift.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (record_gift.donor_id)::uuid and s."organization_id"::text = record_gift.tenant::text)
-      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (record_gift.donor_id)::uuid and s."organization_id"::text = record_gift.tenant::text)
       else false
     end and "better_supabase"."can_subject"(record_gift.donor_type, record_gift.donor_id, 'read')) then
     raise exception 'the donor is unknown or not in this organization' using errcode = '22023', hint = 'DONATION_DONOR_INVALID';
@@ -548,9 +546,9 @@ begin
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
-      when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
+      when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
-      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
+      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
@@ -569,10 +567,9 @@ begin
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
-      when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
-      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
@@ -582,7 +579,6 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (open_gift.donor_id)::uuid and s."tenant_id"::text = open_gift.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (open_gift.donor_id)::uuid and s."organization_id"::text = open_gift.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (open_gift.donor_id)::uuid and s."organization_id"::text = open_gift.tenant::text)
-      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (open_gift.donor_id)::uuid and s."organization_id"::text = open_gift.tenant::text)
       else false
     end and "better_supabase"."can_subject"(open_gift.donor_type, open_gift.donor_id, 'read')) then
     raise exception 'the donor is unknown or not in this organization' using errcode = '22023', hint = 'DONATION_DONOR_INVALID';
@@ -723,9 +719,9 @@ begin
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
-      when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
+      when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
-      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
+      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
@@ -744,10 +740,9 @@ begin
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
-      when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
-      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
@@ -757,7 +752,6 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_pledge.donor_id)::uuid and s."tenant_id"::text = create_pledge.tenant::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (create_pledge.donor_id)::uuid and s."organization_id"::text = create_pledge.tenant::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_pledge.donor_id)::uuid and s."organization_id"::text = create_pledge.tenant::text)
-      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (create_pledge.donor_id)::uuid and s."organization_id"::text = create_pledge.tenant::text)
       else false
     end and "better_supabase"."can_subject"(create_pledge.donor_type, create_pledge.donor_id, 'read')) then
     raise exception 'the donor is unknown or not in this organization' using errcode = '22023', hint = 'DONATION_DONOR_INVALID';
@@ -1189,7 +1183,7 @@ declare
   v_keep text := keep;
   v_drop text := drop;
 begin
-  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['engagement'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['work_item'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.care_plans' then array['care_plan'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] when 'public.tasks' then array['task'] else '{}'::text[] end) loop
+  for v_type in select unnest(case subject_table when 'better_supabase.messages' then array['message'] when 'better_supabase.conversations' then array['conversation'] when 'better_supabase.channels' then array['channel'] when 'better_supabase.companies' then array['company'] when 'better_supabase.people' then array['person'] when 'better_supabase.deals' then array['deal'] when 'better_supabase.courses' then array['course'] when 'better_supabase.posts' then array['post'] when 'better_supabase.engagements' then array['activity'] when 'better_supabase.quotes' then array['quote'] when 'better_supabase.work_items' then array['task'] when 'better_supabase.employees' then array['employee'] when 'better_supabase.invoices' then array['invoice'] when 'better_supabase.ledger_accounts' then array['ledger_account'] when 'better_supabase.products' then array['product'] when 'better_supabase.product_variants' then array['product_variant'] when 'better_supabase.orders' then array['order'] when 'better_supabase.calendar_events' then array['calendar_event'] when 'better_supabase.bookings' then array['booking'] when 'better_supabase.assets' then array['asset'] when 'better_supabase.asset_locations' then array['asset_location'] when 'better_supabase.lease_agreements' then array['lease'] when 'better_supabase.expense_reports' then array['expense_report'] when 'better_supabase.expense_lines' then array['expense_line'] when 'better_supabase.donation_funds' then array['donation_fund'] when 'better_supabase.work_orders' then array['work_order'] when 'better_supabase.shipments' then array['shipment'] when 'better_supabase.contracts' then array['contract'] when 'better_supabase.controls' then array['control'] when 'better_supabase.policies' then array['compliance_policy'] when 'better_supabase.qualification_types' then array['qualification_type'] when 'better_supabase.risks' then array['risk'] when 'better_supabase.incidents' then array['incident'] when 'better_supabase.content_entries' then array['content_entry'] when 'better_supabase.forms' then array['form'] when 'better_supabase.documents' then array['document'] when 'public.customers' then array['customer'] when 'better_supabase.drive_nodes' then array['drive_node'] when 'better_supabase.applications' then array['application'] when 'public.change_requests' then array['change_request'] when 'public.projects' then array['project'] else '{}'::text[] end) loop
     update "better_supabase"."donations" x set "donor_id" = v_keep where x."donor_type" = v_type and x."donor_id" = v_drop;
     update "better_supabase"."pledges" x set "donor_id" = v_keep where x."donor_type" = v_type and x."donor_id" = v_drop;
     update "better_supabase"."donation_receipts" x set "donor_id" = v_keep where x."donor_type" = v_type and x."donor_id" = v_drop;

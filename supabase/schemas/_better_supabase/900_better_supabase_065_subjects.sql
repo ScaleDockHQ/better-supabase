@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:8644b3e90f808d4999dd4e23945b081b10a673b4d721893ac7dc9a3e79961a78
+-- @bsb-hash sha256:ff15fc9238819ff97b5b614eff9b6e272b22cfb370d4cfa15fb5182522fe84d6
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -112,35 +112,6 @@ $$;
 revoke execute on function "better_supabase"."is_subject_member"(text, text) from public, anon;
 grant execute on function "better_supabase"."is_subject_member"(text, text) to authenticated, service_role;
 
--- Whether the caller is on the record's team today in one of roles, for a
--- read rule that only some roles pass. The caller only, like
--- is_subject_member.
-create or replace function "better_supabase"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-begin
-  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
-    return false;
-  end if;
-  return exists (
-    select 1 from "better_supabase"."subject_members" m
-    where m."subject_type" = has_subject_role.subject_type
-      and m."subject_id" = has_subject_role.subject_id
-      and m."role" = any (has_subject_role.roles)
-      and (m."user_id" = auth.uid() or (m."team_id" is not null and m."team_id" in (select "better_supabase"."team_ids_of"(auth.uid()))))
-        and (m."starts_on" is null or m."starts_on" <= current_date)
-        and (m."ends_on" is null or m."ends_on" >= current_date)
-        and (m."ends_at" is null or m."ends_at" > now())
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "better_supabase"."has_subject_role"(text, text, text[]) to authenticated, service_role;
-
 -- The app's subject registry (config.subjects, ADR 0020). Each function runs
 -- as the caller, so the subject table's own policies decide what is visible.
 create or replace function "better_supabase"."subject_types"()
@@ -149,7 +120,7 @@ language sql
 immutable
 set search_path = ''
 as $$
-  select '{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,qualification_type,risk,care_plan,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]
+  select '{message,conversation,channel,company,person,deal,course,post,activity,quote,task,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,compliance_policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project}'::text[]
 $$;
 revoke execute on function "better_supabase"."subject_types"() from public, anon;
 grant execute on function "better_supabase"."subject_types"() to authenticated, service_role;
@@ -179,11 +150,11 @@ begin
       return (select s."title"::text from "better_supabase"."courses" s where s."id" = (subject_title.subject_id)::uuid);
     when 'post' then
       return (select s."title"::text from "better_supabase"."posts" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'engagement' then
+    when 'activity', 'engagement' then
       return (select s."title"::text from "better_supabase"."engagements" s where s."id" = (subject_title.subject_id)::uuid);
     when 'quote' then
       return (select s."title"::text from "better_supabase"."quotes" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'work_item' then
+    when 'task', 'work_item' then
       return (select s."title"::text from "better_supabase"."work_items" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select s."name"::text from "better_supabase"."employees" s where s."id" = (subject_title.subject_id)::uuid);
@@ -221,14 +192,12 @@ begin
       return (select s."title"::text from "better_supabase"."contracts" s where s."id" = (subject_title.subject_id)::uuid);
     when 'control' then
       return (select s."title"::text from "better_supabase"."controls" s where s."id" = (subject_title.subject_id)::uuid);
-    when 'policy' then
+    when 'compliance_policy', 'policy' then
       return (select s."title"::text from "better_supabase"."policies" s where s."id" = (subject_title.subject_id)::uuid);
     when 'qualification_type' then
       return (select s."name"::text from "better_supabase"."qualification_types" s where s."id" = (subject_title.subject_id)::uuid);
     when 'risk' then
       return (select s."title"::text from "better_supabase"."risks" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
-    when 'care_plan' then
-      return (select s."title"::text from "better_supabase"."care_plans" s where s."id" = (subject_title.subject_id)::uuid);
     when 'incident' then
       return (select s."title"::text from "better_supabase"."incidents" s where s."id" = (subject_title.subject_id)::uuid);
     when 'content_entry' then
@@ -245,8 +214,6 @@ begin
       return (select s."title"::text from "public"."change_requests" s where s."id" = (subject_title.subject_id)::uuid);
     when 'project' then
       return (select s."name"::text from "public"."projects" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
-    when 'task' then
-      return (select s."title"::text from "public"."tasks" s where s."id" = (subject_title.subject_id)::uuid);
     else
       return null;
   end case;
@@ -271,7 +238,7 @@ begin
       return (select '/crm/contacts/' || s."id"::text from "better_supabase"."people" s where s."id" = (subject_url.subject_id)::uuid);
     when 'deal' then
       return (select '/crm/deals' from "better_supabase"."deals" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
-    when 'work_item' then
+    when 'task', 'work_item' then
       return (select '/work' from "better_supabase"."work_items" s where s."id" = (subject_url.subject_id)::uuid and s."archived_at" is null);
     when 'employee' then
       return (select '/people' from "better_supabase"."employees" s where s."id" = (subject_url.subject_id)::uuid);
@@ -285,8 +252,6 @@ begin
       return (select '/change-requests/' || s."id"::text from "public"."change_requests" s where s."id" = (subject_url.subject_id)::uuid);
     when 'project' then
       return (select '/projects/' || s."id"::text from "public"."projects" s where s."id" = (subject_url.subject_id)::uuid and s."deleted_at" is null);
-    when 'task' then
-      return (select '/projects/' || s."project_id"::text from "public"."tasks" s where s."id" = (subject_url.subject_id)::uuid);
     else
       return null;
   end case;
@@ -367,10 +332,10 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'post')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'engagement', 'id', s."id"::text,
+      'type', 'activity', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."engagements" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'engagement')::uuid[])), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'activity')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'quote', 'id', s."id"::text,
@@ -379,10 +344,10 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'quote')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'work_item', 'id', s."id"::text,
+      'type', 'task', 'id', s."id"::text,
       'title', s."title"::text, 'url', '/work'))
     from "better_supabase"."work_items" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'work_item')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'task')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'employee', 'id', s."id"::text,
@@ -493,10 +458,10 @@ begin
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'control')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
-      'type', 'policy', 'id', s."id"::text,
+      'type', 'compliance_policy', 'id', s."id"::text,
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."policies" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'policy')::uuid[])), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'compliance_policy')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'qualification_type', 'id', s."id"::text,
@@ -509,12 +474,6 @@ begin
       'title', s."title"::text, 'url', null::text))
     from "better_supabase"."risks" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'risk')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
-  found := found || coalesce((
-    select jsonb_agg(jsonb_build_object(
-      'type', 'care_plan', 'id', s."id"::text,
-      'title', s."title"::text, 'url', null::text))
-    from "better_supabase"."care_plans" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'care_plan')::uuid[])), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'incident', 'id', s."id"::text,
@@ -569,12 +528,6 @@ begin
       'title', s."name"::text, 'url', '/projects/' || s."id"::text))
     from "public"."projects" s
     where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'project')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
-  found := found || coalesce((
-    select jsonb_agg(jsonb_build_object(
-      'type', 'task', 'id', s."id"::text,
-      'title', s."title"::text, 'url', '/projects/' || s."project_id"::text))
-    from "public"."tasks" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'task')::uuid[])), '[]'::jsonb);
   return found;
 exception
   when invalid_text_representation then
@@ -680,7 +633,7 @@ begin
           else true
         end)
       );
-    when 'engagement' then
+    when 'activity', 'engagement' then
       return exists (
         select 1 from "better_supabase"."engagements" s
         where s."id" = (can_subject.subject_id)::uuid
@@ -700,7 +653,7 @@ begin
           else true
         end)
       );
-    when 'work_item' then
+    when 'task', 'work_item' then
       return exists (
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
@@ -891,7 +844,7 @@ begin
           else true
         end)
       );
-    when 'policy' then
+    when 'compliance_policy', 'policy' then
       return exists (
         select 1 from "better_supabase"."policies" s
         where s."id" = (can_subject.subject_id)::uuid
@@ -918,16 +871,6 @@ begin
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'risks.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'risks.write'), false)
-          else true
-        end)
-      );
-    when 'care_plan' then
-      return exists (
-        select 1 from "better_supabase"."care_plans" s
-        where s."id" = (can_subject.subject_id)::uuid
-          and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'care_plans.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'care_plans.write'), false)
           else true
         end)
       );
@@ -1013,12 +956,6 @@ begin
       return exists (
         select 1 from "public"."projects" s
         where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
-          and true
-      );
-    when 'task' then
-      return exists (
-        select 1 from "public"."tasks" s
-        where s."id" = (can_subject.subject_id)::uuid
           and true
       );
     else
@@ -1193,7 +1130,7 @@ begin
           else false
         end
       );
-    when 'engagement' then
+    when 'activity', 'engagement' then
       return exists (
         select 1 from "better_supabase"."engagements" s
         where s."id" = (can_subject_for.subject_id)::uuid
@@ -1213,7 +1150,7 @@ begin
           else false
         end
       );
-    when 'work_item' then
+    when 'task', 'work_item' then
       return exists (
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
@@ -1404,7 +1341,7 @@ begin
           else false
         end
       );
-    when 'policy' then
+    when 'compliance_policy', 'policy' then
       return exists (
         select 1 from "better_supabase"."policies" s
         where s."id" = (can_subject_for.subject_id)::uuid
@@ -1431,16 +1368,6 @@ begin
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'risks.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'risks.write'), false)
-          else false
-        end
-      );
-    when 'care_plan' then
-      return exists (
-        select 1 from "better_supabase"."care_plans" s
-        where s."id" = (can_subject_for.subject_id)::uuid
-          and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'care_plans.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'care_plans.write'), false)
           else false
         end
       );
@@ -1559,12 +1486,6 @@ begin
       return exists (
         select 1 from "public"."projects" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
-          and false
-      );
-    when 'task' then
-      return exists (
-        select 1 from "public"."tasks" s
-        where s."id" = (can_subject_for.subject_id)::uuid
           and false
       );
     else
@@ -2208,7 +2129,7 @@ begin
       and (my_work.tenant is null or r."tenant_id" = my_work.tenant)
       and "better_supabase"."approval_eligible"(r."id")
     union all
-    select 'assigned'::text, 'work_item'::text, i."id"::text, i."id"::text, i."title"::text,
+    select 'assigned'::text, 'task'::text, i."id"::text, i."id"::text, i."title"::text,
       coalesce(i."due_at", a."created_at")
     from "better_supabase"."work_item_assignees" a
     join "better_supabase"."work_items" i on i."id" = a."work_item_id"
@@ -2229,7 +2150,7 @@ begin
     select 'sla'::text, k."subject_type"::text, k."subject_id"::text, k."id"::text, null::text,
       k."due_at"
     from "better_supabase"."sla_clocks" k
-    where k."subject_type" = 'work_item'
+    where k."subject_type" = 'task'
       and k."warned_at" is not null
       and k."met_at" is null
       and (my_work.tenant is null or k."tenant_id" = my_work.tenant)
@@ -2359,15 +2280,6 @@ set search_path = ''
 as $$ select "better_supabase"."is_subject_member"($1, $2) $$;
 revoke execute on function "api"."is_subject_member"(text, text) from public, anon;
 grant execute on function "api"."is_subject_member"(text, text) to authenticated, service_role;
-
-create or replace function "api"."has_subject_role"(subject_type text, subject_id text, roles text[])
-returns boolean
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."has_subject_role"($1, $2, $3) $$;
-revoke execute on function "api"."has_subject_role"(text, text, text[]) from public, anon;
-grant execute on function "api"."has_subject_role"(text, text, text[]) to authenticated, service_role;
 
 create or replace function "api"."subject_types"()
 returns text[]

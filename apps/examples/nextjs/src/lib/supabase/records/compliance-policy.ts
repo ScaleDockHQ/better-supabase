@@ -26,11 +26,11 @@ import { defineRecordType } from "better-supabase/records";
 import { blockConfig, permissions } from "../blocks.generated.ts";
 
 /**
- * The engagement record type: each installed block that binds to it. Pass it to
- * `bsb.record`, `recordQueries` or `createRecordProvider`.
+ * The compliance_policy record type: each installed block that binds to it.
+ * Pass it to `bsb.record`, `recordQueries` or `createRecordProvider`.
  */
-export const engagementRecord = defineRecordType({
-  type: "engagement",
+export const compliancePolicyRecord = defineRecordType({
+  type: "compliance_policy",
   blocks: {
     attachments: attachmentsBlock,
     comments: commentsBlock,

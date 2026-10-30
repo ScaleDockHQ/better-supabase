@@ -2,6 +2,7 @@ import type { BlockSqlContext } from "./context.ts";
 import type { BlockSqlLayout } from "./module-types.ts";
 import type { Qualified } from "./rename-sql.ts";
 
+import { ENTITY_KEY_RENAMES } from "../core/renames.ts";
 import { sqlString } from "../core/template.ts";
 import { entityMarkers } from "./markers.ts";
 import { moduleContext } from "./module-context.ts";
@@ -139,6 +140,30 @@ function installedLayout(
   }
 
   return { ...layout, modules: configured };
+}
+
+/**
+ * `markers` with the entity keys 0.47 renamed at their current key:
+ * `work_item=ticket/tickets` on a tasks install reads `task=ticket/tickets`.
+ */
+function currentMarkerKeys(
+  markers: ReadonlyMap<string, string>,
+  layout: BlockSqlLayout,
+): ReadonlyMap<string, string> {
+  return new Map(
+    [...markers].map(([module, marker]) => {
+      const renames =
+        ENTITY_KEY_RENAMES[layout.instances?.[module]?.block ?? module] ?? {};
+
+      const parts = marker.split(" ").map((part) => {
+        const [key = "", noun] = part.split("=");
+
+        return noun === undefined ? part : `${renames[key] ?? key}=${noun}`;
+      });
+
+      return [module, parts.join(" ")];
+    }),
+  );
 }
 
 /**
@@ -306,7 +331,7 @@ export function entityRenamePlan(
   installedText: string,
   layout: BlockSqlLayout,
 ): EntityRenamePlan {
-  const before = entityMarkers(installedText);
+  const before = currentMarkerKeys(entityMarkers(installedText), layout);
 
   const current = renderBlocks(names, layout).filter(
     (file) => file.kind === "schema",

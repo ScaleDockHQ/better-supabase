@@ -1,6 +1,6 @@
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:867eae89fdeb3c62a994b4a51df8649b11edbc102151f300dccad8796f0abc0a
+-- @bsb-hash sha256:eecaf8ad3584aff007fe0b3f46290ea7dfa671cbdbd9cda12c1badeaf80d8e7d
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -887,9 +887,9 @@ begin
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'deals.read'), false)
     when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'courses.read'), false)
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'posts.read'), false)
-    when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'activities.read'), false)
+    when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'quotes.read'), false)
-    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'tasks.read'), false)
+    when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'ledger.read'), false)
@@ -908,10 +908,9 @@ begin
     when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'shipments.read'), false)
     when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'contracts.read'), false)
     when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
+    when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'compliance.read'), false)
     when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'qualifications.read'), false)
     when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'risks.read'), false)
-    when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'care_plans.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'incidents.read'), false)
     when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'content.read'), false)
     when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'forms.read'), false)
@@ -921,7 +920,6 @@ begin
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (submit_form.subject_id)::uuid and s."tenant_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (submit_form.subject_id)::uuid and s."organization_id" = v_tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (submit_form.subject_id)::uuid and s."organization_id" = v_tenant)
-    when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (submit_form.subject_id)::uuid and s."organization_id" = v_tenant)
     else false
   end) then
     raise exception 'not allowed to link this record' using errcode = '42501', hint = 'FORM_FORBIDDEN';

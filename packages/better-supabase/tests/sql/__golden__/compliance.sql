@@ -2158,29 +2158,29 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:8e07a28105cee5b2a99d354bc0ed2873476633aa6a4f62a2122d7ff00a846d4c
+-- @bsb-hash sha256:4bb027828cd633fc77a5b7de354410271ebba226a129367528ac16dd2492124d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- Subject types renamed in 0.47 (`codemod 0.47`).
-update "better_supabase"."notification_events" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."notification_events"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."notification_events" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."notification_subscriptions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."incoming_webhooks" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."incoming_webhooks"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."incoming_webhooks" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."guest_grants" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."attachments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."data_exports" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."data_exports"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."data_exports" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."enrollments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."workflow_runs" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."workflow_start_requests" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."knowledge_documents" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."memories" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."workflow_runs"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."workflow_runs" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."workflow_start_requests"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."workflow_start_requests" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."knowledge_documents"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."knowledge_documents" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."memories"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."memories" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."taggings" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."status_history" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."status_stages" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."subject_lifecycles" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."field_values" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."field_values"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."field_values" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."share_links" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."subject_views" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."subject_user_state" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
@@ -2191,19 +2191,19 @@ update "better_supabase"."relations" set "source_type" = 'compliance_policy' whe
 update "better_supabase"."relations" set "target_type" = 'compliance_policy' where "target_type" = 'policy';
 update "better_supabase"."bulk_runs" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."search_documents" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."calendar_events" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."calendar_attendees" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."calendar_events"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."calendar_events" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."calendar_attendees"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."calendar_attendees" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."versions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."trash_items" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."reactions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."reaction_scores" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."approval_requests" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."approval_policies" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."access_requests" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."access_requests"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."access_requests" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."documents" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."form_submissions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."signature_requests" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."time_entries" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."time_entries"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."time_entries" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."template_applications" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."pipelines" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."pipeline_stage_history" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
@@ -2223,12 +2223,12 @@ update "better_supabase"."rule_evaluations" set "subject_type" = 'compliance_pol
 update "better_supabase"."rule_fields" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."score_models" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."scores" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."passes" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."passes"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."passes" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."work_orders" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."shipments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."shipments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."shipments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."conversations" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."message_record_mentions" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
-update "better_supabase"."channels" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."channels"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."channels" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 update "better_supabase"."activity_entries" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."mail_thread_subjects" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."segments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
@@ -2243,6 +2243,7 @@ update "better_supabase"."acknowledgements" set "subject_type" = 'compliance_pol
 update "better_supabase"."acknowledgement_notices" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."consents" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 update "better_supabase"."observations" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
+update "better_supabase"."medication_orders" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy';
 
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 1, 'managed')

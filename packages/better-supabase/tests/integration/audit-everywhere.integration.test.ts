@@ -1,7 +1,7 @@
 import { Pool } from "pg";
 import { afterAll, describe, expect, it } from "vitest";
 
-import { AUDIT_CATEGORIES } from "../../src/sql/context.ts";
+import { AUDIT_CATEGORIES } from "../../src/sql/audit-actions.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();

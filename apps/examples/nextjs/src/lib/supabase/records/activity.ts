@@ -26,11 +26,11 @@ import { defineRecordType } from "better-supabase/records";
 import { blockConfig, permissions } from "../blocks.generated.ts";
 
 /**
- * The policy record type: each installed block that binds to it. Pass it to
+ * The activity record type: each installed block that binds to it. Pass it to
  * `bsb.record`, `recordQueries` or `createRecordProvider`.
  */
-export const policyRecord = defineRecordType({
-  type: "policy",
+export const activityRecord = defineRecordType({
+  type: "activity",
   blocks: {
     attachments: attachmentsBlock,
     comments: commentsBlock,

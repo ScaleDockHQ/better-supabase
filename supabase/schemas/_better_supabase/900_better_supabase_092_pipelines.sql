@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:1aba4ef2375a51228e10cdf60292608ae4c54ad9eebbb0449a8585ace09f6e94
+-- @bsb-hash sha256:7c647341249fa15f6e8aa4c3ce06b4b701f788b253c5ef7456cfc93d605fd889
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -224,7 +224,7 @@ begin
           ('closed_won', 'Closed won', 'won', 'success', 100::smallint, 'e'),
           ('closed_lost', 'Closed lost', 'lost', 'failure', 0::smallint, 'm')
       ) x(key, name, category, outcome, probability, rank);
-    when 'work_item' then
+    when 'task' then
       insert into "better_supabase"."pipelines" ("tenant_id", "subject_type", "scope_id", "key", "name", "is_default")
       values (default_pipeline.tenant, default_pipeline.subject_type, default_pipeline.scope_id, 'default', 'Default', true)
       on conflict do nothing
@@ -423,7 +423,7 @@ drop trigger if exists bsb_pipeline_status_deal on "better_supabase"."deals";
 create trigger bsb_pipeline_status_deal after insert or update of "stage_id" on "better_supabase"."deals"
 for each row execute function better_supabase.bsb_pipeline_status_deal();
 
-create or replace function better_supabase.bsb_pipeline_work_item()
+create or replace function better_supabase.bsb_pipeline_task()
 returns trigger
 language plpgsql
 security definer
@@ -442,7 +442,7 @@ begin
     if new."stage_id" is not null then
       select s."pipeline_id" into new."pipeline_id" from "better_supabase"."pipeline_stages" s where s."id" = new."stage_id";
     else
-      new."pipeline_id" := "better_supabase"."default_pipeline"(new."tenant_id", 'work_item', new."team_id"::text);
+      new."pipeline_id" := "better_supabase"."default_pipeline"(new."tenant_id", 'task', new."team_id"::text);
     end if;
   end if;
   if new."stage_id" is null then
@@ -460,7 +460,7 @@ begin
     and s."archived_at" is null
     and p."archived_at" is null
     and p."tenant_id"::text = new."tenant_id"::text
-    and p."subject_type" = 'work_item'
+    and p."subject_type" = 'task'
     and p."scope_id" is not distinct from new."team_id"::text;
   if not found then
     raise exception 'the stage is not an active stage of this record''s pipeline' using errcode = '22023', hint = 'PIPELINE_STAGE_INVALID';
@@ -479,16 +479,16 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::text, $2::text, $3::uuid, $4::uuid)', v_hook::oid::regproc)
-        using 'work_item', new."id"::text, case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id";
+        using 'task', new."id"::text, case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id";
     end if;
   end;
     new."stage_entered_at" := now();
     update "better_supabase"."pipeline_stage_history" set "exited_at" = now()
-    where "subject_type" = 'work_item' and "subject_id" = new."id"::text and "exited_at" is null;
+    where "subject_type" = 'task' and "subject_id" = new."id"::text and "exited_at" is null;
     insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
-    values (new."tenant_id", 'work_item', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, null, null, auth.uid());
+    values (new."tenant_id", 'task', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, null, null, auth.uid());
     if tg_op = 'UPDATE' then
-      perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'work_item', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
+      perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'task', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
     end if;
     if tg_op = 'UPDATE' then
       v_claims := current_setting('request.jwt.claims', true);
@@ -497,7 +497,7 @@ begin
         'type', 'pipeline.stage_changed',
         'tenant', new."tenant_id",
         'actor', auth.uid(),
-        'subject_type', 'work_item',
+        'subject_type', 'task',
         'subject_id', new."id"::text,
         'summary', v_stage_name,
         'key', 'pipeline.stage_changed:' || new."id"::text || ':' || new."stage_id"::text || ':' || extract(epoch from now())::text,
@@ -510,18 +510,18 @@ begin
   begin
     if v_hook is not null then
       execute format('select %s($1::text, $2::text, $3::uuid)', v_hook::oid::regproc)
-        using 'work_item', new."id"::text, new."stage_id";
+        using 'task', new."id"::text, new."stage_id";
     end if;
   end;
   end if;
   return new;
 end;
 $$;
-drop trigger if exists bsb_pipeline_work_item on "better_supabase"."work_items";
-create trigger bsb_pipeline_work_item before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"
-for each row execute function better_supabase.bsb_pipeline_work_item();
+drop trigger if exists bsb_pipeline_task on "better_supabase"."work_items";
+create trigger bsb_pipeline_task before insert or update of "stage_id", "pipeline_id" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_pipeline_task();
 
-create or replace function better_supabase.bsb_pipeline_status_work_item()
+create or replace function better_supabase.bsb_pipeline_status_task()
 returns trigger
 language plpgsql
 security definer
@@ -539,9 +539,9 @@ begin
   return null;
 end;
 $$;
-drop trigger if exists bsb_pipeline_status_work_item on "better_supabase"."work_items";
-create trigger bsb_pipeline_status_work_item after insert or update of "stage_id" on "better_supabase"."work_items"
-for each row execute function better_supabase.bsb_pipeline_status_work_item();
+drop trigger if exists bsb_pipeline_status_task on "better_supabase"."work_items";
+create trigger bsb_pipeline_status_task after insert or update of "stage_id" on "better_supabase"."work_items"
+for each row execute function better_supabase.bsb_pipeline_status_task();
 
 create or replace function better_supabase.bsb_pipeline_maintenance_request()
 returns trigger
@@ -814,7 +814,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_pipeline.tenant, 'pipelines.manage'), false)) then
     raise exception 'not allowed to manage pipelines' using errcode = '42501', hint = 'PIPELINE_FORBIDDEN';
   end if;
-  if not (save_pipeline.subject_type = any ('{deal,work_item,maintenance_request,application}'::text[])) then
+  if not (save_pipeline.subject_type = any ('{deal,task,maintenance_request,application}'::text[])) then
     raise exception 'this subject type has no pipeline binding' using errcode = '22023', hint = 'PIPELINE_SUBJECT_UNKNOWN';
   end if;
   declare
@@ -921,7 +921,7 @@ begin
     when 'deal' then
       perform 1 from "better_supabase"."deals" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
       v_used := found;
-    when 'work_item' then
+    when 'task' then
       perform 1 from "better_supabase"."work_items" r where r."pipeline_id" = archive_pipeline.pipeline limit 1;
       v_used := found;
     when 'maintenance_request' then
@@ -988,7 +988,7 @@ begin
       when 'won' then 'success'
       when 'lost' then 'failure'
     end;
-    when 'work_item' then
+    when 'task' then
       v_outcome := case save_pipeline_stage.category
       when 'triage' then 'open'
       when 'backlog' then 'open'
@@ -1044,7 +1044,7 @@ begin
     when 'deal' then
       perform 1 from "better_supabase"."deals" r where r."stage_id" = v_stage limit 1;
       v_used := found;
-    when 'work_item' then
+    when 'task' then
       perform 1 from "better_supabase"."work_items" r where r."stage_id" = v_stage limit 1;
       v_used := found;
     when 'maintenance_request' then
@@ -1156,7 +1156,7 @@ begin
     when 'deal' then
       perform 1 from "better_supabase"."deals" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
       v_used := found;
-    when 'work_item' then
+    when 'task' then
       perform 1 from "better_supabase"."work_items" r where r."stage_id" = archive_pipeline_stage.stage limit 1;
       v_used := found;
     when 'maintenance_request' then
@@ -1278,7 +1278,7 @@ begin
         left join sums m on m.stage_id = st."id"
         where st."pipeline_id" = pipeline_board.pipeline and st."archived_at" is null
       );
-    when 'work_item' then
+    when 'task' then
       return (
         with rows as (
           select r."stage_id" as stage_id, null::text as currency, null::bigint as amount, null::numeric as weighted

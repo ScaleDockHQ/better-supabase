@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:4db048ecaecdceb4eb855d4a5f8e712142a71916b0f88e5769bbd693d8ec0ca6
+-- @bsb-hash sha256:5347c634d17418d1db745759e490c54a07219c61ec27a8ac8c87950f8f388f60
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -65,14 +65,6 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_assignments";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_assignments";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
   exception when undefined_table or invalid_schema_name then null;
   end;
 end $$;
@@ -212,40 +204,6 @@ revoke execute on function "better_supabase"."asset_location_check_parent"() fro
 drop trigger if exists "bsb_asset_locations_parent" on "better_supabase"."asset_locations";
 create trigger "bsb_asset_locations_parent" before insert or update of "parent_id" on "better_supabase"."asset_locations"
   for each row execute function "better_supabase"."asset_location_check_parent"();
-
--- What an asset cost and how it depreciates, in bigint minor units of currency.
-alter table "better_supabase"."assets" add column if not exists "acquisition_cost" bigint check ("acquisition_cost" >= 0);
-alter table "better_supabase"."assets" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."assets" add column if not exists "acquired_on" date;
-alter table "better_supabase"."assets" add column if not exists "useful_life_months" integer check ("useful_life_months" between 1 and 1200);
-alter table "better_supabase"."assets" add column if not exists "residual_value" bigint not null default 0 check ("residual_value" >= 0);
-alter table "better_supabase"."assets" add column if not exists "depreciation_method" text not null default 'none' check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
--- Declining balance: the yearly rate in basis points of the book value.
-alter table "better_supabase"."assets" add column if not exists "depreciation_rate_bps" integer check ("depreciation_rate_bps" between 1 and 100000);
-alter table "better_supabase"."assets" add column if not exists "disposed_on" date;
-alter table "better_supabase"."assets" add column if not exists "disposal_amount" bigint check ("disposal_amount" >= 0);
-
--- One month of an asset's depreciation; entry_id is its accounting entry.
-create table if not exists "better_supabase"."asset_depreciations" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
-  "period_start" date not null check (extract(day from "period_start") = 1),
-  "amount" bigint not null check ("amount" > 0),
-  "entry_id" uuid,
-  "created_at" timestamptz not null default now(),
-  unique ("asset_id", "period_start")
-);
-create index if not exists "asset_depreciations_tenant_idx" on "better_supabase"."asset_depreciations" ("tenant_id", "period_start");
-alter table "better_supabase"."asset_depreciations" enable row level security;
-revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
-grant select on "better_supabase"."asset_depreciations" to authenticated;
-grant all on "better_supabase"."asset_depreciations" to service_role;
-drop policy if exists asset_depreciations_read on "better_supabase"."asset_depreciations";
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
-
 alter table "better_supabase"."booking_resources" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
 create index if not exists "booking_resources_asset_idx" on "better_supabase"."booking_resources" (asset_id) where asset_id is not null;
 alter table "better_supabase"."work_items" add column if not exists asset_id uuid references "better_supabase"."assets" ("id") on delete set null;
@@ -503,16 +461,14 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'name', v_row."name", 'status', v_row."status", 'locationId', v_row."location_id", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('acquisitionCost', v_row."acquisition_cost"::text, 'currency', v_row."currency", 'acquiredOn', v_row."acquired_on", 'usefulLifeMonths', v_row."useful_life_months", 'residualValue', v_row."residual_value"::text, 'depreciationMethod', v_row."depreciation_method", 'depreciationRateBps', v_row."depreciation_rate_bps", 'disposedOn', v_row."disposed_on", 'disposalAmount', v_row."disposal_amount"::text);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_asset"(uuid, text, text, uuid, text, text, double precision, double precision, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_asset"(uuid, text, text, uuid, text, text, double precision, double precision, jsonb) to authenticated, service_role;
 
 -- Changes the keys patch names: kind, name, locationId, tag, serialNumber,
--- status, latitude, longitude and metadata, and the book value keys
--- acquisitionCost, currency, acquiredOn, usefulLifeMonths, residualValue,
--- depreciationMethod and depreciationRateBps. Retiring an asset releases it.
+-- status, latitude, longitude and metadata. Retiring an asset releases it.
 create or replace function "better_supabase"."update_asset"(asset_id uuid, patch jsonb)
 returns jsonb
 language plpgsql
@@ -556,24 +512,6 @@ begin
     update "better_supabase"."asset_assignments" y set "released_at" = now()
     where y."asset_id" = v_row."id" and y."released_at" is null;
   end if;
-  if v_row."disposed_on" is not null and (
-    update_asset.patch ?| array['acquisitionCost', 'currency', 'acquiredOn', 'usefulLifeMonths', 'residualValue', 'depreciationMethod', 'depreciationRateBps'] or coalesce(update_asset.patch ->> 'status', 'retired') <> 'retired'
-  ) then
-    raise exception 'a disposed asset stays retired and its book value can''t change' using errcode = '55000', hint = 'ASSETS_DISPOSED';
-  end if;
-  if update_asset.patch ? 'currency' and not update_asset.patch ? 'acquisitionCost' and v_row."acquisition_cost" is not null
-    and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency" then
-    raise exception 'the amounts are in another currency than the asset''s cost' using errcode = '22023', hint = 'ASSETS_DEPRECIATION_INVALID';
-  end if;
-  if (
-    (update_asset.patch ? 'acquisitionCost' and (update_asset.patch ->> 'acquisitionCost')::bigint is distinct from v_row."acquisition_cost")
-    or (update_asset.patch ? 'currency' and upper(update_asset.patch ->> 'currency') is distinct from v_row."currency")
-    or (update_asset.patch ? 'acquiredOn' and (update_asset.patch ->> 'acquiredOn')::date is distinct from v_row."acquired_on")
-  ) and exists (
-    select 1 from "better_supabase"."asset_depreciations" y where y."asset_id" = v_row."id"
-  ) then
-    raise exception 'the cost, currency and acquisition date are fixed once the asset has depreciated' using errcode = '55000', hint = 'ASSETS_DEPRECIATION_STARTED';
-  end if;
   update "better_supabase"."assets" x set
     "kind" = case when update_asset.patch ? 'kind' then update_asset.patch ->> 'kind' else x."kind" end,
     "name" = case when update_asset.patch ? 'name' then trim(update_asset.patch ->> 'name') else x."name" end,
@@ -584,34 +522,12 @@ begin
     "latitude" = case when update_asset.patch ? 'latitude' then (update_asset.patch ->> 'latitude')::double precision else x."latitude" end,
     "longitude" = case when update_asset.patch ? 'longitude' then (update_asset.patch ->> 'longitude')::double precision else x."longitude" end,
     "metadata" = case when update_asset.patch ? 'metadata' then coalesce(nullif(update_asset.patch -> 'metadata', 'null'::jsonb), '{}'::jsonb) else x."metadata" end,
-    "acquisition_cost" = case when update_asset.patch ? 'acquisitionCost' then (update_asset.patch ->> 'acquisitionCost')::bigint else x."acquisition_cost" end,
-    "currency" = case when update_asset.patch ? 'currency' then upper(update_asset.patch ->> 'currency') else x."currency" end,
-    "acquired_on" = case when update_asset.patch ? 'acquiredOn' then (update_asset.patch ->> 'acquiredOn')::date else x."acquired_on" end,
-    "useful_life_months" = case when update_asset.patch ? 'usefulLifeMonths' then (update_asset.patch ->> 'usefulLifeMonths')::integer else x."useful_life_months" end,
-    "residual_value" = case when update_asset.patch ? 'residualValue' then coalesce((update_asset.patch ->> 'residualValue')::bigint, 0) else x."residual_value" end,
-    "depreciation_method" = case when update_asset.patch ? 'depreciationMethod' then coalesce(update_asset.patch ->> 'depreciationMethod', 'none') else x."depreciation_method" end,
-    "depreciation_rate_bps" = case when update_asset.patch ? 'depreciationRateBps' then (update_asset.patch ->> 'depreciationRateBps')::integer else x."depreciation_rate_bps" end,
     "assignee_type" = case when v_status = 'retired' then null else x."assignee_type" end,
     "assignee_id" = case when v_status = 'retired' then null else x."assignee_id" end,
     "retired_at" = case when v_status = 'retired' then coalesce(x."retired_at", now()) else null end,
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  if v_row."acquisition_cost" is not null and v_row."currency" is null then
-    raise exception 'an acquisition cost needs a currency' using errcode = '22023', hint = 'ASSETS_DEPRECIATION_INVALID';
-  end if;
-  if v_row."residual_value" > coalesce(v_row."acquisition_cost", 0) and v_row."depreciation_method" <> 'none' then
-    raise exception 'the residual value is more than the acquisition cost' using errcode = '22023', hint = 'ASSETS_DEPRECIATION_INVALID';
-  end if;
-  if v_row."depreciation_method" <> 'none' and (v_row."acquisition_cost" is null or v_row."acquired_on" is null) then
-    raise exception 'depreciation needs an acquisition cost and date' using errcode = '22023', hint = 'ASSETS_DEPRECIATION_INVALID';
-  end if;
-  if v_row."depreciation_method" = 'straight_line' and v_row."useful_life_months" is null then
-    raise exception 'straight-line depreciation needs a useful life' using errcode = '22023', hint = 'ASSETS_DEPRECIATION_INVALID';
-  end if;
-  if v_row."depreciation_method" = 'declining_balance' and v_row."depreciation_rate_bps" is null then
-    raise exception 'declining-balance depreciation needs a rate' using errcode = '22023', hint = 'ASSETS_DEPRECIATION_INVALID';
-  end if;
   perform "better_supabase".emit_event('asset.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'name', v_row."name", 'status', v_row."status", 'locationId', v_row."location_id", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id"), 'assets/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/assets');
   perform better_supabase.audit_event(
     event_type => 'asset.updated',
@@ -623,7 +539,7 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'name', v_row."name", 'status', v_row."status", 'locationId', v_row."location_id", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id")
   );
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('acquisitionCost', v_row."acquisition_cost"::text, 'currency', v_row."currency", 'acquiredOn', v_row."acquired_on", 'usefulLifeMonths', v_row."useful_life_months", 'residualValue', v_row."residual_value"::text, 'depreciationMethod', v_row."depreciation_method", 'depreciationRateBps', v_row."depreciation_rate_bps", 'disposedOn', v_row."disposed_on", 'disposalAmount', v_row."disposal_amount"::text);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_asset"(uuid, jsonb) from public, anon;
@@ -697,7 +613,7 @@ begin
         using v_row."id";
     end if;
   end;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('acquisitionCost', v_row."acquisition_cost"::text, 'currency', v_row."currency", 'acquiredOn', v_row."acquired_on", 'usefulLifeMonths', v_row."useful_life_months", 'residualValue', v_row."residual_value"::text, 'depreciationMethod', v_row."depreciation_method", 'depreciationRateBps', v_row."depreciation_rate_bps", 'disposedOn', v_row."disposed_on", 'disposalAmount', v_row."disposal_amount"::text);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."assign_asset"(uuid, text, text, text) from public, anon;
@@ -742,7 +658,7 @@ begin
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'kind', v_row."kind", 'name', v_row."name", 'status', v_row."status", 'locationId', v_row."location_id", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('acquisitionCost', v_row."acquisition_cost"::text, 'currency', v_row."currency", 'acquiredOn', v_row."acquired_on", 'usefulLifeMonths', v_row."useful_life_months", 'residualValue', v_row."residual_value"::text, 'depreciationMethod', v_row."depreciation_method", 'depreciationRateBps', v_row."depreciation_rate_bps", 'disposedOn', v_row."disposed_on", 'disposalAmount', v_row."disposal_amount"::text);
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."release_asset"(uuid) from public, anon;
@@ -765,7 +681,7 @@ begin
   if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)) or (v_row."assignee_type" = 'member' and coalesce(v_row."assignee_id" = auth.uid()::text, false))) then
     raise exception 'asset not found' using errcode = 'P0002', hint = 'ASSETS_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('acquisitionCost', v_row."acquisition_cost"::text, 'currency', v_row."currency", 'acquiredOn', v_row."acquired_on", 'usefulLifeMonths', v_row."useful_life_months", 'residualValue', v_row."residual_value"::text, 'depreciationMethod', v_row."depreciation_method", 'depreciationRateBps', v_row."depreciation_rate_bps", 'disposedOn', v_row."disposed_on", 'disposalAmount', v_row."disposal_amount"::text) || (select jsonb_build_object('accumulatedDepreciation', q.total::text, 'bookValue', case when v_row."acquisition_cost" is null then null else (v_row."acquisition_cost" - q.total)::text end) from (select coalesce(sum(y."amount"), 0) as total from "better_supabase"."asset_depreciations" y where y."asset_id" = v_row."id") q) || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'locationId', v_row."location_id", 'kind', v_row."kind", 'name', v_row."name", 'tag', v_row."tag", 'serialNumber', v_row."serial_number", 'status', v_row."status", 'assigneeType', v_row."assignee_type", 'assigneeId', v_row."assignee_id", 'latitude', v_row."latitude", 'longitude', v_row."longitude", 'metadata', v_row."metadata", 'retiredAt', v_row."retired_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object(
     'locationPath', case when v_row."location_id" is null then '[]'::jsonb else coalesce((
     with recursive up as (
       select y."id" as id, y."parent_id" as parent, y."kind" as kind, y."name" as name, 0 as depth from "better_supabase"."asset_locations" y where y."id" = v_row."location_id"
@@ -797,7 +713,7 @@ as $$
   )
   select coalesce(jsonb_agg(z.item order by z.created_at desc, z.id), '[]'::jsonb)
   from (
-    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('acquisitionCost', x."acquisition_cost"::text, 'currency', x."currency", 'acquiredOn', x."acquired_on", 'usefulLifeMonths', x."useful_life_months", 'residualValue', x."residual_value"::text, 'depreciationMethod', x."depreciation_method", 'depreciationRateBps', x."depreciation_rate_bps", 'disposedOn', x."disposed_on", 'disposalAmount', x."disposal_amount"::text) as item, x."created_at" as created_at, x."id" as id
+    select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as item, x."created_at" as created_at, x."id" as id
     from "better_supabase"."assets" x
     where (list_assets.tenant is null or x."tenant_id" = list_assets.tenant)
       and (list_assets.location_id is null or x."location_id" in (select below.id from below))
@@ -872,7 +788,7 @@ begin
     'assets', coalesce((
       select jsonb_agg(z.item || jsonb_build_object('distanceMeters', z.distance) order by z.distance, z.id)
       from (
-        select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") || jsonb_build_object('acquisitionCost', x."acquisition_cost"::text, 'currency', x."currency", 'acquiredOn', x."acquired_on", 'usefulLifeMonths', x."useful_life_months", 'residualValue', x."residual_value"::text, 'depreciationMethod', x."depreciation_method", 'depreciationRateBps', x."depreciation_rate_bps", 'disposedOn', x."disposed_on", 'disposalAmount', x."disposal_amount"::text) as item, extensions.st_distance(x.point, v_point) as distance, x."id" as id
+        select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'locationId', x."location_id", 'kind', x."kind", 'name', x."name", 'tag', x."tag", 'serialNumber', x."serial_number", 'status', x."status", 'assigneeType', x."assignee_type", 'assigneeId', x."assignee_id", 'latitude', x."latitude", 'longitude', x."longitude", 'metadata', x."metadata", 'retiredAt', x."retired_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at") as item, extensions.st_distance(x.point, v_point) as distance, x."id" as id
         from "better_supabase"."assets" x
         where x."tenant_id" = assets_near.tenant and x."latitude" is not null and x."status" <> 'retired'
           and (assets_near.kind is null or x."kind" = assets_near.kind)
@@ -943,7 +859,7 @@ begin
   case set_asset_link.target_type
   when 'booking_resource' then
     select y."tenant_id" into v_tenant from "better_supabase"."booking_resources" y where y."id" = set_asset_link.target_id;
-  when 'work_item' then
+  when 'task', 'work_item' then
     select y."tenant_id" into v_tenant from "better_supabase"."work_items" y where y."id" = set_asset_link.target_id;
   else
     raise exception 'target_type must be booking_resource or work_item' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
@@ -962,7 +878,7 @@ begin
   if set_asset_link.target_type = 'booking_resource' then
     update "better_supabase"."booking_resources" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
-  if set_asset_link.target_type = 'work_item' then
+  if set_asset_link.target_type in ('task', 'work_item') then
     update "better_supabase"."work_items" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
   return jsonb_build_object('targetType', set_asset_link.target_type, 'targetId', set_asset_link.target_id, 'assetId', set_asset_link.asset_id);
@@ -970,268 +886,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
-
-
--- Books an asset's depreciation for every month that ended on or before
--- until, from the month it was acquired in and stopping at the month it was
--- disposed of in. Straight line spreads the cost less the residual value over
--- the useful life; declining balance takes the yearly rate of the book value,
--- and writes the rest down at the end of the useful life when there is one.
--- A month books what the method has reached less what is booked, so a changed
--- life or residual value catches up in the next month. Returns the months
--- booked.
-create or replace function "better_supabase"."asset_depreciate"(asset_id uuid, until date)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_asset "better_supabase"."assets"%rowtype;
-  v_row "better_supabase"."asset_depreciations"%rowtype;
-  v_start date;
-  v_month date;
-  v_last date;
-  v_booked bigint;
-  v_base bigint;
-  v_age integer;
-  v_amount bigint;
-  v_entry uuid;
-  v_count integer := 0;
-begin
-  select * into v_asset from "better_supabase"."assets" x where x."id" = asset_depreciate.asset_id for update;
-  if not found or v_asset."depreciation_method" = 'none'
-    or v_asset."acquisition_cost" is null or v_asset."acquired_on" is null then
-    return 0;
-  end if;
-  select max(y."period_start"), coalesce(sum(y."amount"), 0) into v_last, v_booked
-  from "better_supabase"."asset_depreciations" y where y."asset_id" = v_asset."id";
-  v_start := date_trunc('month', v_asset."acquired_on")::date;
-  v_month := coalesce((v_last + interval '1 month')::date, v_start);
-  v_base := v_asset."acquisition_cost" - v_asset."residual_value";
-  while (v_month + interval '1 month' - interval '1 day')::date <= asset_depreciate.until
-    and (v_asset."disposed_on" is null or v_month < date_trunc('month', v_asset."disposed_on")::date)
-    and v_booked < v_base loop
-    v_age := ((extract(year from v_month) - extract(year from v_start)) * 12 + extract(month from v_month) - extract(month from v_start))::integer + 1;
-    if v_asset."depreciation_method" = 'straight_line' then
-      v_amount := least(v_base, round(v_base::numeric * v_age / v_asset."useful_life_months")::bigint) - v_booked;
-    elsif v_asset."useful_life_months" is not null and v_age >= v_asset."useful_life_months" then
-      v_amount := v_base - v_booked;
-    else
-      v_amount := least(v_base - v_booked, round((v_asset."acquisition_cost" - v_booked)::numeric * v_asset."depreciation_rate_bps" / 120000)::bigint);
-    end if;
-    if v_amount > 0 then
-      insert into "better_supabase"."asset_depreciations" ("tenant_id", "asset_id", "period_start", "amount")
-      values (v_asset."tenant_id", v_asset."id", v_month, v_amount)
-      returning * into v_row;
-      v_entry := "better_supabase"."accounting_post_source"('asset_depreciation', v_row."id"::text);
-      if v_entry is not null then
-        update "better_supabase"."asset_depreciations" y set "entry_id" = v_entry where y."id" = v_row."id"
-        returning * into v_row;
-      end if;
-      perform "better_supabase".emit_event('asset.depreciated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'assetId', v_row."asset_id", 'periodStart', v_row."period_start", 'amount', v_row."amount"::text, 'currency', v_asset."currency", 'entryId', v_row."entry_id"), 'assets/' || v_asset."id"::text, (v_asset."tenant_id")::text, null, 'better-supabase/assets');
-      v_booked := v_booked + v_amount;
-      v_count := v_count + 1;
-    end if;
-    v_month := (v_month + interval '1 month')::date;
-  end loop;
-  return v_count;
-end;
-$$;
-revoke execute on function "better_supabase"."asset_depreciate"(uuid, date) from public, anon, authenticated;
-
--- Books depreciation up to until (default today) for every asset in service
--- of an organization, or of every organization with tenant null. Run it
--- monthly from a scheduled job; it books each month once.
-create or replace function "better_supabase"."run_asset_depreciation"(tenant uuid default null, until date default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_until date := coalesce(run_asset_depreciation.until, current_date);
-  v_id uuid;
-  v_months integer;
-  v_assets integer := 0;
-  v_total integer := 0;
-begin
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
-    raise exception 'only the service role runs depreciation' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
-  end if;
-  for v_id in
-    select x."id" from "better_supabase"."assets" x
-    where (run_asset_depreciation.tenant is null or x."tenant_id" = run_asset_depreciation.tenant)
-      and x."depreciation_method" <> 'none' and x."disposed_on" is null
-    order by x."tenant_id", x."id"
-  loop
-    v_months := "better_supabase"."asset_depreciate"(v_id, v_until);
-    if v_months > 0 then
-      v_assets := v_assets + 1;
-      v_total := v_total + v_months;
-    end if;
-  end loop;
-  return jsonb_build_object('until', v_until, 'assets', v_assets, 'months', v_total);
-end;
-$$;
-revoke execute on function "better_supabase"."run_asset_depreciation"(uuid, date) from public, anon, authenticated;
-grant execute on function "better_supabase"."run_asset_depreciation"(uuid, date) to service_role;
-
--- Takes an asset off the books on disposed_on for amount, the proceeds in
--- currency (the asset's): books depreciation through the month before, then
--- retires and releases the asset and books the disposal, the proceeds less
--- the book value being a gain or a loss.
-create or replace function "better_supabase"."dispose_asset"(asset_id uuid, disposed_on date, amount bigint default 0, currency text default null)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."assets"%rowtype;
-  v_entry uuid;
-begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
-  select * into v_row from "better_supabase"."assets" x where x."id" = dispose_asset.asset_id for update;
-  if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)) or (v_row."assignee_type" = 'member' and coalesce(v_row."assignee_id" = auth.uid()::text, false))) then
-    raise exception 'asset not found' using errcode = 'P0002', hint = 'ASSETS_NOT_FOUND';
-  end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.manage'), false)) then
-    raise exception 'not allowed to manage assets' using errcode = '42501', hint = 'ASSETS_FORBIDDEN';
-  end if;
-  if v_row."disposed_on" is not null then
-    raise exception 'the asset is already disposed of' using errcode = '55000', hint = 'ASSETS_DISPOSED';
-  end if;
-  if dispose_asset.disposed_on is null or coalesce(dispose_asset.amount, 0) < 0
-    or dispose_asset.disposed_on < coalesce(v_row."acquired_on", dispose_asset.disposed_on) then
-    raise exception 'a disposal needs a date on or after the acquisition and proceeds of 0 or more' using errcode = '22023', hint = 'ASSETS_DISPOSAL_INVALID';
-  end if;
-  if coalesce(dispose_asset.amount, 0) > 0 and (
-    v_row."currency" is null or upper(coalesce(dispose_asset.currency, v_row."currency")) <> v_row."currency"
-  ) then
-    raise exception 'the proceeds need to be in the asset''s currency' using errcode = '22023', hint = 'ASSETS_DISPOSAL_INVALID';
-  end if;
-  perform "better_supabase"."asset_depreciate"(v_row."id", (date_trunc('month', dispose_asset.disposed_on) - interval '1 day')::date);
-  update "better_supabase"."asset_assignments" y set "released_at" = now()
-  where y."asset_id" = v_row."id" and y."released_at" is null;
-  update "better_supabase"."assets" x set
-    "disposed_on" = dispose_asset.disposed_on,
-    "disposal_amount" = coalesce(dispose_asset.amount, 0),
-    "status" = 'retired',
-    "assignee_type" = null,
-    "assignee_id" = null,
-    "retired_at" = coalesce(x."retired_at", now()),
-    "updated_at" = now()
-  where x."id" = v_row."id"
-  returning * into v_row;
-  v_entry := "better_supabase"."accounting_post_source"('asset_disposal', v_row."id"::text);
-  perform "better_supabase".emit_event('asset.disposed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'disposedOn', v_row."disposed_on", 'amount', v_row."disposal_amount"::text, 'currency', v_row."currency", 'entryId', v_entry), 'assets/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/assets');
-  perform better_supabase.audit_event(
-    event_type => 'asset.disposed',
-    category => 'data',
-    target_type => 'asset',
-    record_id => v_row."id"::text,
-    target_label => v_row."name",
-    summary => 'disposed of asset',
-    tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'disposedOn', v_row."disposed_on", 'amount', v_row."disposal_amount"::text, 'currency', v_row."currency", 'entryId', v_entry)
-  );
-  return "better_supabase"."get_asset"(v_row."id");
-end;
-$$;
-revoke execute on function "better_supabase"."dispose_asset"(uuid, date, bigint, text) from public, anon;
-grant execute on function "better_supabase"."dispose_asset"(uuid, date, bigint, text) to authenticated, service_role;
-
--- An asset's depreciation, oldest month first.
-create or replace function "better_supabase"."list_asset_depreciations"(asset_id uuid, page_size integer default 600)
-returns jsonb
-language plpgsql
-stable
-security definer
-set search_path = ''
-as $$
-#variable_conflict use_column
-declare
-  v_row "better_supabase"."assets"%rowtype;
-begin
-  select * into v_row from "better_supabase"."assets" x where x."id" = list_asset_depreciations.asset_id;
-  if not found or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'assets.read'), false)) or (v_row."assignee_type" = 'member' and coalesce(v_row."assignee_id" = auth.uid()::text, false))) then
-    raise exception 'asset not found' using errcode = 'P0002', hint = 'ASSETS_NOT_FOUND';
-  end if;
-  return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organizationId', q."tenant_id", 'assetId', q."asset_id", 'periodStart', q."period_start", 'amount', q."amount"::text, 'currency', v_row."currency", 'entryId', q."entry_id", 'createdAt', q."created_at") order by q."period_start"), '[]'::jsonb)
-    from (
-      select * from "better_supabase"."asset_depreciations" y where y."asset_id" = v_row."id"
-      order by y."period_start"
-      limit greatest(1, least(coalesce(list_asset_depreciations.page_size, 600), 1200))
-    ) q
-  );
-end;
-$$;
-revoke execute on function "better_supabase"."list_asset_depreciations"(uuid, integer) from public, anon;
-grant execute on function "better_supabase"."list_asset_depreciations"(uuid, integer) to authenticated, service_role;
-
-
--- The entry of a month of an asset's depreciation for accounting:
--- depreciation expense against accumulated depreciation.
-create or replace function "better_supabase"."accounting_asset_depreciation_lines"(source_id text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select jsonb_build_object(
-    'organizationId', y."tenant_id",
-    'entryDate', (y."period_start" + interval '1 month' - interval '1 day')::date,
-    'currency', a."currency",
-    'reference', left(coalesce(a."tag" || ' ' || a."name", a."name"), 200),
-    'memo', left('Depreciation of ' || a."name" || ' for ' || to_char(y."period_start", 'YYYY-MM'), 500),
-    'lines', jsonb_build_array(
-      jsonb_build_object('role', 'depreciation_expense', 'debit', y."amount"::text),
-      jsonb_build_object('role', 'accumulated_depreciation', 'credit', y."amount"::text))
-  )
-  from "better_supabase"."asset_depreciations" y join "better_supabase"."assets" a on a."id" = y."asset_id"
-  where y."id"::text = source_id
-$$;
-revoke execute on function "better_supabase"."accounting_asset_depreciation_lines"(text) from public, anon, authenticated;
-
--- The entry of an asset's disposal for accounting: the proceeds to bank and
--- the accumulated depreciation against the cost, the difference a gain or a loss.
-create or replace function "better_supabase"."accounting_asset_disposal_lines"(source_id text)
-returns jsonb
-language sql
-stable
-security definer
-set search_path = ''
-as $$
-  select jsonb_build_object(
-    'organizationId', a."tenant_id",
-    'entryDate', a."disposed_on",
-    'currency', a."currency",
-    'reference', left(coalesce(a."tag" || ' ' || a."name", a."name"), 200),
-    'memo', left('Disposal of ' || a."name", 500),
-    'lines', jsonb_build_array(
-      jsonb_build_object('role', 'bank', 'debit', a."disposal_amount"::text),
-      jsonb_build_object('role', 'accumulated_depreciation', 'debit', q.total::text),
-      jsonb_build_object('role', 'fixed_asset', 'credit', a."acquisition_cost"::text),
-      jsonb_build_object('role', 'disposal_gain', 'credit', greatest(q.result, 0)::text),
-      jsonb_build_object('role', 'disposal_loss', 'debit', greatest(-q.result, 0)::text))
-  )
-  from "better_supabase"."assets" a
-  cross join lateral (
-    select coalesce(sum(y."amount"), 0) as total,
-      a."disposal_amount" + coalesce(sum(y."amount"), 0) - a."acquisition_cost" as result
-    from "better_supabase"."asset_depreciations" y where y."asset_id" = a."id"
-  ) q
-  where a."id"::text = source_id and a."disposed_on" is not null and a."acquisition_cost" is not null
-$$;
-revoke execute on function "better_supabase"."accounting_asset_disposal_lines"(text) from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1310,27 +964,6 @@ create policy bsb_tenant_scope_update on "better_supabase"."asset_assignments" a
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_assignments";
 create policy bsb_tenant_scope_delete on "better_supabase"."asset_assignments" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."asset_depreciations";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."asset_depreciations";
-create policy bsb_tenant_scope_select on "better_supabase"."asset_depreciations" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."asset_depreciations";
-create policy bsb_tenant_scope_insert on "better_supabase"."asset_depreciations" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."asset_depreciations";
-create policy bsb_tenant_scope_update on "better_supabase"."asset_depreciations" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_organization_ids()))
-  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."asset_depreciations";
-create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1490,33 +1123,6 @@ set search_path = ''
 as $$ select "better_supabase"."set_asset_link"($1, $2, $3) $$;
 revoke execute on function "api"."set_asset_link"(text, uuid, uuid) from public, anon;
 grant execute on function "api"."set_asset_link"(text, uuid, uuid) to authenticated, service_role;
-
-create or replace function "api"."run_asset_depreciation"(tenant uuid default null, until date default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."run_asset_depreciation"($1, $2) $$;
-revoke execute on function "api"."run_asset_depreciation"(uuid, date) from public, anon, authenticated;
-grant execute on function "api"."run_asset_depreciation"(uuid, date) to service_role;
-
-create or replace function "api"."dispose_asset"(asset_id uuid, disposed_on date, amount bigint default 0, currency text default null)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."dispose_asset"($1, $2, $3, $4) $$;
-revoke execute on function "api"."dispose_asset"(uuid, date, bigint, text) from public, anon;
-grant execute on function "api"."dispose_asset"(uuid, date, bigint, text) to authenticated, service_role;
-
-create or replace function "api"."list_asset_depreciations"(asset_id uuid, page_size integer default 600)
-returns jsonb
-language sql
-security invoker
-set search_path = ''
-as $$ select "better_supabase"."list_asset_depreciations"($1, $2) $$;
-revoke execute on function "api"."list_asset_depreciations"(uuid, integer) from public, anon;
-grant execute on function "api"."list_asset_depreciations"(uuid, integer) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

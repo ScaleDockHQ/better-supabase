@@ -141,15 +141,20 @@ export {
   templateFunctions,
 } from "../core/access-sql.ts";
 
-export { AUDIT_CATEGORIES, contractSignature } from "./context.ts";
+export { AUDIT_CATEGORIES } from "./audit-actions.ts";
 
 export type {
   AuditCategory,
   BlockSqlAction,
   BlockSqlAudit,
+  BlockSqlEmit,
+} from "./audit-actions.ts";
+
+export { contractSignature } from "./context.ts";
+
+export type {
   BlockSqlContext,
   BlockSqlContractFunction,
-  BlockSqlEmit,
   BlockSqlNames,
   BlockSqlTableSpec,
 } from "./context.ts";

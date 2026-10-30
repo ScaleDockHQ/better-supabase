@@ -922,19 +922,19 @@ export const blockConfig = {
     options: {},
     names: {
       functions: {
-        archive_work_item: "archive_maintenance_request",
-        create_work_item: "create_maintenance_request",
-        delete_work_item: "delete_maintenance_request",
-        delete_work_item_checklist_item: "delete_maintenance_request_checklist_item",
-        get_work_item: "get_maintenance_request",
-        list_work_item_checklist: "list_maintenance_request_checklist",
-        list_work_items: "list_maintenance_requests",
+        archive_task: "archive_maintenance_request",
+        create_task: "create_maintenance_request",
+        delete_task: "delete_maintenance_request",
+        delete_task_checklist_item: "delete_maintenance_request_checklist_item",
+        get_task: "get_maintenance_request",
+        list_task_checklist: "list_maintenance_request_checklist",
+        list_tasks: "list_maintenance_requests",
+        save_task_checklist_item: "save_maintenance_request_checklist_item",
+        set_task_assignees: "set_maintenance_request_assignees",
+        task_tree: "maintenance_request_tree",
+        update_tasks: "update_maintenance_requests",
         save_iteration: "maintenance_save_iteration",
         save_project: "maintenance_save_project",
-        save_work_item_checklist_item: "save_maintenance_request_checklist_item",
-        set_work_item_assignees: "set_maintenance_request_assignees",
-        update_work_items: "update_maintenance_requests",
-        work_item_tree: "maintenance_request_tree",
       },
       entities: [{
         from: {
@@ -1167,9 +1167,9 @@ export const blocks = {
  * @public
  */
 export const appTableEvents = defineEvents({
-  "task.created": event<AppTableEventData>(),
-  "task.updated": event<AppTableEventData>(),
-  "task.deleted": event<AppTableEventData>(),
+  "tasks.created": event<AppTableEventData>(),
+  "tasks.updated": event<AppTableEventData>(),
+  "tasks.deleted": event<AppTableEventData>(),
 });
 
 /**
@@ -1177,9 +1177,9 @@ export const appTableEvents = defineEvents({
  * @public
  */
 export const appTableEventSchemas = {
-  "task.created": true,
-  "task.updated": true,
-  "task.deleted": true,
+  "tasks.created": true,
+  "tasks.updated": true,
+  "tasks.deleted": true,
 } as const;
 
 /**
@@ -1213,6 +1213,10 @@ export const permissions = {
     write: "activities.write",
     manage: "activities.manage",
     readRestricted: "activities.read_restricted",
+  },
+  activity: {
+    read: "activities.read",
+    write: "activities.write",
   },
   agents: {
     read: "agents.read",
@@ -1354,6 +1358,10 @@ export const permissions = {
     collect: "compliance.collect",
     acknowledge: "compliance.acknowledge",
   },
+  compliance_policy: {
+    read: "compliance.read",
+    write: "compliance.manage",
+  },
   connectors: {
     read: "connectors.read",
     use: "connectors.use",
@@ -1468,10 +1476,6 @@ export const permissions = {
     read: "employees.read",
     write: "employees.write",
     viewSensitive: "employees.read_sensitive",
-  },
-  engagement: {
-    read: "activities.read",
-    write: "activities.write",
   },
   enrichment: {
     read: "enrichment.read",
@@ -1679,10 +1683,6 @@ export const permissions = {
     read: "pipelines.read",
     manage: "pipelines.manage",
   },
-  policy: {
-    read: "compliance.read",
-    write: "compliance.manage",
-  },
   post: {
     read: "posts.read",
     write: "posts.write",
@@ -1814,6 +1814,10 @@ export const permissions = {
     read: "tags.read",
     apply: "tags.apply",
   },
+  task: {
+    read: "tasks.read",
+    write: "tasks.write",
+  },
   tasks: {
     read: "tasks.read",
     write: "tasks.write",
@@ -1860,10 +1864,6 @@ export const permissions = {
   "webhooks-out": {
     manage: "webhooks.manage",
     view: "webhooks.read",
-  },
-  work_item: {
-    read: "tasks.read",
-    write: "tasks.write",
   },
   work_order: {
     read: "dispatch.read",
@@ -3037,12 +3037,11 @@ export const urls = {
   employee: () => "/people",
   company: (v: { readonly id: string | number }) => `/crm/contacts/${String(v.id)}`,
   person: (v: { readonly id: string | number }) => `/crm/contacts/${String(v.id)}`,
-  workItem: () => "/work",
+  task: () => "/work",
   customer: (v: { readonly id: string | number }) => `/customers/${String(v.id)}`,
   application: () => "/people/hiring",
   changeRequest: (v: { readonly id: string | number }) => `/change-requests/${String(v.id)}`,
   project: (v: { readonly id: string | number }) => `/projects/${String(v.id)}`,
-  task: (v: { readonly projectId: string | number }) => `/projects/${String(v.projectId)}`,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

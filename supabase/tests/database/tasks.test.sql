@@ -66,9 +66,9 @@ select is(
   'and is its only watcher'
 );
 
-select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
-select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
-select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid, '00000000-0000-4000-8000-0000000000a2'::uuid]);
+select api.set_task_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
+select api.set_task_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid]);
+select api.set_task_assignees(current_setting('test.item')::uuid, array['00000000-0000-4000-8000-0000000000a1'::uuid, '00000000-0000-4000-8000-0000000000a2'::uuid]);
 
 reset role;
 select is(

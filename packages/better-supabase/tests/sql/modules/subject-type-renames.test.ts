@@ -42,6 +42,17 @@ describe("subject type renames", () => {
     );
   });
 
+  it("checks that a column some options add exists before moving it", () => {
+    const sql = dataOf(["tasks", "calendar"], "tasks");
+
+    expect(sql).toContain(
+      `do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."calendar_attendees"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."calendar_attendees" set "subject_type" = 'task' where "subject_type" = 'work_item'; end if; end $$;`,
+    );
+    expect(sql).toContain(
+      `update "better_supabase"."calendar_events" set "subject_type" = 'task' where "subject_type" = 'work_item';`,
+    );
+  });
+
   it("still resolves the old type in the subject dispatch", () => {
     const sql = renderBlocks(["tasks"], {
       subjects: withBlockSubjects({}, ["tasks"], {}),

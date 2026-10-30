@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
+import { resolveConfig } from "../../src/config/resolve.ts";
 import { pluralOf } from "../../src/core/entity-naming.ts";
 import { entityRenamePlan, renderBlocks } from "../../src/sql/index.ts";
+import { moduleLayout } from "../../src/sql/layout.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 
 const BLOCKS = ["memberships", "permissions", "outbox", "tasks"];
@@ -295,6 +297,47 @@ describe("entityRenamePlan", () => {
 
   it("plans nothing when the names didn't change", () => {
     expect(sql({})).toEqual([]);
+  });
+
+  it("reads a 0.46 marker's entity keys at their 0.47 key", () => {
+    const renamed = renderBlocks(BLOCKS, TASKS)
+      .map((file) => file.contents)
+      .join("\n")
+      .replace("@bsb-names tasks task=", "@bsb-names tasks work_item=");
+
+    expect(entityRenamePlan(BLOCKS, modules, renamed, TASKS).steps).toEqual([]);
+  });
+
+  it("keeps an instance whose 0.46 marker names the same entities", () => {
+    const config = resolveConfig(
+      {
+        blocks: {
+          tasks: {},
+          maintenance: { block: "tasks", entities: { task: "request" } },
+        },
+      },
+      "/app",
+    );
+
+    const layout = moduleLayout(config);
+
+    const installed = renderBlocks(config.blockNames, layout)
+      .map((file) => file.contents)
+      .join("\n")
+      .replace(
+        "@bsb-names maintenance task=",
+        "@bsb-names maintenance work_item=",
+      );
+
+    expect(installed).toContain("@bsb-names maintenance work_item=");
+    expect(
+      entityRenamePlan(
+        config.blockNames,
+        [...config.blockNames, "maintenance"],
+        installed,
+        layout,
+      ),
+    ).toEqual({ steps: [], refused: [] });
   });
 
   it("plans the way back from the installed names", () => {

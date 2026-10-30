@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:191d3eeee3fac2d15178d31b360bb8f8d090e5262aa64f6bda8ffd8e18b73d72
+-- @bsb-hash sha256:bbed9005afb4a6e5ab817206435a92d6423743549ba7d8719a12360b5ae9429e
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -167,13 +167,13 @@ begin
         from "better_supabase"."posts" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
-    when 'engagement' then
+    when 'activity' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."body"::text, s."outcome"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."engagements" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
-    when 'work_item' then
+    when 'task' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."identifier"::text, s."body"::text), ''), '/work'
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."work_items" s
@@ -356,16 +356,16 @@ begin
       end if;
     end loop;
   end if;
-  if search_reindex.subject_type is null or search_reindex.subject_type = 'engagement' then
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'activity' then
     for v_id in select s."id"::text from "better_supabase"."engagements" s loop
-      if "better_supabase"."search_refresh"('engagement', v_id) then
+      if "better_supabase"."search_refresh"('activity', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;
   end if;
-  if search_reindex.subject_type is null or search_reindex.subject_type = 'work_item' then
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'task' then
     for v_id in select s."id"::text from "better_supabase"."work_items" s loop
-      if "better_supabase"."search_refresh"('work_item', v_id) then
+      if "better_supabase"."search_refresh"('task', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;

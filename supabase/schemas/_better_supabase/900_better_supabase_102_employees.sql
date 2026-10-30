@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:cbebbb53f398f1f393c5bbad57fe9230fced1f27341012208dd220380789d293
+-- @bsb-hash sha256:3f2b0f86adcb01d103dd42d0683173fd1129dfaacb8130cb89ed1dc790a6d369
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -618,9 +618,9 @@ begin
       when 'deal' then (select s."name"::text from "better_supabase"."deals" s where s."id" = (v_application."candidate_id")::uuid)
       when 'course' then (select s."title"::text from "better_supabase"."courses" s where s."id" = (v_application."candidate_id")::uuid)
       when 'post' then (select s."title"::text from "better_supabase"."posts" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'engagement' then (select s."title"::text from "better_supabase"."engagements" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'activity' then (select s."title"::text from "better_supabase"."engagements" s where s."id" = (v_application."candidate_id")::uuid)
       when 'quote' then (select s."title"::text from "better_supabase"."quotes" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'work_item' then (select s."title"::text from "better_supabase"."work_items" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'task' then (select s."title"::text from "better_supabase"."work_items" s where s."id" = (v_application."candidate_id")::uuid)
       when 'employee' then (select s."name"::text from "better_supabase"."employees" s where s."id" = (v_application."candidate_id")::uuid)
       when 'invoice' then (select s."title"::text from "better_supabase"."invoices" s where s."id" = (v_application."candidate_id")::uuid)
       when 'ledger_account' then (select s."name"::text from "better_supabase"."ledger_accounts" s where s."id" = (v_application."candidate_id")::uuid)
@@ -639,10 +639,9 @@ begin
       when 'shipment' then (select s."reference"::text from "better_supabase"."shipments" s where s."id" = (v_application."candidate_id")::uuid)
       when 'contract' then (select s."title"::text from "better_supabase"."contracts" s where s."id" = (v_application."candidate_id")::uuid)
       when 'control' then (select s."title"::text from "better_supabase"."controls" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'policy' then (select s."title"::text from "better_supabase"."policies" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'compliance_policy' then (select s."title"::text from "better_supabase"."policies" s where s."id" = (v_application."candidate_id")::uuid)
       when 'qualification_type' then (select s."name"::text from "better_supabase"."qualification_types" s where s."id" = (v_application."candidate_id")::uuid)
       when 'risk' then (select s."title"::text from "better_supabase"."risks" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'care_plan' then (select s."title"::text from "better_supabase"."care_plans" s where s."id" = (v_application."candidate_id")::uuid)
       when 'incident' then (select s."title"::text from "better_supabase"."incidents" s where s."id" = (v_application."candidate_id")::uuid)
       when 'content_entry' then (select s."title"::text from "better_supabase"."content_entries" s where s."id" = (v_application."candidate_id")::uuid)
       when 'form' then (select s."title"::text from "better_supabase"."forms" s where s."id" = (v_application."candidate_id")::uuid)
@@ -651,7 +650,6 @@ begin
       when 'drive_node' then (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (v_application."candidate_id")::uuid)
       when 'change_request' then (select s."title"::text from "public"."change_requests" s where s."id" = (v_application."candidate_id")::uuid)
       when 'project' then (select s."name"::text from "public"."projects" s where s."id" = (v_application."candidate_id")::uuid)
-      when 'task' then (select s."title"::text from "public"."tasks" s where s."id" = (v_application."candidate_id")::uuid)
       else null::text
     end),
       'jobTitle', v_job."title",

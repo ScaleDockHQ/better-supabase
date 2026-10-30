@@ -1,6 +1,6 @@
 -- better-supabase module: comments
--- @bsb-block comments@9 managed
--- @bsb-hash sha256:5cf5a58d2ba7504958b9c1edb911ce7c0588a46a9ff1fdafac723d5f5caeeed2
+-- @bsb-block comments@8 managed
+-- @bsb-hash sha256:a5fcc07da00b052016b7b5fba9fa82a2c5a2709e40d1b2b13385c3a6d3b3348b
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -279,10 +279,8 @@ revoke execute on function "better_supabase"."comment_sent"(uuid) from public, a
 grant execute on function "better_supabase"."comment_sent"(uuid) to authenticated, service_role;
 
 -- A record's comments and replies in one list, oldest first; deleted ones
--- stay as placeholders so replies keep their parent, unless include_deleted
--- is false. Page with after and after_id (the last comment's sent_at and id)
--- or skip (an offset).
-drop function if exists "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid);
+-- stay as placeholders so replies keep their parent. Page with after and
+-- after_id (the last comment's sent_at and id) or skip (an offset).
 create or replace function "better_supabase"."list_comments"(
   tenant uuid,
   subject_type text,
@@ -290,8 +288,7 @@ create or replace function "better_supabase"."list_comments"(
   after timestamptz default null,
   max_rows integer default 100,
   skip integer default 0,
-  after_id uuid default null,
-  include_deleted boolean default true
+  after_id uuid default null
 )
 returns jsonb
 language plpgsql
@@ -309,7 +306,6 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -318,8 +314,8 @@ begin
   ));
 end;
 $$;
-revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) from public, anon;
-grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) to authenticated, service_role;
+revoke execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 
 -- The top-level comments anchored to a file, oldest first: on its pages,
 -- regions and moments, on any record the caller can read.
@@ -433,7 +429,7 @@ grant execute on function "better_supabase"."copy_comments"(uuid, text, text, te
 
 -- Turns a comment into a work item: the title (attrs.title, else the
 -- comment's first 120 characters), its body, and assignee when given; the
--- other attrs go to create_work_item. A comment links to one work item;
+-- other attrs go to create_task. A comment links to one work item;
 -- assigning it again returns that one's id.
 create or replace function "better_supabase"."assign_comment"(message uuid, assignee uuid default null, attrs jsonb default '{}')
 returns uuid
@@ -454,7 +450,7 @@ begin
   if found then
     return v_task;
   end if;
-  v_task := ("better_supabase"."create_work_item"(
+  v_task := ("better_supabase"."create_task"(
     v_msg."tenant_id",
     (coalesce(assign_comment.attrs, '{}') - 'title') || jsonb_build_object(
       'title', coalesce(nullif(trim(assign_comment.attrs ->> 'title'), ''), left(v_msg."body", 120)),
@@ -547,7 +543,6 @@ drop function if exists "api"."comments_json"(uuid[]);
 drop function if exists "api"."comment_sent"(uuid);
 
 drop function if exists "api"."create_comment"(uuid, text, text, text, uuid[], uuid, jsonb);
-drop function if exists "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid);
 
 create or replace function "api"."actor_may_write"()
 returns boolean
@@ -594,14 +589,14 @@ as $$ select "better_supabase"."create_comment"($1, $2, $3, $4, $5, $6) $$;
 revoke execute on function "api"."create_comment"(uuid, text, text, text, jsonb, uuid[]) from public, anon;
 grant execute on function "api"."create_comment"(uuid, text, text, text, jsonb, uuid[]) to authenticated, service_role;
 
-create or replace function "api"."list_comments"(tenant uuid, subject_type text, subject_id text, after timestamptz default null, max_rows integer default 100, skip integer default 0, after_id uuid default null, include_deleted boolean default true)
+create or replace function "api"."list_comments"(tenant uuid, subject_type text, subject_id text, after timestamptz default null, max_rows integer default 100, skip integer default 0, after_id uuid default null)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."list_comments"($1, $2, $3, $4, $5, $6, $7, $8) $$;
-revoke execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) from public, anon;
-grant execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid, boolean) to authenticated, service_role;
+as $$ select "better_supabase"."list_comments"($1, $2, $3, $4, $5, $6, $7) $$;
+revoke execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) from public, anon;
+grant execute on function "api"."list_comments"(uuid, text, text, timestamptz, integer, integer, uuid) to authenticated, service_role;
 
 create or replace function "api"."list_file_comments"(attachment uuid, max_rows integer default 100)
 returns jsonb

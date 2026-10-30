@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:a29008b764e4e8d6af6cebbc8757958ee40c9dfb9968d8a467b3af7051512f78
+-- @bsb-hash sha256:03bdfaff427cd1790f9be13bd6328c6d2c6b628ef42074cd926d8a2107934521
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -87,54 +87,54 @@ create policy targets_read on "better_supabase"."targets"
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
 -- block computes), archived.
-create or replace function "better_supabase"."save_target"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "better_supabase"."save_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
 declare
-  v_id uuid := save_target.target;
+  v_id uuid := save_goal.target;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'goals.manage'), false)) then
-    raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'TARGET_FORBIDDEN';
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_goal.tenant, 'goals.manage'), false)) then
+    raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'GOAL_FORBIDDEN';
   end if;
   begin
     if v_id is null then
       insert into "better_supabase"."targets" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
-      values (save_target.tenant, save_target.attrs ->> 'name', save_target.attrs ->> 'metric', (save_target.attrs ->> 'ownerId')::uuid,
-        (save_target.attrs ->> 'teamId')::uuid, (save_target.attrs ->> 'periodStart')::date, (save_target.attrs ->> 'periodEnd')::date,
-        upper(save_target.attrs ->> 'currency'), (save_target.attrs ->> 'goal')::bigint, coalesce((save_target.attrs ->> 'actual')::bigint, 0))
+      values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
+        (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
+        upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
       returning "id" into v_id;
     else
       update "better_supabase"."targets" x set
-        "name" = coalesce(save_target.attrs ->> 'name', x."name"),
-        "goal" = coalesce((save_target.attrs ->> 'goal')::bigint, x."goal"),
-        "actual" = coalesce((save_target.attrs ->> 'actual')::bigint, x."actual"),
-        "period_start" = coalesce((save_target.attrs ->> 'periodStart')::date, x."period_start"),
-        "period_end" = coalesce((save_target.attrs ->> 'periodEnd')::date, x."period_end"),
-        "archived_at" = case when coalesce((save_target.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
+        "name" = coalesce(save_goal.attrs ->> 'name', x."name"),
+        "goal" = coalesce((save_goal.attrs ->> 'goal')::bigint, x."goal"),
+        "actual" = coalesce((save_goal.attrs ->> 'actual')::bigint, x."actual"),
+        "period_start" = coalesce((save_goal.attrs ->> 'periodStart')::date, x."period_start"),
+        "period_end" = coalesce((save_goal.attrs ->> 'periodEnd')::date, x."period_end"),
+        "archived_at" = case when coalesce((save_goal.attrs ->> 'archived')::boolean, false) then coalesce(x."archived_at", now()) else x."archived_at" end,
         "updated_at" = now()
-      where x."id" = v_id and x."tenant_id" = save_target.tenant;
+      where x."id" = v_id and x."tenant_id" = save_goal.tenant;
       if not found then
-        raise exception 'target not found' using errcode = 'P0002', hint = 'TARGET_NOT_FOUND';
+        raise exception 'target not found' using errcode = 'P0002', hint = 'GOAL_NOT_FOUND';
       end if;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation or datetime_field_overflow then
-    raise exception 'a target needs a name, a metric, a period and a positive goal' using errcode = '22023', hint = 'TARGET_INVALID';
+    raise exception 'a target needs a name, a metric, a period and a positive goal' using errcode = '22023', hint = 'GOAL_INVALID';
   end;
   return (select (to_jsonb(x) || jsonb_build_object('goal', x."goal"::text, 'actual', x."actual"::text)) from "better_supabase"."targets" x where x."id" = v_id);
 end;
 $$;
-revoke execute on function "better_supabase"."save_target"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "better_supabase"."save_target"(uuid, uuid, jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
 -- attainment. Built-in metrics: deals.won_amount, deals.won_count, work_items.completed, invoices.paid_amount. Others read actual.
-create or replace function "better_supabase"."target_progress"(tenant uuid, on_date date, owner uuid)
+create or replace function "better_supabase"."goal_progress"(tenant uuid, on_date date, owner uuid)
 returns jsonb
 language sql
 stable
@@ -160,13 +160,13 @@ as $$
       where a."tenant_id" = x."tenant_id" and a."managed_by" = 'invoices' and a."code" = 'invoices:cash:' || x."currency" and y."effective_at"::date between x."period_start" and x."period_end")
         else x."actual"
       end as value) v
-    where x."tenant_id" = target_progress.tenant and x."archived_at" is null
-      and coalesce(target_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (target_progress.owner is null or x."owner_user_id" = target_progress.owner)
+    where x."tenant_id" = goal_progress.tenant and x."archived_at" is null
+      and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
+      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
   ) p
 $$;
-revoke execute on function "better_supabase"."target_progress"(uuid, date, uuid) from public, anon;
-grant execute on function "better_supabase"."target_progress"(uuid, date, uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."goal_progress"(uuid, date, uuid) from public, anon;
+grant execute on function "better_supabase"."goal_progress"(uuid, date, uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -227,23 +227,23 @@ as $$ select "better_supabase"."raise_actor_readonly"() $$;
 revoke execute on function "api"."raise_actor_readonly"() from public;
 grant execute on function "api"."raise_actor_readonly"() to anon, authenticated, service_role;
 
-create or replace function "api"."save_target"(tenant uuid, target uuid, attrs jsonb)
+create or replace function "api"."save_goal"(tenant uuid, target uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."save_target"($1, $2, $3) $$;
-revoke execute on function "api"."save_target"(uuid, uuid, jsonb) from public, anon;
-grant execute on function "api"."save_target"(uuid, uuid, jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."save_goal"($1, $2, $3) $$;
+revoke execute on function "api"."save_goal"(uuid, uuid, jsonb) from public, anon;
+grant execute on function "api"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."target_progress"(tenant uuid, on_date date, owner uuid)
+create or replace function "api"."goal_progress"(tenant uuid, on_date date, owner uuid)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."target_progress"($1, $2, $3) $$;
-revoke execute on function "api"."target_progress"(uuid, date, uuid) from public, anon;
-grant execute on function "api"."target_progress"(uuid, date, uuid) to authenticated, service_role;
+as $$ select "better_supabase"."goal_progress"($1, $2, $3) $$;
+revoke execute on function "api"."goal_progress"(uuid, date, uuid) from public, anon;
+grant execute on function "api"."goal_progress"(uuid, date, uuid) to authenticated, service_role;
 
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (

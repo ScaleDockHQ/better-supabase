@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:e88b9a726efbc09de213d827d87b188bffdba3d06280d5494778752197f1195c
+-- @bsb-hash sha256:2cc221fb0370cd11d5db1f7ec2baacf865a5151a79c1bcd9c6cbd6901800603d
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -236,7 +236,7 @@ begin
   if save_job.job is not null then
     select * into v_job from "better_supabase"."job_openings" x where x."id" = save_job.job and x."tenant_id" = save_job.tenant;
     if v_job."id" is null then
-      raise exception 'job not found' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
+      raise exception 'job not found' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
     end if;
     v_was := v_job."status";
   end if;
@@ -261,7 +261,7 @@ begin
       returning * into v_job;
     end if;
   exception when check_violation or not_null_violation or invalid_text_representation then
-    raise exception 'a job needs a title and a status of draft, open or closed' using errcode = '22023', hint = 'HIRING_JOB_INVALID';
+    raise exception 'a job needs a title and a status of draft, open or closed' using errcode = '22023', hint = 'JOB_OPENING_INVALID';
   end;
   if v_job."status" is distinct from v_was then
     if v_job."status" = 'open' then
@@ -297,10 +297,10 @@ begin
   end if;
   select * into v_job from "better_supabase"."job_openings" x where x."id" = apply_to_job.job;
   if v_job."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_job."tenant_id", 'hiring.write'), false)) then
-    raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'HIRING_JOB_NOT_FOUND';
+    raise exception 'no such job you can add applications to' using errcode = 'P0002', hint = 'JOB_OPENING_NOT_FOUND';
   end if;
   if v_job."status" <> 'open' then
-    raise exception 'the job isn''t open' using errcode = '55000', hint = 'HIRING_JOB_NOT_OPEN';
+    raise exception 'the job isn''t open' using errcode = '55000', hint = 'JOB_OPENING_NOT_OPEN';
   end if;
   if v_id is null or not (case v_type
       when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
@@ -311,9 +311,9 @@ begin
       when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
-      when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
+      when 'activity' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
-      when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
+      when 'task' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
@@ -332,10 +332,9 @@ begin
       when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
-      when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
+      when 'compliance_policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
-      when 'care_plan' then exists (select 1 from "better_supabase"."care_plans" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
@@ -345,7 +344,6 @@ begin
       when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (v_id)::uuid and s."tenant_id"::text = v_job."tenant_id"::text)
       when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (v_id)::uuid and s."organization_id"::text = v_job."tenant_id"::text)
       when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_id)::uuid and s."organization_id"::text = v_job."tenant_id"::text)
-      when 'task' then exists (select 1 from "public"."tasks" s where s."id" = (v_id)::uuid and s."organization_id"::text = v_job."tenant_id"::text)
       else false
     end and "better_supabase"."can_subject"(v_type, v_id, 'read')) then
     raise exception 'the candidate is unknown or not readable in this organization' using errcode = '42501', hint = 'HIRING_CANDIDATE_FORBIDDEN';

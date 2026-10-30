@@ -1,6 +1,6 @@
 -- better-supabase module: automations
 -- @bsb-block automations@1 managed
--- @bsb-hash sha256:f3de7fc32645884507b463de67730dd9ef19fe9adeb122e8e733af3095ded31d
+-- @bsb-hash sha256:d4d9702f86fb1390408c1984b54dbc0916724088599b3945a0a5d23717239795
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -558,7 +558,7 @@ as $$
 $$;
 
 -- Checks a tree against a field map and the operator table; returns the
--- number of conditions. Raises RULE_INVALID with the reason.
+-- number of conditions. Raises AUTOMATION_INVALID with the reason.
 create or replace function "better_supabase"."rule_check"(node jsonb, fields jsonb, depth integer default 1)
 returns integer
 language plpgsql
@@ -576,11 +576,11 @@ declare
 begin
   if jsonb_typeof(node) is distinct from 'object' or jsonb_typeof(node -> 'id') is distinct from 'string'
     or length(node ->> 'id') not between 1 and 64 then
-    raise exception 'Every condition and group needs an id' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'Every condition and group needs an id' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   if node ->> 'type' = 'rule' then
     if jsonb_typeof(node -> 'path') is distinct from 'array' or jsonb_array_length(node -> 'path') = 0 then
-      raise exception 'A condition needs a field path' using errcode = '22023', hint = 'RULE_INVALID';
+      raise exception 'A condition needs a field path' using errcode = '22023', hint = 'AUTOMATION_INVALID';
     end if;
     v_operator := coalesce(node ->> 'operator', '');
     if v_operator = '' then
@@ -609,24 +609,24 @@ begin
   end if;
   if node ->> 'type' is distinct from 'group' or coalesce(node ->> 'combinator', '') not in ('and', 'or')
     or jsonb_typeof(node -> 'rules') is distinct from 'array' then
-    raise exception 'A group needs a combinator (and, or) and a list of rules' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'A group needs a combinator (and, or) and a list of rules' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   if depth > 4 then
-    raise exception 'Groups nest at most 4 deep' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'Groups nest at most 4 deep' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   for v_child in select x.value from jsonb_array_elements(node -> 'rules') x loop
     v_count := v_count + "better_supabase"."rule_check"(v_child, fields, depth + 1);
   end loop;
   if v_count > 50 then
-    raise exception 'A rule holds at most 50 conditions' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'A rule holds at most 50 conditions' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   return v_count;
 end;
 $$;
 
--- Replaces a subject type's field catalog (service role). fields is an array
--- of { id, label, description, type, column, columnType, nullable, options,
--- operators }; returns how many fields the subject type has.
+-- Replaces a subject type's field catalog (service role). fields is an array of { id,
+-- label, description, type, column, columnType, nullable, options, operators }; returns
+-- how many fields the subject type has.
 create or replace function "better_supabase"."sync_rule_fields"(subject_type text, fields jsonb)
 returns integer
 language plpgsql
@@ -638,10 +638,10 @@ declare
   v_count integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'Only the service role syncs rule fields' using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'Only the service role syncs rule fields' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if jsonb_typeof(fields) is distinct from 'array' then
-    raise exception 'fields must be an array' using errcode = '22023', hint = 'RULE_FIELDS_INVALID';
+    raise exception 'fields must be an array' using errcode = '22023', hint = 'AUTOMATION_FIELDS_INVALID';
   end if;
   insert into "better_supabase"."rule_fields" ("subject_type", "field_id", "label", "description", "type", "path", "column_type", "nullable", "options", "operators", "position")
   select sync_rule_fields.subject_type, x.value ->> 'id', coalesce(x.value ->> 'label', x.value ->> 'id'), x.value ->> 'description',
@@ -665,7 +665,7 @@ begin
   select count(*) into v_count from "better_supabase"."rule_fields" x where x."subject_type" = sync_rule_fields.subject_type;
   return v_count;
 exception when check_violation or not_null_violation then
-  raise exception 'A rule field has an invalid id, type, column or column type' using errcode = '22023', hint = 'RULE_FIELDS_INVALID';
+  raise exception 'A rule field has an invalid id, type, column or column type' using errcode = '22023', hint = 'AUTOMATION_FIELDS_INVALID';
 end;
 $$;
 
@@ -697,11 +697,10 @@ as $$
   from "better_supabase"."rule_fields" x where x."subject_type" = rule_field_map.subject_type
 $$;
 
--- Creates or changes a rule. rule is { id?, version?, subjectType, trigger,
--- name, description, conditions, actions, enabled, stopProcessing }; keys
--- left out keep their value. Creating or changing a disabled rule takes the
--- edit permission; enabling one, or changing an enabled one, takes publish.
--- version, when given, must be the stored one.
+-- Creates or changes a rule. rule is { id?, version?, subjectType, trigger, name,
+-- description, conditions, actions, enabled, stopProcessing }; keys left out keep
+-- their value. Creating or changing a disabled rule takes the edit permission;
+-- enabling one, or changing an enabled one, takes publish. version must be the stored one.
 create or replace function "better_supabase"."save_rule"(tenant uuid, rule jsonb)
 returns jsonb
 language plpgsql
@@ -728,19 +727,19 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if jsonb_typeof(rule) is distinct from 'object' then
-    raise exception 'rule must be an object' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'rule must be an object' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   v_id := nullif(rule ->> 'id', '')::uuid;
   if v_id is not null then
     select * into v_old from "better_supabase"."rules" x where x."id" = v_id and x."organization_id" = save_rule.tenant for update;
     if v_old."id" is null then
-      raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+      raise exception 'No rule in this organization has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
     end if;
     if rule ? 'version' and (rule ->> 'version')::integer is distinct from v_old."version" then
-      raise exception 'The rule changed since it was read' using errcode = '40001', hint = 'RULE_CONFLICT';
+      raise exception 'The rule changed since it was read' using errcode = '40001', hint = 'AUTOMATION_CONFLICT';
     end if;
     if rule ? 'subjectType' and rule ->> 'subjectType' is distinct from v_old."subject_type" then
-      raise exception 'A rule''s subject type can''t change' using errcode = '22023', hint = 'RULE_INVALID';
+      raise exception 'A rule''s subject type can''t change' using errcode = '22023', hint = 'AUTOMATION_INVALID';
     end if;
   end if;
   v_subject_type := coalesce(v_old."subject_type", rule ->> 'subjectType');
@@ -752,16 +751,16 @@ begin
   v_enabled := coalesce((rule ->> 'enabled')::boolean, v_old."enabled", false);
   v_stop := coalesce((rule ->> 'stopProcessing')::boolean, v_old."stop_processing", false);
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_enabled or coalesce(v_old."enabled", false)) then coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.publish'), false) else coalesce(better_supabase.can('tenant', save_rule.tenant, 'automations.write'), false) end)) then
-    raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'You need % to save this rule', case when (v_enabled or coalesce(v_old."enabled", false)) then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_subject_type is null or v_subject_type !~ '^[a-z][a-z0-9_-]{0,62}$' then
-    raise exception 'A rule needs a subject type' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'A rule needs a subject type' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   if v_trigger is null or length(v_trigger) > 128 or v_trigger !~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$' then
-    raise exception 'A rule needs a trigger such as expense.submitted' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'A rule needs a trigger such as expense.submitted' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   if v_name is null or length(v_name) > 200 then
-    raise exception 'A rule needs a name of at most 200 characters' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'A rule needs a name of at most 200 characters' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   v_fields := "better_supabase"."rule_field_map"(v_subject_type);
   if v_fields = '{}'::jsonb and v_old."default_key" is null then
@@ -769,13 +768,13 @@ begin
   end if;
   perform "better_supabase"."rule_check"(v_conditions, v_fields, 1);
   if jsonb_typeof(v_actions) is distinct from 'array' or jsonb_array_length(v_actions) > 20 then
-    raise exception 'actions must be an array of at most 20 entries' using errcode = '22023', hint = 'RULE_ACTIONS_INVALID';
+    raise exception 'actions must be an array of at most 20 entries' using errcode = '22023', hint = 'AUTOMATION_ACTIONS_INVALID';
   end if;
   for v_action in select x.value from jsonb_array_elements(v_actions) x loop
     if jsonb_typeof(v_action) is distinct from 'object' or v_action ->> 'kind' is null
       or length(v_action ->> 'kind') > 128 or v_action ->> 'kind' !~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'
       or (v_action ? 'config' and jsonb_typeof(v_action -> 'config') is distinct from 'object') then
-      raise exception 'Every action needs a kind such as approvals.request and an optional config object' using errcode = '22023', hint = 'RULE_ACTIONS_INVALID';
+      raise exception 'Every action needs a kind such as approvals.request and an optional config object' using errcode = '22023', hint = 'AUTOMATION_ACTIONS_INVALID';
     end if;
   end loop;
   if v_old."id" is null then
@@ -850,8 +849,7 @@ begin
 end;
 $$;
 
--- An organization's rules in evaluation order, filtered by subject type,
--- trigger and enabled when given.
+-- An organization's rules in evaluation order, by subject type, trigger and enabled.
 create or replace function "better_supabase"."rules_list"(tenant uuid, subject_type text default null, trigger text default null, enabled boolean default null)
 returns jsonb
 language plpgsql
@@ -860,7 +858,7 @@ set search_path = ''
 as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', rules_list.tenant, 'automations.read'), false)) then
-    raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   perform "better_supabase"."install_default_rules"(rules_list.tenant);
   return (
@@ -934,10 +932,10 @@ begin
   end if;
   select * into v_row from "better_supabase"."rules" x where x."id" = set_rule_enabled.id for update;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
-    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false)) then
-    raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'Publishing rules needs the publish permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if v_row."enabled" = coalesce(set_rule_enabled.enabled, false) then
     return jsonb_build_object('id', v_row."id", 'organizationId', v_row."organization_id", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'name', v_row."name", 'description', v_row."description", 'conditions', v_row."conditions", 'actions', v_row."actions", 'enabled', v_row."enabled", 'stopProcessing', v_row."stop_processing", 'rank', v_row."rank", 'version', v_row."version", 'createdBy', v_row."created_by", 'updatedBy', v_row."updated_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at", 'defaultKey', v_row."default_key");
@@ -988,13 +986,13 @@ begin
   end if;
   select * into v_row from "better_supabase"."rules" x where x."id" = rank_rule.id for update;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
-    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when v_row."enabled" then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
-    raise exception 'You need % to move this rule', case when v_row."enabled" then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'You need % to move this rule', case when v_row."enabled" then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if rank_rule.rank is null or rank_rule.rank !~ '^[0-9A-Za-z]*[1-9A-Za-z]$' then
-    raise exception 'rank must be a key from rankBetween' using errcode = '22023', hint = 'RULE_RANK_INVALID';
+    raise exception 'rank must be a key from rankBetween' using errcode = '22023', hint = 'AUTOMATION_RANK_INVALID';
   end if;
   update "better_supabase"."rules" x set "rank" = rank_rule.rank, "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
@@ -1021,7 +1019,7 @@ begin
     return false;
   end if;
   if v_row."default_key" is not null then
-    raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'RULE_DEFAULT';
+    raise exception 'A block ships this automation; turn it off instead of removing it' using errcode = '22023', hint = 'AUTOMATION_DEFAULT';
   end if;
   delete from "better_supabase"."rules" x where x."id" = v_row."id";
   perform "better_supabase".emit_event('rule.removed', jsonb_build_object('organizationId', v_row."organization_id"::text, 'ruleId', v_row."id"::text, 'name', v_row."name", 'subjectType', v_row."subject_type", 'trigger', v_row."trigger", 'version', v_row."version"), 'rules/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/automations');
@@ -1055,7 +1053,7 @@ declare
   v_matches jsonb := '[]'::jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', matching_rules.tenant, 'automations.read'), false)) then
-    raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'You may not read this organization''s rules' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   v_fields := "better_supabase"."rule_field_map"(matching_rules.subject_type);
   for v_rule in
@@ -1091,16 +1089,16 @@ begin
   end if;
   select * into v_rule from "better_supabase"."rules" x where x."id" = record_rule_evaluation.rule;
   if v_rule."id" is null then
-    raise exception 'No rule has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+    raise exception 'No rule has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   if coalesce(record_rule_evaluation.mode, 'live') not in ('live', 'test') then
-    raise exception 'mode is live or test' using errcode = '22023', hint = 'RULE_INVALID';
+    raise exception 'mode is live or test' using errcode = '22023', hint = 'AUTOMATION_INVALID';
   end if;
   if coalesce(record_rule_evaluation.mode, 'live') = 'live' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'Only the service role records live evaluations' using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'Only the service role records live evaluations' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_rule."organization_id", 'automations.write'), false)) then
-    raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'Testing rules needs the edit permission' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   insert into "better_supabase"."rule_evaluations" ("organization_id", "rule_id", "version", "subject_type", "subject_id", "trigger", "matched", "results", "mode", "evaluated_by")
   values (v_rule."organization_id", v_rule."id", v_rule."version", v_rule."subject_type", record_rule_evaluation.subject_id, v_rule."trigger",
@@ -1113,10 +1111,9 @@ begin
 end;
 $$;
 
--- For database triggers and jobs (service role): evaluates the enabled rules
--- for a trigger, logs each one live and returns the matches as
--- matching_rules does. A null subject_type tests every rule for the trigger,
--- each against its own subject type's fields.
+-- For database triggers and jobs (service role): evaluates the enabled rules for a
+-- trigger, logs each one live and returns the matches as matching_rules does. A null
+-- subject_type tests every rule for the trigger against its own subject type's fields.
 create or replace function "better_supabase"."run_rules"(tenant uuid, subject_type text, trigger text, subject_id text, subject jsonb, time_zone text default 'UTC')
 returns jsonb
 language plpgsql
@@ -1130,7 +1127,7 @@ declare
   v_matches jsonb := '[]'::jsonb;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
-    raise exception 'Only the service role runs rules' using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'Only the service role runs rules' using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   perform "better_supabase"."install_default_rules"(run_rules.tenant);
   v_fields := "better_supabase"."rule_field_map"(run_rules.subject_type);
@@ -1196,14 +1193,14 @@ begin
   end if;
   select * into v_row from "better_supabase"."rules" x where x."id" = reset_default_rule.id for update;
   if v_row."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.read'), false)) then
-    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'RULE_NOT_FOUND';
+    raise exception 'No rule you can read has this id' using errcode = 'P0002', hint = 'AUTOMATION_NOT_FOUND';
   end if;
   select * into v_default from "better_supabase"."rule_defaults" x where x."key" = v_row."default_key";
   if v_default."key" is null then
-    raise exception 'No block ships this rule' using errcode = '22023', hint = 'RULE_NOT_DEFAULT';
+    raise exception 'No block ships this rule' using errcode = '22023', hint = 'AUTOMATION_NOT_DEFAULT';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (case when (v_row."enabled" or v_default."enabled") then coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.publish'), false) else coalesce(better_supabase.can('tenant', v_row."organization_id", 'automations.write'), false) end)) then
-    raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'RULE_FORBIDDEN';
+    raise exception 'You need % to reset this rule', case when (v_row."enabled" or v_default."enabled") then '''automations.publish''' else '''automations.write''' end using errcode = '42501', hint = 'AUTOMATION_FORBIDDEN';
   end if;
   update "better_supabase"."rules" x set
     "trigger" = v_default."trigger",

@@ -35,11 +35,19 @@ function renamedTypes(
   });
 }
 
-/** `table.column` for every installed module column that stores a subject type. */
+/** One installed module column that stores a subject type. */
+interface TypeColumn {
+  readonly table: string;
+  readonly column: string;
+  /** The column's database name, when the module adds it only for some options. */
+  readonly optional?: string;
+}
+
+/** Every installed module column that stores a subject type. */
 function typeColumns(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
-): readonly string[] {
+): readonly TypeColumn[] {
   return ctx.installedModules.flatMap((module) => {
     if (APPEND_ONLY.has(module)) {
       return [];
@@ -49,14 +57,19 @@ function typeColumns(
     // the modules this one requires or integrates.
     const other = moduleContext(module, layout, ctx.installedModules);
 
-    return Object.entries(other.names.tables).flatMap(([table, { columns }]) =>
-      other.hasTable(table)
-        ? TYPE_COLUMNS.filter(
-            (column) => column in columns && other.has(table, column),
-          ).map(
-            (column) => `${other.table(table)}\t${other.col(table, column)}`,
-          )
-        : [],
+    return Object.entries(other.names.tables).flatMap(
+      ([table, { columns, optional = [] }]) =>
+        other.hasTable(table)
+          ? TYPE_COLUMNS.filter(
+              (column) => column in columns && other.has(table, column),
+            ).map((column) => ({
+              table: other.table(table),
+              column: other.col(table, column),
+              ...(optional.includes(column)
+                ? { optional: other.colName(table, column) }
+                : {}),
+            }))
+          : [],
     );
   });
 }
@@ -76,14 +89,22 @@ export function subjectTypeRenames(
     return "";
   }
 
-  const updates = [...new Set(typeColumns(ctx, layout))].flatMap((entry) => {
-    const [table, column] = entry.split("\t");
+  const columns = new Map(
+    typeColumns(ctx, layout).map((entry) => [
+      `${entry.table}.${entry.column}`,
+      entry,
+    ]),
+  );
 
-    return types.map(
-      ({ old, next }) =>
-        `update ${table} set ${column} = ${sqlString(next)} where ${column} = ${sqlString(old)};`,
-    );
-  });
+  const updates = [...columns.values()].flatMap(({ table, column, optional }) =>
+    types.map(({ old, next }) => {
+      const update = `update ${table} set ${column} = ${sqlString(next)} where ${column} = ${sqlString(old)};`;
+
+      return optional === undefined
+        ? update
+        : `do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass(${sqlString(table)}) and attname = ${sqlString(optional)} and not attisdropped) then ${update} end if; end $$;`;
+    }),
+  );
 
   return [
     "-- Subject types renamed in 0.47 (`codemod 0.47`).",

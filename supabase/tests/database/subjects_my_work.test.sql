@@ -53,7 +53,7 @@ select is(
   (select w - 'url' from jsonb_array_elements(api.my_work()) w where w ->> 'kind' = 'assigned'),
   jsonb_build_object(
     'kind', 'assigned',
-    'subject', jsonb_build_object('type', 'work_item', 'id', '00000000-0000-4000-8000-00000000f001'),
+    'subject', jsonb_build_object('type', 'task', 'id', '00000000-0000-4000-8000-00000000f001'),
     'ref', '00000000-0000-4000-8000-00000000f001',
     'title', 'Ship it',
     'at', '2026-12-01T00:00:00+00:00'
