@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:927dc28e3342f8bf5fc88f8a39e7faf877714b146110eb2938191a714fb2735e
+-- @bsb-hash sha256:8815986730cc899c85e55e85a551a65dc73e8dc0d633a80c76759dd8a9eebe5b
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -207,6 +207,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."enrollments";
+  v_was text;
 begin
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" is not distinct from enrollment_ensure.tenant and x."program" = enrollment_ensure.program
@@ -226,6 +227,7 @@ begin
     return v_row."id";
   end if;
   if v_row."steps" is distinct from enrollment_ensure.steps or v_row."program_version" is distinct from enrollment_ensure.program_version then
+    v_was := v_row."status";
     update "better_supabase"."enrollments" x set "steps" = enrollment_ensure.steps, "program_version" = enrollment_ensure.program_version
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
@@ -235,6 +237,10 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+    -- Removing the steps that were left can complete the enrollment.
+    if v_was <> 'completed' and v_row."status" = 'completed' then
+      null;
+    end if;
   end if;
   return v_row."id";
 end;

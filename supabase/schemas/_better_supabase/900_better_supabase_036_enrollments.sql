@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:856a788a3da4b7a2fe0cf23ec7cde2fb5be5e5b0775d57921a20d673e06f2942
+-- @bsb-hash sha256:80855bb1ebc03da15224d17a7b2be7ba9d3349af18c964c7843b94694d6844c3
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -206,6 +206,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_row "better_supabase"."enrollments";
+  v_was text;
 begin
   select * into v_row from "better_supabase"."enrollments" x
   where x."tenant_id" is not distinct from enrollment_ensure.tenant and x."program" = enrollment_ensure.program
@@ -228,6 +229,7 @@ begin
     return v_row."id";
   end if;
   if v_row."steps" is distinct from enrollment_ensure.steps or v_row."program_version" is distinct from enrollment_ensure.program_version then
+    v_was := v_row."status";
     update "better_supabase"."enrollments" x set "steps" = enrollment_ensure.steps, "program_version" = enrollment_ensure.program_version
     where x."id" = v_row."id";
     update "better_supabase"."enrollments" x
@@ -237,6 +239,13 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
+    -- Removing the steps that were left can complete the enrollment.
+    if v_was <> 'completed' and v_row."status" = 'completed' then
+  if v_row."tenant_id" is not null then
+    perform "better_supabase".emit_event('enrollment.completed', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'program', v_row."program", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'status', v_row."status", 'step', null::text, 'completedSteps', v_row."completed_steps", 'totalSteps', cardinality(v_row."steps")), 'enrollments/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
+  end if;
+      null;
+    end if;
   end if;
   return v_row."id";
 end;
