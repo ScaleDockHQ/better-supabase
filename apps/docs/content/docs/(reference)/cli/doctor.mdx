@@ -1505,8 +1505,8 @@ returns.
 
 **Warning: plain secret column next to a block that encrypts it.** One of
 your tables has a `text`, `varchar`, `char`, `json` or `jsonb` column whose
-name ends in `credentials`, `token` or `secret` (`access_token`,
-`client_secret`), and [`field-encryption`](/docs/blocks/field-encryption) or
+name ends in `credentials`, `token`, `secret` or `header_value`
+(`access_token`, `client_secret`, `auth_header_value`), and [`field-encryption`](/docs/blocks/field-encryption) or
 the [`credentials`](/docs/extending/credentials) module is installed. The
 value sits in the row as written, so every role that reads the row, and every
 backup, has the secret. With field-encryption, set `encrypted: true` on the
@@ -1514,9 +1514,15 @@ column under `tables.<name>.columns` in the config, or name it in the table's
 [`@bsb encrypted` tag](/docs/repository/tables#encrypted-columns). The block
 then stores it as ciphertext under a Vault data key.
 With credentials, move the secret to Vault and store a `credential_ref jsonb`
-in its place. Block tables, columns already marked `encrypted` and names that
-end in another word, such as `token_hash`, `secret_id` or `credential_ref`,
-are not reported.
+in its place. Block tables, columns already marked `encrypted` in the config
+or in an `@bsb encrypted` tag, and names that end in another word, such as
+`token_hash`, `secret_id` or `credential_ref`, are not reported.
+
+If your own trigger seals the column, name its function in
+`tooling.doctor.sealTriggers` (`["public.seal_integration_secrets"]`). A
+`before` row trigger that runs one of those functions silences the finding
+for the columns it fills, or for every column of the table when doctor can't
+tell which ones it fills.
 
 ## Auth config
 

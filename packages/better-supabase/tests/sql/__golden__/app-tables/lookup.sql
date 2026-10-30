@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:728c55ee57cf520a84c875299ee4d9ad8d3e4179a7491c78d242575d8ef3517d
+-- @bsb-hash sha256:f5b621b2485a163d4eaf009953c28fb20f9c6826e2551f2973c847f3d1168c2d
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -174,7 +174,7 @@ begin
     v_old_owner := 'tenant:' || (old."organization_id")::text;
     v_moved := v_owner is distinct from v_old_owner;
   end if;
-  if new."bsn" is not null and (case when tg_op = 'INSERT' then true else new."bsn" is distinct from old."bsn" end or left(new."bsn", 5) <> 'bsf1:') then
+  if new."bsn" is not null and left(new."bsn", 5) is distinct from 'bsf1:' then
     if not ("public"."bsb_valid_bsn"(new."bsn")) then
       raise exception 'new row for relation "%" violates check constraint "%"', 'patients', 'patients_bsn_check'
         using errcode = '23514';
@@ -183,7 +183,7 @@ begin
     new."bsn_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."bsn");
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."bsn" := "better_supabase"."field_seal"(v_key, new."bsn");
-  elsif new."bsn" is not null and v_moved then
+  elsif new."bsn" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."bsn" is distinct from old."bsn" end then
     v_plain := "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."bsn");
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."bsn_lookup" := "better_supabase"."field_hash"(v_lookup_key, v_plain);
@@ -191,11 +191,11 @@ begin
     new."bsn" := "better_supabase"."field_seal"(v_key, v_plain);
   elsif new."bsn" is null then
     new."bsn_lookup" := null;
-  elsif new."bsn_lookup" is null or (tg_op = 'UPDATE' and new."bsn_lookup" is distinct from old."bsn_lookup") then
+  elsif new."bsn_lookup" is null or (tg_op = 'UPDATE' and (new."bsn_lookup" is distinct from old."bsn_lookup" or new."bsn" is distinct from old."bsn")) then
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."bsn_lookup" := "better_supabase"."field_hash"(v_lookup_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_owner, false), new."bsn"));
   end if;
-  if new."email" is not null and (case when tg_op = 'INSERT' then true else new."email" is distinct from old."email" end or left(new."email", 5) <> 'bsf1:') then
+  if new."email" is not null and left(new."email", 5) is distinct from 'bsf1:' then
     if not (new."email" ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$') then
       raise exception 'new row for relation "%" violates check constraint "%"', 'patients', 'patients_email_check'
         using errcode = '23514';
@@ -204,7 +204,7 @@ begin
     new."email_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."email");
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."email" := "better_supabase"."field_seal"(v_key, new."email");
-  elsif new."email" is not null and v_moved then
+  elsif new."email" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."email" is distinct from old."email" end then
     v_plain := "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."email");
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."email_lookup" := "better_supabase"."field_hash"(v_lookup_key, v_plain);
@@ -212,17 +212,17 @@ begin
     new."email" := "better_supabase"."field_seal"(v_key, v_plain);
   elsif new."email" is null then
     new."email_lookup" := null;
-  elsif new."email_lookup" is null or (tg_op = 'UPDATE' and new."email_lookup" is distinct from old."email_lookup") then
+  elsif new."email_lookup" is null or (tg_op = 'UPDATE' and (new."email_lookup" is distinct from old."email_lookup" or new."email" is distinct from old."email")) then
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."email_lookup" := "better_supabase"."field_hash"(v_lookup_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_owner, false), new."email"));
   end if;
-  if new."born_on" is not null and (case when tg_op = 'INSERT' then true else new."born_on" is distinct from old."born_on" end or left(new."born_on", 5) <> 'bsf1:') then
+  if new."born_on" is not null and left(new."born_on", 5) is distinct from 'bsf1:' then
     new."born_on" := ((new."born_on")::date)::text;
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."born_on_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."born_on");
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."born_on" := "better_supabase"."field_seal"(v_key, new."born_on");
-  elsif new."born_on" is not null and v_moved then
+  elsif new."born_on" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."born_on" is distinct from old."born_on" end then
     v_plain := "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."born_on");
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."born_on_lookup" := "better_supabase"."field_hash"(v_lookup_key, v_plain);
@@ -230,7 +230,7 @@ begin
     new."born_on" := "better_supabase"."field_seal"(v_key, v_plain);
   elsif new."born_on" is null then
     new."born_on_lookup" := null;
-  elsif new."born_on_lookup" is null or (tg_op = 'UPDATE' and new."born_on_lookup" is distinct from old."born_on_lookup") then
+  elsif new."born_on_lookup" is null or (tg_op = 'UPDATE' and (new."born_on_lookup" is distinct from old."born_on_lookup" or new."born_on" is distinct from old."born_on")) then
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."born_on_lookup" := "better_supabase"."field_hash"(v_lookup_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_owner, false), new."born_on"));
   end if;
@@ -402,12 +402,12 @@ begin
     v_old_owner := 'app';
     v_moved := v_owner is distinct from v_old_owner;
   end if;
-  if new."token" is not null and (case when tg_op = 'INSERT' then true else new."token" is distinct from old."token" end or left(new."token", 5) <> 'bsf1:') then
+  if new."token" is not null and left(new."token", 5) is distinct from 'bsf1:' then
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."token_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."token");
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."token" := "better_supabase"."field_seal"(v_key, new."token");
-  elsif new."token" is not null and v_moved then
+  elsif new."token" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."token" is distinct from old."token" end then
     v_plain := "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."token");
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."token_lookup" := "better_supabase"."field_hash"(v_lookup_key, v_plain);
@@ -415,7 +415,7 @@ begin
     new."token" := "better_supabase"."field_seal"(v_key, v_plain);
   elsif new."token" is null then
     new."token_lookup" := null;
-  elsif new."token_lookup" is null or (tg_op = 'UPDATE' and new."token_lookup" is distinct from old."token_lookup") then
+  elsif new."token_lookup" is null or (tg_op = 'UPDATE' and (new."token_lookup" is distinct from old."token_lookup" or new."token" is distinct from old."token")) then
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."token_lookup" := "better_supabase"."field_hash"(v_lookup_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_owner, false), new."token"));
   end if;

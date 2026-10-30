@@ -104,8 +104,8 @@ function plainChecks(
 /**
  * The `before insert or update` trigger that checks and encrypts each encrypted
  * column, and encrypts it again with the new owner's key when a row moves to
- * another tenant or user. A value that is already ciphertext and didn't change
- * stays as it is.
+ * another tenant or user. A value that is already ciphertext stays as it is,
+ * unless it is unchanged on a row that moves.
  */
 export function sealSql(
   table: SealTable,
@@ -156,11 +156,16 @@ export function sealSql(
     const hashed = (plain: string): string =>
       `\n    v_lookup_key := coalesce(v_lookup_key, ${lookupKey}(v_owner, true));\n    new.${lookup ?? ""} := ${hash}(v_lookup_key, ${plain});`;
 
+    // A value that carries the ciphertext prefix is never sealed again: an
+    // upsert's `excluded` row was sealed by the insert, for the new owner. Only
+    // an unchanged value is sealed again for a new owner on a move.
+    const plain = `left(${value}, ${width}) is distinct from ${prefix}`;
+
     if (lookup === undefined) {
-      return `  if ${value} is not null and (${fresh} or left(${value}, ${width}) <> ${prefix}) then${normalize}${check}
+      return `  if ${value} is not null and ${plain} then${normalize}${check}
     v_key := coalesce(v_key, ${key}(v_owner, true));
     ${value} := ${seal}(v_key, ${value});
-  elsif ${value} is not null and v_moved then
+  elsif ${value} is not null and v_moved and not ${fresh} then
     v_key := coalesce(v_key, ${key}(v_owner, true));
     ${value} := ${seal}(v_key, ${open}(${key}(v_old_owner, false), ${value}));
   end if;`;
@@ -168,17 +173,17 @@ export function sealSql(
 
     // The lookup hash follows the value: it is hashed before the value is
     // sealed, again with the new owner's key on a move, and from the stored
-    // value when it is missing or was written by hand.
-    return `  if ${value} is not null and (${fresh} or left(${value}, ${width}) <> ${prefix}) then${normalize}${check}${hashed(value)}
+    // value when it is missing, was written by hand or came in as ciphertext.
+    return `  if ${value} is not null and ${plain} then${normalize}${check}${hashed(value)}
     v_key := coalesce(v_key, ${key}(v_owner, true));
     ${value} := ${seal}(v_key, ${value});
-  elsif ${value} is not null and v_moved then
+  elsif ${value} is not null and v_moved and not ${fresh} then
     v_plain := ${open}(${key}(v_old_owner, false), ${value});${hashed("v_plain")}
     v_key := coalesce(v_key, ${key}(v_owner, true));
     ${value} := ${seal}(v_key, v_plain);
   elsif ${value} is null then
     new.${lookup} := null;
-  elsif new.${lookup} is null or (tg_op = 'UPDATE' and new.${lookup} is distinct from old.${lookup}) then${hashed(`${open}(${key}(v_owner, false), ${value})`)}
+  elsif new.${lookup} is null or (tg_op = 'UPDATE' and (new.${lookup} is distinct from old.${lookup} or ${value} is distinct from old.${sqlIdent(name)})) then${hashed(`${open}(${key}(v_owner, false), ${value})`)}
   end if;`;
   };
 

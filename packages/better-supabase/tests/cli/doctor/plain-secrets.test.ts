@@ -18,7 +18,10 @@ import { snapshotFixture } from "../fixtures/library.ts";
 const base = await parseSnapshot(snapshotFixture);
 
 /** The fixture with `public.integrations` holding these columns. */
-function withIntegrations(columns: Record<string, string>): Snapshot {
+function withIntegrations(
+  columns: Record<string, string>,
+  triggers: CatalogTable["triggers"] = [],
+): Snapshot {
   const catalog = structuredClone(toCatalog(base));
 
   const customers = catalog.tables.find(
@@ -48,7 +51,7 @@ function withIntegrations(columns: Record<string, string>): Snapshot {
     foreignKeys: [],
     indexes: [],
     policies: [],
-    triggers: [],
+    triggers,
   });
 
   // SAFETY: the catalog is plain data; fromCatalog reads it back.
@@ -65,7 +68,11 @@ const COLUMNS = {
   api_token: "bytea",
 };
 
-const run = (config: Parameters<typeof resolveConfig>[0], snapshot: Snapshot) =>
+const run = (
+  config: Parameters<typeof resolveConfig>[0],
+  snapshot: Snapshot,
+  sqlFiles: DoctorContext["sqlFiles"] = [],
+) =>
   runRules(
     {
       config: resolveConfig(config, "/project"),
@@ -74,9 +81,18 @@ const run = (config: Parameters<typeof resolveConfig>[0], snapshot: Snapshot) =>
       envFiles: [],
       gitignore: "",
       sources: [],
+      sqlFiles,
     } satisfies DoctorContext,
     PLAIN_SECRET_RULES,
   );
+
+const SEAL: CatalogTable["triggers"][number] = {
+  name: "seal_secret_fields",
+  timing: "before",
+  events: ["insert", "update"],
+  level: "row",
+  function: "public.seal_secret_fields",
+};
 
 describe("BS352", () => {
   it("reports plain secret columns while field-encryption is installed", async () => {
@@ -130,6 +146,66 @@ describe("BS352", () => {
         withIntegrations({ access_token: "text" }),
       ),
     ).toEqual([]);
+  });
+
+  it("reports a header value named like a secret", async () => {
+    const findings = await run(
+      { blocks: ["field-encryption"] },
+      withIntegrations({ auth_header_value: "text", header_name: "text" }),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "public.integrations.auth_header_value",
+    ]);
+  });
+
+  it("skips a column an @bsb encrypted tag in the schema files marks", async () => {
+    expect(
+      await run(
+        { blocks: ["field-encryption"] },
+        withIntegrations({ access_token: "text" }),
+        [
+          {
+            path: "supabase/schemas/integrations.sql",
+            text: "comment on table public.integrations is '@bsb encrypted access_token=text';",
+          },
+        ],
+      ),
+    ).toEqual([]);
+  });
+
+  it("skips the columns a listed seal function assigns in a before trigger", async () => {
+    const config = {
+      blocks: ["field-encryption"],
+      tooling: { doctor: { sealTriggers: ["public.seal_secret_fields"] } },
+    } as const;
+
+    expect(
+      await run(
+        config,
+        withIntegrations({ access_token: "text", client_secret: "jsonb" }, [
+          SEAL,
+        ]),
+      ),
+    ).toEqual([]);
+
+    const partial = await run(
+      config,
+      withIntegrations({ access_token: "text", client_secret: "jsonb" }, [
+        { ...SEAL, fills: ["access_token"] },
+      ]),
+    );
+
+    expect(partial.map((finding) => finding.target)).toEqual([
+      "public.integrations.client_secret",
+    ]);
+
+    const unlisted = await run(
+      { blocks: ["field-encryption"] },
+      withIntegrations({ access_token: "text" }, [SEAL]),
+    );
+
+    expect(unlisted).toHaveLength(1);
   });
 
   it("stays quiet without a block that keeps secrets out of the row", async () => {

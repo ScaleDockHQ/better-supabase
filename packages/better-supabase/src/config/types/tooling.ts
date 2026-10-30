@@ -172,6 +172,12 @@ export interface DoctorConfig {
    */
   readonly policyHelperLimit?: number;
   /**
+   * The app's own seal functions, as `schema.name`, such as
+   * `['public.seal_secret_fields']`. BS352 skips a secret column that a
+   * row-level `before` trigger running one of them assigns.
+   */
+  readonly sealTriggers?: readonly string[];
+  /**
    * The BS405 limit in bytes. When the authorization provider's token hook has
    * a budget, it replaces that budget and the whole token keeps 2048. Otherwise
    * it limits the whole token's claims (default 2048).

@@ -2781,6 +2781,12 @@
             "policyHelperLimit": {
               "type": "number"
             },
+            "sealTriggers": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
             "claimsLimit": {
               "type": "number"
             },

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:408cd3e5650a0040d5c3b6589e85b0d2e6c181cb9f7847908d7f2d5323411272
+-- @bsb-hash sha256:c2350db060d54c979c553c33477b21b2580303bc9572cb30f1bb34fe0f162dae
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -133,40 +133,40 @@ begin
     v_old_owner := 'tenant:' || (old."organization_id")::text;
     v_moved := v_owner is distinct from v_old_owner;
   end if;
-  if new."ssn" is not null and (case when tg_op = 'INSERT' then true else new."ssn" is distinct from old."ssn" end or left(new."ssn", 5) <> 'bsf1:') then
+  if new."ssn" is not null and left(new."ssn", 5) is distinct from 'bsf1:' then
     if not (char_length(new."ssn") >= 9 and char_length(new."ssn") <= 11) then
       raise exception 'new row for relation "%" violates check constraint "%"', 'patients', 'patients_ssn_check'
         using errcode = '23514';
     end if;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."ssn" := "better_supabase"."field_seal"(v_key, new."ssn");
-  elsif new."ssn" is not null and v_moved then
+  elsif new."ssn" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."ssn" is distinct from old."ssn" end then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."ssn" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."ssn"));
   end if;
-  if new."email" is not null and (case when tg_op = 'INSERT' then true else new."email" is distinct from old."email" end or left(new."email", 5) <> 'bsf1:') then
+  if new."email" is not null and left(new."email", 5) is distinct from 'bsf1:' then
     if not (new."email" ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$') then
       raise exception 'new row for relation "%" violates check constraint "%"', 'patients', 'patients_email_check'
         using errcode = '23514';
     end if;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."email" := "better_supabase"."field_seal"(v_key, new."email");
-  elsif new."email" is not null and v_moved then
+  elsif new."email" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."email" is distinct from old."email" end then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."email" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."email"));
   end if;
-  if new."born_on" is not null and (case when tg_op = 'INSERT' then true else new."born_on" is distinct from old."born_on" end or left(new."born_on", 5) <> 'bsf1:') then
+  if new."born_on" is not null and left(new."born_on", 5) is distinct from 'bsf1:' then
     new."born_on" := ((new."born_on")::date)::text;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."born_on" := "better_supabase"."field_seal"(v_key, new."born_on");
-  elsif new."born_on" is not null and v_moved then
+  elsif new."born_on" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."born_on" is distinct from old."born_on" end then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."born_on" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."born_on"));
   end if;
-  if new."diagnosis" is not null and (case when tg_op = 'INSERT' then true else new."diagnosis" is distinct from old."diagnosis" end or left(new."diagnosis", 5) <> 'bsf1:') then
+  if new."diagnosis" is not null and left(new."diagnosis", 5) is distinct from 'bsf1:' then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."diagnosis" := "better_supabase"."field_seal"(v_key, new."diagnosis");
-  elsif new."diagnosis" is not null and v_moved then
+  elsif new."diagnosis" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."diagnosis" is distinct from old."diagnosis" end then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."diagnosis" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."diagnosis"));
   end if;
@@ -283,10 +283,10 @@ begin
     v_old_owner := 'user:' || (old."user_id")::text;
     v_moved := v_owner is distinct from v_old_owner;
   end if;
-  if new."body" is not null and (case when tg_op = 'INSERT' then true else new."body" is distinct from old."body" end or left(new."body", 5) <> 'bsf1:') then
+  if new."body" is not null and left(new."body", 5) is distinct from 'bsf1:' then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."body" := "better_supabase"."field_seal"(v_key, new."body");
-  elsif new."body" is not null and v_moved then
+  elsif new."body" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."body" is distinct from old."body" end then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."body" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."body"));
   end if;
@@ -370,11 +370,11 @@ begin
     v_old_owner := 'app';
     v_moved := v_owner is distinct from v_old_owner;
   end if;
-  if new."secret" is not null and (case when tg_op = 'INSERT' then true else new."secret" is distinct from old."secret" end or left(new."secret", 5) <> 'bsf1:') then
+  if new."secret" is not null and left(new."secret", 5) is distinct from 'bsf1:' then
     new."secret" := ((new."secret")::jsonb)::text;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."secret" := "better_supabase"."field_seal"(v_key, new."secret");
-  elsif new."secret" is not null and v_moved then
+  elsif new."secret" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."secret" is distinct from old."secret" end then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."secret" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."secret"));
   end if;

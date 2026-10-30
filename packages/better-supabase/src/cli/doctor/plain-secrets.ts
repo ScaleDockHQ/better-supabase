@@ -1,7 +1,9 @@
+import type { ResolvedConfig } from "../../config/index.ts";
 import type { CatalogColumn, CatalogTable } from "../introspect/types.ts";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { blockTables } from "../../sql/index.ts";
+import { blockTables, tableTagComments } from "../../sql/index.ts";
+import { withTableTags } from "../gen/table-tags.ts";
 import { appTablesOf } from "./app-tables.ts";
 import { catalogOf, qualified, tableObject } from "./shared.ts";
 
@@ -14,11 +16,11 @@ const SECRET_BLOCKS = ["field-encryption", "credentials"] as const;
 type SecretBlock = (typeof SECRET_BLOCKS)[number];
 
 /**
- * A column named for a secret: `credentials`, `access_token`, `client_secret`.
- * `token_hash`, `secret_id` and `credential_ref` end in another word, so they
- * don't match.
+ * A column named for a secret: `credentials`, `access_token`, `client_secret`,
+ * `auth_header_value`. `token_hash`, `secret_id` and `credential_ref` end in
+ * another word, so they don't match.
  */
-const SECRET_NAME = /(?:^|_)(?:credentials?|tokens?|secrets?)$/i;
+const SECRET_NAME = /(?:^|_)(?:credentials?|tokens?|secrets?|header_values?)$/i;
 
 /** Types that hold the value as written. */
 const PLAIN_TYPES: ReadonlySet<string> = new Set([
@@ -51,14 +53,38 @@ function remedy(
   }
 }
 
-const encryptedInConfig = (
+/**
+ * The app tables with the columns that `@bsb encrypted` tags in the schema
+ * files and migrations mark, next to the config's own.
+ */
+function encryptedTables(context: DoctorContext): ResolvedConfig["appTables"] {
+  const comments = (context.sqlFiles ?? []).flatMap((file) =>
+    tableTagComments(file.text),
+  );
+
+  return withTableTags(context.config, comments).appTables;
+}
+
+/**
+ * Whether a row-level `before` trigger on the table runs one of the app's seal
+ * functions (`tooling.doctor.sealTriggers`) and, when doctor knows the columns
+ * it assigns, assigns this one.
+ */
+function sealedByTrigger(
   context: DoctorContext,
   table: CatalogTable,
   column: CatalogColumn,
-): boolean =>
-  table.schema === "public" &&
-  context.config.appTables[table.name]?.columns?.[column.name]?.encrypted ===
-    true;
+): boolean {
+  const seals = context.config.doctor.sealTriggers;
+
+  return table.triggers.some(
+    (trigger) =>
+      trigger.timing === "before" &&
+      trigger.level === "row" &&
+      seals.includes(trigger.function) &&
+      (trigger.fills === undefined || trigger.fills.includes(column.name)),
+  );
+}
 
 /**
  * Plain secret columns in the app's tables while a block that would keep them
@@ -74,6 +100,14 @@ function plainSecretColumns(context: DoctorContext): FindingInput[] {
   }
 
   const own = appTablesOf(context);
+  const encrypted = encryptedTables(context);
+
+  const encryptedInConfig = (
+    table: CatalogTable,
+    column: CatalogColumn,
+  ): boolean =>
+    table.schema === "public" &&
+    encrypted[table.name]?.columns?.[column.name]?.encrypted === true;
 
   const blockOwned = new Set(
     Object.values(blockTables(context.config).byBlock).flatMap((tables) =>
@@ -95,7 +129,8 @@ function plainSecretColumns(context: DoctorContext): FindingInput[] {
             SECRET_NAME.test(column.name) &&
             PLAIN_TYPES.has(column.udt) &&
             !column.generated &&
-            !encryptedInConfig(context, table, column),
+            !encryptedInConfig(table, column) &&
+            !sealedByTrigger(context, table, column),
         )
         .map((column) => {
           const target = `${qualified(table)}.${column.name}`;
@@ -119,7 +154,7 @@ export const PLAIN_SECRET_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Plain secret column next to a block that encrypts it",
     description:
-      "One of your tables has a `text`, `varchar` or `json` column whose name ends in `credentials`, `token` or `secret`, and `field-encryption` or `credentials` is installed. The value sits in the row as written, so every role that reads the row, and every backup, has the secret. Mark the column `encrypted: true` under `tables.<name>.columns` in the config (field-encryption), or move the secret to Vault with the credentials block and store a `credential_ref` instead. Block tables, columns already marked `encrypted` and names such as `token_hash` or `secret_id` are not reported.",
+      "One of your tables has a `text`, `varchar` or `json` column whose name ends in `credentials`, `token`, `secret` or `header_value`, and `field-encryption` or `credentials` is installed. The value sits in the row as written, so every role that reads the row, and every backup, has the secret. Mark the column `encrypted: true` under `tables.<name>.columns` in the config (field-encryption), or move the secret to Vault with the credentials block and store a `credential_ref` instead. Block tables, columns marked `encrypted` in the config or by an `@bsb encrypted` tag in the schema files, columns that a seal function listed in `tooling.doctor.sealTriggers` assigns in a `before` trigger, and names such as `token_hash` or `secret_id` are not reported.",
     check: plainSecretColumns,
   },
 ];
