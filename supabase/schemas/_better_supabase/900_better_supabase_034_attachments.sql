@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@7 managed
--- @bsb-hash sha256:1f6758c7a3b1d6c87b67e1fc1f99a1f940c5185e380ee2a5b665fa9327cdb80d
+-- @bsb-hash sha256:9fefae539e893064d9b6357cdab4faf0df076bd47e959aa6def504b8ba6484df
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -548,11 +548,14 @@ grant execute on function "better_supabase"."attachment_authors"(uuid[]) to auth
 
 create or replace function "better_supabase"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
-stable
+language plpgsql
+volatile
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from "better_supabase"."attachments" y
     where y."organization_id" is not distinct from list_attachments.tenant
@@ -560,8 +563,13 @@ as $$
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   ),
   m as (select "better_supabase"."attachment_authors"(array(select p."id" from page p)) as authors)
-  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) || jsonb_build_object('author', m.authors -> a."id"::text) order by a."created_at", a."id"), '[]'::jsonb)
-  from page a, m
+  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) || jsonb_build_object('author', m.authors -> a."id"::text) order by a."created_at", a."id"), '[]'::jsonb) into v_files
+  from page a, m;
+  if jsonb_array_length(v_files) > 0 and list_attachments.subject_type is not null and list_attachments.subject_id is not null then
+    perform "better_supabase"."record_subject_read"(list_attachments.subject_type, list_attachments.subject_id, null, 'attachments', 'list_attachments');
+  end if;
+  return v_files;
+end;
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)

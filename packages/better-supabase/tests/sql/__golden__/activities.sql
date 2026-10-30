@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@2 managed
--- @bsb-hash sha256:4082feb88f7731f38d5a42ba69c20feb9a5f7a628e799d1aa32c7a72f3a45ce2
+-- @bsb-hash sha256:2c397a65efb6d436f4e077ad5d061abe01259c89bfb868a53be32e713255b66e
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -381,12 +381,15 @@ grant execute on function "better_supabase"."delete_activity"(uuid) to authentic
 -- after the last row of the previous page.
 create or replace function "better_supabase"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
+declare
+  v_rows jsonb;
+begin
+  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb) into v_rows
   from (
     select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, coalesce(x."done_at", x."due_at", x."created_at") as at, x."id" as id
     from "better_supabase"."activities" x
@@ -396,7 +399,9 @@ as $$
       and (activities_of.before is null or coalesce(x."done_at", x."due_at", x."created_at") < activities_of.before)
     order by at desc, id desc
     limit least(greatest(coalesce(activities_of.page_size, 50), 1), 200)
-  ) p
+  ) p;
+  return v_rows;
+end;
 $$;
 revoke execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) to authenticated, service_role;
@@ -630,7 +635,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@2 managed
--- @bsb-hash sha256:faa046d32593b9d9eabffb757ed2dbf50a03289ad9079a46c14c0eb8464c6d08
+-- @bsb-hash sha256:6842b4dbac9f54bb6b73f884165490cce008faf2811190fe126622f41ab683c3
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1063,12 +1068,15 @@ grant execute on function "better_supabase"."delete_activity"(uuid) to authentic
 -- after the last row of the previous page.
 create or replace function "better_supabase"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
+declare
+  v_rows jsonb;
+begin
+  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb) into v_rows
   from (
     select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, coalesce(x."done_at", x."due_at", x."created_at") as at, x."id" as id
     from "better_supabase"."activities" x
@@ -1078,7 +1086,9 @@ as $$
       and (activities_of.before is null or coalesce(x."done_at", x."due_at", x."created_at") < activities_of.before)
     order by at desc, id desc
     limit least(greatest(coalesce(activities_of.page_size, 50), 1), 200)
-  ) p
+  ) p;
+  return v_rows;
+end;
 $$;
 revoke execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) to authenticated, service_role;
@@ -1389,7 +1399,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@2 managed
--- @bsb-hash sha256:c1485054e61c606c76827f9e2fcdbe6b62a6d25f2d5b77975cf95d73a63e7fac
+-- @bsb-hash sha256:dd3948f24f4a1050a889d3a10a546ec08373bbfc20dc7ff1ca46ca8a6a57394b
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1774,12 +1784,15 @@ grant execute on function "app_private"."delete_activity"(uuid) to authenticated
 -- after the last row of the previous page.
 create or replace function "app_private"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
+declare
+  v_rows jsonb;
+begin
+  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb) into v_rows
   from (
     select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "app_private"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, coalesce(x."done_at", x."due_at", x."created_at") as at, x."id" as id
     from "app_private"."activities" x
@@ -1789,7 +1802,9 @@ as $$
       and (activities_of.before is null or coalesce(x."done_at", x."due_at", x."created_at") < activities_of.before)
     order by at desc, id desc
     limit least(greatest(coalesce(activities_of.page_size, 50), 1), 200)
-  ) p
+  ) p;
+  return v_rows;
+end;
 $$;
 revoke execute on function "app_private"."activities_of"(text, text, text[], timestamptz, integer) from public, anon;
 grant execute on function "app_private"."activities_of"(text, text, text[], timestamptz, integer) to authenticated, service_role;
@@ -2023,7 +2038,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@2 managed
--- @bsb-hash sha256:f5d47c94803456d938cc78b0347ba3be30cd10a2156ccd9bbc4d98c70d648613
+-- @bsb-hash sha256:6b1a2aedd2bca9824a4f48ebca11668e5c4ecf2fab25dd774a741e0110609301
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2403,12 +2418,15 @@ grant execute on function "better_supabase"."delete_activity"(uuid) to authentic
 -- after the last row of the previous page.
 create or replace function "better_supabase"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
+declare
+  v_rows jsonb;
+begin
+  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb) into v_rows
   from (
     select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, coalesce(x."done_at", x."due_at", x."created_at") as at, x."id" as id
     from "better_supabase"."activities" x
@@ -2418,7 +2436,9 @@ as $$
       and (activities_of.before is null or coalesce(x."done_at", x."due_at", x."created_at") < activities_of.before)
     order by at desc, id desc
     limit least(greatest(coalesce(activities_of.page_size, 50), 1), 200)
-  ) p
+  ) p;
+  return v_rows;
+end;
 $$;
 revoke execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) to authenticated, service_role;
@@ -2755,7 +2775,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@2 managed
--- @bsb-hash sha256:6291bf8dea04175963434ceb57f69173b8388a86becca948812f90007903c3b9
+-- @bsb-hash sha256:39dd411bf45e90c9c0886f9572c0c11a6ff415081e377d7889ef3f3a50ef3f1b
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3147,12 +3167,15 @@ grant execute on function "better_supabase"."delete_activity"(uuid) to authentic
 -- after the last row of the previous page.
 create or replace function "better_supabase"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
+declare
+  v_rows jsonb;
+begin
+  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb) into v_rows
   from (
     select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'type', x."type", 'title', x."title", 'body', x."body", 'outcome', x."outcome", 'owner_user_id', x."owner_user_id", 'due_at', x."due_at", 'done_at', x."done_at", 'duration_seconds', x."duration_seconds", 'external_ref', x."external_ref", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at", 'audience', x."audience", 'restricted_roles', x."restricted_roles", 'category', x."category", 'locked_at', x."locked_at", 'amends_id', x."amends_id", 'goal_id', x."goal_id", 'marked_error_at', x."marked_error_at", 'marked_error_by', x."marked_error_by", 'marked_error_reason', x."marked_error_reason") || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, coalesce(x."done_at", x."due_at", x."created_at") as at, x."id" as id
     from "better_supabase"."activities" x
@@ -3162,7 +3185,9 @@ as $$
       and (activities_of.before is null or coalesce(x."done_at", x."due_at", x."created_at") < activities_of.before)
     order by at desc, id desc
     limit least(greatest(coalesce(activities_of.page_size, 50), 1), 200)
-  ) p
+  ) p;
+  return v_rows;
+end;
 $$;
 revoke execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) to authenticated, service_role;
@@ -3396,7 +3421,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@2 managed
--- @bsb-hash sha256:d5a6a8f2342ee3590e6f19a64aa73b68b8c546d22d0df72e44a12ef8e719b1cd
+-- @bsb-hash sha256:98045edade1d3be0c8f0966e9c2d165f90dd052d6765101ba8f2ecad4c08296e
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3776,12 +3801,15 @@ grant execute on function "better_supabase"."delete_activity"(uuid) to authentic
 -- after the last row of the previous page.
 create or replace function "better_supabase"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
+declare
+  v_rows jsonb;
+begin
+  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb) into v_rows
   from (
     select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, coalesce(x."done_at", x."due_at", x."created_at") as at, x."id" as id
     from "better_supabase"."activities" x
@@ -3791,7 +3819,9 @@ as $$
       and (activities_of.before is null or coalesce(x."done_at", x."due_at", x."created_at") < activities_of.before)
     order by at desc, id desc
     limit least(greatest(coalesce(activities_of.page_size, 50), 1), 200)
-  ) p
+  ) p;
+  return v_rows;
+end;
 $$;
 revoke execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) to authenticated, service_role;

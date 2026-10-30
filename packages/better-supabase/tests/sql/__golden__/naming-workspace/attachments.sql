@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@7 managed
--- @bsb-hash sha256:c56d5455b60b333038f06cb42b709ed7aee9f4e814f1dff386d0c24aced86be8
+-- @bsb-hash sha256:5f3f7dd0ff574c19424dc0170c2b6c6edbf854d752e1c684071bb912a0638db3
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -470,19 +470,24 @@ $$;
 
 create or replace function "better_supabase"."list_attachments"(tenant uuid, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
+language plpgsql
 stable
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from "better_supabase"."attachments" y
     where y."workspace_id" is not distinct from list_attachments.tenant
       and (list_attachments.subject_type is null or y."subject_type" = list_attachments.subject_type)
       and (list_attachments.subject_id is null or y."subject_id" = list_attachments.subject_id)
   )
-  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb)
-  from page a
+  select coalesce(jsonb_agg((to_jsonb(a) || jsonb_build_object('object_path', (case when a."version" > 1 then a."object_path" || '-v' || a."version"::text else a."object_path" end))) order by a."created_at", a."id"), '[]'::jsonb) into v_files
+  from page a;
+  return v_files;
+end;
 $$;
 
 create or replace function "better_supabase"."get_attachment"(id uuid)

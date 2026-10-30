@@ -4,6 +4,7 @@ import type { Subject } from "../subjects.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { readIfAny } from "../read-if-any.ts";
 import {
   addExtraColumns,
   ensureCheck,
@@ -739,11 +740,14 @@ $$;${authors?.sql ?? ""}
 
 create or replace function ${fn("list_attachments")}(tenant ${id}, subject_type text default null, subject_id text default null)
 returns jsonb
-language sql
-stable
+language plpgsql
+${ctx.readVolatility()}
 security invoker
 set search_path = ''
 as $$
+declare
+  v_files jsonb;
+begin
   with page as (
     select * from ${t} y
     where y.${c("tenant")} is not distinct from list_attachments.tenant
@@ -755,8 +759,18 @@ as $$
       : `,
   m as (select ${authors.call(`array(select p.${c("id")} from page p)`)} as authors)`
   }
-  select coalesce(jsonb_agg(${listJson("a")} order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb)
-  from page a${authors === undefined ? "" : ", m"}
+  select coalesce(jsonb_agg(${listJson("a")} order by a.${c("createdAt")}, a.${c("id")}), '[]'::jsonb) into v_files
+  from page a${authors === undefined ? "" : ", m"};${readIfAny(
+    ctx.read(
+      "list_attachments.subject_type",
+      "list_attachments.subject_id",
+      "list_attachments",
+    ),
+    "v_files",
+    "list_attachments.subject_type is not null and list_attachments.subject_id is not null",
+  )}
+  return v_files;
+end;
 $$;
 
 create or replace function ${fn("get_attachment")}(id uuid)

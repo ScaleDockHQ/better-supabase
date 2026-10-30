@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@2 managed
--- @bsb-hash sha256:baa494cfb10a4f73a9478f67e4cab9c89975e3fc990f5b11d24d8b55aef23ff8
+-- @bsb-hash sha256:96cd0be7536288091da496460304aee1e271acb0dc20d1e7371fc5319671b011
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -535,12 +535,15 @@ grant execute on function "better_supabase"."delete_activity"(uuid) to authentic
 -- after the last row of the previous page.
 create or replace function "better_supabase"."activities_of"(subject_type text, subject_id text, types text[], before timestamptz, page_size integer)
 returns jsonb
-language sql
-stable
+language plpgsql
+volatile
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb)
+declare
+  v_rows jsonb;
+begin
+  select coalesce(jsonb_agg(p.value order by p.at desc, p.id desc), '[]'::jsonb) into v_rows
   from (
     select to_jsonb(x) || jsonb_build_object('subjects', coalesce((select jsonb_agg(jsonb_build_object('type', sx."subject_type", 'id', sx."subject_id") order by sx."position") from "better_supabase"."engagement_subjects" sx where sx."engagement_id" = x."id"), '[]'::jsonb), 'overdue', x."done_at" is null and x."due_at" < now()) as value, coalesce(x."done_at", x."due_at", x."created_at") as at, x."id" as id
     from "better_supabase"."activities" x
@@ -550,7 +553,12 @@ as $$
       and (activities_of.before is null or coalesce(x."done_at", x."due_at", x."created_at") < activities_of.before)
     order by at desc, id desc
     limit least(greatest(coalesce(activities_of.page_size, 50), 1), 200)
-  ) p
+  ) p;
+  if jsonb_array_length(v_rows) > 0 then
+    perform "better_supabase"."record_subject_read"(activities_of.subject_type, activities_of.subject_id, null, 'activities', 'activities_of');
+  end if;
+  return v_rows;
+end;
 $$;
 revoke execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) from public, anon;
 grant execute on function "better_supabase"."activities_of"(text, text, text[], timestamptz, integer) to authenticated, service_role;
