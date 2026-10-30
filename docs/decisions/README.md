@@ -148,3 +148,4 @@ add one, and link it from the code or config it explains.
 | [0144](0144-general-ledger-extensions-and-audit-files.md)     | `accounting` gains levels, locks, opening balances, open items and payment batches; SAF-T and XAF as an adapter subpath                            |
 | [0145](0145-document-template-variables.md)                   | Document templates read a typed variable contract, look up per entity and language, and use tenant-editable text blocks                            |
 | [0146](0146-drive-document-number-formats.md)                 | Controlled document types can set a `numberFormat` and count from their own numbering entity                                                       |
+| [0147](0147-remove-047-deprecated-wrappers.md)                | The deprecated compliance acknowledgement wrappers and `inbox.contacts.upsert` are removed before 0.47 ships                                       |

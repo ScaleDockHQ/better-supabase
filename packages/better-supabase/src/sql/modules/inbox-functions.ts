@@ -369,29 +369,6 @@ end;`
 $$;
 ${authed(`${fn("set_inbox_team_member")}(uuid, uuid, boolean)`)}
 
--- Deprecated: contacts are people of the contacts block. Finds or creates the
--- person by id, identity, user or email and returns it as an inbox contact.
-create or replace function ${fn("upsert_contact")}(tenant ${id}, input jsonb)
-returns jsonb
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_person uuid;
-begin
-  if not (${service} or ${q.can("upsert_contact.tenant", "reply")}) then
-    ${forbidden("not allowed to edit contacts")}
-  end if;
-  v_person := ${people.resolve}(upsert_contact.tenant, coalesce(input, '{}'::jsonb));
-  return (
-    select jsonb_build_object('id', p.${pc("id")}, 'tenant_id', p.${pc("tenant")}, 'user_id', ${people.or("p", "user")}, 'name', ${people.or("p", "name")}, 'email', ${people.or("p", "email")}, 'phone', ${people.or("p", "phone")}, 'avatar_url', ${people.or("p", "avatarUrl")}, 'metadata', ${people.has("metadata") ? `p.${pc("metadata")}` : "'{}'::jsonb"}, 'created_at', ${people.or("p", "createdAt")})
-    from ${people.t} p where p.${pc("id")} = v_person
-  );
-end;
-$$;
-${authed(`${fn("upsert_contact")}(${id}, jsonb)`)}
-
 -- Stores a message on a conversation as a core message with its inbox
 -- fields, and moves the conversation along: the preview, the first response,
 -- a reopen when the contact writes, the files, the bot job, the outbound job

@@ -7,13 +7,12 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { AsyncResult } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
-import { dbError } from "../../core/errors.ts";
-import { AsyncResult } from "../../core/result.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import {
   applyTemporal,
@@ -48,12 +47,6 @@ export interface ComplianceOptions<
   /** Receives the errors `after` hooks throw. Default: `console`. */
   readonly logger?: Logger;
   readonly mappers?: readonly ErrorMapper[];
-  /**
-   * The subject type of policies in the acknowledgements block, when
-   * `blocks.compliance.entities` renames `compliance_policy`. Default
-   * `compliance_policy`.
-   */
-  readonly policySubjectType?: string;
 }
 
 /**
@@ -272,32 +265,6 @@ export interface PolicyInput {
 
 export interface PolicyListOptions {
   readonly includeArchived?: boolean;
-  /**
-   * The published policies the caller still has to acknowledge.
-   *
-   * @deprecated Use `mine(organizationId)` of the acknowledgements block; this
-   * option is removed in the next minor release.
-   */
-  readonly pendingOnly?: boolean;
-}
-
-/** A member assigned to acknowledge a policy's published version. */
-interface PolicyMember {
-  readonly userId: string;
-  /** Missing: not acknowledged yet. */
-  readonly acknowledgedAt?: Temporal.Instant;
-}
-
-/**
- * Who acknowledged a policy's published version.
- *
- * @deprecated Use `status` and `of` of the acknowledgements block.
- */
-export interface PolicyAcknowledgements {
-  readonly policyId: string;
-  readonly versionId?: string;
-  readonly versionNumber?: number;
-  readonly members: readonly PolicyMember[];
 }
 
 export interface Compliance<F extends object = Record<never, never>> {
@@ -354,27 +321,10 @@ export interface Compliance<F extends object = Record<never, never>> {
     label?: string,
   ): AsyncResult<Policy>;
   archivePolicy(policyId: string): AsyncResult<Policy>;
-  /**
-   * The caller acknowledges the published version, through `acknowledge` of the
-   * acknowledgements block. Needs `acknowledgements.acknowledge`.
-   *
-   * @deprecated Use `acknowledge({ type: "compliance_policy", id })` of the
-   * acknowledgements block; this method is removed in the next minor release.
-   */
-  acknowledgePolicy(policyId: string): AsyncResult<Policy>;
   policies(
     organizationId: string,
     options?: PolicyListOptions,
   ): AsyncResult<readonly Policy[]>;
-  /**
-   * The assigned members and when they acknowledged the published version,
-   * through the acknowledgements block. Needs `acknowledgements.read`.
-   *
-   * @deprecated Use `status` and `of` of the acknowledgements block; this
-   * method is removed in the next minor release.
-   */
-  // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper itself, removed in 0.48
-  acknowledgements(policyId: string): AsyncResult<PolicyAcknowledgements>;
 }
 
 const KINDS: readonly ControlFrameworkKind[] = [
@@ -541,29 +491,6 @@ function policyOf(value: unknown, fn: string): Policy {
   };
 }
 
-function pendingOf(value: unknown, fn: string): PolicyPending {
-  const row = recordOf(value, fn);
-
-  return {
-    userIds: recordsOf(row["pending"] ?? [], fn).map((member) =>
-      textOf(member["userId"]),
-    ),
-    ...optional("versionId", optionalText(row["versionId"])),
-  };
-}
-
-interface PolicyPending {
-  readonly versionId?: string;
-  readonly userIds: readonly string[];
-}
-
-function acknowledgedOf(value: unknown, fn: string): readonly PolicyMember[] {
-  return recordsOf(value, fn).map((row) => ({
-    userId: textOf(row["userId"]),
-    ...optional("acknowledgedAt", optionalInstant(row["acknowledgedAt"])),
-  }));
-}
-
 const many =
   <T>(fn: string, of: (value: unknown, fn: string) => T) =>
   (value: unknown): readonly T[] =>
@@ -581,7 +508,6 @@ export function createCompliance<
   const fields: BlockFields<F> = blockFields(options.fields, "control fields");
 
   const policy = (fn: string) => (value: unknown) => policyOf(value, fn);
-  const policyType = options.policySubjectType ?? "compliance_policy";
 
   const listPolicies = (
     organizationId: string,
@@ -591,20 +517,6 @@ export function createCompliance<
       "list_compliance_policies",
       { tenant: organizationId, include_archived: includeArchived },
       many("list_compliance_policies", policyOf),
-    );
-
-  const pendingIds = (
-    organizationId: string,
-  ): AsyncResult<ReadonlySet<string>> =>
-    call(
-      "list_my_acknowledgements",
-      { tenant: organizationId, pending_only: true },
-      (value) =>
-        new Set(
-          recordsOf(value, "list_my_acknowledgements")
-            .filter((row) => row["subjectType"] === policyType)
-            .map((row) => textOf(row["subjectId"])),
-        ),
     );
 
   const client: Compliance<F> = {
@@ -737,66 +649,8 @@ export function createCompliance<
         { policy_id: policyId },
         policy("archive_compliance_policy"),
       ),
-    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper itself, removed in 0.48
-    acknowledgePolicy: (policyId) =>
-      call(
-        "acknowledge",
-        {
-          subject_type: policyType,
-          subject_id: policyId,
-          version_id: null,
-          signature_id: null,
-        },
-        (value) => textOf(recordOf(value, "acknowledge")["organizationId"]),
-      ).andThen((organizationId) =>
-        listPolicies(organizationId, true).andThen((items) => {
-          const found = items.find((item) => item.id === policyId);
-
-          return found === undefined
-            ? AsyncResult.err(
-                dbError("not_found", "policy not found", {
-                  hint: "COMPLIANCE_POLICY_NOT_FOUND",
-                }),
-              )
-            : AsyncResult.ok(found);
-        }),
-      ),
-    policies: (organizationId, list = {}) => {
-      const all = listPolicies(organizationId, list.includeArchived ?? false);
-
-      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper itself, removed in 0.48
-      return list.pendingOnly === true
-        ? all.andThen((items) =>
-            pendingIds(organizationId).map((pending) =>
-              items.filter((item) => pending.has(item.id)),
-            ),
-          )
-        : all;
-    },
-    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper itself, removed in 0.48
-    acknowledgements: (policyId) =>
-      call(
-        "acknowledgement_status",
-        { subject_type: policyType, subject_id: policyId },
-        (value) => pendingOf(value, "acknowledgement_status"),
-      ).andThen((pending) =>
-        call(
-          "acknowledgements_of",
-          {
-            subject_type: policyType,
-            subject_id: policyId,
-            version_id: pending.versionId ?? null,
-          },
-          (value) => ({
-            policyId,
-            members: [
-              ...acknowledgedOf(value, "acknowledgements_of"),
-              ...pending.userIds.map((userId) => ({ userId })),
-            ],
-            ...optional("versionId", pending.versionId),
-          }),
-        ),
-      ),
+    policies: (organizationId, list = {}) =>
+      listPolicies(organizationId, list.includeArchived ?? false),
   };
 
   return withBlockHooks(client, options.hooks, {
