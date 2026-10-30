@@ -60,6 +60,7 @@ import type { LeadScoringSqlOptions } from "./lead-scoring/options.ts";
 import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MailSyncSqlOptions } from "./mail-sync/options.ts";
+import type { ManufacturingSqlOptions } from "./manufacturing/options.ts";
 import type { MedicationsSqlOptions } from "./medications/options.ts";
 import type { MembershipsSqlOptions } from "./memberships/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
@@ -198,6 +199,7 @@ import { leadScoringSqlOptions } from "./lead-scoring/options.ts";
 import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { mailSyncSqlOptions } from "./mail-sync/options.ts";
+import { manufacturingSqlOptions } from "./manufacturing/options.ts";
 import { medicationsSqlOptions } from "./medications/options.ts";
 import { membershipsSqlOptions } from "./memberships/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
@@ -359,6 +361,7 @@ export interface BlockOptionsRegistry {
   readonly leave: LeaveSqlOptions;
   readonly ledger: None;
   readonly "mail-sync": MailSyncSqlOptions;
+  readonly manufacturing: ManufacturingSqlOptions;
   readonly memberships: MembershipsSqlOptions;
   readonly memory: MemorySqlOptions;
   readonly messaging: MessagingSqlOptions;
@@ -458,6 +461,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "api-keys": apiKeysSqlOptions,
   approvals: approvalsSqlOptions,
   assets: assetsSqlOptions,
+  manufacturing: manufacturingSqlOptions,
   passes: passesSqlOptions,
   assignment: NO_OPTIONS,
   attachments: attachmentsSqlOptions,

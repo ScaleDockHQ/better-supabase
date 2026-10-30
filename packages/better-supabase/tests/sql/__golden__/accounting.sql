@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:49c0029f9d9ec018597a03fdcd37676077d3497a337b28aeeabbba389a0bd71d
+-- @bsb-hash sha256:a9b5563c2e698396cc282af29a16f8d48ee4550f7d43e8d223d21fb3d8ff2f07
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -205,7 +205,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -525,6 +525,7 @@ begin
       (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
       (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
       (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false),
       (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
       (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
       (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
@@ -543,7 +544,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false);
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -735,7 +736,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -2725,7 +2726,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:ae9989238fecb23f15433b86847f64e44d4d522bed29e13a1ee4fd827f445c05
+-- @bsb-hash sha256:b14ccb4c7fd525aa7d023c5a7e38419e55fe117352e568ab669869ceb5c09f6e
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2929,7 +2930,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -3267,6 +3268,7 @@ begin
       (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
       (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
       (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false),
       (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
       (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
       (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
@@ -3285,7 +3287,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false);
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -3477,7 +3479,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -4355,7 +4357,7 @@ declare
   v_descriptions text[] := '{}';
 begin
   if accounting_post_source.source_type is null or accounting_post_source.source_id is null
-    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift') then
+    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order') then
     raise exception 'no installed block books this source type' using errcode = '22023', hint = 'ACCOUNTING_SOURCE_INVALID';
   end if;
   v_doc := case accounting_post_source.source_type
@@ -4369,6 +4371,7 @@ begin
     when 'expense_report' then "better_supabase"."accounting_expense_report_lines"(accounting_post_source.source_id)
     when 'expense_reimbursement' then "better_supabase"."accounting_expense_reimbursement_lines"(accounting_post_source.source_id)
     when 'gift' then "better_supabase"."accounting_gift_lines"(accounting_post_source.source_id)
+    when 'production_order' then "better_supabase"."accounting_production_order_lines"(accounting_post_source.source_id)
   end;
   v_kind := case accounting_post_source.source_type
     when 'stock_movement' then 'general'
@@ -4381,6 +4384,7 @@ begin
     when 'expense_report' then 'purchase'
     when 'expense_reimbursement' then 'bank'
     when 'gift' then 'bank'
+    when 'production_order' then 'general'
   end;
   if v_doc is null or jsonb_typeof(v_doc -> 'lines') is distinct from 'array' then
     return null;
@@ -5570,7 +5574,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:a067a69d1ebb4a5054621e3e2157031d605869cccde51622ffc27a317b9fc347
+-- @bsb-hash sha256:1b389476a1d150c2b6fc88a0caa8a7f13d4b2f340e8671d6167084589a281762
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5779,7 +5783,7 @@ create policy accounting_accounts_read on "app_private"."accounting_accounts"
 
 create table if not exists "app_private"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -6099,6 +6103,7 @@ begin
       (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
       (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
       (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false),
       (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
       (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
       (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
@@ -6117,7 +6122,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false);
     insert into "app_private"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "app_private"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -6309,7 +6314,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -8299,7 +8304,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:5a2bd7f495afcbef29858f2d0ec105112e76cf1fcf33bf853f1d91b0acd69c47
+-- @bsb-hash sha256:97f25f9b3ad862d217ed094429eed410bb226a758d1ae256dd3ad317ff9af20c
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8503,7 +8508,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -8823,6 +8828,7 @@ begin
       (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
       (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
       (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false),
       (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
       (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
       (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
@@ -8841,7 +8847,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false);
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -9033,7 +9039,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -11389,7 +11395,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2103d00db47166926b08dea420f502a77545195dbca31f58a523227bb83280f4
+-- @bsb-hash sha256:1dcb898742082353323075bc8d134c479fbdb779d61e939b016133426a55f182
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11587,7 +11593,7 @@ create policy bsb_accounting_accounts_select on "better_supabase"."accounting_ac
 
 -- better_supabase.accounting_account_roles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_account_roles" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
+alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
 alter table "better_supabase"."accounting_account_roles" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_account_roles" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "accounting_account_roles_tenant_id_role_key" on "better_supabase"."accounting_account_roles" ("tenant_id", "role");
@@ -11873,6 +11879,7 @@ begin
       (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
       (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
       (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false),
       (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
       (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
       (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
@@ -11891,7 +11898,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false);
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -12083,7 +12090,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -14066,7 +14073,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:a7225015763a4fd11aa920fd20de631d668bff1b22833a1dac2db0e3eb56da14
+-- @bsb-hash sha256:d3f3c99def5a545fd9a417cc8771396438e9422517e8299496970c33bba2ff3f
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14270,7 +14277,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "org_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "role")
@@ -14590,6 +14597,7 @@ begin
       (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
       (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
       (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false),
       (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
       (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
       (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
@@ -14608,7 +14616,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false);
     insert into "better_supabase"."accounting_account_roles" ("org_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."org_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("org_id", "role") do nothing;
   end if;
@@ -14800,7 +14808,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then

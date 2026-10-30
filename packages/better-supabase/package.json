@@ -1080,6 +1080,11 @@
       "types": "./dist/blocks/inspections/index.d.ts",
       "default": "./dist/blocks/inspections/index.js"
     },
+    "./blocks/manufacturing": {
+      "@better-supabase/source": "./src/blocks/manufacturing/index.ts",
+      "types": "./dist/blocks/manufacturing/index.d.ts",
+      "default": "./dist/blocks/manufacturing/index.js"
+    },
     "./blocks/shifts": {
       "@better-supabase/source": "./src/blocks/shifts/index.ts",
       "types": "./dist/blocks/shifts/index.d.ts",
@@ -1983,6 +1988,10 @@
       "./blocks/inspections": {
         "types": "./dist/blocks/inspections/index.d.ts",
         "default": "./dist/blocks/inspections/index.js"
+      },
+      "./blocks/manufacturing": {
+        "types": "./dist/blocks/manufacturing/index.d.ts",
+        "default": "./dist/blocks/manufacturing/index.js"
       },
       "./blocks/shifts": {
         "types": "./dist/blocks/shifts/index.d.ts",

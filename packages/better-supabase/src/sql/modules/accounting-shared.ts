@@ -21,6 +21,7 @@ export const ACCOUNT_ROLES = [
   "revenue",
   "cogs",
   "inventory",
+  "work_in_progress",
   "tax_payable",
   "tax_receivable",
   "retained_earnings",
@@ -97,6 +98,13 @@ export const GENERIC_CHART: readonly ChartAccount[] = [
     type: "asset",
     subtype: "inventory",
     role: "inventory",
+  },
+  {
+    code: "1350",
+    name: "Work in progress",
+    type: "asset",
+    subtype: "inventory",
+    role: "work_in_progress",
   },
   {
     code: "1400",

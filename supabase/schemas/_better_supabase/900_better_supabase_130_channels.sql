@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:79afa8199ee4042708ac5347258b3e6efb00e435efa230dfacae0539f4165617
+-- @bsb-hash sha256:4a909768ce5700470888fbc4860b84fa4fc72306219693ac12cc8e3d1e48c6f8
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -163,6 +163,8 @@ begin
       when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)

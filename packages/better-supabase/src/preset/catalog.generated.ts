@@ -8294,6 +8294,233 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "manufacturing",
+      "title": "Manufacturing",
+      "category": "commerce",
+      "requires": [
+        "memberships",
+        "permissions",
+        "catalog",
+        "inventory",
+        "numbering"
+      ],
+      "integrates": [
+        "assets",
+        "drive",
+        "inspections",
+        "accounting",
+        "outbox",
+        "audit",
+        "numbering"
+      ],
+      "manifest": "manufacturing",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "orders",
+      "entities": {
+        "specs": {
+          "production_order": {
+            "table": "orders",
+            "singular": "production_order",
+            "primary": true,
+            "subject": {
+              "title": "number",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "number",
+                "body": [
+                  "note"
+                ]
+              }
+            }
+          },
+          "bom": {
+            "table": "boms",
+            "singular": "bom"
+          },
+          "bom_component": {
+            "table": "components",
+            "singular": "bom_component"
+          },
+          "bom_operation": {
+            "table": "operations",
+            "singular": "bom_operation"
+          },
+          "work_center": {
+            "table": "workCenters",
+            "singular": "work_center",
+            "subject": {
+              "title": "name",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "manage"
+              }
+            }
+          },
+          "production_order_operation": {
+            "table": "orderOperations",
+            "singular": "production_order_operation"
+          },
+          "production_consumption": {
+            "table": "consumptions",
+            "singular": "production_consumption"
+          },
+          "stock_lot_link": {
+            "table": "lotLinks",
+            "singular": "stock_lot_link"
+          }
+        },
+        "tables": {
+          "orders": {
+            "name": "production_orders",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "sequence": "sequence",
+              "variant": "variant_id",
+              "bom": "bom_id",
+              "quantity": "quantity",
+              "location": "location_id",
+              "dueOn": "due_on",
+              "status": "status",
+              "produced": "produced_quantity",
+              "scrap": "scrap_quantity",
+              "outputLot": "output_lot_id",
+              "materialCost": "material_cost",
+              "laborCost": "labor_cost",
+              "currency": "currency",
+              "note": "note",
+              "releasedAt": "released_at",
+              "startedAt": "started_at",
+              "completedAt": "completed_at",
+              "canceledAt": "canceled_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "boms": {
+            "name": "boms",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "variant": "variant_id",
+              "version": "version",
+              "status": "status",
+              "quantity": "quantity",
+              "note": "note",
+              "activatedAt": "activated_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "components": {
+            "name": "bom_components",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "bom": "bom_id",
+              "position": "position",
+              "variant": "variant_id",
+              "quantity": "quantity",
+              "scrapBps": "scrap_bps",
+              "operation": "operation_id"
+            }
+          },
+          "operations": {
+            "name": "bom_operations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "bom": "bom_id",
+              "sequence": "sequence",
+              "workCenter": "work_center_id",
+              "title": "title",
+              "setupMinutes": "setup_minutes",
+              "runMinutes": "run_minutes_per_unit",
+              "instructions": "instructions_node_id",
+              "inspectionTemplate": "inspection_template"
+            }
+          },
+          "workCenters": {
+            "name": "work_centers",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "asset": "asset_id",
+              "hoursPerDay": "hours_per_day",
+              "costRate": "cost_rate",
+              "currency": "currency",
+              "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "orderOperations": {
+            "name": "production_order_operations",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "order": "order_id",
+              "operation": "operation_id",
+              "sequence": "sequence",
+              "workCenter": "work_center_id",
+              "title": "title",
+              "plannedMinutes": "planned_minutes",
+              "status": "status",
+              "startedAt": "started_at",
+              "finishedAt": "finished_at",
+              "operator": "operator_id",
+              "minutes": "minutes",
+              "inspection": "inspection_id"
+            }
+          },
+          "consumptions": {
+            "name": "production_consumptions",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "order": "order_id",
+              "variant": "variant_id",
+              "lot": "lot_id",
+              "serial": "serial",
+              "quantity": "quantity",
+              "cost": "cost",
+              "currency": "currency",
+              "movement": "movement_id",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          },
+          "lotLinks": {
+            "name": "stock_lot_links",
+            "columns": {
+              "tenant": "tenant_id",
+              "parent": "parent_lot_id",
+              "child": "child_lot_id",
+              "order": "order_id",
+              "quantity": "quantity",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "manufacturing.read",
+          "write": "manufacturing.write",
+          "produce": "manufacturing.produce",
+          "manage": "manufacturing.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -18204,6 +18431,302 @@ export const PRESET_CATALOG: PresetCatalog = {
           "inspection_finding.updated",
           "inspection_finding.deleted",
           "inspection_finding.case_raised"
+        ]
+      }
+    },
+    {
+      "name": "manufacturing",
+      "sql": [
+        "manufacturing"
+      ],
+      "category": "commerce",
+      "client": {
+        "export": "manufacturingBlock",
+        "subpath": "better-supabase/blocks/manufacturing"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Bom"
+        },
+        {
+          "name": "BomActivatedEventData"
+        },
+        {
+          "name": "BomComponent"
+        },
+        {
+          "name": "BomComponentInput"
+        },
+        {
+          "name": "BomDetail"
+        },
+        {
+          "name": "BomExplosion"
+        },
+        {
+          "name": "BomExplosionLine"
+        },
+        {
+          "name": "BomInput"
+        },
+        {
+          "name": "BomOperation"
+        },
+        {
+          "name": "BomOperationInput"
+        },
+        {
+          "name": "BomStatus"
+        },
+        {
+          "name": "BomUse"
+        },
+        {
+          "name": "ProductionConsumption"
+        },
+        {
+          "name": "ProductionOrder",
+          "fields": true
+        },
+        {
+          "name": "ProductionOrderCancelledEventData"
+        },
+        {
+          "name": "ProductionOrderCompletedEventData"
+        },
+        {
+          "name": "ProductionOrderComponent"
+        },
+        {
+          "name": "ProductionOrderDetail",
+          "fields": true
+        },
+        {
+          "name": "ProductionOrderEventData"
+        },
+        {
+          "name": "ProductionOrderInput",
+          "fields": true
+        },
+        {
+          "name": "ProductionOrderListOptions"
+        },
+        {
+          "name": "ProductionOrderOperation"
+        },
+        {
+          "name": "ProductionOrderStatus"
+        },
+        {
+          "name": "WorkCenter"
+        },
+        {
+          "name": "WorkCenterInput"
+        }
+      ],
+      "entitySchemas": {
+        "bom": {
+          "input": {
+            "title": "BomInput",
+            "fields": {
+              "quantity": {
+                "kind": "number",
+                "optional": true,
+                "description": "How many units the components make. Default 1."
+              },
+              "components": {
+                "kind": "json",
+                "array": true,
+                "description": "At least one: `{ variantId, quantity, scrapBps, operation }`."
+              },
+              "operations": {
+                "kind": "json",
+                "array": true,
+                "optional": true,
+                "description": "The routing: `{ sequence, workCenterId, title, setupMinutes, runMinutesPerUnit, instructionsNodeId, inspectionTemplate }`."
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "BomInput",
+              "type": "object",
+              "properties": {
+                "quantity": {
+                  "type": "number",
+                  "description": "How many units the components make. Default 1."
+                },
+                "components": {
+                  "type": "array",
+                  "items": {},
+                  "description": "At least one: `{ variantId, quantity, scrapBps, operation }`."
+                },
+                "operations": {
+                  "type": "array",
+                  "items": {},
+                  "description": "The routing: `{ sequence, workCenterId, title, setupMinutes, runMinutesPerUnit, instructionsNodeId, inspectionTemplate }`."
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "components"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "work_center": {
+          "input": {
+            "title": "WorkCenterInput",
+            "fields": {
+              "name": {
+                "kind": "string",
+                "optional": true,
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "assetId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "hoursPerDay": {
+                "kind": "number",
+                "optional": true
+              },
+              "costRate": {
+                "kind": "json",
+                "optional": true,
+                "description": "Per hour, as `Money`."
+              },
+              "archived": {
+                "kind": "boolean",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "WorkCenterInput",
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "assetId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "hoursPerDay": {
+                  "type": "number"
+                },
+                "costRate": {
+                  "description": "Per hour, as `Money`."
+                },
+                "archived": {
+                  "type": "boolean"
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "production_order": {
+          "input": {
+            "title": "ProductionOrderInput",
+            "fields": {
+              "variantId": {
+                "kind": "uuid"
+              },
+              "quantity": {
+                "kind": "number",
+                "description": "More than zero."
+              },
+              "locationId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "dueOn": {
+                "kind": "plainDate",
+                "optional": true
+              },
+              "bomId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "note": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "ProductionOrderInput",
+              "type": "object",
+              "properties": {
+                "variantId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "quantity": {
+                  "type": "number",
+                  "description": "More than zero."
+                },
+                "locationId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "dueOn": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "bomId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "note": {
+                  "type": "string",
+                  "maxLength": 10000
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "variantId",
+                "quantity"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "ManufacturingEvents",
+        "types": [
+          "bom.activated",
+          "production_order.released",
+          "production_order.completed",
+          "production_order.cancelled"
         ]
       }
     },

@@ -408,6 +408,16 @@ msgctxt "navigation.6D4Ghb"
 msgid "Toggle sidebar"
 msgstr "Zijbalk tonen of verbergen"
 
+#: src/app/[locale]/(app)/manufacturing/page.tsx
+msgctxt "manufacturing.z3FEm2"
+msgid "Manufacturing"
+msgstr "Productie"
+
+#: src/app/[locale]/(app)/manufacturing/page.tsx
+msgctxt "manufacturing.72yJZj"
+msgid "Production orders from draft to done, consuming components from stock and receiving the output at its cost."
+msgstr "Productieorders van concept tot gereed, die componenten uit de voorraad verbruiken en de output tegen kostprijs ontvangen."
+
 #: src/app/[locale]/(app)/medications/page.tsx
 msgctxt "medications.gOuYI7"
 msgid "Medications"
@@ -8734,6 +8744,86 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nog niets gevonden. Een nieuw document is doorzoekbaar zodra het klaar is."
 
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.W6nwjo"
+msgid "Draft"
+msgstr "Concept"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.GnNfTd"
+msgid "Released"
+msgstr "Vrijgegeven"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.q1WWIr"
+msgid "In progress"
+msgstr "In uitvoering"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.JXdbo8"
+msgid "Done"
+msgstr "Gereed"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.kQuSP0"
+msgid "{produced} of {planned} made"
+msgstr "{produced} van {planned} gemaakt"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.B2yYsP"
+msgid "{planned} to make"
+msgstr "{planned} te maken"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.eq1e8s"
+msgid "Unknown product"
+msgstr "Onbekend product"
+
+#: src/features/manufacturing/components/production-order-board.tsx
+msgctxt "manufacturing.K6blXA"
+msgid "{quantity}, due {date}"
+msgstr "{quantity}, uiterlijk {date}"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.BEwAxd"
+msgid "Production orders"
+msgstr "Productieorders"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.JezMAF"
+msgid "Each order in its status. Drag a draft to Released to allocate its components, and a running order to Done to receive its output."
+msgstr "Elke order in zijn status. Sleep een concept naar Vrijgegeven om de componenten te reserveren, en een lopende order naar Gereed om de output te ontvangen."
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.olpiHT"
+msgid "The production orders didn't load"
+msgstr "De productieorders zijn niet geladen"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.99S_qd"
+msgid "No production orders"
+msgstr "Geen productieorders"
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.CCRtx8"
+msgid "Give a product a bill of materials, then create an order for it through the API or from material requirements."
+msgstr "Geef een product een stuklijst en maak er daarna een order voor via de API of vanuit de materiaalbehoefte."
+
+#: src/features/manufacturing/components/production-order-sections.tsx
+msgctxt "manufacturing.9MRsjL"
+msgid "Read the manufacturing guide"
+msgstr "Lees de productiegids"
+
 #: src/features/medications/components/medication-chart.tsx
 msgctxt "medications.Ydnmc6"
 msgid "The medication chart didn't load"
@@ -9214,6 +9304,11 @@ msgstr "Winkel"
 msgctxt "navigation.MlzEfB"
 msgid "Inventory"
 msgstr "Voorraad"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.z3FEm2"
+msgid "Manufacturing"
+msgstr "Productie"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.X7jl6w"

@@ -188,12 +188,19 @@ describe("SQL module output", () => {
       }),
     );
 
-    const files = [...each, ...renderEveryModule()];
+    const pathsByBody = new Map<string, Set<string>>();
+
+    for (const file of [...each, ...renderEveryModule()]) {
+      const paths = pathsByBody.get(file.contents) ?? new Set<string>();
+
+      paths.add(file.path);
+      pathsByBody.set(file.contents, paths);
+    }
 
     expect(
-      files
-        .filter((file) => blockFileState(file.contents) !== "clean")
-        .map((file) => file.path),
+      [...pathsByBody]
+        .filter(([body]) => blockFileState(body) !== "clean")
+        .flatMap(([, paths]) => [...paths]),
     ).toEqual([]);
   });
 

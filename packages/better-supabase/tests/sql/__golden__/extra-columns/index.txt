@@ -71,3 +71,4 @@ medications
 care-plans
 cases
 inspections
+manufacturing

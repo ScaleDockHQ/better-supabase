@@ -18,6 +18,8 @@ const STOCK_COUNTERS: Readonly<Record<string, readonly [string, string]>> = {
   return: ["stock:customers", "Customers"],
   transfer_out: ["stock:transit", "In transit"],
   transfer_in: ["stock:transit", "In transit"],
+  consumption: ["stock:production", "Production"],
+  production: ["stock:production", "Production"],
 };
 
 /**
@@ -29,6 +31,8 @@ const VALUE_COUNTERS: Readonly<Record<string, readonly [string, string]>> = {
   receipt: ["stock_value:suppliers", "Stock purchases"],
   sale: ["stock_value:cogs", "Cost of goods sold"],
   return: ["stock_value:cogs", "Cost of goods sold"],
+  consumption: ["stock_value:production", "Work in progress"],
+  production: ["stock_value:production", "Work in progress"],
 };
 
 export const counterCase = (reason: string, index: 0 | 1): string =>
@@ -62,8 +66,14 @@ const valueCase = (reason: string, index: 0 | 1): string =>
       " ",
     )} else '${index === 0 ? "stock_value:adjustments" : "Stock adjustments"}' end`;
 
-/** Reasons that sell or ship stock: they skip hold bins and expired lots. */
-const OUTBOUND = "('sale', 'transfer_out')";
+/**
+ * Reasons that sell, ship or consume stock: they skip hold bins and expired
+ * lots.
+ */
+const OUTBOUND = "('sale', 'transfer_out', 'consumption')";
+
+/** Reasons that bring new stock in: a lot-tracked variant names its lot. */
+const INBOUND = "('receipt', 'production')";
 
 /**
  * The stock ledger lives in the ledger block: a movement is a transaction
@@ -199,10 +209,10 @@ begin
   end if;
 
   if move_stock.quantity > 0 then
-    if v_tracking = 'lot' and v_lot is null and move_stock.reason = 'receipt' then
+    if v_tracking = 'lot' and v_lot is null and move_stock.reason in ${INBOUND} then
       ${fail("INVENTORY_LOT_REQUIRED", "a lot-tracked variant receives stock into a lot", "22023")}
     end if;
-    if v_expiry and v_lot is not null and move_stock.reason = 'receipt'
+    if v_expiry and v_lot is not null and move_stock.reason in ${INBOUND}
       and (select x.${lt("expiresOn")} from ${lots} x where x.${lt("id")} = v_lot) is null then
       ${fail("INVENTORY_EXPIRY_REQUIRED", "the variant tracks expiry, so its lots need an expiry date", "22023")}
     end if;

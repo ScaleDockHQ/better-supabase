@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:d4f1fa33af604492bd6b9888a339a4f6c52de5d0e42bc192f6367b680dbc908a
+-- @bsb-hash sha256:f59cac93abc478425dcbbb81f8e925252b01d822fbd58bf711b8514957ad4265
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -148,7 +148,7 @@ begin
     end if;
   end if;
   v_type := coalesce(v_old."subject_type", segment ->> 'subjectType');
-  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'case', 'inspection', 'inspection_program', 'inspection_finding', 'form', 'care_plan', 'incident', 'content_entry', 'document', 'customer', 'drive_node', 'application', 'change_request', 'project', 'task') then
+  if v_type is null or v_type not in ('message', 'conversation', 'channel', 'company', 'person', 'deal', 'course', 'post', 'activity', 'quote', 'work_item', 'employee', 'invoice', 'ledger_account', 'product', 'product_variant', 'order', 'calendar_event', 'booking', 'asset', 'asset_location', 'lease', 'expense_report', 'expense_line', 'donation_fund', 'work_order', 'shipment', 'contract', 'control', 'compliance_policy', 'qualification_type', 'risk', 'case', 'inspection', 'inspection_program', 'inspection_finding', 'form', 'production_order', 'work_center', 'care_plan', 'incident', 'content_entry', 'document', 'customer', 'drive_node', 'application', 'change_request', 'project', 'task') then
     raise exception 'subjectType must be a type in config.subjects' using errcode = '22023', hint = 'SEGMENT_SUBJECT_UNKNOWN';
   end if;
   v_name := coalesce(nullif(trim(segment ->> 'name'), ''), v_old."name");
@@ -339,6 +339,8 @@ begin
     when 'inspection_program' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.read'), false)
     when 'inspection_finding' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'inspections.read'), false)
     when 'form' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'forms.read'), false)
+    when 'production_order' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'manufacturing.read'), false)
+    when 'work_center' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'manufacturing.read'), false)
     when 'care_plan' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'care_plans.read'), false)
     when 'incident' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.read'), false)
     when 'content_entry' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'content.read'), false)
@@ -416,6 +418,8 @@ as $$
     when 'inspection_program' then coalesce(better_supabase.can('tenant', x."tenant_id", 'inspections.read'), false)
     when 'inspection_finding' then coalesce(better_supabase.can('tenant', x."tenant_id", 'inspections.read'), false)
     when 'form' then coalesce(better_supabase.can('tenant', x."tenant_id", 'forms.read'), false)
+    when 'production_order' then coalesce(better_supabase.can('tenant', x."tenant_id", 'manufacturing.read'), false)
+    when 'work_center' then coalesce(better_supabase.can('tenant', x."tenant_id", 'manufacturing.read'), false)
     when 'care_plan' then coalesce(better_supabase.can('tenant', x."tenant_id", 'care_plans.read'), false)
     when 'incident' then coalesce(better_supabase.can('tenant', x."tenant_id", 'incidents.read'), false)
     when 'content_entry' then coalesce(better_supabase.can('tenant', x."tenant_id", 'content.read'), false)
@@ -709,6 +713,20 @@ begin
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."forms" s
       where s."tenant_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
+  elsif v_row."subject_type" = 'production_order' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."production_orders" s
+      where s."tenant_id" = v_row."tenant_id"
+        and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
+      limit 10001
+    ) x;
+  elsif v_row."subject_type" = 'work_center' then
+    select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
+      select s."id"::text as id from "better_supabase"."work_centers" s
+      where s."tenant_id" = v_row."tenant_id" and s."archived_at" is null
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;

@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@1 managed
--- @bsb-hash sha256:f0ca5fd779e9d867182b6ae259937c9fd9d5ce9586fc87a4f8f88b4ed75572a2
+-- @bsb-hash sha256:36c8a868581a8fa14bdd53501af2efebc74fe846b3c417132504f476de703db5
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -388,6 +388,8 @@ begin
       when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = (record_consent.subject_id)::uuid)
       when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = (record_consent.subject_id)::uuid)
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (record_consent.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (record_consent.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (record_consent.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (record_consent.subject_id)::uuid)
@@ -736,6 +738,8 @@ declare
       when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = (consent_active.subject_id)::uuid)
       when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = (consent_active.subject_id)::uuid)
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (consent_active.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (consent_active.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (consent_active.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (consent_active.subject_id)::uuid)
@@ -833,6 +837,8 @@ declare
       when 'inspection_program' then (select s."tenant_id"::text from "better_supabase"."inspection_programs" s where s."id" = (list_consents.subject_id)::uuid)
       when 'inspection_finding' then (select s."tenant_id"::text from "better_supabase"."inspection_findings" s where s."id" = (list_consents.subject_id)::uuid)
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'production_order' then (select s."tenant_id"::text from "better_supabase"."production_orders" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'work_center' then (select s."tenant_id"::text from "better_supabase"."work_centers" s where s."id" = (list_consents.subject_id)::uuid)
       when 'care_plan' then (select s."tenant_id"::text from "better_supabase"."care_plans" s where s."id" = (list_consents.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (list_consents.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (list_consents.subject_id)::uuid)

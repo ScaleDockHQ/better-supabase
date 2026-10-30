@@ -1097,7 +1097,7 @@ export interface BlockNameRegistry {
       readonly "buckets": "id" | "tenant" | "variant" | "location" | "bin" | "lot" | "onHand" | "updatedAt";
       readonly "allocations": "id" | "tenant" | "variant" | "location" | "documentType" | "documentId" | "line" | "quantity" | "allocated" | "fulfilled" | "backordered" | "status" | "createdAt" | "updatedAt";
     };
-    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_transfer" | "commit_reservation" | "count_stock" | "create_transfer" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "list_allocations" | "move_stock" | "place_purchase_order" | "receive_purchase_order" | "receive_transfer" | "release_allocations" | "release_reservation" | "reserve_stock" | "restore_allocation" | "save_bin" | "save_location" | "save_lot" | "save_purchase_order" | "set_location_active" | "set_reorder_point" | "set_stock_item" | "ship_transfer" | "stock_detail" | "stock_lot_for" | "stock_valuation";
+    readonly functions: "adjust_stock" | "allocate_stock" | "cancel_purchase_order" | "cancel_transfer" | "commit_reservation" | "count_stock" | "create_transfer" | "delete_location" | "expire_lots" | "expire_reservations" | "expiring_lots" | "fill_backorders" | "fulfill_allocation" | "list_allocations" | "move_stock" | "place_purchase_order" | "receive_purchase_order" | "receive_transfer" | "release_allocations" | "release_reservation" | "reserve_stock" | "restore_allocation" | "save_bin" | "save_location" | "save_lot" | "save_purchase_order" | "set_location_active" | "set_reorder_point" | "set_stock_item" | "ship_transfer" | "stock_detail" | "stock_lot_for" | "stock_valuation" | "take_allocation";
     readonly actions: "manage" | "read" | "reserve" | "purchase";
     readonly hooks: "before_stock_adjust" | "after_stock_adjust" | "before_stock_reserve" | "after_stock_reserve";
     readonly entities: {
@@ -1237,6 +1237,33 @@ export interface BlockNameRegistry {
       readonly "mail_message": "id" | "tenant_id" | "account_id" | "thread_id" | "external_id" | "rfc_message_id" | "direction" | "from_address" | "from_name" | "to_addresses" | "cc_addresses" | "subject" | "snippet" | "body_text" | "body_html" | "sent_at" | "template_version_id" | "tracking_hash" | "opened_at" | "open_count" | "clicked_at" | "click_count" | "created_at";
     };
     readonly primary: "mail_thread";
+    readonly formerKeys: never;
+  };
+  readonly "manufacturing": {
+    readonly tables: {
+      readonly "boms": "id" | "tenant" | "variant" | "version" | "status" | "quantity" | "note" | "activatedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "workCenters": "id" | "tenant" | "name" | "asset" | "hoursPerDay" | "costRate" | "currency" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "operations": "id" | "tenant" | "bom" | "sequence" | "workCenter" | "title" | "setupMinutes" | "runMinutes" | "instructions" | "inspectionTemplate";
+      readonly "components": "id" | "tenant" | "bom" | "position" | "variant" | "quantity" | "scrapBps" | "operation";
+      readonly "orders": "id" | "tenant" | "number" | "sequence" | "variant" | "bom" | "quantity" | "location" | "dueOn" | "status" | "produced" | "scrap" | "outputLot" | "materialCost" | "laborCost" | "currency" | "note" | "releasedAt" | "startedAt" | "completedAt" | "canceledAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "orderOperations": "id" | "tenant" | "order" | "operation" | "sequence" | "workCenter" | "title" | "plannedMinutes" | "status" | "startedAt" | "finishedAt" | "operator" | "minutes" | "inspection";
+      readonly "consumptions": "id" | "tenant" | "order" | "variant" | "lot" | "serial" | "quantity" | "cost" | "currency" | "movement" | "createdBy" | "createdAt";
+      readonly "lotLinks": "tenant" | "parent" | "child" | "order" | "quantity" | "createdAt";
+    };
+    readonly functions: "activate_bom" | "bom_reaches" | "bom_where_used" | "cancel_production_order" | "complete_production_order" | "create_from_requirements" | "create_production_order" | "explode_bom" | "finish_production_operation" | "get_bom" | "get_production_order" | "list_boms" | "list_production_orders" | "list_work_centers" | "lot_genealogy" | "lot_recall" | "material_requirements" | "production_consume" | "production_quantity" | "record_production_consumption" | "release_production_order" | "requirements_pass" | "save_bom" | "save_work_center" | "start_production_operation";
+    readonly actions: "read" | "write" | "produce" | "manage";
+    readonly hooks: "before_production_order_release" | "after_production_order_release" | "before_production_order_complete" | "after_production_order_complete";
+    readonly entities: {
+      readonly "production_order": "id" | "tenant_id" | "number" | "sequence" | "variant_id" | "bom_id" | "quantity" | "location_id" | "due_on" | "status" | "produced_quantity" | "scrap_quantity" | "output_lot_id" | "material_cost" | "labor_cost" | "currency" | "note" | "released_at" | "started_at" | "completed_at" | "canceled_at" | "created_by" | "created_at" | "updated_at";
+      readonly "bom": "id" | "tenant_id" | "variant_id" | "version" | "status" | "quantity" | "note" | "activated_at" | "created_by" | "created_at" | "updated_at";
+      readonly "bom_component": "id" | "tenant_id" | "bom_id" | "position" | "variant_id" | "quantity" | "scrap_bps" | "operation_id";
+      readonly "bom_operation": "id" | "tenant_id" | "bom_id" | "sequence" | "work_center_id" | "title" | "setup_minutes" | "run_minutes_per_unit" | "instructions_node_id" | "inspection_template";
+      readonly "work_center": "id" | "tenant_id" | "name" | "asset_id" | "hours_per_day" | "cost_rate" | "currency" | "archived_at" | "created_at" | "updated_at";
+      readonly "production_order_operation": "id" | "tenant_id" | "order_id" | "operation_id" | "sequence" | "work_center_id" | "title" | "planned_minutes" | "status" | "started_at" | "finished_at" | "operator_id" | "minutes" | "inspection_id";
+      readonly "production_consumption": "id" | "tenant_id" | "order_id" | "variant_id" | "lot_id" | "serial" | "quantity" | "cost" | "currency" | "movement_id" | "created_by" | "created_at";
+      readonly "stock_lot_link": "tenant_id" | "parent_lot_id" | "child_lot_id" | "order_id" | "quantity" | "created_at";
+    };
+    readonly primary: "production_order";
     readonly formerKeys: never;
   };
   readonly "medications": {

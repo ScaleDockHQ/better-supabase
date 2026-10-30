@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:57dcceb9c80530d82974d005e115e8ed58ba7592cb6cca3861f9b4647b2201f7
+-- @bsb-hash sha256:c69124507f2e55bf7e4b3227ef26a86b9749ae9e7186877fcb5b37069e200e25
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -224,6 +224,12 @@ begin
         from "better_supabase"."inspections" s
         where s."id" = (search_refresh.subject_id)::uuid;
       v_found := found;
+    when 'production_order' then
+      select s."tenant_id", s."number"::text, nullif(concat_ws(E'\n', s."note"::text), ''), null
+        into v_tenant, v_title, v_body, v_url
+        from "better_supabase"."production_orders" s
+        where s."id" = (search_refresh.subject_id)::uuid;
+      v_found := found;
     when 'content_entry' then
       select s."tenant_id", s."title"::text, nullif(concat_ws(E'\n', s."summary"::text), ''), null
         into v_tenant, v_title, v_body, v_url
@@ -428,6 +434,13 @@ begin
   if search_reindex.subject_type is null or search_reindex.subject_type = 'inspection' then
     for v_id in select s."id"::text from "better_supabase"."inspections" s loop
       if "better_supabase"."search_refresh"('inspection', v_id) then
+        v_count := v_count + 1;
+      end if;
+    end loop;
+  end if;
+  if search_reindex.subject_type is null or search_reindex.subject_type = 'production_order' then
+    for v_id in select s."id"::text from "better_supabase"."production_orders" s loop
+      if "better_supabase"."search_refresh"('production_order', v_id) then
         v_count := v_count + 1;
       end if;
     end loop;

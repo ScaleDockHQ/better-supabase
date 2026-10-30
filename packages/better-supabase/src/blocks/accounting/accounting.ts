@@ -75,6 +75,7 @@ export type AccountRole =
   | "revenue"
   | "cogs"
   | "inventory"
+  | "work_in_progress"
   | "tax_payable"
   | "tax_receivable"
   | "retained_earnings"

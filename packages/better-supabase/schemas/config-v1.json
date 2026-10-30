@@ -1676,6 +1676,7 @@
               "leave",
               "ledger",
               "mail-sync",
+              "manufacturing",
               "medications",
               "memberships",
               "memory",
@@ -1842,6 +1843,7 @@
                   "leave",
                   "ledger",
                   "mail-sync",
+                  "manufacturing",
                   "medications",
                   "memberships",
                   "memory",
@@ -2158,6 +2160,9 @@
             },
             "mail-sync": {
               "$ref": "#/$defs/blocks/mail-sync"
+            },
+            "manufacturing": {
+              "$ref": "#/$defs/blocks/manufacturing"
             },
             "medications": {
               "$ref": "#/$defs/blocks/medications"
@@ -5790,6 +5795,24 @@
               },
               "matchDomains": {
                 "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "manufacturing": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
               }
             }
           }

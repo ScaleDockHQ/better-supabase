@@ -225,4 +225,17 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
       glue: [],
     },
   },
+  {
+    slug: "production-order-board",
+    title: "Production order board",
+    blocks: ["manufacturing"],
+    kind: "component",
+    description:
+      "Production orders in status columns from draft to done; dragging a draft to Released releases it, and a running order to Done completes it.",
+    web: {
+      file: `${WEB_APP}/src/features/manufacturing/components/production-order-board.tsx`,
+      components: ["badge", "card", "@reui/kanban"],
+      glue: [],
+    },
+  },
 ];

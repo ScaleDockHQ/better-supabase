@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:c403cbd68b34e8774a438a89a42f1d3d0c38091c1b5e4cc46a7a06b5bf4487f0
+-- @bsb-hash sha256:a59b32ae7240a9ca963b65a1f317371f45e7d44e6f3453e7500833144a29a6c3
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -190,6 +190,7 @@ begin
     when 'risk' then ''
     when 'case' then to_char(next_number.at at time zone 'utc', 'YYYY')
     when 'inspection' then to_char(next_number.at at time zone 'utc', 'YYYY')
+    when 'production_order' then to_char(next_number.at at time zone 'utc', 'YYYY')
     else null
   end;
   if v_period is null then
@@ -249,6 +250,7 @@ begin
     when 'risk' then 'RSK-{n:4}'
     when 'case' then '{yyyy}-{n:4}'
     when 'inspection' then 'AUD-{yyyy}-{n:3}'
+    when 'production_order' then 'MO-{yyyy}-{n:4}'
     else null
   end;
   return v_format;
@@ -299,6 +301,7 @@ begin
     when 'risk' then ''
     when 'case' then to_char(p_at at time zone 'utc', 'YYYY')
     when 'inspection' then to_char(p_at at time zone 'utc', 'YYYY')
+    when 'production_order' then to_char(p_at at time zone 'utc', 'YYYY')
     else null
   end;
   if v_format is null or v_period is null then
