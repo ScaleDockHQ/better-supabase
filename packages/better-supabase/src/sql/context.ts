@@ -34,6 +34,7 @@ import {
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
+import { logsSubjectReads } from "./subject-registry.ts";
 import { blockColumnName } from "./tenant-column.ts";
 import { checkedValueMaps, valueMethods } from "./value-maps.ts";
 
@@ -506,6 +507,14 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
    * module or when `audit` is `false`.
    */
   audit(action: BlockSqlAction): string;
+  /**
+   * PL/pgSQL that logs a read of record `subjectId` of type `subjectType` (SQL
+   * `text`) by function `fnName` through `record_subject_read`. Empty unless
+   * `audit` and `subjects` are installed and some type has `auditReads`.
+   */
+  read(subjectType: string, subjectId: string, fnName: string): string;
+  /** `volatile` when `read` renders a call, which writes, else `stable`. */
+  readVolatility(): "stable" | "volatile";
   /**
    * PL/pgSQL that calls `notify(fields)` as the service role, which `notify()`
    * requires, then restores the caller's claims. The function declares
@@ -1150,6 +1159,13 @@ export function createModuleContext(
       .join(",\n")}\n  );`;
   };
 
+  // record_subject_read exists when subjects renders its functions, and logs
+  // nothing for a type without auditReads.
+  const logsReads =
+    ["audit", "subjects"].every((name) => installed.has(name)) &&
+    resolveBlock(modules["subjects"]).mode !== "custom" &&
+    logsSubjectReads(source.subjects);
+
   const scope = moduleScope({
     kind: scopeKind,
     idType,
@@ -1386,6 +1402,11 @@ export function createModuleContext(
 
       return entry === "" ? NOTHING : entry;
     },
+    read: (subjectType, subjectId, fnName) =>
+      logsReads
+        ? `perform ${createModuleContext("subjects", namesOf, shared).fn("record_subject_read")}(${subjectType}, ${subjectId}, null, ${sqlString(instance)}, ${sqlString(fnName)});`
+        : "",
+    readVolatility: () => (logsReads ? "volatile" : "stable"),
     notify(fields, options = {}) {
       declares("notifications");
 

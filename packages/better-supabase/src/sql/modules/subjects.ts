@@ -17,6 +17,7 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
+  readLine,
   SERVICE_CALLER,
   schemaPreamble,
   serviceGrant,
@@ -31,6 +32,11 @@ import {
 } from "../subject-registry.ts";
 import { accessModel } from "./permissions-model.ts";
 import {
+  SUBJECT_READ_EVENTS,
+  subjectReadsContract,
+  subjectReadsSql,
+} from "./subjects-reads.ts";
+import {
   RECORD_TEAM_EVENTS,
   recordTeamContract,
   recordTeamSql,
@@ -41,8 +47,8 @@ import {
 } from "./subjects-team.ts";
 
 const NAMES: BlockSqlNames = {
-  events: RECORD_TEAM_EVENTS,
-  options: ["recordTeam"],
+  events: { ...RECORD_TEAM_EVENTS, ...SUBJECT_READ_EVENTS },
+  options: ["recordTeam", "reads"],
   tables: { members: SUBJECT_MEMBERS_TABLE },
 };
 
@@ -570,7 +576,7 @@ ${userGrant(`${fn("can_subject")}(text, text, text)`)}
 create or replace function ${fn("record_summary")}(subject_type text, subject_id text, sections text[], seen_at timestamptz default null)
 returns jsonb
 language plpgsql
-stable
+${ctx.readVolatility()}
 security invoker
 set search_path = ''
 as $$
@@ -587,7 +593,7 @@ begin
   end if;
   if not ${fn("can_subject")}(record_summary.subject_type, record_summary.subject_id, 'read') then
     return null;
-  end if;
+  end if;${readLine(ctx.read("record_summary.subject_type", "record_summary.subject_id", "record_summary"))}
 ${summarySections(ctx)
   .map((section) => summaryBranch(section))
   .join("\n")}
@@ -635,7 +641,7 @@ exception
 end;
 $$;
 ${serviceGrant(`${fn("can_subject_for")}(uuid, text, text, text)`)}
-${recordTeamSql(ctx, subjects)}${myWork(ctx)}${presenceSql(ctx)}`;
+${recordTeamSql(ctx, subjects)}${subjectReadsSql(ctx, subjects)}${myWork(ctx)}${presenceSql(ctx)}`;
 }
 
 /** The prefix of a subject's presence topic, `presence:<type>:<id>`. */
@@ -710,6 +716,10 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     { name: "my_work", args: ["{id}", "integer"], returns: "jsonb" },
     { name: "subject_presence_allowed", args: ["text"], returns: "boolean" },
     ...recordTeamContract(ctx),
+    ...subjectReadsContract(
+      ctx,
+      ctx.mode === "custom" ? [] : registeredSubjects(ctx.subjects, ctx.naming),
+    ),
   ];
 }
 
@@ -718,9 +728,9 @@ export const SUBJECTS: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Subjects",
   description:
-    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.",
+    "The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.",
   requires: ["permissions"],
-  integrates: ["teams", "memberships"],
+  integrates: ["teams", "memberships", "audit", "relations"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

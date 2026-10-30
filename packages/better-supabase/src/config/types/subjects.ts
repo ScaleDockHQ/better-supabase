@@ -53,6 +53,14 @@ export interface SubjectConfig {
    */
   readonly team?: SubjectTeam;
   /**
+   * Log every read of a record through the blocks' read functions in the audit
+   * log (`record_subject_read`, category `read`), with the NEN 7513 fields:
+   * who, which record, when, which function and whether it was an emergency.
+   * `subject_access_log` lists the entries. Needs the `subjects` and `audit`
+   * blocks. Plain `select`s through the Data API are not logged.
+   */
+  readonly auditReads?: boolean;
+  /**
    * A scope the authorization provider declares whose ids are this subject's
    * ids, so a grant on the record counts as well as one on the tenant.
    */

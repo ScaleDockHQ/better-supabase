@@ -40,6 +40,7 @@ export function batchSubjects(source: Subjects): Subjects {
       source.summary(subject, sections, options),
     myWork: (options) => source.myWork(options),
     members: source.members,
+    reads: source.reads,
     resolve: (refs) =>
       AsyncResult.from(
         () =>

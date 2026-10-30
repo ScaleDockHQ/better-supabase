@@ -197,6 +197,7 @@ const SUBJECT_EVENTS = [
   "observation.error_marked",
   "subject_member.added",
   "subject_member.ended",
+  "subject.accessed",
   "acknowledgement_assignment.created",
   "acknowledgement_assignment.deleted",
   "acknowledgement.created",

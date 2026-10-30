@@ -22,11 +22,22 @@ export {
   type SubjectMembers,
 } from "./members.ts";
 
+export {
+  SUBJECT_ACCESS_LOG_LIMIT,
+  type SubjectAccessLogOptions,
+  type SubjectRead,
+  type SubjectReadOptions,
+  type SubjectReads,
+} from "./reads.ts";
+
 export { subjectsEvents } from "./events.ts";
 
 export type { SubjectsEvents } from "./events.ts";
 
-export type { SubjectMemberEventData } from "../../core/block-events.ts";
+export type {
+  SubjectAccessedEventData,
+  SubjectMemberEventData,
+} from "../../core/block-events.ts";
 
 export { subjectsBlock } from "./manifest.ts";
 

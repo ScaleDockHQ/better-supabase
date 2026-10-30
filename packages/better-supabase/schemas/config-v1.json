@@ -1477,6 +1477,11 @@
             "required": ["actions"],
             "additionalProperties": false
           },
+          "auditReads": {
+            "type": "boolean",
+            "default": false,
+            "description": "Log every read through the blocks' read functions in the audit log, with the NEN 7513 fields. Needs the audit block."
+          },
           "search": {
             "type": "object",
             "properties": {
@@ -6904,7 +6909,8 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-              "recordTeam": {}
+              "recordTeam": {},
+              "reads": {}
             }
           }
         }

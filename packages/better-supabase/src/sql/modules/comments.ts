@@ -18,6 +18,7 @@ import {
   serviceGrant,
   userGrant,
   quotedTable,
+  readLine,
 } from "../shared.ts";
 import {
   subjectCascades,
@@ -457,7 +458,7 @@ create or replace function ${fn("list_comments")}(
 )
 returns jsonb
 language plpgsql
-stable
+${ctx.readVolatility()}
 security invoker
 set search_path = ''
 as $$
@@ -466,7 +467,7 @@ declare
 begin
   if v_conv is null then
     return '[]'::jsonb;
-  end if;
+  end if;${readLine(ctx.read("list_comments.subject_type", "list_comments.subject_id", "list_comments"))}
   return ${fn("comments_json")}(array(
     select x.${ms("id")} from ${m.table("messages")} x
     where x.${ms("conversation")} = v_conv and x.${ms("sentAt")} is not null

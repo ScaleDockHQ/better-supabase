@@ -17,6 +17,7 @@ import {
   lockTable,
   pageSize,
   quotedTable,
+  readLine,
   schemaPreamble,
   SERVICE_CALLER,
   userGrant,
@@ -753,7 +754,7 @@ ${life}${graph?.load ?? ""}
         order by h.${ctx.col("history", "createdAt")} desc, h.${ctx.col("history", "id")} desc
         limit ${limit}`;
 
-    return `${visible(item, "list_status_history")}
+    return `${visible(item, "list_status_history")}${readLine(ctx.read("list_status_history.subject_type", "list_status_history.subject_id", "list_status_history"), "      ")}
       return coalesce((
         select jsonb_agg(jsonb_build_object('id', r.id, 'from', r.from_status, 'to', r.to_status,
           'actorId', r.actor, 'actorName', r."actorName", 'actorEmail', r."actorEmail", 'ip', r.ip, 'userAgent', r."userAgent",
@@ -810,7 +811,7 @@ ${userGrant(`${ctx.fn("status_state")}(text, text)`)}
 create or replace function ${ctx.fn("list_status_history")}(subject_type text, subject_id text, before timestamptz default null, max_rows integer default 50)
 returns jsonb
 language plpgsql
-stable
+${ctx.readVolatility()}
 security invoker
 set search_path = ''
 as $$

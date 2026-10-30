@@ -1696,7 +1696,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "teams",
-        "memberships"
+        "memberships",
+        "audit",
+        "relations"
       ],
       "manifest": "subjects",
       "scopes": [
@@ -21160,7 +21162,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "type": "SubjectsEvents",
         "types": [
           "subject_member.added",
-          "subject_member.ended"
+          "subject_member.ended",
+          "subject.accessed"
         ]
       }
     },
