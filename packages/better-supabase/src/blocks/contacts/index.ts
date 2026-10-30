@@ -9,6 +9,8 @@ export {
   type PartyListOptions,
   type PartyPage,
   type Person,
+  type PersonIdentity,
+  type PersonIdentityInput,
   type PersonInput,
   type Representation,
   type Representative,

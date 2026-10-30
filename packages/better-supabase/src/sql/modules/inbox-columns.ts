@@ -47,8 +47,6 @@ export function inboxColumns(q: InboxSql): InboxColumns {
 export interface InboxWrites {
   readonly newInbox: readonly InboxEntry[];
   readonly inboxPatch: readonly InboxEntry[];
-  readonly newContact: readonly InboxEntry[];
-  readonly contactPatch: readonly InboxEntry[];
   readonly detailsHead: readonly InboxEntry[];
   readonly detailsTail: readonly InboxEntry[];
   readonly startHead: readonly InboxEntry[];
@@ -58,7 +56,7 @@ export interface InboxWrites {
 }
 
 export function inboxWrites(q: InboxSql): InboxWrites {
-  const { or, own, present } = inboxColumns(q);
+  const { own, present } = inboxColumns(q);
 
   // A typed optional column's value; `present` drops it where the app's table
   // lacks the column.
@@ -66,7 +64,6 @@ export function inboxWrites(q: InboxSql): InboxWrites {
     q.has(table, column) ? q.cast(table, column, value) : "null";
 
   const ib = q.cols("inboxes");
-  const ct = q.cols("contacts");
   const cv = q.cols("conversations");
 
   const newInbox = present("inboxes", [
@@ -108,31 +105,6 @@ export function inboxWrites(q: InboxSql): InboxWrites {
     ],
   ]);
 
-  const newContact = present("contacts", [
-    ["tenant", "inbox_resolve_contact.tenant"],
-    ["user", "(input ->> 'user_id')::uuid"],
-    ["name", "input ->> 'name'"],
-    ["email", "input ->> 'email'"],
-    ["phone", "input ->> 'phone'"],
-    ["avatarUrl", "input ->> 'avatar_url'"],
-    ["metadata", "coalesce(input -> 'metadata', '{}'::jsonb)"],
-  ]);
-
-  const contactPatch = present("contacts", [
-    ["name", `coalesce(${or("contacts", "c", "name")}, input ->> 'name')`],
-    ["email", `coalesce(${or("contacts", "c", "email")}, input ->> 'email')`],
-    ["phone", `coalesce(${or("contacts", "c", "phone")}, input ->> 'phone')`],
-    [
-      "avatarUrl",
-      `coalesce(input ->> 'avatar_url', ${or("contacts", "c", "avatarUrl")})`,
-    ],
-    ["user", `coalesce(c.${ct("user")}, (input ->> 'user_id')::uuid)`],
-    [
-      "metadata",
-      `${or("contacts", "c", "metadata")} || coalesce(input -> 'metadata', '{}'::jsonb)`,
-    ],
-  ]);
-
   const detailsHead: InboxEntry[] = [
     ["message", "v_id"],
     ["tenant", `v_conv.${cv("tenant")}`],
@@ -161,7 +133,7 @@ export function inboxWrites(q: InboxSql): InboxWrites {
     ["id", "v_id"],
     ["tenant", `v_inbox.${ib("tenant")}`],
     ["inbox", `v_inbox.${ib("id")}`],
-    ["contact", `v_contact.${ct("id")}`],
+    ["contact", "v_contact"],
   ];
 
   const startMid = present("conversations", [
@@ -197,7 +169,7 @@ export function inboxWrites(q: InboxSql): InboxWrites {
     ["id", "v_id"],
     ["tenant", `v_inbox.${ib("tenant")}`],
     ["inbox", `v_inbox.${ib("id")}`],
-    ["contact", `v_contact.${ct("id")}`],
+    ["contact", "v_contact"],
     ["subject", "input ->> 'subject'"],
     [
       "botMode",
@@ -214,8 +186,6 @@ export function inboxWrites(q: InboxSql): InboxWrites {
   return {
     newInbox,
     inboxPatch,
-    newContact,
-    contactPatch,
     detailsHead,
     detailsTail,
     startHead,

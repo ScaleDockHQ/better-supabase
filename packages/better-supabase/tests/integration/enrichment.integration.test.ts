@@ -122,14 +122,16 @@ describe.skipIf(!live)("enrichment", () => {
       expect(results.map((r) => r.provider)).toEqual(["fake"]);
 
       await s.service();
-      const report = await enrichment.enrichDue({ limit: 10 }).orThrow();
+      // The seed's inbox contact is a person in another organization.
+      const companies = { limit: 10, subjectType: "company" };
+      const report = await enrichment.enrichDue(companies).orThrow();
       expect(report).toEqual({
         checked: 1,
         matched: 0,
         notFound: 1,
         failed: 0,
       });
-      const again = await enrichment.enrichDue({ limit: 10 }).orThrow();
+      const again = await enrichment.enrichDue(companies).orThrow();
       expect(again.checked).toBe(0);
     } finally {
       await s.close();

@@ -77,3 +77,20 @@ client methods get deprecated wrappers for one minor, then must call the
 owning block's client. A person, a version history and an enrollment exist
 once, so search, merges, exports and permissions apply to them without
 extra work.
+
+## Inbox contacts in 0.47
+
+The data step keeps each inbox contact's id as the new person's id, so a
+stored `contactId` still names the same contact, and it joins a contact to
+the person it was linked to, or to the active person with its lower-cased
+email, before it creates one. `people` gains `avatar_url` and `metadata` for
+what a channel reports. The inbox renders before `contacts`, so the
+foreign keys from `inbox_conversations` and identity links to `people`
+belong to the contacts module, and the inbox reads a contact through the
+security definer `inbox_contact_json`, since an agent with `inbox.read` may
+lack `contacts.read`. A person has no user lifecycle: deleting a user no
+longer erases their inbox contact, and `purgeContact` does that for a data
+subject request. The contacts client drops `linkInboxContact`,
+`unlinkInboxContact` and `personForInboxContact` without a wrapper, since
+the link they managed is gone; `inbox.contacts.upsert` stays, deprecated,
+until 0.48.

@@ -17,7 +17,8 @@ export function inboxServiceFunctions(q: InboxSql): string {
   const dl = q.cols("deliveries");
   const ie = q.cols("inbound");
   const tp = q.cols("templates");
-  const ct = q.cols("contacts");
+  const { people } = q;
+  const contacts = people.ctx;
   const T = (name: string): string => q.t(name);
   const service = q.service;
   const { has } = q;
@@ -59,7 +60,7 @@ export function inboxServiceFunctions(q: InboxSql): string {
 grant execute on function ${signature} to authenticated, service_role;`;
 
   // The app's tables keep their own foreign keys, so the module's cascades
-  // from the contact and the core conversation may not reach them.
+  // from the core conversation may not reach them.
   const unlinked = (
     [
       [
@@ -70,10 +71,6 @@ grant execute on function ${signature} to authenticated, service_role;`;
       ["scheduled", `${q.cols("scheduled")("conversation")} = any (v_ids)`],
       ["details", `${dt("conversation")} = any (v_ids)`],
       ["conversations", `${cv("id")} = any (v_ids)`],
-      [
-        "identities",
-        `${q.cols("identities")("contact")} = purge_contact.contact`,
-      ],
     ] as const
   )
     .filter(([table]) => !q.ctx.owns(table))
@@ -275,8 +272,8 @@ end;
 $$;
 ${authed(`${fn("delete_message_template")}(uuid)`)}
 
--- Erases a contact for a data subject request: the contact, its identities
--- and its conversations with their messages, files, deliveries and events.
+-- Erases a contact for a data subject request: the person, their identities
+-- and their conversations with their messages, files, deliveries and events.
 -- Returns { conversations, messages, attachments }; attachments are the
 -- { bucket, path } of the stored files the caller still has to remove.
 create or replace function ${fn("purge_contact")}(contact uuid)
@@ -291,7 +288,7 @@ declare
   v_messages integer;
   v_paths jsonb;
 begin
-  select c.${ct("tenant")} into v_tenant from ${T("contacts")} c where c.${ct("id")} = purge_contact.contact;
+  select p.${people.c("tenant")} into v_tenant from ${people.t} p where p.${people.c("id")} = purge_contact.contact;
   if not found then
     ${missing("contact", "CONTACT_NOT_FOUND")}
   end if;
@@ -310,7 +307,9 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('bucket', g.bucket, 'path', g.path)) filter (where g.uploaded_at is not null), '[]'::jsonb)
   into v_paths from gone g;${unlinked}
   delete from ${q.core.t("conversations")} k where k.${q.core.cols("conversations")("id")} = any (v_ids);
-  delete from ${T("contacts")} c where c.${ct("id")} = purge_contact.contact;
+  delete from ${contacts.table("identities")} i where i.${contacts.col("identities", "person")} = purge_contact.contact;
+  update ${people.t} p set ${people.c("mergedInto")} = null where p.${people.c("mergedInto")} = purge_contact.contact;
+  delete from ${people.t} p where p.${people.c("id")} = purge_contact.contact;
   return jsonb_build_object('conversations', cardinality(v_ids), 'messages', v_messages, 'attachments', v_paths);
 end;
 $$;

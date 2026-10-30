@@ -40,6 +40,7 @@ import type { InboxEvents } from "better-supabase/blocks/inbox";
 import type { MessagingEvents } from "better-supabase/blocks/messaging";
 import type { NotificationsEvents } from "better-supabase/blocks/notifications";
 import type { OrganizationsEvents } from "better-supabase/blocks/organizations";
+import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
@@ -65,6 +66,7 @@ import { notificationsBlock as notificationsBlockInstance } from "better-supabas
 import { onboardingBlock as onboardingBlockInstance } from "better-supabase/blocks/onboarding";
 import { organizationsBlock as organizationsBlockInstance } from "better-supabase/blocks/organizations";
 import { outboxBlock as outboxBlockInstance } from "better-supabase/blocks/outbox";
+import { contactsBlock as contactsBlockInstance } from "better-supabase/blocks/contacts";
 import { pipelinesBlock as pipelinesBlockInstance } from "better-supabase/blocks/pipelines";
 import { profilesBlock as profilesBlockInstance } from "better-supabase/blocks/profiles";
 import { automationsBlock as automationsBlockInstance } from "better-supabase/blocks/automations";
@@ -156,6 +158,10 @@ export const blockConfig = {
     options: {},
   },
   outbox: {
+    schema: "better_supabase",
+    options: {},
+  },
+  contacts: {
     schema: "better_supabase",
     options: {},
   },
@@ -354,6 +360,7 @@ export const blocks = {
   onboarding: onboardingBlockInstance,
   organizations: organizationsBlockInstance,
   outbox: outboxBlockInstance,
+  contacts: contactsBlockInstance,
   pipelines: pipelinesBlockInstance,
   profiles: profilesBlockInstance,
   automations: automationsBlockInstance,
@@ -402,6 +409,15 @@ export const permissions = {
     read: "messages.read",
     create: "messages.send",
     moderate: "messages.moderate",
+  },
+  company: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
+  contacts: {
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
   },
   conversation: {
     read: "messages.read",
@@ -456,6 +472,10 @@ export const permissions = {
     updateRole: "members.update_role",
     transferOwnership: "organization.transfer_ownership",
   },
+  person: {
+    read: "contacts.read",
+    write: "contacts.write",
+  },
   pipelines: {
     read: "pipelines.read",
     manage: "pipelines.manage",
@@ -507,13 +527,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "saved_views.read" | "saved_views.share" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "timeline.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "inbox.assign" | "inbox.manage" | "inbox.read" | "inbox.reply" | "knowledge.manage" | "knowledge.read" | "knowledge.write" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "saved_views.read" | "saved_views.share" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "sla.manage" | "sla.read" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read" | "timeline.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & InboxEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SlaEvents & SubjectsEvents & TagsEvents & TeamsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & EnrollmentsEvents & InboxEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SlaEvents & SubjectsEvents & TagsEvents & TeamsEvents & TasksEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -543,6 +563,12 @@ export const blockEvents: Events<BlockEvents> = {
     "billing.subscription_created",
     "billing.subscription_deleted",
     "billing.subscription_updated",
+    "company.archived",
+    "company.created",
+    "company.merged",
+    "company.person_linked",
+    "company.person_unlinked",
+    "company.updated",
     "conversation.archived",
     "conversation.created",
     "conversation.member_added",
@@ -597,6 +623,10 @@ export const blockEvents: Events<BlockEvents> = {
     "organization.updated",
     "organization_setting.reset",
     "organization_setting.updated",
+    "person.archived",
+    "person.created",
+    "person.merged",
+    "person.updated",
     "pipeline.archived",
     "pipeline.created",
     "pipeline.stage_changed",
@@ -663,6 +693,12 @@ export const blockEventSchemas = {
   "billing.subscription_created": true,
   "billing.subscription_deleted": true,
   "billing.subscription_updated": true,
+  "company.archived": true,
+  "company.created": true,
+  "company.merged": true,
+  "company.person_linked": true,
+  "company.person_unlinked": true,
+  "company.updated": true,
   "conversation.archived": true,
   "conversation.created": true,
   "conversation.member_added": true,
@@ -717,6 +753,10 @@ export const blockEventSchemas = {
   "organization.updated": true,
   "organization_setting.reset": true,
   "organization_setting.updated": true,
+  "person.archived": true,
+  "person.created": true,
+  "person.merged": true,
+  "person.updated": true,
   "pipeline.archived": true,
   "pipeline.created": true,
   "pipeline.stage_changed": true,

@@ -122,6 +122,20 @@ select * from better_supabase.ai_document_versions;
     ]);
   });
 
+  it("lists the inbox contact calls that moved to the contacts block", () => {
+    const source = `const person = await db.contacts.personForInboxContact(contactId);
+const total = 1;
+select * from better_supabase.contact_identities;
+await inbox.contacts.upsert(org, { email });
+`;
+
+    const result = applyCodemod(v047, source, "src/inbox.ts");
+
+    expect(result.text).toBe(source);
+    expect(result.review.map((entry) => entry.line)).toEqual([1, 3, 4]);
+    expect(result.review[0]?.message).toContain("findByIdentity");
+  });
+
   it("lists the policy acknowledgement calls that moved to the acknowledgements block", () => {
     const source = `await db.$client.rpc("acknowledge_compliance_policy", { policy_id });
 if (error.hint === "POLICY_NOT_PUBLISHED") wait();

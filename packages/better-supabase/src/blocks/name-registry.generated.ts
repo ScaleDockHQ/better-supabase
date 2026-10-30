@@ -554,16 +554,16 @@ export interface BlockNameRegistry {
   readonly "contacts": {
     readonly tables: {
       readonly "companies": "id" | "tenant" | "name" | "domain" | "website" | "vatId" | "lifecycle" | "owner" | "address" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "people": "id" | "tenant" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner" | "user" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "people": "id" | "tenant" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner" | "user" | "avatarUrl" | "metadata" | "mergedInto" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
       readonly "links": "tenant" | "company" | "person" | "role" | "isPrimary" | "createdAt";
-      readonly "personContacts": "tenant" | "person" | "contact" | "createdAt";
+      readonly "identities": "id" | "tenant" | "person" | "channel" | "address" | "verifiedAt" | "createdAt";
     };
-    readonly functions: "archive_company" | "archive_person" | "company_people_of" | "list_companies" | "list_people" | "merge_companies" | "merge_people" | "remove_company_person" | "save_company" | "save_person" | "set_company_person";
+    readonly functions: "add_person_identity" | "archive_company" | "archive_person" | "company_people_of" | "find_person_by_identity" | "list_companies" | "list_people" | "list_person_identities" | "merge_companies" | "merge_people" | "remove_company_person" | "remove_person_identity" | "resolve_person" | "save_company" | "save_person" | "set_company_person";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: "before_company_save" | "after_company_save" | "before_person_save" | "after_person_save";
     readonly entities: {
       readonly "company": "id" | "tenant_id" | "name" | "domain" | "website" | "vat_id" | "lifecycle" | "owner_user_id" | "address" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
-      readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "person": "id" | "tenant_id" | "name" | "email" | "phone" | "title" | "lifecycle" | "owner_user_id" | "user_id" | "avatar_url" | "metadata" | "merged_into" | "archived_at" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: never;
     readonly formerKeys: never;
@@ -1021,8 +1021,6 @@ export interface BlockNameRegistry {
       readonly "members": "inbox" | "user" | "role" | "createdAt";
       readonly "teams": "id" | "tenant" | "name" | "createdAt";
       readonly "teamMembers": "team" | "user" | "createdAt";
-      readonly "contacts": "id" | "tenant" | "user" | "name" | "email" | "phone" | "avatarUrl" | "metadata" | "createdAt" | "updatedAt";
-      readonly "identities": "id" | "tenant" | "contact" | "channel" | "externalId" | "createdAt";
       readonly "conversations": "id" | "tenant" | "inbox" | "contact" | "subject" | "status" | "priority" | "assignee" | "team" | "botMode" | "thread" | "snoozedUntil" | "lastMessageAt" | "preview" | "firstResponseAt" | "resolvedAt" | "metadata" | "createdAt" | "updatedAt";
       readonly "events": "id" | "tenant" | "conversation" | "type" | "actor" | "data" | "createdAt";
       readonly "details": "message" | "tenant" | "conversation" | "direction" | "authorType" | "format" | "externalId" | "replyTo" | "metadata";
@@ -1032,7 +1030,7 @@ export interface BlockNameRegistry {
       readonly "scheduled": "id" | "tenant" | "conversation" | "author" | "input" | "scheduledFor" | "createdAt" | "updatedAt";
       readonly "drafts": "id" | "tenant" | "conversation" | "author" | "source" | "input" | "status" | "metadata" | "createdAt" | "updatedAt";
     };
-    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "discard_inbox_draft" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "inbox_resolve_contact" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_drafts" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "save_inbox_draft" | "schedule_inbox_message" | "send_inbox_draft" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "suggest_inbox_draft" | "update_inbox" | "upsert_contact" | "upsert_message_template" | "wake_snoozed_conversations";
+    readonly functions: "assign_conversation" | "cancel_inbox_message" | "create_inbox" | "create_inbox_attachment" | "create_inbox_team" | "delete_message_template" | "discard_inbox_draft" | "edit_inbox_message" | "get_conversation" | "get_inbox_message" | "inbox_add_message" | "inbox_can_conversation" | "inbox_contact_ids" | "inbox_contact_json" | "inbox_contact_read_at" | "inbox_conversation_allowed" | "inbox_conversation_broadcast" | "inbox_conversation_json" | "inbox_counts" | "inbox_delivery_broadcast" | "inbox_file_allowed" | "inbox_file_failed" | "inbox_message_broadcast" | "inbox_messages_json" | "inbox_note_readable" | "list_conversation_events" | "list_inbox_conversations" | "list_inbox_drafts" | "list_inbox_messages" | "list_scheduled_inbox_messages" | "mark_conversation_read" | "pending_inbound_events" | "pending_inbox_files" | "publish_due_inbox_messages" | "purge_contact" | "purge_inbound_events" | "react_to_inbox_message" | "record_delivery" | "record_inbound" | "reschedule_inbox_message" | "save_inbox_draft" | "schedule_inbox_message" | "send_inbox_draft" | "send_inbox_message" | "set_bot_mode" | "set_conversation_status" | "set_delivery_status" | "set_inbound_event_status" | "set_inbox_member" | "set_inbox_team_member" | "start_conversation" | "store_inbound_event" | "suggest_inbox_draft" | "update_inbox" | "upsert_contact" | "upsert_message_template" | "wake_snoozed_conversations";
     readonly actions: "read" | "reply" | "assign" | "manage";
     readonly hooks: never;
     readonly entities: {

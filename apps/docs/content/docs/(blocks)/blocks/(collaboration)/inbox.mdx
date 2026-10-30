@@ -3,8 +3,9 @@ title: Inbox
 description: A shared inbox for support conversations from an in-app widget, Slack, WhatsApp, SMS and other channels, with assignment, internal notes, read receipts, bot handoff and realtime updates.
 ---
 
-The `inbox` [SQL module](/docs/blocks/sql) stores inboxes and contacts per
-organization and keeps its conversations and messages on the
+The `inbox` [SQL module](/docs/blocks/sql) stores inboxes per organization,
+takes its contacts from the [contacts](/docs/blocks/contacts) block (each
+conversation's contact is a person) and keeps its conversations and messages on the
 [messaging core](/docs/blocks/messaging): each conversation is a core
 conversation of kind `inbox`, each message and note a core message, and the
 inbox adds its own fields (status, assignee, bot mode, direction, delivery)
@@ -21,8 +22,9 @@ pnpm better-supabase add inbox
 ```
 
 The module needs the [access contract](/docs/repository/permissions), the
-[messaging](/docs/blocks/messaging) block and the
-[attachments](/docs/blocks/attachments) block. With the
+[messaging](/docs/blocks/messaging) block, the
+[attachments](/docs/blocks/attachments) block and the
+[contacts](/docs/blocks/contacts) block. With the
 [jobs](/docs/blocks/queue) module installed, an inbound message to a bot
 conversation queues a bot job and an outbound message on a channel queues a
 delivery job; without it, nothing is queued and the app delivers the
@@ -97,14 +99,27 @@ const help = await inbox.inboxes
   .orThrow();
 
 await inbox.inboxes.setMember(help.id, agentId, "agent").orThrow();
-const contact = await inbox.contacts
-  .upsert(organizationId, { email: "ada@example.com", name: "Ada" })
+
+const contact = await contacts
+  .savePerson(organizationId, { name: "Ada", email: "ada@example.com" })
+  .orThrow();
+await contacts
+  .addIdentity(contact.id, { channel: "whatsapp", address: "+31612345678" })
   .orThrow();
 ```
 
-`contacts.upsert` finds a contact by id, channel identity, user or email
-and fills in the fields it lacks, so a WhatsApp number and a signed-in user
-with the same email end up as one contact.
+A conversation's contact is a person of the [contacts](/docs/blocks/contacts)
+block, and `contactId` is the person's id. A person's addresses on channels
+(an email address, a WhatsApp number) are its identities, and
+`contacts.findByIdentity` finds the person behind one. When a message
+arrives on a channel, `conversations.open` and the Chat SDK adapters find
+the person by identity, user or email and create one when there is none, so
+a WhatsApp number and a signed-in user with the same email end up as one
+person.
+
+`inbox.contacts.upsert` still finds or creates the person and returns it in
+the contact shape, but it is deprecated and goes in 0.48; see
+[0.46 to 0.47](/docs/migration/0.46-to-0.47#inbox-contacts).
 
 ## Conversations and messages
 
@@ -136,7 +151,7 @@ await inbox.conversations.resolve(conversation.id).orThrow();
 | `messages.createUpload`, `confirmUpload`                           | A file upload: an attachment row, then its id in `attachments`               |
 | `files.pending`, `stored`, `failed`                                | Service only: channel files to fetch, upload and confirm                     |
 | `templates.upsert`, `delete`                                       | Approved channel templates, such as WhatsApp's                               |
-| `purgeContact(contactId)`                                          | Erases a contact and its conversations; returns attachment paths to delete   |
+| `purgeContact(contactId)`                                          | Erases a person and their conversations; returns attachment paths to delete  |
 
 A note is a message with `kind: "note"`: staff with `inbox.read` read it,
 and a contact never does. Each message has the core fields (`mentionIds`,
@@ -160,7 +175,8 @@ A file a contact sends on a channel arrives as a URL; the message keeps a
 pending attachment, and the chat-sdk `importFiles` (or your own loop over
 `files.pending`) fetches it, uploads it and confirms it.
 
-`purgeContact` deletes the rows and returns the `{ bucket, path }` of each
+`purgeContact` deletes the person, their identities and their conversations,
+and returns the `{ bucket, path }` of each
 stored file; remove them from Storage afterwards, since a SQL function
 can't delete Storage objects.
 

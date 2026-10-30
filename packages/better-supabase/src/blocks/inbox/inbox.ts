@@ -103,7 +103,9 @@ export interface InboxPatch {
   readonly archived?: boolean;
 }
 
+/** A conversation's contact: a person id, or the fields to find or create one. */
 export interface ContactInput {
+  /** A person of the contacts block. */
   readonly id?: string;
   readonly userId?: string;
   readonly name?: string;
@@ -243,8 +245,12 @@ export interface Inbox {
   };
   readonly contacts: {
     /**
-     * Finds the contact by id, identity, user or email, filling in what is
-     * missing.
+     * Finds the person by id, identity, user or email, filling in what is
+     * missing, or creates one.
+     *
+     * @deprecated A contact is a person of the contacts block: use
+     * `contacts.savePerson` and `contacts.addIdentity`, or
+     * `contacts.findByIdentity`. Removed in 0.48.
      */
     upsert(tenant: string, input: ContactInput): AsyncResult<Contact>;
   };
@@ -637,6 +643,7 @@ export function createInbox(options: InboxOptions): Inbox {
         ),
     },
     contacts: {
+      // oxlint-disable-next-line typescript/no-deprecated -- the deprecated wrapper itself, until 0.48 (1 finding)
       upsert: (tenant, input) =>
         call(
           "upsert_contact",

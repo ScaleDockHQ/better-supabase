@@ -6,7 +6,6 @@ import { forbidden, missing } from "./inbox-names.ts";
 /** The reads: conversation and message pages, one of each, events and counts. */
 export function inboxReadFunctions(q: InboxSql): string {
   const { id, fn } = q;
-  const ct = q.cols("contacts");
   const cv = q.cols("conversations");
   const ev = q.cols("events");
   const T = (name: string): string => q.t(name);
@@ -20,16 +19,19 @@ export function inboxReadFunctions(q: InboxSql): string {
     `revoke execute on function ${signature} from public, anon;
 grant execute on function ${signature} to authenticated, service_role;`;
 
-  const searched = (
-    [
-      ["conversations", "v", "subject"],
-      ["conversations", "v", "preview"],
-      ["contacts", "c", "name"],
-      ["contacts", "c", "email"],
-    ] as const
-  )
-    .filter(([table, , column]) => q.has(table, column))
-    .map(([table, alias, column]) => `${alias}.${q.cols(table)(column)}`);
+  // The contact's name and email come through inbox_contact_json: the person
+  // table asks for the contacts read key, which an agent need not hold.
+  const searched = [
+    ...(["subject", "preview"] as const)
+      .filter((column) => q.has("conversations", column))
+      .map((column) => `v.${cv(column)}`),
+    ...(["name", "email"] as const)
+      .filter((column) => q.people.has(column))
+      .map(
+        (column) =>
+          `${fn("inbox_contact_json")}(v.${cv("id")}) ->> '${column}'`,
+      ),
+  ];
 
   return `-- Conversations the caller reads (staff of the tenant, or a contact's own),
 -- newest activity first. filter: inbox_id, status ('all' for every status),
@@ -48,7 +50,6 @@ begin
       select v.${cv("id")}, v.${cv("lastMessageAt")},
         v.${cv("lastMessageAt")} > coalesce((select k.${ck("lastReadAt")} from ${core.t("members")} k where k.${ck("conversation")} = v.${cv("id")} and k.${ck("user")} = (select auth.uid())), '-infinity'::timestamptz) as unread
       from ${T("conversations")} v
-      left join ${T("contacts")} c on c.${ct("id")} = v.${cv("contact")}
       where (list_inbox_conversations.tenant is null or v.${cv("tenant")} = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v.${cv("inbox")} = (filter ->> 'inbox_id')::uuid)
         and (coalesce(filter ->> 'status', 'open') = 'all' or ${q.text("conversations", `v.${cv("status")}`)} = coalesce(filter ->> 'status', 'open'))
@@ -252,8 +253,7 @@ ${authed}`;
 
 /** When the contact last read a conversation, for staff read receipts. */
 export function inboxContactReadAt(q: InboxSql): string {
-  const { fn } = q;
-  const ct = q.cols("contacts");
+  const { fn, people } = q;
   const cv = q.cols("conversations");
   const ck = q.core.cols("members");
 
@@ -269,8 +269,8 @@ begin
   return (
     select k.${ck("lastReadAt")}
     from ${q.t("conversations")} v
-    join ${q.t("contacts")} c on c.${ct("id")} = v.${cv("contact")}
-    join ${q.core.t("members")} k on k.${ck("conversation")} = v.${cv("id")} and k.${ck("user")} = c.${ct("user")}
+    join ${people.t} p on p.${people.c("id")} = v.${cv("contact")}
+    join ${q.core.t("members")} k on k.${ck("conversation")} = v.${cv("id")} and k.${ck("user")} = p.${people.c("user")}
     where v.${cv("id")} = inbox_contact_read_at.conversation
       and (${q.service} or ${q.can(`v.${cv("tenant")}`, "read")})
   );

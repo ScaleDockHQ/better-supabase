@@ -38,6 +38,12 @@ const REMOVED_NAMES: readonly { pattern: RegExp; replacement: string }[] = [
       "the `enrollments` rows whose `program` is `sequence:<sequence id>`, with the run in their `sequence_*` columns and `paused_at`",
   },
   {
+    pattern:
+      /\b(?:linkInboxContact|unlinkInboxContact|personForInboxContact|link_inbox_contact|unlink_inbox_contact|person_for_inbox_contact|person_inbox_contacts|contact_identities)\b/,
+    replacement:
+      "the contacts block's people and `person_identities`: `findByIdentity`, `addIdentity` and `identities(personId)`, since a conversation's contact is a person",
+  },
+  {
     pattern: /\.blockRouter\(/,
     replacement:
       "`bsb.router(defineApi(betterSupabase, options))`, which routes every block instance and table",

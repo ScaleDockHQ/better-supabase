@@ -1,8 +1,8 @@
 -- ==== schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
--- @bsb-block inbox@7 managed
--- @bsb-hash sha256:baa38eb659a15787b2687d3202d0ae029fc486bf3dc6d9ada6b034ecb9d09c0c
--- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
+-- @bsb-block inbox@8 managed
+-- @bsb-hash sha256:67b5429ea6f63aa55f263565ed63cd90ba7d042d901c1a1849d56d10618c96cd
+-- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -50,22 +50,6 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."inboxes";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."inboxes";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inboxes";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."contacts";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."contacts";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."contacts";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."contacts";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contacts";
-  exception when undefined_table or invalid_schema_name then null;
-  end;
-  begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."contact_identities";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."contact_identities";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."contact_identities";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."contact_identities";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contact_identities";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -193,64 +177,16 @@ create policy inbox_members_staff_read on "better_supabase"."inbox_members"
 
 -- Teams live in the teams module. Assignment stores that module's id.
 
--- The people staff talk to. user_id links a signed-in widget visitor (an
--- anonymous Auth user works too) to their contact.
-create table if not exists "better_supabase"."contacts" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "user_id" uuid references auth.users (id) on delete set null,
-  "name" text check (length("name") <= 200),
-  "email" text check (length("email") <= 320),
-  "phone" text check (length("phone") <= 50),
-  "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb,
-  "created_at" timestamptz not null default now()
-);
-create unique index if not exists contacts_user_idx on "better_supabase"."contacts" ("tenant_id", "user_id") where "user_id" is not null;
-create index if not exists contacts_email_idx on "better_supabase"."contacts" ("tenant_id", lower("email"));
-create index if not exists contacts_user_id_idx on "better_supabase"."contacts" ("user_id");
-alter table "better_supabase"."contacts" add column if not exists "updated_at" timestamptz not null default now();
-drop trigger if exists bsb_updated_at on "better_supabase"."contacts";
-create trigger bsb_updated_at before update on "better_supabase"."contacts"
-  for each row execute function better_supabase.set_updated_at('updated_at');
-alter table "better_supabase"."contacts" enable row level security;
-revoke all on "better_supabase"."contacts" from public, anon, authenticated;
-grant select on "better_supabase"."contacts" to authenticated;
-grant all on "better_supabase"."contacts" to service_role;
-drop policy if exists contacts_read on "better_supabase"."contacts";
-create policy contacts_read on "better_supabase"."contacts"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "user_id" = (select auth.uid()));
-
--- A contact's address on a channel: a WhatsApp number, a Slack user id.
-create table if not exists "better_supabase"."contact_identities" (
-  "id" uuid primary key default gen_random_uuid(),
-  "tenant_id" uuid not null,
-  "contact_id" uuid not null references "better_supabase"."contacts" ("id") on delete cascade,
-  "channel" text not null check (length("channel") between 1 and 50),
-  "external_id" text not null check (length("external_id") between 1 and 500),
-  "created_at" timestamptz not null default now(),
-  unique ("tenant_id", "channel", "external_id")
-);
-create index if not exists contact_identities_contact_idx on "better_supabase"."contact_identities" ("contact_id");
-alter table "better_supabase"."contact_identities" enable row level security;
-revoke all on "better_supabase"."contact_identities" from public, anon, authenticated;
-grant select on "better_supabase"."contact_identities" to authenticated;
-grant all on "better_supabase"."contact_identities" to service_role;
-drop policy if exists contact_identities_staff_read on "better_supabase"."contact_identities";
-create policy contact_identities_staff_read on "better_supabase"."contact_identities"
-  for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
-
 -- The inbox side of a core conversation of kind inbox, with the same id:
 -- one per channel thread (thread_id is the Chat SDK thread id), reopened
 -- when the contact writes again. last_message_at and the preview follow the
--- messages, never the notes.
+-- messages, never the notes. contact_id is a person of the contacts block,
+-- which adds its foreign key: contacts renders after the inbox.
 create table if not exists "better_supabase"."inbox_conversations" (
   "id" uuid primary key,
   "tenant_id" uuid not null,
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
-  "contact_id" uuid not null references "better_supabase"."contacts" ("id") on delete cascade,
+  "contact_id" uuid not null,
   "subject" text check (length("subject") <= 500),
   "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
   "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
@@ -467,12 +403,14 @@ create policy inbox_drafts_read on "better_supabase"."inbox_drafts"
 
 create or replace function "better_supabase"."inbox_contact_ids"()
 returns setof uuid
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select c."id" from "better_supabase"."contacts" c where c."user_id" = (select auth.uid());
+begin
+  return query select p."id" from "better_supabase"."people" p where p."user_id" = (select auth.uid());
+end;
 $$;
 revoke execute on function "better_supabase"."inbox_contact_ids"() from public, anon, authenticated;
 grant execute on function "better_supabase"."inbox_contact_ids"() to authenticated, service_role;
@@ -481,17 +419,19 @@ grant execute on function "better_supabase"."inbox_contact_ids"() to authenticat
 -- signed-in contact it belongs to. write asks for the reply key instead.
 create or replace function "better_supabase"."inbox_conversation_allowed"(conversation text, write boolean default false)
 returns boolean
-language sql
+language plpgsql
 stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce((
+begin
+  return coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce((
     select (case when write then coalesce(better_supabase.can('tenant', v."tenant_id", 'inbox.reply'), false) else coalesce(better_supabase.can('tenant', v."tenant_id", 'inbox.read'), false) end)
-      or exists (select 1 from "better_supabase"."contacts" c where c."id" = v."contact_id" and c."user_id" = (select auth.uid()))
+      or exists (select 1 from "better_supabase"."people" p where p."id" = v."contact_id" and p."user_id" = (select auth.uid()))
     from "better_supabase"."inbox_conversations" v
-    where v."id"::text = conversation
+    where v."id"::text = inbox_conversation_allowed.conversation
   ), false);
+end;
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_allowed"(text, boolean) from public, anon, authenticated;
 grant execute on function "better_supabase"."inbox_conversation_allowed"(text, boolean) to authenticated, service_role;
@@ -559,8 +499,8 @@ begin
   return (
     select k."last_read_at"
     from "better_supabase"."inbox_conversations" v
-    join "better_supabase"."contacts" c on c."id" = v."contact_id"
-    join "better_supabase"."conversation_members" k on k."conversation_id" = v."id" and k."user_id" = c."user_id"
+    join "better_supabase"."people" p on p."id" = v."contact_id"
+    join "better_supabase"."conversation_members" k on k."conversation_id" = v."id" and k."user_id" = p."user_id"
     where v."id" = inbox_contact_read_at.conversation
       and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v."tenant_id", 'inbox.read'), false))
   );
@@ -568,6 +508,31 @@ end;
 $$;
 revoke execute on function "better_supabase"."inbox_contact_read_at"(uuid) from public, anon;
 grant execute on function "better_supabase"."inbox_contact_read_at"(uuid) to authenticated, service_role;
+
+-- The contact of a conversation the caller reads: the person, in the shape
+-- the inbox has always returned. The person table's own policies ask for the
+-- contacts read key, which agents and the contact need not hold.
+create or replace function "better_supabase"."inbox_contact_json"(conversation uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not "better_supabase"."inbox_conversation_allowed"(conversation::text) then
+    return null;
+  end if;
+  return (
+    select jsonb_build_object('id', p."id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'user_id', p."user_id")
+    from "better_supabase"."inbox_conversations" v
+    join "better_supabase"."people" p on p."id" = v."contact_id"
+    where v."id" = inbox_contact_json.conversation
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."inbox_contact_json"(uuid) from public, anon;
+grant execute on function "better_supabase"."inbox_contact_json"(uuid) to authenticated, service_role;
 
 -- A conversation with its contact and inbox, as the reads return it.
 create or replace function "better_supabase"."inbox_conversation_json"(conversation uuid)
@@ -579,7 +544,7 @@ as $$
 begin
   return (
     select to_jsonb(v) || jsonb_build_object(
-      'contact', (select jsonb_build_object('id', c."id", 'name', c."name", 'email', c."email", 'phone', c."phone", 'avatar_url', c."avatar_url", 'user_id', c."user_id") from "better_supabase"."contacts" c where c."id" = v."contact_id"),
+      'contact', "better_supabase"."inbox_contact_json"(v."id"),
       'inbox', (select jsonb_build_object('id', i."id", 'name', i."name", 'channel', i."channel") from "better_supabase"."inboxes" i where i."id" = v."inbox_id"),
       'last_read_at', (select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = v."id" and k."user_id" = (select auth.uid())),
       'contact_read_at', "better_supabase"."inbox_contact_read_at"(v."id")
@@ -757,71 +722,25 @@ $$;
 revoke execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."set_inbox_team_member"(uuid, uuid, boolean) to authenticated, service_role;
 
--- Finds or creates a contact: by id, then by the identity on a channel, the
--- signed-in user, then the email. Fields in input fill in what is missing;
--- an identity is attached when given. No permission check: callers check.
-create or replace function "better_supabase"."inbox_resolve_contact"(tenant uuid, input jsonb)
-returns "better_supabase"."contacts"
-language plpgsql
-set search_path = ''
-as $$
-declare
-  v_contact "better_supabase"."contacts"%rowtype;
-  v_identity jsonb := input -> 'identity';
-begin
-  if input ? 'id' then
-    select * into v_contact from "better_supabase"."contacts" c where c."id" = (input ->> 'id')::uuid and c."tenant_id" = inbox_resolve_contact.tenant;
-    if not found then
-      raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
-    end if;
-  end if;
-  if v_contact."id" is null and v_identity is not null then
-    select c.* into v_contact from "better_supabase"."contact_identities" i join "better_supabase"."contacts" c on c."id" = i."contact_id"
-    where i."tenant_id" = inbox_resolve_contact.tenant and i."channel" = v_identity ->> 'channel' and i."external_id" = v_identity ->> 'external_id';
-  end if;
-  if v_contact."id" is null and input ? 'user_id' then
-    select * into v_contact from "better_supabase"."contacts" c where c."tenant_id" = inbox_resolve_contact.tenant and c."user_id" = (input ->> 'user_id')::uuid;
-  end if;
-  if v_contact."id" is null and nullif(input ->> 'email', '') is not null then
-    select * into v_contact from "better_supabase"."contacts" c where c."tenant_id" = inbox_resolve_contact.tenant and lower(c."email") = lower(input ->> 'email')
-    order by c."created_at" limit 1;
-  end if;
-  if v_contact."id" is null then
-    insert into "better_supabase"."contacts" ("tenant_id", "user_id", "name", "email", "phone", "avatar_url", "metadata")
-    values (inbox_resolve_contact.tenant, (input ->> 'user_id')::uuid, input ->> 'name', input ->> 'email', input ->> 'phone', input ->> 'avatar_url', coalesce(input -> 'metadata', '{}'::jsonb))
-    returning * into v_contact;
-  else
-    update "better_supabase"."contacts" c set
-      "name" = coalesce(c."name", input ->> 'name'),
-      "email" = coalesce(c."email", input ->> 'email'),
-      "phone" = coalesce(c."phone", input ->> 'phone'),
-      "avatar_url" = coalesce(input ->> 'avatar_url', c."avatar_url"),
-      "user_id" = coalesce(c."user_id", (input ->> 'user_id')::uuid),
-      "metadata" = c."metadata" || coalesce(input -> 'metadata', '{}'::jsonb)
-    where c."id" = v_contact."id"
-    returning * into v_contact;
-  end if;
-  if v_identity is not null and v_identity ? 'channel' and v_identity ? 'external_id' then
-    insert into "better_supabase"."contact_identities" ("tenant_id", "contact_id", "channel", "external_id")
-    values (inbox_resolve_contact.tenant, v_contact."id", v_identity ->> 'channel', v_identity ->> 'external_id')
-    on conflict do nothing;
-  end if;
-  return v_contact;
-end;
-$$;
-revoke execute on function "better_supabase"."inbox_resolve_contact"(uuid, jsonb) from public, anon, authenticated;
-
+-- Deprecated: contacts are people of the contacts block. Finds or creates the
+-- person by id, identity, user or email and returns it as an inbox contact.
 create or replace function "better_supabase"."upsert_contact"(tenant uuid, input jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_person uuid;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', upsert_contact.tenant, 'inbox.reply'), false)) then
     raise exception 'not allowed to edit contacts' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  return to_jsonb("better_supabase"."inbox_resolve_contact"(upsert_contact.tenant, coalesce(input, '{}'::jsonb)));
+  v_person := "better_supabase"."resolve_person"(upsert_contact.tenant, coalesce(input, '{}'::jsonb));
+  return (
+    select jsonb_build_object('id', p."id", 'tenant_id', p."tenant_id", 'user_id', p."user_id", 'name', p."name", 'email', p."email", 'phone', p."phone", 'avatar_url', p."avatar_url", 'metadata', p."metadata", 'created_at', p."created_at")
+    from "better_supabase"."people" p where p."id" = v_person
+  );
 end;
 $$;
 revoke execute on function "better_supabase"."upsert_contact"(uuid, jsonb) from public, anon;
@@ -951,7 +870,7 @@ $$;
 revoke execute on function "better_supabase"."inbox_add_message"(uuid, jsonb, text, uuid, text) from public, anon, authenticated;
 
 -- Opens a conversation. Staff (the reply key) or the service name the
--- contact in input.contact (an id or the fields inbox_resolve_contact
+-- contact in input.contact (a person id, or the fields resolve_person
 -- takes); a signed-in visitor of an in-app inbox with settings.widget = true
 -- opens one as themselves. input.message adds the first message.
 create or replace function "better_supabase"."start_conversation"(inbox uuid, input jsonb default '{}'::jsonb)
@@ -962,7 +881,8 @@ set search_path = ''
 as $$
 declare
   v_inbox "better_supabase"."inboxes"%rowtype;
-  v_contact "better_supabase"."contacts"%rowtype;
+  v_contact uuid;
+  v_contact_user uuid;
   v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_id uuid;
   v_staff boolean;
@@ -996,20 +916,21 @@ begin
   else
     raise exception 'not allowed to open a conversation in this inbox' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  v_contact := "better_supabase"."inbox_resolve_contact"(v_inbox."tenant_id", v_contact_input);
+  v_contact := "better_supabase"."resolve_person"(v_inbox."tenant_id", v_contact_input);
+  select p."user_id" into v_contact_user from "better_supabase"."people" p where p."id" = v_contact;
   v_id := gen_random_uuid();
   insert into "better_supabase"."conversations" ("id", "tenant_id", "kind", "access", "created_by")
   values (v_id, v_inbox."tenant_id", 'inbox', 'tenant', (select auth.uid()));
   insert into "better_supabase"."inbox_conversations" ("id", "tenant_id", "inbox_id", "contact_id", "subject", "priority", "bot_mode", "thread_id", "assignee_id", "metadata")
   values (
-    v_id, v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
+    v_id, v_inbox."tenant_id", v_inbox."id", v_contact, input ->> 'subject', coalesce(input ->> 'priority', 'normal'),
     coalesce(input ->> 'bot_mode', v_inbox."bot_mode"), coalesce(input ->> 'thread_id', 'inbox:' || v_inbox."id"::text || ':' || v_id::text),
     case when v_staff then (input ->> 'assignee_id')::uuid end, coalesce(input -> 'metadata', '{}'::jsonb)
   )
   returning * into v_conv;
-  if v_contact."user_id" is not null then
+  if v_contact_user is not null then
     insert into "better_supabase"."conversation_members" ("conversation_id", "tenant_id", "user_id")
-    values (v_id, v_inbox."tenant_id", v_contact."user_id")
+    values (v_id, v_inbox."tenant_id", v_contact_user)
     on conflict do nothing;
   end if;
   if v_conv."assignee_id" is not null then
@@ -1062,7 +983,7 @@ begin
   if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     v_author_type := coalesce(input ->> 'author_type', 'bot');
     v_direction := case when v_author_type = 'contact' then 'inbound' else 'outbound' end;
-  elsif exists (select 1 from "better_supabase"."contacts" c where c."id" = v_conv."contact_id" and c."user_id" = (select auth.uid())) then
+  elsif exists (select 1 from "better_supabase"."people" p where p."id" = v_conv."contact_id" and p."user_id" = (select auth.uid())) then
     -- The conversation's own contact writes as the contact, staff included.
     if v_kind <> 'message' then
       raise exception 'contacts cannot write notes' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
@@ -1134,7 +1055,8 @@ set search_path = ''
 as $$
 declare
   v_inbox "better_supabase"."inboxes"%rowtype;
-  v_contact "better_supabase"."contacts"%rowtype;
+  v_contact uuid;
+  v_contact_user uuid;
   v_conv "better_supabase"."inbox_conversations"%rowtype;
   v_id uuid;
   v_message uuid;
@@ -1154,16 +1076,17 @@ begin
   where "inbox_id" = v_inbox."id" and "thread_id" = input ->> 'thread_id'
   for update;
   if not found then
-    v_contact := "better_supabase"."inbox_resolve_contact"(v_inbox."tenant_id", v_contact_input);
+    v_contact := "better_supabase"."resolve_person"(v_inbox."tenant_id", v_contact_input);
+  select p."user_id" into v_contact_user from "better_supabase"."people" p where p."id" = v_contact;
     v_id := gen_random_uuid();
   insert into "better_supabase"."conversations" ("id", "tenant_id", "kind", "access", "created_by")
   values (v_id, v_inbox."tenant_id", 'inbox', 'tenant', (select auth.uid()));
     insert into "better_supabase"."inbox_conversations" ("id", "tenant_id", "inbox_id", "contact_id", "subject", "bot_mode", "thread_id", "metadata")
-    values (v_id, v_inbox."tenant_id", v_inbox."id", v_contact."id", input ->> 'subject', v_inbox."bot_mode", input ->> 'thread_id', coalesce(input -> 'metadata', '{}'::jsonb))
+    values (v_id, v_inbox."tenant_id", v_inbox."id", v_contact, input ->> 'subject', v_inbox."bot_mode", input ->> 'thread_id', coalesce(input -> 'metadata', '{}'::jsonb))
     returning * into v_conv;
-    if v_contact."user_id" is not null then
+    if v_contact_user is not null then
       insert into "better_supabase"."conversation_members" ("conversation_id", "tenant_id", "user_id")
-    values (v_id, v_inbox."tenant_id", v_contact."user_id")
+    values (v_id, v_inbox."tenant_id", v_contact_user)
     on conflict do nothing;
     end if;
     v_created := true;
@@ -1352,7 +1275,7 @@ begin
   insert into "better_supabase"."conversation_members" as k ("conversation_id", "tenant_id", "user_id", "last_read_at")
   values (v_conv."id", v_conv."tenant_id", (select auth.uid()), v_at)
   on conflict ("conversation_id", "user_id") do update set "last_read_at" = greatest(coalesce(k."last_read_at", excluded."last_read_at"), excluded."last_read_at");
-  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null and exists (select 1 from "better_supabase"."contacts" c where c."id" = v_conv."contact_id" and c."user_id" = (select auth.uid())) then
+  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null and exists (select 1 from "better_supabase"."people" p where p."id" = v_conv."contact_id" and p."user_id" = (select auth.uid())) then
     perform realtime.send(jsonb_build_object('conversation_id', v_conv."id"), 'read', 'messages:' || v_conv."id"::text, true);
   end if;
   return v_at;
@@ -1440,7 +1363,6 @@ begin
       select v."id", v."last_message_at",
         v."last_message_at" > coalesce((select k."last_read_at" from "better_supabase"."conversation_members" k where k."conversation_id" = v."id" and k."user_id" = (select auth.uid())), '-infinity'::timestamptz) as unread
       from "better_supabase"."inbox_conversations" v
-      left join "better_supabase"."contacts" c on c."id" = v."contact_id"
       where (list_inbox_conversations.tenant is null or v."tenant_id" = list_inbox_conversations.tenant)
         and (filter ->> 'inbox_id' is null or v."inbox_id" = (filter ->> 'inbox_id')::uuid)
         and (coalesce(filter ->> 'status', 'open') = 'all' or v."status" = coalesce(filter ->> 'status', 'open'))
@@ -1453,8 +1375,8 @@ begin
         and (nullif(filter ->> 'search', '') is null
           or v."subject" ilike '%' || (filter ->> 'search') || '%'
           or v."last_message_preview" ilike '%' || (filter ->> 'search') || '%'
-          or c."name" ilike '%' || (filter ->> 'search') || '%'
-          or c."email" ilike '%' || (filter ->> 'search') || '%')
+          or "better_supabase"."inbox_contact_json"(v."id") ->> 'name' ilike '%' || (filter ->> 'search') || '%'
+          or "better_supabase"."inbox_contact_json"(v."id") ->> 'email' ilike '%' || (filter ->> 'search') || '%')
         and (filter -> 'before' is null
           or (v."last_message_at", v."id") < ((filter -> 'before' ->> 'last_message_at')::timestamptz, (filter -> 'before' ->> 'id')::uuid))
       order by v."last_message_at" desc, v."id" desc
@@ -1753,8 +1675,8 @@ $$;
 revoke execute on function "better_supabase"."delete_message_template"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_message_template"(uuid) to authenticated, service_role;
 
--- Erases a contact for a data subject request: the contact, its identities
--- and its conversations with their messages, files, deliveries and events.
+-- Erases a contact for a data subject request: the person, their identities
+-- and their conversations with their messages, files, deliveries and events.
 -- Returns { conversations, messages, attachments }; attachments are the
 -- { bucket, path } of the stored files the caller still has to remove.
 create or replace function "better_supabase"."purge_contact"(contact uuid)
@@ -1772,7 +1694,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select c."tenant_id" into v_tenant from "better_supabase"."contacts" c where c."id" = purge_contact.contact;
+  select p."tenant_id" into v_tenant from "better_supabase"."people" p where p."id" = purge_contact.contact;
   if not found then
     raise exception 'contact not found' using errcode = 'P0002', hint = 'CONTACT_NOT_FOUND';
   end if;
@@ -1791,7 +1713,9 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object('bucket', g.bucket, 'path', g.path)) filter (where g.uploaded_at is not null), '[]'::jsonb)
   into v_paths from gone g;
   delete from "better_supabase"."conversations" k where k."id" = any (v_ids);
-  delete from "better_supabase"."contacts" c where c."id" = purge_contact.contact;
+  delete from "better_supabase"."person_identities" i where i."person_id" = purge_contact.contact;
+  update "better_supabase"."people" p set "merged_into" = null where p."merged_into" = purge_contact.contact;
+  delete from "better_supabase"."people" p where p."id" = purge_contact.contact;
   return jsonb_build_object('conversations', cardinality(v_ids), 'messages', v_messages, 'attachments', v_paths);
 end;
 $$;
@@ -2343,48 +2267,6 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."inboxes";
 create policy bsb_tenant_scope_delete on "better_supabase"."inboxes" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."contacts";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."contacts";
-create policy bsb_tenant_scope_select on "better_supabase"."contacts" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "user_id" = (select auth.uid()))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."contacts";
-create policy bsb_tenant_scope_insert on "better_supabase"."contacts" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."contacts";
-create policy bsb_tenant_scope_update on "better_supabase"."contacts" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
-  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contacts";
-create policy bsb_tenant_scope_delete on "better_supabase"."contacts" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."contact_identities";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."contact_identities";
-create policy bsb_tenant_scope_select on "better_supabase"."contact_identities" as restrictive
-  for select to public
-  using (
-    "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')))
-  );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."contact_identities";
-create policy bsb_tenant_scope_insert on "better_supabase"."contact_identities" as restrictive
-  for insert to public
-  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."contact_identities";
-create policy bsb_tenant_scope_update on "better_supabase"."contact_identities" as restrictive
-  for update to public
-  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
-  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."contact_identities";
-create policy bsb_tenant_scope_delete on "better_supabase"."contact_identities" as restrictive
-  for delete to public
-  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."inbox_conversations";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."inbox_conversations";
 create policy bsb_tenant_scope_select on "better_supabase"."inbox_conversations" as restrictive
@@ -2549,13 +2431,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:0c170442e20762acba5843a6e9c64753e9160b1c305bc886578949101fc55a27
+-- @bsb-hash sha256:2213309b51578d4882253e3cb3929d3d0c0db82daf2a29103d48670e30535c41
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 7, 'managed')
+values ('inbox', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

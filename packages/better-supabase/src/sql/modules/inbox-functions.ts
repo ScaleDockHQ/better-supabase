@@ -24,9 +24,9 @@ export function inboxFunctions(
   const mb = q.cols("members");
   const tm = q.cols("teams");
   const tmm = q.cols("teamMembers");
-  const ct = q.cols("contacts");
-  const ci = q.cols("identities");
   const cv = q.cols("conversations");
+  const { people } = q;
+  const pc = people.c;
   const dt = q.cols("details");
   const dl = q.cols("deliveries");
   const T = (name: string): string => q.t(name);
@@ -138,7 +138,38 @@ grant execute on function ${signature} to authenticated, service_role;`;
     ${fail("INBOX_MESSAGE_TOO_LONG", `a message is at most ${String(q.maxBody)} characters`, "22023")}
   end if;`;
 
+  const contactUser = people.has("user")
+    ? `select p.${pc("user")} into v_contact_user from ${people.t} p where p.${pc("id")} = v_contact;`
+    : "";
+
+  // The conversation's own contact: a person whose user is the caller.
+  const ownContact = `exists (select 1 from ${people.t} p where p.${pc("id")} = v_conv.${cv("contact")} and p.${pc("user")} = (select auth.uid()))`;
+
   return `${inboxContactReadAt(q)}
+
+-- The contact of a conversation the caller reads: the person, in the shape
+-- the inbox has always returned. The person table's own policies ask for the
+-- contacts read key, which agents and the contact need not hold.
+create or replace function ${fn("inbox_contact_json")}(conversation uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if not ${fn("inbox_conversation_allowed")}(conversation::text) then
+    return null;
+  end if;
+  return (
+    select jsonb_build_object('id', p.${pc("id")}, 'name', ${people.or("p", "name")}, 'email', ${people.or("p", "email")}, 'phone', ${people.or("p", "phone")}, 'avatar_url', ${people.or("p", "avatarUrl")}, 'user_id', ${people.or("p", "user")})
+    from ${T("conversations")} v
+    join ${people.t} p on p.${pc("id")} = v.${cv("contact")}
+    where v.${cv("id")} = inbox_contact_json.conversation
+  );
+end;
+$$;
+${authed(`${fn("inbox_contact_json")}(uuid)`)}
 
 -- A conversation with its contact and inbox, as the reads return it.
 create or replace function ${conversationJson}(conversation uuid)
@@ -150,7 +181,7 @@ as $$
 begin
   return (
     select ${q.json("conversations", "v")} || jsonb_build_object(
-      'contact', (select jsonb_build_object('id', c.${ct("id")}, 'name', ${or("contacts", "c", "name")}, 'email', ${or("contacts", "c", "email")}, 'phone', ${or("contacts", "c", "phone")}, 'avatar_url', ${or("contacts", "c", "avatarUrl")}, 'user_id', c.${ct("user")}) from ${T("contacts")} c where c.${ct("id")} = v.${cv("contact")}),
+      'contact', ${fn("inbox_contact_json")}(v.${cv("id")}),
       'inbox', (select jsonb_build_object('id', i.${ib("id")}, 'name', i.${ib("name")}, 'channel', i.${ib("channel")}) from ${T("inboxes")} i where i.${ib("id")} = v.${cv("inbox")}),
       'last_read_at', (select k.${ck("lastReadAt")} from ${core.t("members")} k where k.${ck("conversation")} = v.${cv("id")} and k.${ck("user")} = (select auth.uid())),
       'contact_read_at', ${fn("inbox_contact_read_at")}(v.${cv("id")})
@@ -338,74 +369,25 @@ end;`
 $$;
 ${authed(`${fn("set_inbox_team_member")}(uuid, uuid, boolean)`)}
 
--- Finds or creates a contact: by id, then by the identity on a channel, the
--- signed-in user, then the email. Fields in input fill in what is missing;
--- an identity is attached when given. No permission check: callers check.
-create or replace function ${fn("inbox_resolve_contact")}(tenant ${id}, input jsonb)
-returns ${T("contacts")}
-language plpgsql
-set search_path = ''
-as $$
-declare
-  v_contact ${T("contacts")}%rowtype;
-  v_identity jsonb := input -> 'identity';
-begin
-  if input ? 'id' then
-    select * into v_contact from ${T("contacts")} c where c.${ct("id")} = (input ->> 'id')::uuid and c.${ct("tenant")} = inbox_resolve_contact.tenant;
-    if not found then
-      ${missing("contact", "CONTACT_NOT_FOUND")}
-    end if;
-  end if;
-  if v_contact.${ct("id")} is null and v_identity is not null then
-    select c.* into v_contact from ${T("identities")} i join ${T("contacts")} c on c.${ct("id")} = i.${ci("contact")}
-    where i.${ci("tenant")} = inbox_resolve_contact.tenant and i.${ci("channel")} = v_identity ->> 'channel' and i.${ci("externalId")} = v_identity ->> 'external_id';
-  end if;
-  if v_contact.${ct("id")} is null and input ? 'user_id' then
-    select * into v_contact from ${T("contacts")} c where c.${ct("tenant")} = inbox_resolve_contact.tenant and c.${ct("user")} = (input ->> 'user_id')::uuid;
-  end if;
-${
-  has("contacts", "email")
-    ? `  if v_contact.${ct("id")} is null and nullif(input ->> 'email', '') is not null then
-    select * into v_contact from ${T("contacts")} c where c.${ct("tenant")} = inbox_resolve_contact.tenant and lower(c.${ct("email")}) = lower(input ->> 'email')
-    order by ${or("contacts", "c", "createdAt", `c.${ct("id")}`)} limit 1;
-  end if;
-`
-    : ""
-}  if v_contact.${ct("id")} is null then
-    insert into ${T("contacts")} (${columnsOf("contacts", w.newContact)})
-    values (${valuesOf(w.newContact)})
-    returning * into v_contact;
-  else
-    update ${T("contacts")} c set
-      ${w.contactPatch.map(([column, value]) => `${ct(column)} = ${value}`).join(",\n      ")}
-    where c.${ct("id")} = v_contact.${ct("id")}
-    returning * into v_contact;
-  end if;
-  if v_identity is not null and v_identity ? 'channel' and v_identity ? 'external_id' then
-    insert into ${T("identities")} (${ci("tenant")}, ${ci("contact")}, ${ci("channel")}, ${ci("externalId")})
-    values (inbox_resolve_contact.tenant, v_contact.${ct("id")}, v_identity ->> 'channel', v_identity ->> 'external_id')
-    on conflict do nothing;
-  end if;
-  return v_contact;
-end;
-$$;
-${internal(`${fn("inbox_resolve_contact")}(${id}, jsonb)`)}
-
+-- Deprecated: contacts are people of the contacts block. Finds or creates the
+-- person by id, identity, user or email and returns it as an inbox contact.
 create or replace function ${fn("upsert_contact")}(tenant ${id}, input jsonb)
 returns jsonb
 language plpgsql
 security definer
 set search_path = ''
 as $$
+declare
+  v_person uuid;
 begin
   if not (${service} or ${q.can("upsert_contact.tenant", "reply")}) then
     ${forbidden("not allowed to edit contacts")}
   end if;
-  return ${
-    ctx.owns("contacts")
-      ? `to_jsonb(${fn("inbox_resolve_contact")}(upsert_contact.tenant, coalesce(input, '{}'::jsonb)))`
-      : `(select ${q.json("contacts", "c")} from ${fn("inbox_resolve_contact")}(upsert_contact.tenant, coalesce(input, '{}'::jsonb)) c)`
-  };
+  v_person := ${people.resolve}(upsert_contact.tenant, coalesce(input, '{}'::jsonb));
+  return (
+    select jsonb_build_object('id', p.${pc("id")}, 'tenant_id', p.${pc("tenant")}, 'user_id', ${people.or("p", "user")}, 'name', ${people.or("p", "name")}, 'email', ${people.or("p", "email")}, 'phone', ${people.or("p", "phone")}, 'avatar_url', ${people.or("p", "avatarUrl")}, 'metadata', ${people.has("metadata") ? `p.${pc("metadata")}` : "'{}'::jsonb"}, 'created_at', ${people.or("p", "createdAt")})
+    from ${people.t} p where p.${pc("id")} = v_person
+  );
 end;
 $$;
 ${authed(`${fn("upsert_contact")}(${id}, jsonb)`)}
@@ -566,7 +548,7 @@ $$;
 ${internal(`${fn("inbox_add_message")}(uuid, jsonb, text, uuid, text)`)}
 
 -- Opens a conversation. Staff (the reply key) or the service name the
--- contact in input.contact (an id or the fields inbox_resolve_contact
+-- contact in input.contact (a person id, or the fields resolve_person
 -- takes); a signed-in visitor of an in-app inbox with settings.widget = true
 -- opens one as themselves. input.message adds the first message.
 create or replace function ${fn("start_conversation")}(inbox uuid, input jsonb default '{}'::jsonb)
@@ -577,7 +559,8 @@ set search_path = ''
 as $$
 declare
   v_inbox ${T("inboxes")}%rowtype;
-  v_contact ${T("contacts")}%rowtype;
+  v_contact uuid;
+  v_contact_user uuid;
   v_conv ${T("conversations")}%rowtype;
   v_id uuid;
   v_staff boolean;
@@ -608,7 +591,8 @@ begin
   else
     ${forbidden("not allowed to open a conversation in this inbox")}
   end if;
-  v_contact := ${fn("inbox_resolve_contact")}(v_inbox.${ib("tenant")}, v_contact_input);
+  v_contact := ${people.resolve}(v_inbox.${ib("tenant")}, v_contact_input);
+  ${contactUser}
   ${openCore(`v_inbox.${ib("tenant")}`)}
   insert into ${T("conversations")} (${columnsOf("conversations", [...w.startHead, ...w.startMid, ...w.startTail])})
   values (
@@ -617,8 +601,8 @@ begin
     ${valuesOf(w.startTail.filter(([column]) => column === "assignee" || column === "metadata"))}
   )
   returning * into v_conv;
-  if v_contact.${ct("user")} is not null then
-    ${join("v_id", `v_inbox.${ib("tenant")}`, `v_contact.${ct("user")}`)}
+  if v_contact_user is not null then
+    ${join("v_id", `v_inbox.${ib("tenant")}`, `v_contact_user`)}
   end if;
   if v_conv.${cv("assignee")} is not null then
     ${join("v_id", `v_inbox.${ib("tenant")}`, `v_conv.${cv("assignee")}`)}
@@ -660,7 +644,7 @@ begin
   if ${service} then
     v_author_type := coalesce(input ->> 'author_type', 'bot');
     v_direction := case when v_author_type = 'contact' then 'inbound' else 'outbound' end;
-  elsif exists (select 1 from ${T("contacts")} c where c.${ct("id")} = v_conv.${cv("contact")} and c.${ct("user")} = (select auth.uid())) then
+  elsif ${ownContact} then
     -- The conversation's own contact writes as the contact, staff included.
     if v_kind <> 'message' then
       ${forbidden("contacts cannot write notes")}
@@ -726,7 +710,8 @@ set search_path = ''
 as $$
 declare
   v_inbox ${T("inboxes")}%rowtype;
-  v_contact ${T("contacts")}%rowtype;
+  v_contact uuid;
+  v_contact_user uuid;
   v_conv ${T("conversations")}%rowtype;
   v_id uuid;
   v_message uuid;
@@ -746,13 +731,14 @@ begin
   where ${cv("inbox")} = v_inbox.${ib("id")} and ${cv("thread")} = input ->> 'thread_id'
   for update;
   if not found then
-    v_contact := ${fn("inbox_resolve_contact")}(v_inbox.${ib("tenant")}, v_contact_input);
+    v_contact := ${people.resolve}(v_inbox.${ib("tenant")}, v_contact_input);
+  ${contactUser}
     ${openCore(`v_inbox.${ib("tenant")}`)}
     insert into ${T("conversations")} (${columnsOf("conversations", w.inboundConversation)})
     values (${valuesOf(w.inboundConversation)})
     returning * into v_conv;
-    if v_contact.${ct("user")} is not null then
-      ${join("v_id", `v_inbox.${ib("tenant")}`, `v_contact.${ct("user")}`)}
+    if v_contact_user is not null then
+      ${join("v_id", `v_inbox.${ib("tenant")}`, `v_contact_user`)}
     end if;
     v_created := true;
     ${log("opened", "jsonb_build_object('by', 'channel')")}
@@ -933,7 +919,7 @@ begin
   insert into ${core.t("members")} as k (${ck("conversation")}, ${ck("tenant")}, ${ck("user")}, ${ck("lastReadAt")})
   values (v_conv.${cv("id")}, v_conv.${cv("tenant")}, (select auth.uid()), v_at)
   on conflict (${ck("conversation")}, ${ck("user")}) do update set ${ck("lastReadAt")} = greatest(coalesce(k.${ck("lastReadAt")}, excluded.${ck("lastReadAt")}), excluded.${ck("lastReadAt")});
-  if ${ready} and exists (select 1 from ${T("contacts")} c where c.${ct("id")} = v_conv.${cv("contact")} and c.${ct("user")} = (select auth.uid())) then
+  if ${ready} and ${ownContact} then
     perform realtime.send(jsonb_build_object('conversation_id', v_conv.${cv("id")}), 'read', ${core.topic(`v_conv.${cv("id")}`)}, true);
   end if;
   return v_at;

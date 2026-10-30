@@ -275,7 +275,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
     await installSchemaModules(pool);
   });
 
-  it("resolves an identity linked to an inbox contact", async () => {
+  it("resolves an identity linked to an inbox contact's person", async () => {
     const client = await pool.connect();
 
     try {
@@ -287,12 +287,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
            and conkey = array[(select attnum from pg_attribute where attrelid = 'better_supabase.identity_links'::regclass and attname = 'contact_id')]`,
       );
 
-      expect(fk.map((row) => row.target)).toEqual(["better_supabase.contacts"]);
+      expect(fk.map((row) => row.target)).toEqual(["better_supabase.people"]);
 
       const {
         rows: [contact],
       } = await client.query<{ id: string }>(
-        "insert into better_supabase.contacts (tenant_id, name) values ($1, 'Visitor') returning id",
+        "insert into better_supabase.people (tenant_id, name, lifecycle) values ($1, 'Visitor', 'lead') returning id",
         [ACME],
       );
 

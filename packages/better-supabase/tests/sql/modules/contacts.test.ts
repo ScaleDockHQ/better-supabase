@@ -66,13 +66,39 @@ describe("parties module, custom mode", () => {
   });
 });
 
+describe("parties module identities", () => {
+  it("keeps one person per address on a channel", () => {
+    const sql = sqlOf();
+    expect(sql).toContain(
+      'create table if not exists "better_supabase"."person_identities"',
+    );
+    expect(sql).toContain('unique ("tenant_id", "channel", "address")');
+    expect(sql).toContain(
+      "create index if not exists person_identities_person_idx",
+    );
+    expect(sql).toContain('"avatar_url" text,');
+  });
+
+  it("resolves people for other blocks only", () => {
+    const sql = sqlOf();
+    expect(sql).toContain(
+      'revoke execute on function "better_supabase"."resolve_person"(uuid, jsonb) from public, anon, authenticated;',
+    );
+    expect(sql).toContain('"better_supabase"."find_person_by_identity"');
+    expect(sql).toContain("PARTY_IDENTITY_TAKEN");
+  });
+});
+
 describe("parties module with the inbox", () => {
-  it("links people to inbox contacts only when the inbox is installed", () => {
+  it("makes a conversation's contact a person only when the inbox is installed", () => {
     const sql = sqlOf({}, ["inbox"]);
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."person_inbox_contacts"',
+      `alter table "better_supabase"."inbox_conversations" add constraint "inbox_conversations_contact_id_fkey"\n  foreign key ("contact_id") references "better_supabase"."people" ("id") on delete cascade;`,
     );
-    expect(sql).toContain("person_for_inbox_contact");
-    expect(sqlOf()).not.toContain("person_inbox_contacts");
+    expect(sql).toContain(
+      `update "better_supabase"."inbox_conversations" x set "contact_id" = merge_people.keep`,
+    );
+    expect(sqlOf()).not.toContain("inbox_conversations");
+    expect(sql).not.toContain("person_inbox_contacts");
   });
 });

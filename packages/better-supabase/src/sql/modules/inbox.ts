@@ -9,6 +9,8 @@ import { CONVERSATION_TO_TASK } from "../../blocks/inbox/automations.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { schemaPreamble } from "../shared.ts";
 import { shippedAutomation } from "./automation-defaults.ts";
+import { EMAIL_PATTERN } from "./contacts-identities.ts";
+import { contactsUpgradeTables, personStage } from "./contacts.ts";
 import { inboxDraftFunctions, inboxDraftsDdl } from "./inbox-drafts.ts";
 import { inboxFunctions } from "./inbox-functions.ts";
 import { INBOX_NAMES, inboxSql } from "./inbox-names.ts";
@@ -150,7 +152,6 @@ const TO_MESSAGING: BlockSqlUpgrade = {
     const cm = core.cols("messages");
     const ck = core.cols("members");
     const cv = q.cols("conversations");
-    const ct = q.cols("contacts");
     const dt = q.cols("details");
     const old = (name: string): string => `${ctx.schema}.${name}`;
     const messages = old("inbox_messages");
@@ -241,8 +242,8 @@ begin
     union all
     select x.conversation_id, x.author_id, null from ${messages} x where x.author_id is not null
     union all
-    select w.${cv("id")}, c.${ct("user")}, null from ${q.t("conversations")} w
-    join ${q.t("contacts")} c on c.${ct("id")} = w.${cv("contact")} where c.${ct("user")} is not null
+    select w.${cv("id")}, c.user_id, null from ${q.t("conversations")} w
+    join ${old("contacts")} c on c.id = w.${cv("contact")} where c.user_id is not null
   ) u
   join ${q.t("conversations")} v on v.${cv("id")} = u.conversation
   where exists (select 1 from auth.users z where z.id = u.member)
@@ -281,6 +282,167 @@ begin
 end;
 $$;
 ${LEGACY_FUNCTIONS.map((signature) => `drop function if exists ${ctx.schema}.${signature};`).join("\n")}`;
+  },
+};
+
+// Inbox contacts become people of the contacts block. A contact keeps its id
+// as the new person's id unless a linked person or an active person with the
+// same email exists; conversations and identity links then move to that one.
+// The step creates the contacts tables, since the data moves before the
+// module files run.
+const CONTACTS_TO_PEOPLE: BlockSqlUpgrade = {
+  from: 7,
+  description:
+    "Inbox contacts move onto the contacts block: each contact becomes a person (or joins the person it was linked to, or the active person with its email), contact_identities become person_identities, and conversations name the person. contacts, contact_identities and person_inbox_contacts are dropped.",
+  sql: (ctx) => {
+    const q = inboxSql(ctx);
+    const cv = q.cols("conversations");
+    const contacts = q.people.ctx;
+    const pe = (column: string): string => contacts.col("people", column);
+    const ic = (column: string): string => contacts.col("identities", column);
+    const people = contacts.table("people");
+    const identities = contacts.table("identities");
+    const old = (name: string): string => `${ctx.schema}.${name}`;
+
+    const stage = contacts.cast(
+      "people",
+      "lifecycle",
+      sqlString(personStage(contacts)),
+    );
+
+    const links =
+      contacts.installed("identities") &&
+      contacts.of("identities").has("links", "contact")
+        ? contacts.of("identities")
+        : undefined;
+
+    const optional = (
+      [
+        ["avatarUrl", "j ->> 'avatar_url'"],
+        [
+          "metadata",
+          "coalesce(j -> 'metadata', '{}'::jsonb) || case when v_email is null and nullif(j ->> 'email', '') is not null then jsonb_build_object('email', j ->> 'email') else '{}'::jsonb end",
+        ],
+      ] as const
+    ).filter(([column]) => contacts.has("people", column));
+
+    const columns = [
+      pe("id"),
+      pe("tenant"),
+      pe("name"),
+      pe("email"),
+      pe("phone"),
+      pe("lifecycle"),
+      pe("user"),
+      ...optional.map(([column]) => pe(column)),
+      pe("createdAt"),
+    ];
+
+    const values = [
+      "v_contact",
+      "v_tenant",
+      "left(coalesce(nullif(j ->> 'name', ''), nullif(btrim(j ->> 'email'), ''), nullif(j ->> 'phone', ''), 'Unknown contact'), 300)",
+      "v_email",
+      "nullif(j ->> 'phone', '')",
+      stage,
+      "(j ->> 'user_id')::uuid",
+      ...optional.map(([, value]) => value),
+      "coalesce((j ->> 'created_at')::timestamptz, now())",
+    ];
+
+    const fill = [
+      `${pe("user")} = coalesce(p.${pe("user")}, (j ->> 'user_id')::uuid)`,
+      `${pe("phone")} = coalesce(p.${pe("phone")}, nullif(j ->> 'phone', ''))`,
+      ...(contacts.has("people", "avatarUrl")
+        ? [
+            `${pe("avatarUrl")} = coalesce(p.${pe("avatarUrl")}, j ->> 'avatar_url')`,
+          ]
+        : []),
+    ];
+
+    const repoint = [
+      `update ${q.t("conversations")} v set ${cv("contact")} = v_person where v.${cv("contact")} = v_contact;`,
+      ...(links
+        ? [
+            `update ${links.table("links")} l set ${links.col("links", "contact")} = v_person where l.${links.col("links", "contact")} = v_contact;`,
+          ]
+        : []),
+    ];
+
+    return `-- The people and identity tables, so the contacts can move before the module files run.
+${contactsUpgradeTables(contacts)}
+
+do $$
+declare
+  r record;
+  j jsonb;
+  v_contact uuid;
+  v_tenant ${q.id};
+  v_person uuid;
+  v_email text;
+  v_key record;
+begin
+  if to_regclass(${sqlString(old("contacts"))}) is null then
+    return;
+  end if;
+  -- The foreign keys on the old contacts go first: conversations and identity
+  -- links may move to a person whose id no contact has.
+  for v_key in
+    select c.conname, c.conrelid::regclass as tbl from pg_constraint c
+    where c.contype = 'f' and c.confrelid = ${sqlString(old("contacts"))}::regclass
+      and c.conrelid <> ${sqlString(old("contacts"))}::regclass
+  loop
+    execute format('alter table %s drop constraint %I', v_key.tbl, v_key.conname);
+  end loop;
+  for r in select c.id, to_jsonb(c) as j from ${old("contacts")} c order by c.id loop
+    j := r.j;
+    v_contact := r.id;
+    v_tenant := (j ->> 'tenant_id')::${q.id};
+    v_person := null;
+    v_email := lower(btrim(j ->> 'email'));
+    if v_email !~ ${EMAIL_PATTERN} then
+      v_email := null;
+    end if;
+    if to_regclass(${sqlString(old("person_inbox_contacts"))}) is not null then
+      select l.person_id into v_person from ${old("person_inbox_contacts")} l where l.contact_id = v_contact;
+    end if;
+    if v_person is null and v_email is not null then
+      select coalesce(p.${pe("mergedInto")}, p.${pe("id")}) into v_person from ${people} p
+      where p.${pe("tenant")} = v_tenant and p.${pe("email")} = v_email and p.${pe("archivedAt")} is null
+      order by p.${pe("createdAt")}, p.${pe("id")} limit 1;
+    end if;
+    if v_person is null then
+      insert into ${people} (${columns.join(", ")})
+      values (${values.join(", ")})
+      on conflict do nothing
+      returning ${pe("id")} into v_person;
+    end if;
+    if v_person is null then
+      raise exception 'inbox: contact % could not become a person', v_contact
+        using hint = 'a person with this id or email exists in another state; resolve it, then run better-supabase upgrade again';
+    end if;
+    if v_person <> v_contact then
+      update ${people} p set
+        ${fill.join(",\n        ")}
+      where p.${pe("id")} = v_person;
+      ${repoint.join("\n      ")}
+    end if;
+    if to_regclass(${sqlString(old("contact_identities"))}) is not null then
+      insert into ${identities} (${ic("tenant")}, ${ic("person")}, ${ic("channel")}, ${ic("address")}${contacts.has("identities", "createdAt") ? `, ${ic("createdAt")}` : ""})
+      select i.tenant_id, v_person, i.channel, i.external_id${contacts.has("identities", "createdAt") ? ", coalesce((to_jsonb(i) ->> 'created_at')::timestamptz, now())" : ""}
+      from ${old("contact_identities")} i where i.contact_id = v_contact
+      on conflict do nothing;
+    end if;
+  end loop;
+  drop table if exists ${old("person_inbox_contacts")} cascade;
+  drop table if exists ${old("contact_identities")} cascade;
+  drop table ${old("contacts")} cascade;
+end;
+$$;
+drop function if exists ${q.fn("inbox_resolve_contact")}(${q.id}, jsonb);
+drop function if exists ${contacts.fn("link_inbox_contact")}(uuid, uuid);
+drop function if exists ${contacts.fn("unlink_inbox_contact")}(uuid);
+drop function if exists ${contacts.fn("person_for_inbox_contact")}(uuid, boolean);`;
   },
 };
 
@@ -430,7 +592,7 @@ export const INBOX: BlockSqlDefinition = {
     "inbox_conversation_json",
     "inbox_messages_json",
     "inbox_contact_read_at",
-    "inbox_resolve_contact",
+    "inbox_contact_json",
     "inbox_add_message",
     "inbox_file_allowed",
     "inbox_message_broadcast",
@@ -441,7 +603,7 @@ export const INBOX: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Shared inbox",
   description:
-    "Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts with their channel identities, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.",
+    "Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.",
   requires: [
     "memberships",
     "permissions",
@@ -449,6 +611,7 @@ export const INBOX: BlockSqlDefinition = {
     "teams",
     "messaging",
     "attachments",
+    "contacts",
   ],
   integrates: [
     "queue",
@@ -461,7 +624,7 @@ export const INBOX: BlockSqlDefinition = {
   providerFunctions: ["idsWithFor"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 7,
+  version: 8,
   upgrades: [
     {
       from: 1,
@@ -483,6 +646,7 @@ export const INBOX: BlockSqlDefinition = {
         "Reply drafts live in inbox_drafts: a staff member's own draft per conversation and ai drafts any staff member who can reply reviews.",
       sql: () => "",
     },
+    CONTACTS_TO_PEOPLE,
   ],
   names: INBOX_NAMES,
   contract,

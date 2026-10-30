@@ -81,8 +81,29 @@ export interface Person extends PartyRecord {
   readonly email?: string;
   readonly phone?: string;
   readonly title?: string;
-  /** The user this person signs in as, for a portal. */
+  /** The user this person signs in as, for a portal or the inbox widget. */
   readonly userId?: string;
+  readonly avatarUrl?: string;
+  /** What a channel told about the person, such as an inbox contact's profile. */
+  readonly metadata?: Readonly<Record<string, unknown>>;
+}
+
+/** A person's address on a channel: an email address, a WhatsApp number. */
+export interface PersonIdentity {
+  readonly id: string;
+  readonly organizationId: string;
+  readonly personId: string;
+  readonly channel: string;
+  readonly address: string;
+  readonly verifiedAt?: Temporal.Instant;
+  readonly createdAt?: Temporal.Instant;
+}
+
+export interface PersonIdentityInput {
+  readonly channel: string;
+  readonly address: string;
+  /** Marks the address verified, now. */
+  readonly verified?: boolean;
 }
 
 /** A person at a company. */
@@ -195,16 +216,23 @@ export interface Contacts<F extends object = Record<never, never>> {
   ): AsyncResult<PartyPage<Person>>;
   /** A company's people with their role, primary contact first. */
   peopleOf(companyId: string): AsyncResult<CompanyPerson[]>;
-  /** Links an inbox contact to a person. Needs the inbox module. */
-  linkInboxContact(personId: string, contactId: string): AsyncResult<boolean>;
-  unlinkInboxContact(contactId: string): AsyncResult<boolean>;
+  /** A person's addresses on channels, by channel and address. */
+  identities(personId: string): AsyncResult<PersonIdentity[]>;
   /**
-   * The person an inbox contact is: its link, else the person with its email
-   * (then linked), else with `create` a new lead from the contact.
+   * Adds an address on a channel to a person. An address another person of the
+   * organization holds fails with `PARTY_IDENTITY_TAKEN`.
    */
-  personForInboxContact(
-    contactId: string,
-    options?: { readonly create?: boolean },
+  addIdentity(
+    personId: string,
+    identity: PersonIdentityInput,
+  ): AsyncResult<PersonIdentity>;
+  /** Removes an identity; `false` when there was none. */
+  removeIdentity(identityId: string): AsyncResult<boolean>;
+  /** The person an address on a channel belongs to. */
+  findByIdentity(
+    organizationId: string,
+    channel: string,
+    address: string,
   ): AsyncResult<Person | undefined>;
   /**
    * The people who represent a record through `represents` links, holding links
@@ -269,6 +297,8 @@ const PERSON_COLUMNS = new Set([
   "phone",
   "title",
   "user_id",
+  "avatar_url",
+  "metadata",
   "role",
   "is_primary",
 ]);
@@ -321,6 +351,8 @@ function personOf(value: unknown): Person {
   const phone = optionalText(row["phone"]);
   const title = optionalText(row["title"]);
   const userId = optionalText(row["user_id"]);
+  const avatarUrl = optionalText(row["avatar_url"]);
+  const metadata = row["metadata"];
 
   return {
     ...base(row, PERSON_COLUMNS),
@@ -328,6 +360,24 @@ function personOf(value: unknown): Person {
     ...(phone === undefined ? {} : { phone }),
     ...(title === undefined ? {} : { title }),
     ...(userId === undefined ? {} : { userId }),
+    ...(avatarUrl === undefined ? {} : { avatarUrl }),
+    ...(isRecord(metadata) ? { metadata } : {}),
+  };
+}
+
+function identityOf(value: unknown): PersonIdentity {
+  const row = recordOf(value, "person identity");
+  const verifiedAt = optionalInstant(row["verified_at"]);
+  const createdAt = optionalInstant(row["created_at"]);
+
+  return {
+    id: textOf(row["id"]),
+    organizationId: textOf(row["tenant_id"]),
+    personId: textOf(row["person_id"]),
+    channel: textOf(row["channel"]),
+    address: textOf(row["address"]),
+    ...(verifiedAt === undefined ? {} : { verifiedAt }),
+    ...(createdAt === undefined ? {} : { createdAt }),
   };
 }
 
@@ -516,22 +566,31 @@ export function createContacts<
       ),
     listPeople: (organizationId, listOptions = {}) =>
       list("list_people", organizationId, listOptions, personOf),
-    linkInboxContact: (personId, contactId) =>
+    identities: (personId) =>
+      call("list_person_identities", { person: personId }, (value) =>
+        recordsOf(value, "list_person_identities").map(identityOf),
+      ),
+    addIdentity: (personId, identity) =>
       call(
-        "link_inbox_contact",
-        { person: personId, contact: contactId },
+        "add_person_identity",
+        {
+          person: personId,
+          channel: identity.channel,
+          address: identity.address,
+          verified: identity.verified ?? false,
+        },
+        identityOf,
+      ),
+    removeIdentity: (identityId) =>
+      call(
+        "remove_person_identity",
+        { identity: identityId },
         (value) => value === true,
       ),
-    unlinkInboxContact: (contactId) =>
+    findByIdentity: (organizationId, channel, address) =>
       call(
-        "unlink_inbox_contact",
-        { contact: contactId },
-        (value) => value === true,
-      ),
-    personForInboxContact: (contactId, find = {}) =>
-      call(
-        "person_for_inbox_contact",
-        { contact: contactId, create: find.create ?? false },
+        "find_person_by_identity",
+        { tenant: organizationId, channel, address },
         (value) => (value === null ? undefined : personOf(value)),
       ),
     peopleOf: (companyId) =>
