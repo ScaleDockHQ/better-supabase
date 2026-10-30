@@ -149,8 +149,8 @@ linked tasks with their title, state, due date and close time.
 `removePostmortemAction` removes the link and keeps the task. Both need
 `incidents.write`, and deleting the task removes the link.
 
-`actionItems` (the `action_items` column) is deprecated and is removed in a
-later minor. It stays readable, and without `tasks` `savePostmortem` still
+`actionItems` (the `action_items` column) is deprecated and is removed in
+0.48. It stays readable, and without `tasks` `savePostmortem` still
 writes it. With `tasks`, `savePostmortem` refuses it with
 `INCIDENTS_INVALID`; write action items through `addPostmortemAction`
 instead.

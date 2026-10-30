@@ -1,6 +1,6 @@
 ---
 title: From 0.46 to 0.47
-description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed, every event type names its entity and a past verb, and doctor adds BS423 and BS424.
+description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed, every event type names its entity and a past verb, and doctor adds BS423 and BS424. AI document versions move onto the versions block, and with the tasks block postmortem action items become tasks.
 ---
 
 0.47.0 finishes the naming convention (ADR 0130): the key of every entity in
@@ -11,16 +11,19 @@ lists for review. Old entity keys and the old subject types keep working until
 0.48, with a warning. The outbox stores the new event types, so subscribers to
 an old type miss its events until you rename them; receivers outside the app
 can keep the old names for one minor with the outbox `legacyEventTypes`
-option.
+option. AI document versions move onto the versions block, and with the
+tasks block postmortem action items become tasks.
 
-| Section                             | Needs code                                          |
-| ----------------------------------- | --------------------------------------------------- |
-| [Entity keys](#entity-keys)         | Run `codemod 0.47`                                  |
-| [Subject types](#subject-types)     | Run `upgrade`; rename stored types outside SQL      |
-| [Hint codes](#hint-codes)           | Run `codemod 0.47`, then check `ACTIVITY_FORBIDDEN` |
-| [Function names](#function-names)   | Rename calls in your own SQL                        |
-| [Event types](#event-types)         | Run `codemod 0.47`, then check `saved` types        |
-| [The SQL modules](#the-sql-modules) | Run `upgrade` and generate a migration              |
+| Section                                             | Needs code                                          |
+| --------------------------------------------------- | --------------------------------------------------- |
+| [Entity keys](#entity-keys)                         | Run `codemod 0.47`                                  |
+| [Subject types](#subject-types)                     | Run `upgrade`; rename stored types outside SQL      |
+| [Hint codes](#hint-codes)                           | Run `codemod 0.47`, then check `ACTIVITY_FORBIDDEN` |
+| [Function names](#function-names)                   | Rename calls in your own SQL                        |
+| [Event types](#event-types)                         | Run `codemod 0.47`, then check `saved` types        |
+| [AI document versions](#ai-document-versions)       | Run `upgrade`; copy a renamed table by hand         |
+| [Postmortem action items](#postmortem-action-items) | With `tasks`, use `addPostmortemAction`             |
+| [The SQL modules](#the-sql-modules)                 | Run `upgrade` and generate a migration              |
 
 ## Entity keys
 
@@ -243,6 +246,42 @@ const outbox = createOutbox({
 
 The option is deprecated and goes away in the next minor, so move the
 receivers to the new types first.
+
+## AI document versions
+
+AI documents keep their versions in the [versions](/docs/blocks/versions)
+block, so `ai-files` now requires `versions`. Each version is a `versions` row
+with `subject_type = 'ai_document'`, the document id as `subject_id`, and the
+text and the message that wrote it in `content` (`{ text, messageId }`).
+`better-supabase upgrade` writes a migration that creates the versions table
+when it is missing, copies the rows of `ai_document_versions` and drops that
+table. The client is unchanged: `documents.versions(documentId)` and
+`documents.rollback(documentId, version)` return the same shapes.
+
+Three things behave differently. An edit that leaves the text unchanged writes
+no version. A document keeps its latest 50 versions, the versions block's
+retention. Document versions stay private to ai-files: `list_versions` and the
+other versions functions refuse `ai_document` for members, and RLS hides those
+rows, so only the ai-files functions read them.
+
+The `blocks["ai-files"].tables.versions` key is gone. If you renamed or adopted
+`ai_document_versions`, the generated migration doesn't find it: copy its rows
+into the versions table yourself before you drop it. `codemod 0.47` lists the
+lines that name `ai_document_versions`.
+
+## Postmortem action items
+
+With the [tasks](/docs/blocks/tasks) block installed, postmortem action items
+are tasks. `addPostmortemAction(postmortemId, { title, assigneeId, dueAt })`
+creates one and links it in the new `incident_postmortem_actions` table,
+`removePostmortemAction(actionId)` removes the link, and a postmortem's
+`actions` lists the linked tasks. With `tasks`, `savePostmortem` refuses
+`actionItems` with `INCIDENTS_INVALID`. Without `tasks` nothing changes.
+
+`actionItems` and the `action_items` column are deprecated. They stay readable
+until 0.48, which removes them. Existing items aren't copied into tasks: add
+the ones that are still open with `addPostmortemAction`. `codemod 0.47` lists
+the lines that use `actionItems`.
 
 ## The SQL modules
 

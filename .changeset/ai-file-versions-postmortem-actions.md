@@ -13,5 +13,5 @@ With the `tasks` block installed, incident postmortem action items are tasks.
 `addPostmortemAction(postmortemId, { title, assigneeId, dueAt })` creates one and links it in the
 new `incident_postmortem_actions` table, `removePostmortemAction(actionId)` removes the link, and
 a postmortem's `actions` lists the linked tasks. `actionItems` is deprecated and is removed in
-the next minor; with `tasks`, `savePostmortem` refuses it. `codemod 0.46` lists the lines that use
+0.48; with `tasks`, `savePostmortem` refuses it. `codemod 0.47` lists the lines that use
 `actionItems` or `ai_document_versions`.

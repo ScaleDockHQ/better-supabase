@@ -152,7 +152,7 @@ export interface Postmortem {
   /**
    * @deprecated With the tasks block, action items are tasks: read `actions`
    * and write them with `addPostmortemAction`. This JSON list stays readable
-   * until 0.47 and is no longer written once tasks is installed.
+   * until 0.48 and is no longer written once tasks is installed.
    */
   readonly actionItems: readonly unknown[];
   /** The action items, a task each; empty without the tasks block. */
@@ -515,7 +515,7 @@ function postmortemOf(value: unknown, fn: string): Postmortem {
   return {
     id: textOf(row["id"]),
     incidentId: textOf(row["incidentId"]),
-    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated list stays readable until 0.47.
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated list stays readable until 0.48.
     actionItems: Array.isArray(items) ? items : [],
     actions: recordsOf(row["actions"] ?? [], fn).map((action) =>
       actionOf(action, fn),
@@ -791,7 +791,7 @@ export function createIncidents<
             ...optional("impact", input.impact),
             ...optional("rootCause", input.rootCause),
             ...optional("resolution", input.resolution),
-            // oxlint-disable-next-line typescript/no-deprecated -- the client still sends the deprecated key until 0.47.
+            // oxlint-disable-next-line typescript/no-deprecated -- the client still sends the deprecated key until 0.48.
             ...optional("actionItems", input.actionItems),
           },
         },
