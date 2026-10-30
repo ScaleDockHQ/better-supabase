@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:8c7364cc6853f50fa404f7f95d6be54698e509c26e54fa40245606179a29f24e
+-- @bsb-block ai-files@2 managed
+-- @bsb-hash sha256:9bd3e726331f2e7a2c365558d5f1a59e7cbf75c69842963f4bf5ca27b5897505
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,7 +116,8 @@ revoke all on "better_supabase"."ai_provider_files" from public, anon, authentic
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
--- code, sheets, images), with every version kept.
+-- code, sheets, images). Their versions live in the versions block, which
+-- keeps the newest ones by its keep option.
 create table if not exists "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
@@ -140,26 +141,24 @@ create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
-create table if not exists "better_supabase"."ai_document_versions" (
-  "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "content" text,
-  "storage_path" text,
-  "created_by_message_id" text,
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  primary key ("document_id", "version"),
-  check ("content" is not null or "storage_path" is not null)
-);
-create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
-alter table "better_supabase"."ai_document_versions" enable row level security;
-revoke all on "better_supabase"."ai_document_versions" from public, anon, authenticated;
-grant select on "better_supabase"."ai_document_versions" to authenticated;
-grant all on "better_supabase"."ai_document_versions" to service_role;
-drop policy if exists ai_document_versions_read on "better_supabase"."ai_document_versions";
-create policy ai_document_versions_read on "better_supabase"."ai_document_versions"
-  for select to authenticated
-  using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
+-- A document's versions live in the versions block (subject type
+-- ai_document); they go with the document.
+create or replace function "better_supabase"."ai_document_purge_versions"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = old."id"::text;
+  return old;
+end;
+$$;
+revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
+drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
+create trigger "bsb_ai_document_purge_versions"
+  after delete on "better_supabase"."ai_documents"
+  for each row execute function "better_supabase"."ai_document_purge_versions"();
 
 create table if not exists "better_supabase"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -489,6 +488,7 @@ as $$
 declare
   v_owner uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then create_ai_document.owner else auth.uid() end;
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -499,8 +499,10 @@ begin
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
   values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, create_ai_document.kind, create_ai_document.title)
   returning * into v_row;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", 1, create_ai_document.content, create_ai_document.storage_path, create_ai_document.message_id, v_owner);
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', create_ai_document.content, 'messageId', create_ai_document.message_id), create_ai_document.storage_path, null, 'manual', false, v_owner);
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer
+  where x."id" = v_row."id"
+  returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -524,6 +526,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -535,10 +538,9 @@ begin
   if expected_version is not null and expected_version <> v_row."current_version" then
     raise exception 'document % is at version %', document_id, v_row."current_version" using errcode = '40001', hint = 'AI_DOCUMENT_CONFLICT';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, update_ai_document.content, update_ai_document.storage_path, update_ai_document.message_id, auth.uid());
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid());
   update "better_supabase"."ai_documents" x set
-    "current_version" = v_row."current_version" + 1,
+    "current_version" = (v_version ->> 'number')::integer,
     "title" = coalesce(update_ai_document.title, x."title"),
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -558,7 +560,9 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
-  v_old "better_supabase"."ai_document_versions"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -567,13 +571,13 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
-  select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = rollback_ai_document.version;
   if not found then
     raise exception 'document % has no version %', document_id, rollback_ai_document.version using errcode = 'P0002', hint = 'AI_DOCUMENT_VERSION_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, v_old."content", v_old."storage_path", null, auth.uid());
-  update "better_supabase"."ai_documents" x set "current_version" = v_row."current_version" + 1, "updated_at" = now()
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', v_content ->> 'text', 'messageId', null::text), v_storage_path, null, 'restore', false, auth.uid());
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
@@ -582,17 +586,27 @@ $$;
 revoke execute on function "better_supabase"."rollback_ai_document"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."rollback_ai_document"(uuid, integer) to authenticated, service_role;
 
+-- The document with its current version's content, for a reader of it.
 create or replace function "better_supabase"."get_ai_document"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'kind', x."kind", 'title', x."title", 'current_version', x."current_version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('content', vv."content", 'storage_path', vv."storage_path")
-  from "better_supabase"."ai_documents" x
-  join "better_supabase"."ai_document_versions" vv on vv."document_id" = x."id" and vv."version" = x."current_version"
-  where x."id" = get_ai_document.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = get_ai_document.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or false)) then
+    return null;
+  end if;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = v_row."current_version";
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
+end;
 $$;
 revoke execute on function "better_supabase"."get_ai_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ai_document"(uuid) to authenticated, service_role;
@@ -600,13 +614,23 @@ grant execute on function "better_supabase"."get_ai_document"(uuid) to authentic
 -- Every version of a document the caller can read, newest first.
 create or replace function "better_supabase"."list_ai_document_versions"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."document_id", 'version', x."version", 'content', x."content", 'storage_path', x."storage_path", 'created_by_message_id', x."created_by_message_id", 'created_by', x."created_by", 'created_at', x."created_at") order by x."version" desc), '[]'::jsonb)
-  from "better_supabase"."ai_document_versions" x where x."document_id" = list_ai_document_versions.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_versions jsonb;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = list_ai_document_versions.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or false)) then
+    return '[]'::jsonb;
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."subject_id"::uuid, 'version', x."number", 'content', x."content" ->> 'text', 'storage_path', x."storage_path", 'created_by_message_id', x."content" ->> 'messageId', 'created_by', x."created_by", 'created_at', x."created_at") order by x."number" desc), '[]'::jsonb) into v_versions
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text;
+  return v_versions;
+end;
 $$;
 revoke execute on function "better_supabase"."list_ai_document_versions"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_document_versions"(uuid) to authenticated, service_role;
@@ -685,7 +709,8 @@ $$;
 revoke execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a document and its versions; true when the caller could.
+-- Deletes a document and, through its trigger, its versions; true when the
+-- caller could.
 create or replace function "better_supabase"."delete_ai_document"(document_id uuid)
 returns boolean
 language plpgsql
@@ -783,7 +808,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:755998f52a2011d348f88e1fb729c62f280ffa293996a3313cce59f57e202609
+-- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -794,14 +819,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 1, 'managed')
+values ('ai-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:39fcdf81bec3c45c77afa9404f036b32aab63fd78c8d4cd20ce21516acb23296
+-- @bsb-block ai-files@2 managed
+-- @bsb-hash sha256:f7906ed6ff2e708ed98b1c2ff5a4dd1cb393ed93942a3d10d8a6424092f4ae65
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -916,7 +941,8 @@ revoke all on "better_supabase"."ai_provider_files" from public, anon, authentic
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
--- code, sheets, images), with every version kept.
+-- code, sheets, images). Their versions live in the versions block, which
+-- keeps the newest ones by its keep option.
 create table if not exists "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
@@ -940,26 +966,24 @@ create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
 
-create table if not exists "better_supabase"."ai_document_versions" (
-  "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "content" text,
-  "storage_path" text,
-  "created_by_message_id" text,
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  primary key ("document_id", "version"),
-  check ("content" is not null or "storage_path" is not null)
-);
-create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
-alter table "better_supabase"."ai_document_versions" enable row level security;
-revoke all on "better_supabase"."ai_document_versions" from public, anon, authenticated;
-grant select on "better_supabase"."ai_document_versions" to authenticated;
-grant all on "better_supabase"."ai_document_versions" to service_role;
-drop policy if exists ai_document_versions_read on "better_supabase"."ai_document_versions";
-create policy ai_document_versions_read on "better_supabase"."ai_document_versions"
-  for select to authenticated
-  using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
+-- A document's versions live in the versions block (subject type
+-- ai_document); they go with the document.
+create or replace function "better_supabase"."ai_document_purge_versions"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = old."id"::text;
+  return old;
+end;
+$$;
+revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
+drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
+create trigger "bsb_ai_document_purge_versions"
+  after delete on "better_supabase"."ai_documents"
+  for each row execute function "better_supabase"."ai_document_purge_versions"();
 
 create table if not exists "better_supabase"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1290,6 +1314,7 @@ as $$
 declare
   v_owner uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then create_ai_document.owner else auth.uid() end;
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1300,8 +1325,10 @@ begin
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
   values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, create_ai_document.kind, create_ai_document.title)
   returning * into v_row;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", 1, create_ai_document.content, create_ai_document.storage_path, create_ai_document.message_id, v_owner);
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', create_ai_document.content, 'messageId', create_ai_document.message_id), create_ai_document.storage_path, null, 'manual', false, v_owner);
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer
+  where x."id" = v_row."id"
+  returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -1325,6 +1352,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1336,10 +1364,9 @@ begin
   if expected_version is not null and expected_version <> v_row."current_version" then
     raise exception 'document % is at version %', document_id, v_row."current_version" using errcode = '40001', hint = 'AI_DOCUMENT_CONFLICT';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, update_ai_document.content, update_ai_document.storage_path, update_ai_document.message_id, auth.uid());
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid());
   update "better_supabase"."ai_documents" x set
-    "current_version" = v_row."current_version" + 1,
+    "current_version" = (v_version ->> 'number')::integer,
     "title" = coalesce(update_ai_document.title, x."title"),
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -1359,7 +1386,9 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
-  v_old "better_supabase"."ai_document_versions"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1368,13 +1397,13 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
-  select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = rollback_ai_document.version;
   if not found then
     raise exception 'document % has no version %', document_id, rollback_ai_document.version using errcode = 'P0002', hint = 'AI_DOCUMENT_VERSION_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, v_old."content", v_old."storage_path", null, auth.uid());
-  update "better_supabase"."ai_documents" x set "current_version" = v_row."current_version" + 1, "updated_at" = now()
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', v_content ->> 'text', 'messageId', null::text), v_storage_path, null, 'restore', false, auth.uid());
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
@@ -1383,17 +1412,27 @@ $$;
 revoke execute on function "better_supabase"."rollback_ai_document"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."rollback_ai_document"(uuid, integer) to authenticated, service_role;
 
+-- The document with its current version's content, for a reader of it.
 create or replace function "better_supabase"."get_ai_document"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'kind', x."kind", 'title', x."title", 'current_version', x."current_version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('content', vv."content", 'storage_path', vv."storage_path")
-  from "better_supabase"."ai_documents" x
-  join "better_supabase"."ai_document_versions" vv on vv."document_id" = x."id" and vv."version" = x."current_version"
-  where x."id" = get_ai_document.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = get_ai_document.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or (v_row."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_row."chat_id")))) then
+    return null;
+  end if;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = v_row."current_version";
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
+end;
 $$;
 revoke execute on function "better_supabase"."get_ai_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ai_document"(uuid) to authenticated, service_role;
@@ -1401,13 +1440,23 @@ grant execute on function "better_supabase"."get_ai_document"(uuid) to authentic
 -- Every version of a document the caller can read, newest first.
 create or replace function "better_supabase"."list_ai_document_versions"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."document_id", 'version', x."version", 'content', x."content", 'storage_path', x."storage_path", 'created_by_message_id', x."created_by_message_id", 'created_by', x."created_by", 'created_at', x."created_at") order by x."version" desc), '[]'::jsonb)
-  from "better_supabase"."ai_document_versions" x where x."document_id" = list_ai_document_versions.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_versions jsonb;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = list_ai_document_versions.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or (v_row."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_row."chat_id")))) then
+    return '[]'::jsonb;
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."subject_id"::uuid, 'version', x."number", 'content', x."content" ->> 'text', 'storage_path', x."storage_path", 'created_by_message_id', x."content" ->> 'messageId', 'created_by', x."created_by", 'created_at', x."created_at") order by x."number" desc), '[]'::jsonb) into v_versions
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text;
+  return v_versions;
+end;
 $$;
 revoke execute on function "better_supabase"."list_ai_document_versions"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_document_versions"(uuid) to authenticated, service_role;
@@ -1486,7 +1535,8 @@ $$;
 revoke execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a document and its versions; true when the caller could.
+-- Deletes a document and, through its trigger, its versions; true when the
+-- caller could.
 create or replace function "better_supabase"."delete_ai_document"(document_id uuid)
 returns boolean
 language plpgsql
@@ -1584,7 +1634,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:755998f52a2011d348f88e1fb729c62f280ffa293996a3313cce59f57e202609
+-- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1595,14 +1645,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 1, 'managed')
+values ('ai-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:8b24a545c528df90e1840b187f6b6f5d955ccf138f2b9c0bbaf08de1876458a2
+-- @bsb-block ai-files@2 managed
+-- @bsb-hash sha256:2e6f94c8b5edce3e4c6c926d5cd7ab5155aca6efe03077ab035574ba16ec249c
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1722,7 +1772,8 @@ revoke all on "app_private"."ai_provider_files" from public, anon, authenticated
 grant all on "app_private"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
--- code, sheets, images), with every version kept.
+-- code, sheets, images). Their versions live in the versions block, which
+-- keeps the newest ones by its keep option.
 create table if not exists "app_private"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
@@ -1746,26 +1797,24 @@ create policy ai_documents_read on "app_private"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
-create table if not exists "app_private"."ai_document_versions" (
-  "document_id" uuid not null references "app_private"."ai_documents" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "content" text,
-  "storage_path" text,
-  "created_by_message_id" text,
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  primary key ("document_id", "version"),
-  check ("content" is not null or "storage_path" is not null)
-);
-create index if not exists ai_document_versions_created_by_idx on "app_private"."ai_document_versions" ("created_by") where "created_by" is not null;
-alter table "app_private"."ai_document_versions" enable row level security;
-revoke all on "app_private"."ai_document_versions" from public, anon, authenticated;
-grant select on "app_private"."ai_document_versions" to authenticated;
-grant all on "app_private"."ai_document_versions" to service_role;
-drop policy if exists ai_document_versions_read on "app_private"."ai_document_versions";
-create policy ai_document_versions_read on "app_private"."ai_document_versions"
-  for select to authenticated
-  using (exists (select 1 from "app_private"."ai_documents" doc where doc."id" = "document_id"));
+-- A document's versions live in the versions block (subject type
+-- ai_document); they go with the document.
+create or replace function "app_private"."ai_document_purge_versions"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = old."id"::text;
+  return old;
+end;
+$$;
+revoke execute on function "app_private"."ai_document_purge_versions"() from public, anon, authenticated;
+drop trigger if exists "bsb_ai_document_purge_versions" on "app_private"."ai_documents";
+create trigger "bsb_ai_document_purge_versions"
+  after delete on "app_private"."ai_documents"
+  for each row execute function "app_private"."ai_document_purge_versions"();
 
 create table if not exists "app_private"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2095,6 +2144,7 @@ as $$
 declare
   v_owner uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then create_ai_document.owner else auth.uid() end;
   v_row "app_private"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2105,8 +2155,10 @@ begin
   insert into "app_private"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
   values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, create_ai_document.kind, create_ai_document.title)
   returning * into v_row;
-  insert into "app_private"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", 1, create_ai_document.content, create_ai_document.storage_path, create_ai_document.message_id, v_owner);
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', create_ai_document.content, 'messageId', create_ai_document.message_id), create_ai_document.storage_path, null, 'manual', false, v_owner);
+  update "app_private"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer
+  where x."id" = v_row."id"
+  returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -2130,6 +2182,7 @@ set search_path = ''
 as $$
 declare
   v_row "app_private"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2141,10 +2194,9 @@ begin
   if expected_version is not null and expected_version <> v_row."current_version" then
     raise exception 'document % is at version %', document_id, v_row."current_version" using errcode = '40001', hint = 'AI_DOCUMENT_CONFLICT';
   end if;
-  insert into "app_private"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, update_ai_document.content, update_ai_document.storage_path, update_ai_document.message_id, auth.uid());
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid());
   update "app_private"."ai_documents" x set
-    "current_version" = v_row."current_version" + 1,
+    "current_version" = (v_version ->> 'number')::integer,
     "title" = coalesce(update_ai_document.title, x."title"),
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -2164,7 +2216,9 @@ set search_path = ''
 as $$
 declare
   v_row "app_private"."ai_documents"%rowtype;
-  v_old "app_private"."ai_document_versions"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2173,13 +2227,13 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
-  select * into v_old from "app_private"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = rollback_ai_document.version;
   if not found then
     raise exception 'document % has no version %', document_id, rollback_ai_document.version using errcode = 'P0002', hint = 'AI_DOCUMENT_VERSION_NOT_FOUND';
   end if;
-  insert into "app_private"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, v_old."content", v_old."storage_path", null, auth.uid());
-  update "app_private"."ai_documents" x set "current_version" = v_row."current_version" + 1, "updated_at" = now()
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', v_content ->> 'text', 'messageId', null::text), v_storage_path, null, 'restore', false, auth.uid());
+  update "app_private"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
@@ -2188,17 +2242,27 @@ $$;
 revoke execute on function "app_private"."rollback_ai_document"(uuid, integer) from public, anon;
 grant execute on function "app_private"."rollback_ai_document"(uuid, integer) to authenticated, service_role;
 
+-- The document with its current version's content, for a reader of it.
 create or replace function "app_private"."get_ai_document"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'kind', x."kind", 'title', x."title", 'current_version', x."current_version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('content', vv."content", 'storage_path', vv."storage_path")
-  from "app_private"."ai_documents" x
-  join "app_private"."ai_document_versions" vv on vv."document_id" = x."id" and vv."version" = x."current_version"
-  where x."id" = get_ai_document.document_id
+declare
+  v_row "app_private"."ai_documents"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+begin
+  select * into v_row from "app_private"."ai_documents" x where x."id" = get_ai_document.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or false)) then
+    return null;
+  end if;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = v_row."current_version";
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
+end;
 $$;
 revoke execute on function "app_private"."get_ai_document"(uuid) from public, anon;
 grant execute on function "app_private"."get_ai_document"(uuid) to authenticated, service_role;
@@ -2206,13 +2270,23 @@ grant execute on function "app_private"."get_ai_document"(uuid) to authenticated
 -- Every version of a document the caller can read, newest first.
 create or replace function "app_private"."list_ai_document_versions"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."document_id", 'version', x."version", 'content', x."content", 'storage_path', x."storage_path", 'created_by_message_id', x."created_by_message_id", 'created_by', x."created_by", 'created_at', x."created_at") order by x."version" desc), '[]'::jsonb)
-  from "app_private"."ai_document_versions" x where x."document_id" = list_ai_document_versions.document_id
+declare
+  v_row "app_private"."ai_documents"%rowtype;
+  v_versions jsonb;
+begin
+  select * into v_row from "app_private"."ai_documents" x where x."id" = list_ai_document_versions.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or false)) then
+    return '[]'::jsonb;
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."subject_id"::uuid, 'version', x."number", 'content', x."content" ->> 'text', 'storage_path', x."storage_path", 'created_by_message_id', x."content" ->> 'messageId', 'created_by', x."created_by", 'created_at', x."created_at") order by x."number" desc), '[]'::jsonb) into v_versions
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text;
+  return v_versions;
+end;
 $$;
 revoke execute on function "app_private"."list_ai_document_versions"(uuid) from public, anon;
 grant execute on function "app_private"."list_ai_document_versions"(uuid) to authenticated, service_role;
@@ -2291,7 +2365,8 @@ $$;
 revoke execute on function "app_private"."resolve_ai_suggestion"(uuid, boolean) from public, anon;
 grant execute on function "app_private"."resolve_ai_suggestion"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a document and its versions; true when the caller could.
+-- Deletes a document and, through its trigger, its versions; true when the
+-- caller could.
 create or replace function "app_private"."delete_ai_document"(document_id uuid)
 returns boolean
 language plpgsql
@@ -2389,7 +2464,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:755998f52a2011d348f88e1fb729c62f280ffa293996a3313cce59f57e202609
+-- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2400,14 +2475,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 1, 'managed')
+values ('ai-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:8c9e7b5df419bf25ae4d8847db146bf1d7111c669d71f7f098e3e97bd71039c1
+-- @bsb-block ai-files@2 managed
+-- @bsb-hash sha256:f7faebe9b4402da62a3ea3ccb556bbf412a7b69c0f8d93a2e28efca0bac20b95
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2522,7 +2597,8 @@ revoke all on "better_supabase"."ai_provider_files" from public, anon, authentic
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
--- code, sheets, images), with every version kept.
+-- code, sheets, images). Their versions live in the versions block, which
+-- keeps the newest ones by its keep option.
 create table if not exists "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
@@ -2546,26 +2622,24 @@ create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
-create table if not exists "better_supabase"."ai_document_versions" (
-  "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "content" text,
-  "storage_path" text,
-  "created_by_message_id" text,
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  primary key ("document_id", "version"),
-  check ("content" is not null or "storage_path" is not null)
-);
-create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
-alter table "better_supabase"."ai_document_versions" enable row level security;
-revoke all on "better_supabase"."ai_document_versions" from public, anon, authenticated;
-grant select on "better_supabase"."ai_document_versions" to authenticated;
-grant all on "better_supabase"."ai_document_versions" to service_role;
-drop policy if exists ai_document_versions_read on "better_supabase"."ai_document_versions";
-create policy ai_document_versions_read on "better_supabase"."ai_document_versions"
-  for select to authenticated
-  using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
+-- A document's versions live in the versions block (subject type
+-- ai_document); they go with the document.
+create or replace function "better_supabase"."ai_document_purge_versions"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = old."id"::text;
+  return old;
+end;
+$$;
+revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
+drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
+create trigger "bsb_ai_document_purge_versions"
+  after delete on "better_supabase"."ai_documents"
+  for each row execute function "better_supabase"."ai_document_purge_versions"();
 
 create table if not exists "better_supabase"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -2895,6 +2969,7 @@ as $$
 declare
   v_owner uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then create_ai_document.owner else auth.uid() end;
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2905,8 +2980,10 @@ begin
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
   values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, create_ai_document.kind, create_ai_document.title)
   returning * into v_row;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", 1, create_ai_document.content, create_ai_document.storage_path, create_ai_document.message_id, v_owner);
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', create_ai_document.content, 'messageId', create_ai_document.message_id), create_ai_document.storage_path, null, 'manual', false, v_owner);
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer
+  where x."id" = v_row."id"
+  returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -2930,6 +3007,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2941,10 +3019,9 @@ begin
   if expected_version is not null and expected_version <> v_row."current_version" then
     raise exception 'document % is at version %', document_id, v_row."current_version" using errcode = '40001', hint = 'AI_DOCUMENT_CONFLICT';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, update_ai_document.content, update_ai_document.storage_path, update_ai_document.message_id, auth.uid());
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid());
   update "better_supabase"."ai_documents" x set
-    "current_version" = v_row."current_version" + 1,
+    "current_version" = (v_version ->> 'number')::integer,
     "title" = coalesce(update_ai_document.title, x."title"),
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -2964,7 +3041,9 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
-  v_old "better_supabase"."ai_document_versions"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2973,13 +3052,13 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
-  select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = rollback_ai_document.version;
   if not found then
     raise exception 'document % has no version %', document_id, rollback_ai_document.version using errcode = 'P0002', hint = 'AI_DOCUMENT_VERSION_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, v_old."content", v_old."storage_path", null, auth.uid());
-  update "better_supabase"."ai_documents" x set "current_version" = v_row."current_version" + 1, "updated_at" = now()
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', v_content ->> 'text', 'messageId', null::text), v_storage_path, null, 'restore', false, auth.uid());
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
@@ -2988,17 +3067,27 @@ $$;
 revoke execute on function "better_supabase"."rollback_ai_document"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."rollback_ai_document"(uuid, integer) to authenticated, service_role;
 
+-- The document with its current version's content, for a reader of it.
 create or replace function "better_supabase"."get_ai_document"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'kind', x."kind", 'title', x."title", 'current_version', x."current_version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('content', vv."content", 'storage_path', vv."storage_path")
-  from "better_supabase"."ai_documents" x
-  join "better_supabase"."ai_document_versions" vv on vv."document_id" = x."id" and vv."version" = x."current_version"
-  where x."id" = get_ai_document.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = get_ai_document.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or false)) then
+    return null;
+  end if;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = v_row."current_version";
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
+end;
 $$;
 revoke execute on function "better_supabase"."get_ai_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ai_document"(uuid) to authenticated, service_role;
@@ -3006,13 +3095,23 @@ grant execute on function "better_supabase"."get_ai_document"(uuid) to authentic
 -- Every version of a document the caller can read, newest first.
 create or replace function "better_supabase"."list_ai_document_versions"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."document_id", 'version', x."version", 'content', x."content", 'storage_path', x."storage_path", 'created_by_message_id', x."created_by_message_id", 'created_by', x."created_by", 'created_at', x."created_at") order by x."version" desc), '[]'::jsonb)
-  from "better_supabase"."ai_document_versions" x where x."document_id" = list_ai_document_versions.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_versions jsonb;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = list_ai_document_versions.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or false)) then
+    return '[]'::jsonb;
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."subject_id"::uuid, 'version', x."number", 'content', x."content" ->> 'text', 'storage_path', x."storage_path", 'created_by_message_id', x."content" ->> 'messageId', 'created_by', x."created_by", 'created_at', x."created_at") order by x."number" desc), '[]'::jsonb) into v_versions
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text;
+  return v_versions;
+end;
 $$;
 revoke execute on function "better_supabase"."list_ai_document_versions"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_document_versions"(uuid) to authenticated, service_role;
@@ -3091,7 +3190,8 @@ $$;
 revoke execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a document and its versions; true when the caller could.
+-- Deletes a document and, through its trigger, its versions; true when the
+-- caller could.
 create or replace function "better_supabase"."delete_ai_document"(document_id uuid)
 returns boolean
 language plpgsql
@@ -3397,7 +3497,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:755998f52a2011d348f88e1fb729c62f280ffa293996a3313cce59f57e202609
+-- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -3408,14 +3508,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 1, 'managed')
+values ('ai-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:598042665f6a059753f855b572ee5d92bc42ca4c1d6e18365d98efb251374385
+-- @bsb-block ai-files@2 managed
+-- @bsb-hash sha256:4734146399cb2eb2fede39c0f69b1996903ed0bab940ce30c929cb8c798f630f
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3542,7 +3642,8 @@ alter table "better_supabase"."ai_provider_files" enable row level security;
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
--- code, sheets, images), with every version kept.
+-- code, sheets, images). Their versions live in the versions block, which
+-- keeps the newest ones by its keep option.
 -- better_supabase.ai_documents is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_documents" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_documents" add column if not exists "organization_id" uuid;
@@ -3564,22 +3665,24 @@ create policy bsb_ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
--- better_supabase.ai_document_versions is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_document_versions" add column if not exists "document_id" uuid references "better_supabase"."ai_documents" ("id") on delete cascade;
-alter table "better_supabase"."ai_document_versions" add column if not exists "version" integer check ("version" >= 1);
-alter table "better_supabase"."ai_document_versions" add column if not exists "content" text;
-alter table "better_supabase"."ai_document_versions" add column if not exists "storage_path" text;
-alter table "better_supabase"."ai_document_versions" add column if not exists "created_by_message_id" text;
-alter table "better_supabase"."ai_document_versions" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."ai_document_versions" add column if not exists "created_at" timestamptz not null default now();
-create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
-alter table "better_supabase"."ai_document_versions" enable row level security;
-grant select on "better_supabase"."ai_document_versions" to authenticated;
-grant all on "better_supabase"."ai_document_versions" to service_role;
-drop policy if exists bsb_ai_document_versions_read on "better_supabase"."ai_document_versions";
-create policy bsb_ai_document_versions_read on "better_supabase"."ai_document_versions"
-  for select to authenticated
-  using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
+-- A document's versions live in the versions block (subject type
+-- ai_document); they go with the document.
+create or replace function "better_supabase"."ai_document_purge_versions"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = old."id"::text;
+  return old;
+end;
+$$;
+revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
+drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
+create trigger "bsb_ai_document_purge_versions"
+  after delete on "better_supabase"."ai_documents"
+  for each row execute function "better_supabase"."ai_document_purge_versions"();
 
 -- better_supabase.ai_suggestions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_suggestions" add column if not exists "id" uuid default gen_random_uuid();
@@ -3907,6 +4010,7 @@ as $$
 declare
   v_owner uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then create_ai_document.owner else auth.uid() end;
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3917,8 +4021,10 @@ begin
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
   values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, better_supabase.as_column_type(create_ai_document.kind, (null::"better_supabase"."ai_documents")."kind"), create_ai_document.title)
   returning * into v_row;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", 1, create_ai_document.content, create_ai_document.storage_path, create_ai_document.message_id, v_owner);
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', create_ai_document.content, 'messageId', create_ai_document.message_id), create_ai_document.storage_path, null, 'manual', false, v_owner);
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer
+  where x."id" = v_row."id"
+  returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -3942,6 +4048,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3953,10 +4060,9 @@ begin
   if expected_version is not null and expected_version <> v_row."current_version" then
     raise exception 'document % is at version %', document_id, v_row."current_version" using errcode = '40001', hint = 'AI_DOCUMENT_CONFLICT';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, update_ai_document.content, update_ai_document.storage_path, update_ai_document.message_id, auth.uid());
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid());
   update "better_supabase"."ai_documents" x set
-    "current_version" = v_row."current_version" + 1,
+    "current_version" = (v_version ->> 'number')::integer,
     "title" = coalesce(update_ai_document.title, x."title"),
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -3976,7 +4082,9 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
-  v_old "better_supabase"."ai_document_versions"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3985,13 +4093,13 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
-  select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = rollback_ai_document.version;
   if not found then
     raise exception 'document % has no version %', document_id, rollback_ai_document.version using errcode = 'P0002', hint = 'AI_DOCUMENT_VERSION_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, v_old."content", v_old."storage_path", null, auth.uid());
-  update "better_supabase"."ai_documents" x set "current_version" = v_row."current_version" + 1, "updated_at" = now()
+  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', v_content ->> 'text', 'messageId', null::text), v_storage_path, null, 'restore', false, auth.uid());
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
@@ -4000,17 +4108,27 @@ $$;
 revoke execute on function "better_supabase"."rollback_ai_document"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."rollback_ai_document"(uuid, integer) to authenticated, service_role;
 
+-- The document with its current version's content, for a reader of it.
 create or replace function "better_supabase"."get_ai_document"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'kind', x."kind", 'title', x."title", 'current_version', x."current_version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('content', vv."content", 'storage_path', vv."storage_path")
-  from "better_supabase"."ai_documents" x
-  join "better_supabase"."ai_document_versions" vv on vv."document_id" = x."id" and vv."version" = x."current_version"
-  where x."id" = get_ai_document.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = get_ai_document.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or false)) then
+    return null;
+  end if;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = v_row."current_version";
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
+end;
 $$;
 revoke execute on function "better_supabase"."get_ai_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ai_document"(uuid) to authenticated, service_role;
@@ -4018,13 +4136,23 @@ grant execute on function "better_supabase"."get_ai_document"(uuid) to authentic
 -- Every version of a document the caller can read, newest first.
 create or replace function "better_supabase"."list_ai_document_versions"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."document_id", 'version', x."version", 'content', x."content", 'storage_path', x."storage_path", 'created_by_message_id', x."created_by_message_id", 'created_by', x."created_by", 'created_at', x."created_at") order by x."version" desc), '[]'::jsonb)
-  from "better_supabase"."ai_document_versions" x where x."document_id" = list_ai_document_versions.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_versions jsonb;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = list_ai_document_versions.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or false)) then
+    return '[]'::jsonb;
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."subject_id"::uuid, 'version', x."number", 'content', x."content" ->> 'text', 'storage_path', x."storage_path", 'created_by_message_id', x."content" ->> 'messageId', 'created_by', x."created_by", 'created_at', x."created_at") order by x."number" desc), '[]'::jsonb) into v_versions
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text;
+  return v_versions;
+end;
 $$;
 revoke execute on function "better_supabase"."list_ai_document_versions"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_document_versions"(uuid) to authenticated, service_role;
@@ -4103,7 +4231,8 @@ $$;
 revoke execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a document and its versions; true when the caller could.
+-- Deletes a document and, through its trigger, its versions; true when the
+-- caller could.
 create or replace function "better_supabase"."delete_ai_document"(document_id uuid)
 returns boolean
 language plpgsql
@@ -4201,7 +4330,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:755998f52a2011d348f88e1fb729c62f280ffa293996a3313cce59f57e202609
+-- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -4212,14 +4341,14 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 1, 'managed')
+values ('ai-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
--- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:028970df87f7e4eec2be7bf8fa5c8a0d30f38dc285f63f07f193fecb2d2bdc17
+-- @bsb-block ai-files@2 managed
+-- @bsb-hash sha256:4076c9d9e969ebd3eda3caa564af7c78bbc58fd8c46b68b8ac428d89c8284b6c
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4334,7 +4463,8 @@ revoke all on "better_supabase"."ai_provider_files" from public, anon, authentic
 grant all on "better_supabase"."ai_provider_files" to service_role;
 
 -- Documents an assistant writes and the user edits beside the chat (text,
--- code, sheets, images), with every version kept.
+-- code, sheets, images). Their versions live in the versions block, which
+-- keeps the newest ones by its keep option.
 create table if not exists "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
@@ -4358,26 +4488,24 @@ create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
-create table if not exists "better_supabase"."ai_document_versions" (
-  "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "content" text,
-  "storage_path" text,
-  "created_by_message_id" text,
-  "created_by" uuid references auth.users (id) on delete set null,
-  "created_at" timestamptz not null default now(),
-  primary key ("document_id", "version"),
-  check ("content" is not null or "storage_path" is not null)
-);
-create index if not exists ai_document_versions_created_by_idx on "better_supabase"."ai_document_versions" ("created_by") where "created_by" is not null;
-alter table "better_supabase"."ai_document_versions" enable row level security;
-revoke all on "better_supabase"."ai_document_versions" from public, anon, authenticated;
-grant select on "better_supabase"."ai_document_versions" to authenticated;
-grant all on "better_supabase"."ai_document_versions" to service_role;
-drop policy if exists ai_document_versions_read on "better_supabase"."ai_document_versions";
-create policy ai_document_versions_read on "better_supabase"."ai_document_versions"
-  for select to authenticated
-  using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
+-- A document's versions live in the versions block (subject type
+-- ai_document); they go with the document.
+create or replace function "better_supabase"."ai_document_purge_versions"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = old."id"::text;
+  return old;
+end;
+$$;
+revoke execute on function "better_supabase"."ai_document_purge_versions"() from public, anon, authenticated;
+drop trigger if exists "bsb_ai_document_purge_versions" on "better_supabase"."ai_documents";
+create trigger "bsb_ai_document_purge_versions"
+  after delete on "better_supabase"."ai_documents"
+  for each row execute function "better_supabase"."ai_document_purge_versions"();
 
 create table if not exists "better_supabase"."ai_suggestions" (
   "id" uuid primary key default gen_random_uuid(),
@@ -4707,6 +4835,7 @@ as $$
 declare
   v_owner uuid := case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then create_ai_document.owner else auth.uid() end;
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4717,8 +4846,10 @@ begin
   insert into "better_supabase"."ai_documents" ("org_id", "owner_id", "chat_id", "kind", "title")
   values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, create_ai_document.kind, create_ai_document.title)
   returning * into v_row;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", 1, create_ai_document.content, create_ai_document.storage_path, create_ai_document.message_id, v_owner);
+  v_version := "better_supabase"."version_insert"(v_row."org_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', create_ai_document.content, 'messageId', create_ai_document.message_id), create_ai_document.storage_path, null, 'manual', false, v_owner);
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer
+  where x."id" = v_row."id"
+  returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -4742,6 +4873,7 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4753,10 +4885,9 @@ begin
   if expected_version is not null and expected_version <> v_row."current_version" then
     raise exception 'document % is at version %', document_id, v_row."current_version" using errcode = '40001', hint = 'AI_DOCUMENT_CONFLICT';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, update_ai_document.content, update_ai_document.storage_path, update_ai_document.message_id, auth.uid());
+  v_version := "better_supabase"."version_insert"(v_row."org_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid());
   update "better_supabase"."ai_documents" x set
-    "current_version" = v_row."current_version" + 1,
+    "current_version" = (v_version ->> 'number')::integer,
     "title" = coalesce(update_ai_document.title, x."title"),
     "updated_at" = now()
   where x."id" = v_row."id"
@@ -4776,7 +4907,9 @@ set search_path = ''
 as $$
 declare
   v_row "better_supabase"."ai_documents"%rowtype;
-  v_old "better_supabase"."ai_document_versions"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+  v_version jsonb;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4785,13 +4918,13 @@ begin
   if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
-  select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = rollback_ai_document.version;
   if not found then
     raise exception 'document % has no version %', document_id, rollback_ai_document.version using errcode = 'P0002', hint = 'AI_DOCUMENT_VERSION_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_document_versions" ("document_id", "version", "content", "storage_path", "created_by_message_id", "created_by")
-  values (v_row."id", v_row."current_version" + 1, v_old."content", v_old."storage_path", null, auth.uid());
-  update "better_supabase"."ai_documents" x set "current_version" = v_row."current_version" + 1, "updated_at" = now()
+  v_version := "better_supabase"."version_insert"(v_row."org_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', v_content ->> 'text', 'messageId', null::text), v_storage_path, null, 'restore', false, auth.uid());
+  update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
@@ -4800,17 +4933,27 @@ $$;
 revoke execute on function "better_supabase"."rollback_ai_document"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."rollback_ai_document"(uuid, integer) to authenticated, service_role;
 
+-- The document with its current version's content, for a reader of it.
 create or replace function "better_supabase"."get_ai_document"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."org_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'kind', x."kind", 'title', x."title", 'current_version', x."current_version", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('content', vv."content", 'storage_path', vv."storage_path")
-  from "better_supabase"."ai_documents" x
-  join "better_supabase"."ai_document_versions" vv on vv."document_id" = x."id" and vv."version" = x."current_version"
-  where x."id" = get_ai_document.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = get_ai_document.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_files.manage'), false) or false)) then
+    return null;
+  end if;
+  select x."content", x."storage_path" into v_content, v_storage_path
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = v_row."current_version";
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
+end;
 $$;
 revoke execute on function "better_supabase"."get_ai_document"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ai_document"(uuid) to authenticated, service_role;
@@ -4818,13 +4961,23 @@ grant execute on function "better_supabase"."get_ai_document"(uuid) to authentic
 -- Every version of a document the caller can read, newest first.
 create or replace function "better_supabase"."list_ai_document_versions"(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."document_id", 'version', x."version", 'content', x."content", 'storage_path', x."storage_path", 'created_by_message_id', x."created_by_message_id", 'created_by', x."created_by", 'created_at', x."created_at") order by x."version" desc), '[]'::jsonb)
-  from "better_supabase"."ai_document_versions" x where x."document_id" = list_ai_document_versions.document_id
+declare
+  v_row "better_supabase"."ai_documents"%rowtype;
+  v_versions jsonb;
+begin
+  select * into v_row from "better_supabase"."ai_documents" x where x."id" = list_ai_document_versions.document_id;
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_files.manage'), false) or false)) then
+    return '[]'::jsonb;
+  end if;
+  select coalesce(jsonb_agg(jsonb_build_object('document_id', x."subject_id"::uuid, 'version', x."number", 'content', x."content" ->> 'text', 'storage_path', x."storage_path", 'created_by_message_id', x."content" ->> 'messageId', 'created_by', x."created_by", 'created_at', x."created_at") order by x."number" desc), '[]'::jsonb) into v_versions
+  from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text;
+  return v_versions;
+end;
 $$;
 revoke execute on function "better_supabase"."list_ai_document_versions"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_document_versions"(uuid) to authenticated, service_role;
@@ -4903,7 +5056,8 @@ $$;
 revoke execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) from public, anon;
 grant execute on function "better_supabase"."resolve_ai_suggestion"(uuid, boolean) to authenticated, service_role;
 
--- Deletes a document and its versions; true when the caller could.
+-- Deletes a document and, through its trigger, its versions; true when the
+-- caller could.
 create or replace function "better_supabase"."delete_ai_document"(document_id uuid)
 returns boolean
 language plpgsql
@@ -5001,7 +5155,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block-data ai-files
--- @bsb-hash sha256:755998f52a2011d348f88e1fb729c62f280ffa293996a3313cce59f57e202609
+-- @bsb-hash sha256:684e7b9e960299f392102915f4634379689c20b48c17e84030e8c014c6f5d11b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -5012,6 +5166,6 @@ values ('ai-files', 'ai-files', false, 52428800, null)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('ai-files', 1, 'managed')
+values ('ai-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

@@ -17,7 +17,7 @@ import {
 } from "../shared.ts";
 import { contract, FILE_KEYS } from "./ai-files-contract.ts";
 import {
-  AI_DOCUMENT_SUBJECT,
+  aiDocumentSubject,
   DOCUMENTS,
   FILES,
   NAMES,
@@ -107,7 +107,7 @@ function build(ctx: BlockSqlContext): string {
   const versionsBlock = ctx.of("versions");
   const versions = versionsBlock.table("versions");
   const v = (column: string): string => versionsBlock.col("versions", column);
-  const subject = sqlString(AI_DOCUMENT_SUBJECT);
+  const subject = sqlString(aiDocumentSubject(ctx));
   const suggestions = ctx.table("suggestions");
   const permissions = moduleOperations("ai-files");
   const upload = ctx.permission("upload", permissions.upload);
@@ -424,7 +424,7 @@ drop policy if exists ${tablePolicy("documents", ctx.naming.rename("ai_documents
 ${renderPolicy(makePolicy({ table: documents, name: tablePolicy("documents", ctx.naming.rename("ai_documents_read")), command: "select", roles: ["authenticated"], using: readable("", d.owner, d.tenant, d.chat) }), { target: documents })}
 
 -- A document's versions live in the versions block (subject type
--- ${AI_DOCUMENT_SUBJECT}); they go with the document.
+-- ${aiDocumentSubject(ctx)}); they go with the document.
 create or replace function ${fn("ai_document_purge_versions")}()
 returns trigger
 language plpgsql
@@ -1035,7 +1035,7 @@ begin
     return;
   end if;
   insert into ${block.table("versions")} (${columns.join(", ")})
-  select doc.${d.tenant}, ${sqlString(AI_DOCUMENT_SUBJECT)}, x.document_id::text, x.version, ${content}, x.storage_path,
+  select doc.${d.tenant}, ${sqlString(aiDocumentSubject(ctx))}, x.document_id::text, x.version, ${content}, x.storage_path,
     ${sha256Hex(`coalesce(${content}::text, '') || coalesce(x.storage_path, '')`)},
     'manual', false, x.created_by, x.created_at
   from ${old} x

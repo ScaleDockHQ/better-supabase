@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:14091f7ddd04b2a0125bd5ee134091cf1b3d7c4d7708f8abccdb5e4c4bd68970
+-- @bsb-hash sha256:846bf405677b22bce7a240f19e29dbb94a5f3f97c146278b8ad77b761513f3d7
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,8 +73,8 @@ create table if not exists "better_supabase"."versions" (
   unique ("subject_type", "subject_id", "number"),
   check ("content" is not null or "storage_path" is not null)
 );
-alter table "better_supabase"."versions" add column if not exists "app_note" text;
 create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
+alter table "better_supabase"."versions" add column if not exists "app_note" text;
 alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
@@ -375,7 +375,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false))) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then

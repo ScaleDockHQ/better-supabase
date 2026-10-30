@@ -32,7 +32,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
-import { AI_DOCUMENT_SUBJECT } from "./ai-files-names.ts";
+import { aiDocumentSubject } from "./ai-files-names.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
@@ -430,11 +430,11 @@ function build(ctx: BlockSqlContext): string {
   // which check the document, read or write them.
   const own = (type: string): string =>
     ctx.installed("ai-files")
-      ? ` and ${type} <> ${sqlString(AI_DOCUMENT_SUBJECT)}`
+      ? ` and ${type} <> ${sqlString(aiDocumentSubject(ctx.of("ai-files")))}`
       : "";
 
   const privateDocuments = ctx.installed("ai-files")
-    ? `\n${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("versions_ai_documents"), command: "select", roles: ["authenticated"], permissive: false, using: `${c("subjectType")} <> ${sqlString(AI_DOCUMENT_SUBJECT)}` }), { drop: true, target: versions })}`
+    ? `\n${renderPolicy(makePolicy({ table: versions, name: ctx.of("ai-files").naming.rename("versions_ai_documents"), command: "select", roles: ["authenticated"], permissive: false, using: `${c("subjectType")} <> ${sqlString(aiDocumentSubject(ctx.of("ai-files")))}` }), { drop: true, target: versions })}`
     : "";
 
   const tables = ctx.manages

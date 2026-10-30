@@ -1,4 +1,4 @@
-import type { BlockSqlNames } from "../context.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 
 export const FILES = {
   id: "id",
@@ -43,7 +43,15 @@ export const DOCUMENTS = {
  * The versions subject type of a document: its versions are rows of the
  * versions block, with the text and the message that wrote it in content.
  */
-export const AI_DOCUMENT_SUBJECT = "ai_document";
+const AI_DOCUMENT_SUBJECT = "ai_document";
+
+/**
+ * The subject type after `blocks.ai-files.entities`; `ctx` is the ai-files
+ * context.
+ */
+export function aiDocumentSubject(ctx: BlockSqlContext): string {
+  return ctx.naming.rename(AI_DOCUMENT_SUBJECT);
+}
 
 export const SUGGESTIONS = {
   id: "id",
