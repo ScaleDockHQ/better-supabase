@@ -39,6 +39,7 @@ import {
   catalogRoleFunctions,
   rendersRoleFunctions,
 } from "./permissions-roles.ts";
+import { hasPlatformRoles } from "./platform-roles.ts";
 
 const SERVICE = `coalesce(auth.jwt() ->> 'role', '') = 'service_role'`;
 

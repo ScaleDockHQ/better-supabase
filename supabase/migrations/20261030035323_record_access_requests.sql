@@ -233,8 +233,8 @@ begin
         select 1 from "better_supabase"."companies" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.write'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'contacts.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'contacts.write'), false)
           else false
         end
       );
@@ -243,8 +243,8 @@ begin
         select 1 from "better_supabase"."people" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.write'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'contacts.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'contacts.write'), false)
           else false
         end
       );
@@ -283,8 +283,8 @@ begin
         select 1 from "better_supabase"."engagements" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'engagements.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'engagements.write'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'activities.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'activities.write'), false)
           else false
         end
       );
@@ -303,8 +303,8 @@ begin
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'work_items.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'work_items.write'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'tasks.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'tasks.write'), false)
           else false
         end
       );
@@ -484,8 +484,8 @@ begin
         select 1 from "better_supabase"."controls" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'controls.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'controls.manage'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.manage'), false)
           else false
         end
       );
@@ -494,8 +494,8 @@ begin
         select 1 from "better_supabase"."policies" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'controls.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'controls.manage'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.manage'), false)
           else false
         end
       );
@@ -1242,24 +1242,24 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'access-requests.manage' then 'access_requests.manage'
     when 'access-requests.read' then 'access_requests.read'
     when 'access-requests.review' then 'access_requests.review'
-    when 'activities.manage' then 'engagements.manage'
-    when 'activities.read' then 'engagements.read'
-    when 'activities.write' then 'engagements.write'
-    when 'agents.create' then 'ai.create'
-    when 'agents.moderate' then 'ai.moderate'
-    when 'agents.publish' then 'ai.share'
-    when 'agents.read' then 'ai.read'
-    when 'ai-chat.admin' then 'ai_chat.admin'
+    when 'activities.manage' then 'activities.manage'
+    when 'activities.read' then 'activities.read'
+    when 'activities.write' then 'activities.write'
+    when 'agents.create' then 'agents.write'
+    when 'agents.moderate' then 'agents.moderate'
+    when 'agents.publish' then 'agents.publish'
+    when 'agents.read' then 'agents.read'
+    when 'ai-chat.admin' then 'ai_chat.manage'
     when 'ai-chat.create' then 'ai_chat.create'
     when 'ai-chat.moderate' then 'ai_chat.moderate'
     when 'ai-chat.read' then 'ai_chat.read'
     when 'ai-chat.share' then 'ai_chat.share'
-    when 'ai-files.manage' then 'ai.admin'
-    when 'ai-files.upload' then 'ai.create'
-    when 'ai-keys.manage' then 'ai.admin'
-    when 'ai-keys.use' then 'ai.create'
-    when 'ai-schedules.create' then 'ai.create'
-    when 'ai-schedules.manage' then 'ai.admin'
+    when 'ai-files.manage' then 'ai_files.manage'
+    when 'ai-files.upload' then 'ai_files.upload'
+    when 'ai-keys.manage' then 'ai_keys.manage'
+    when 'ai-keys.use' then 'ai_keys.use'
+    when 'ai-schedules.create' then 'ai_schedules.write'
+    when 'ai-schedules.manage' then 'ai_schedules.manage'
     when 'announcements.manage' then 'announcements.manage'
     when 'api-keys.manage' then 'api_keys.manage'
     when 'api-keys.own' then 'api_keys.own'
@@ -1278,10 +1278,10 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'audit.revert' then 'audit.revert'
     when 'audit.view' then 'audit.read'
     when 'audit.viewAll' then 'audit.read'
-    when 'automations.admin' then 'rules.admin'
-    when 'automations.edit' then 'rules.edit'
-    when 'automations.publish' then 'rules.publish'
-    when 'automations.read' then 'rules.read'
+    when 'automations.admin' then 'automations.manage'
+    when 'automations.edit' then 'automations.write'
+    when 'automations.publish' then 'automations.publish'
+    when 'automations.read' then 'automations.read'
     when 'billable-time.invoice' then 'billable_time.invoice'
     when 'billable-time.manage' then 'billable_time.manage'
     when 'billable-time.read' then 'billable_time.read'
@@ -1300,16 +1300,16 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'comments.create' then 'messages.send'
     when 'comments.moderate' then 'messages.moderate'
     when 'comments.read' then 'messages.read'
-    when 'compliance.acknowledge' then 'controls.acknowledge'
-    when 'compliance.collect' then 'controls.collect'
-    when 'compliance.manage' then 'controls.manage'
-    when 'compliance.read' then 'controls.read'
-    when 'connectors.manage' then 'ai.admin'
-    when 'connectors.read' then 'ai.read'
-    when 'connectors.use' then 'ai.create'
-    when 'contacts.manage' then 'parties.manage'
-    when 'contacts.read' then 'parties.read'
-    when 'contacts.write' then 'parties.write'
+    when 'compliance.acknowledge' then 'compliance.acknowledge'
+    when 'compliance.collect' then 'compliance.collect'
+    when 'compliance.manage' then 'compliance.manage'
+    when 'compliance.read' then 'compliance.read'
+    when 'connectors.manage' then 'connectors.manage'
+    when 'connectors.read' then 'connectors.read'
+    when 'connectors.use' then 'connectors.use'
+    when 'contacts.manage' then 'contacts.manage'
+    when 'contacts.read' then 'contacts.read'
+    when 'contacts.write' then 'contacts.write'
     when 'content.publish' then 'content.publish'
     when 'content.read' then 'content.read'
     when 'content.write' then 'content.write'
@@ -1321,10 +1321,10 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'courses.read' then 'courses.read'
     when 'custom-fields.manage' then 'custom_fields.manage'
     when 'custom-fields.read' then 'custom_fields.read'
-    when 'custom-fields.sensitive' then 'custom_fields.sensitive.read'
+    when 'custom-fields.sensitive' then 'custom_fields.read_sensitive'
     when 'data-lifecycle.cancelDelete' then 'organization.delete'
     when 'data-lifecycle.delete' then 'organization.delete'
-    when 'data-lifecycle.export' then 'organization.export'
+    when 'data-lifecycle.export' then 'data_lifecycle.export'
     when 'deals.manage' then 'deals.manage'
     when 'deals.read' then 'deals.read'
     when 'deals.write' then 'deals.write'
@@ -1341,7 +1341,7 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'drive.manage' then 'drive.manage'
     when 'drive.read' then 'drive.read'
     when 'employees.read' then 'employees.read'
-    when 'employees.viewSensitive' then 'employees.view_sensitive'
+    when 'employees.viewSensitive' then 'employees.read_sensitive'
     when 'employees.write' then 'employees.write'
     when 'enrichment.read' then 'enrichment.read'
     when 'enrichment.run' then 'enrichment.run'
@@ -1352,7 +1352,7 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'expenses.manage' then 'expenses.manage'
     when 'expenses.read' then 'expenses.read'
     when 'expenses.submit' then 'expenses.submit'
-    when 'field-history.read' then 'history.read'
+    when 'field-history.read' then 'field_history.read'
     when 'flags.manage' then 'flags.manage'
     when 'forecasts.read' then 'forecasts.read'
     when 'forecasts.snapshot' then 'forecasts.snapshot'
@@ -1360,8 +1360,8 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'forms.read' then 'forms.read'
     when 'forms.review' then 'forms.review'
     when 'forms.submit' then 'forms.submit'
-    when 'goals.manage' then 'targets.manage'
-    when 'goals.read' then 'targets.read'
+    when 'goals.manage' then 'goals.manage'
+    when 'goals.read' then 'goals.read'
     when 'guests.manage' then 'guests.manage'
     when 'guests.read' then 'guests.read'
     when 'hiring.manage' then 'hiring.manage'
@@ -1386,21 +1386,21 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'invoices.manage' then 'invoices.manage'
     when 'invoices.read' then 'invoices.read'
     when 'invoices.write' then 'invoices.write'
-    when 'knowledge.manage' then 'ai.admin'
-    when 'knowledge.read' then 'ai.read'
-    when 'knowledge.write' then 'ai.create'
+    when 'knowledge.manage' then 'knowledge.manage'
+    when 'knowledge.read' then 'knowledge.read'
+    when 'knowledge.write' then 'knowledge.write'
     when 'leases.maintain' then 'leases.maintain'
     when 'leases.manage' then 'leases.manage'
     when 'leases.read' then 'leases.read'
     when 'ledger.manage' then 'ledger.manage'
     when 'ledger.post' then 'ledger.post'
     when 'ledger.read' then 'ledger.read'
-    when 'mail-sync.connect' then 'mail.connect'
-    when 'mail-sync.manage' then 'mail.manage'
-    when 'mail-sync.read' then 'mail.read'
-    when 'mail-sync.send' then 'mail.send'
-    when 'memory.manage' then 'ai.admin'
-    when 'memory.read' then 'ai.read'
+    when 'mail-sync.connect' then 'mail_sync.connect'
+    when 'mail-sync.manage' then 'mail_sync.manage'
+    when 'mail-sync.read' then 'mail_sync.read'
+    when 'mail-sync.send' then 'mail_sync.send'
+    when 'memory.manage' then 'memory.manage'
+    when 'memory.read' then 'memory.read'
     when 'messaging.moderate' then 'messages.moderate'
     when 'messaging.read' then 'messages.read'
     when 'messaging.send' then 'messages.send'
@@ -1412,7 +1412,7 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'moderation.report' then 'moderation.report'
     when 'notifications.read' then 'notifications.read'
     when 'notifications.send' then 'notifications.send'
-    when 'numbering.assign' then 'number_sequences.assign'
+    when 'numbering.assign' then 'numbering.assign'
     when 'onboarding.complete' then 'onboarding.complete'
     when 'onboarding.read' then 'onboarding.read'
     when 'orders.manage' then 'orders.manage'
@@ -1455,19 +1455,19 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'risks.manage' then 'risks.manage'
     when 'risks.read' then 'risks.read'
     when 'risks.write' then 'risks.write'
-    when 'saved-views.read' then 'views.read'
-    when 'saved-views.share' then 'views.share'
+    when 'saved-views.read' then 'saved_views.read'
+    when 'saved-views.share' then 'saved_views.share'
     when 'scores.compute' then 'scores.compute'
     when 'scores.manage' then 'scores.manage'
     when 'scores.read' then 'scores.read'
     when 'search.read' then 'search.read'
-    when 'segments.edit' then 'segments.edit'
+    when 'segments.edit' then 'segments.write'
     when 'segments.read' then 'segments.read'
     when 'sequences.enroll' then 'sequences.enroll'
     when 'sequences.manage' then 'sequences.manage'
     when 'sequences.read' then 'sequences.read'
-    when 'service-accounts.manage' then 'service_principals.manage'
-    when 'service-accounts.read' then 'service_principals.read'
+    when 'service-accounts.manage' then 'service_accounts.manage'
+    when 'service-accounts.read' then 'service_accounts.read'
     when 'settings.platform' then 'settings.manage'
     when 'settings.read' then 'settings.read'
     when 'settings.update' then 'settings.update'
@@ -1489,9 +1489,9 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'tags.apply' then 'tags.apply'
     when 'tags.manage' then 'tags.manage'
     when 'tags.read' then 'tags.read'
-    when 'tasks.manage' then 'work_items.manage'
-    when 'tasks.read' then 'work_items.read'
-    when 'tasks.write' then 'work_items.write'
+    when 'tasks.manage' then 'tasks.manage'
+    when 'tasks.read' then 'tasks.read'
+    when 'tasks.write' then 'tasks.write'
     when 'teams.manage' then 'teams.manage'
     when 'teams.read' then 'teams.read'
     when 'templates.apply' then 'templates.apply'
@@ -1501,7 +1501,7 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'time-tracking.manage' then 'time_tracking.manage'
     when 'time-tracking.read' then 'time_tracking.read'
     when 'time-tracking.track' then 'time_tracking.track'
-    when 'timeline.read' then 'activity.read'
+    when 'timeline.read' then 'timeline.read'
     when 'trash.create' then 'trash.create'
     when 'trash.manage' then 'trash.manage'
     when 'trash.read' then 'trash.read'
@@ -1512,18 +1512,18 @@ CREATE OR REPLACE FUNCTION better_supabase.operation_permission (
     when 'versions.manage' then 'versions.manage'
     when 'versions.read' then 'versions.read'
     when 'versions.restore' then 'versions.restore'
-    when 'waitlist.invite' then 'members.invite'
+    when 'waitlist.invite' then 'waitlist.invite'
     when 'waitlist.manage' then 'waitlist.manage'
     when 'webhooks-out.manage' then 'webhooks.manage'
     when 'webhooks-out.view' then 'webhooks.read'
-    when 'workflow-editor.admin' then 'workflow.admin'
-    when 'workflow-editor.edit' then 'workflow.edit'
-    when 'workflow-editor.publish' then 'workflow.publish'
-    when 'workflow-editor.read' then 'workflow.read'
-    when 'workflow-editor.run' then 'workflow.run'
-    when 'workflows.admin' then 'workflow.admin'
-    when 'workflows.read' then 'workflow.read'
-    when 'workflows.run' then 'workflow.run'
+    when 'workflow-editor.admin' then 'workflow_editor.manage'
+    when 'workflow-editor.edit' then 'workflow_editor.write'
+    when 'workflow-editor.publish' then 'workflow_editor.publish'
+    when 'workflow-editor.read' then 'workflow_editor.read'
+    when 'workflow-editor.run' then 'workflow_editor.run'
+    when 'workflows.admin' then 'workflows.manage'
+    when 'workflows.read' then 'workflows.read'
+    when 'workflows.run' then 'workflows.run'
   end
 $function$;
 
@@ -2049,7 +2049,7 @@ begin
     else
       raise exception 'subject_type is not a record type in config.subjects' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
   end case;
-  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'organization.export'), false))) then
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'data_lifecycle.export'), false))) then
     raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."data_exports" x
