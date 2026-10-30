@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:6d58d44bd09b4879e78ee1aa70defac07fedd3906726d9e771b92ecc294ec1d3
+-- @bsb-hash sha256:663fb775d008db995c97f1eec3e10101ad2311ae8f867b9ba04cbc6ac296c544
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -750,6 +750,9 @@ as $$
     ('organization', 'better_supabase.template_applications', '"better_supabase"."template_applications"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.template_schedules', '"better_supabase"."template_schedules"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.template_schedule_runs', '"better_supabase"."template_schedule_runs"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.case_kinds', '"better_supabase"."case_kinds"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.cases', '"better_supabase"."cases"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.case_actions', '"better_supabase"."case_actions"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.deals', '"better_supabase"."deals"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.deal_contacts', '"better_supabase"."deal_contacts"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.deal_members', '"better_supabase"."deal_members"', 'tenant_id', true, '{}'::text[], true),
@@ -1317,6 +1320,12 @@ begin
       from "better_supabase"."risks" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.risks';
       v_reveal := 'risks_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'case' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."cases" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.cases';
+      v_reveal := 'cases_reveal';
       v_reveal_schema := 'better_supabase';
     when 'care_plan' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
