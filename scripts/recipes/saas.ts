@@ -478,6 +478,19 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "medication-chart",
+    title: "Medication chart",
+    blocks: ["medications"],
+    kind: "screen",
+    description:
+      "A record's medication orders for today, with the status of each planned dose.",
+    web: {
+      file: `${WEB_APP}/src/features/medications/components/medication-chart.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
     slug: "hiring-board",
     title: "Hiring board",
     blocks: ["hiring"],

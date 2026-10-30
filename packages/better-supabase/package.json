@@ -1080,6 +1080,11 @@
       "types": "./dist/blocks/observations/index.d.ts",
       "default": "./dist/blocks/observations/index.js"
     },
+    "./blocks/medications": {
+      "@better-supabase/source": "./src/blocks/medications/index.ts",
+      "types": "./dist/blocks/medications/index.d.ts",
+      "default": "./dist/blocks/medications/index.js"
+    },
     "./blocks/contracts": {
       "@better-supabase/source": "./src/blocks/contracts/index.ts",
       "types": "./dist/blocks/contracts/index.d.ts",
@@ -1958,6 +1963,10 @@
       "./blocks/observations": {
         "types": "./dist/blocks/observations/index.d.ts",
         "default": "./dist/blocks/observations/index.js"
+      },
+      "./blocks/medications": {
+        "types": "./dist/blocks/medications/index.d.ts",
+        "default": "./dist/blocks/medications/index.js"
       },
       "./blocks/contracts": {
         "types": "./dist/blocks/contracts/index.d.ts",

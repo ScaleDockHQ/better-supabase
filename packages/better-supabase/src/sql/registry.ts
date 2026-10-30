@@ -84,6 +84,7 @@ import { LEASES } from "./modules/leases.ts";
 import { LEAVE } from "./modules/leave.ts";
 import { LEDGER } from "./modules/ledger.ts";
 import { MAIL_SYNC } from "./modules/mail-sync.ts";
+import { MEDICATIONS } from "./modules/medications.ts";
 import { TENANT } from "./modules/memberships.ts";
 import { MEMORY } from "./modules/memory.ts";
 import { MESSAGING } from "./modules/messaging.ts";
@@ -394,6 +395,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(ACKNOWLEDGEMENTS),
       built(CONSENTS),
       built(OBSERVATIONS),
+      built(MEDICATIONS),
       built(ENSURE_RLS),
     ].map((module) => [module.name, module]),
   );

@@ -95,6 +95,7 @@ import {
   PaperclipIcon,
   PencilRulerIcon,
   PhoneCallIcon,
+  PillIcon,
   PlugIcon,
   PresentationIcon,
   RadioIcon,
@@ -236,6 +237,7 @@ export const BLOCK_ICONS = {
   qualifications: AwardIcon,
   shifts: CalendarRangeIcon,
   observations: HeartPulseIcon,
+  medications: PillIcon,
   // Billing & commerce
   entitlements: BadgeCheckIcon,
   usage: GaugeIcon,

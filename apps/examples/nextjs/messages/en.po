@@ -368,6 +368,16 @@ msgctxt "navigation.6D4Ghb"
 msgid "Toggle sidebar"
 msgstr "Toggle sidebar"
 
+#: src/app/[locale]/(app)/medications/page.tsx
+msgctxt "medications.gOuYI7"
+msgid "Medications"
+msgstr "Medications"
+
+#: src/app/[locale]/(app)/medications/page.tsx
+msgctxt "medications.ydg6xP"
+msgid "Today's medication chart: what each order gives and which doses are given, refused or missed."
+msgstr "Today's medication chart: what each order gives and which doses are given, refused or missed."
+
 #: src/app/[locale]/(app)/metrics/page.tsx
 msgctxt "metrics.HNBpJ4"
 msgid "Metrics"
@@ -8038,6 +8048,91 @@ msgctxt "knowledge.ElELsL"
 msgid "Nothing matches yet. A new document is searchable once it is ready."
 msgstr "Nothing matches yet. A new document is searchable once it is ready."
 
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.Ydnmc6"
+msgid "The medication chart didn't load"
+msgstr "The medication chart didn't load"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.kwy6_v"
+msgid "No medication today"
+msgstr "No medication today"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.E3Up1s"
+msgid "Add a medication to the list, then prescribe it for a customer with a dose and a schedule."
+msgstr "Add a medication to the list, then prescribe it for a customer with a dose and a schedule."
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.V3piTf"
+msgid "Read the medications guide"
+msgstr "Read the medications guide"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.kp0NPF"
+msgid "Planned"
+msgstr "Planned"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.aJC9Hf"
+msgid "Given"
+msgstr "Given"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.NT-3fY"
+msgid "Refused"
+msgstr "Refused"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.djZCU5"
+msgid "Skipped"
+msgstr "Skipped"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.3-2MvO"
+msgid "Missed"
+msgstr "Missed"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications._fA0rs"
+msgid "Medication for {customer}"
+msgstr "Medication for {customer}"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.3oKFua"
+msgid "Today's orders and the status of each dose."
+msgstr "Today's orders and the status of each dose."
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.l63rEa"
+msgid "As needed"
+msgstr "As needed"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.L4Fe18"
+msgid "Double check"
+msgstr "Double check"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.C2iTEH"
+msgid "Paused"
+msgstr "Paused"
+
+#: src/features/medications/components/medication-chart.tsx
+msgctxt "medications.Z-K9mc"
+msgid "No doses today"
+msgstr "No doses today"
+
 #: src/features/members/components/invitation-list.tsx
 msgctxt "organization.SpBqjJ"
 msgid "Invitation revoked"
@@ -8528,6 +8623,11 @@ msgstr "Finance"
 msgctxt "navigation.M_xDHn"
 msgid "Observations"
 msgstr "Observations"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.gOuYI7"
+msgid "Medications"
+msgstr "Medications"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"

@@ -10,6 +10,7 @@ import type {
   AiTaskRunner,
 } from "../../src/blocks/ai-schedules/ai-schedules.ts";
 import type { Embedder } from "../../src/blocks/knowledge/knowledge.ts";
+import type { MedicationCatalog } from "../../src/blocks/medications/medications.ts";
 import type { WorkflowGraph } from "../../src/blocks/workflow-editor/graph.ts";
 import type {
   BuilderStartCall,
@@ -24,6 +25,7 @@ import {
   testBuilderStarter,
   testEmbedder,
   testGraphCompiler,
+  testMedicationCatalog,
   testNoteTaker,
   testTranscriber,
 } from "../../src/testing/index.ts";
@@ -211,5 +213,82 @@ describe("testNoteTaker", () => {
     await expect(
       testNoteTaker(broken, { input: { engagement: {}, transcript: [] } }),
     ).rejects.toBeInstanceOf(ConformanceError);
+  });
+});
+
+describe("testMedicationCatalog", () => {
+  const ITEM = {
+    name: "Paracetamol",
+    unit: "mg",
+    codeSystem: "atc",
+    code: "N02BE01",
+  } as const;
+
+  const catalog: MedicationCatalog = {
+    apiVersion: 1,
+    search: (_query, options) =>
+      options?.signal?.aborted === true
+        ? Promise.reject(new Error("aborted"))
+        : Promise.resolve([ITEM]),
+    get: (code) => Promise.resolve(code === ITEM.code ? ITEM : undefined),
+  };
+
+  it("passes a conforming catalog", async () => {
+    expect(failed(await testMedicationCatalog(catalog))).toEqual([]);
+  });
+
+  const failures = (run: Promise<unknown>): Promise<string[]> =>
+    run.then(
+      () => [],
+      (error: unknown) =>
+        error instanceof ConformanceError
+          ? failed(error.report)
+          : [String(error)],
+    );
+
+  it("fails malformed items, a lookup that misses and an ignored signal", async () => {
+    const broken: MedicationCatalog = {
+      search: () =>
+        Promise.resolve([
+          { ...ITEM, unit: "" },
+          { ...ITEM, name: "" },
+        ]),
+      get: () => Promise.resolve(ITEM),
+    };
+
+    expect(await failures(testMedicationCatalog(broken))).toEqual([
+      "has apiVersion 1",
+      "returns well-formed items that it can get by code",
+      "returns undefined for an unknown code",
+      "rejects once aborted",
+    ]);
+
+    for (const item of [
+      { ...ITEM, codeSystem: "snomed" },
+      { ...ITEM, code: "" },
+    ]) {
+      const odd: MedicationCatalog = {
+        ...catalog,
+        // SAFETY: an item outside the contract, to test the check.
+        search: () => Promise.resolve([item as unknown as typeof ITEM]),
+      };
+
+      expect(await failures(testMedicationCatalog(odd))).toEqual([
+        "returns well-formed items that it can get by code",
+        "rejects once aborted",
+      ]);
+    }
+
+    const empty: MedicationCatalog = {
+      ...catalog,
+      search: () => Promise.resolve([]),
+    };
+
+    expect(
+      await failures(testMedicationCatalog(empty, { query: "x" })),
+    ).toEqual([
+      "returns well-formed items that it can get by code",
+      "rejects once aborted",
+    ]);
   });
 });

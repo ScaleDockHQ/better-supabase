@@ -1,0 +1,317 @@
+---
+title: Medications
+description: A medication list per organization, orders on any record with a dose, route and schedule, orders imported from a pharmacy, planned and recorded doses with a second check for high-risk medication, missed doses and a medication chart.
+---
+
+`medications` keeps a medication chart for a client, patient or resident. An
+organization keeps its own list of medications, imported from a drug
+database or added by hand. A prescriber orders a medication for a record
+with a dose, a route and a schedule, or as needed with a maximum per day.
+The block plans the doses of scheduled orders, members record each one as
+given, refused or skipped, and doses nobody recorded in time become missed.
+A high-risk medication needs a second member to check every dose.
+
+```bash
+better-supabase add medications
+```
+
+```ts
+import { createMedications } from "better-supabase/blocks/medications";
+```
+
+The module requires `memberships`, `permissions` and `subjects`: an order
+belongs to any record type registered in
+[`config.subjects`](/docs/blocks/subjects). With
+[notifications](/docs/blocks/notifications) the members who manage
+medications hear about missed doses, with `outbox` the module records the
+events, and with `audit` every change is audited.
+
+## Tables
+
+| Table                        | Holds                                                                                            |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ |
+| `medications`                | The organization's list: name, code system and code, form, strength, unit and `high_risk`        |
+| `medication_orders`          | An order on a record: dose, unit, route, schedule, as-needed maximum, dates and `status`         |
+| `medication_administrations` | One dose of an order: planned for `scheduled_at`, then `given`, `refused`, `skipped` or `missed` |
+
+A planned dose is unique per order and time, so planning twice adds nothing.
+Reading orders, doses and the chart needs `medications.read` and read access
+to the record, through the subjects block's `can_subject`.
+
+| Permission               | Allows                                                                     |
+| ------------------------ | -------------------------------------------------------------------------- |
+| `medications.read`       | reading the medication list, a record's orders and its chart               |
+| `medications.prescribe`  | keeping the medication list, and prescribing, changing and stopping orders |
+| `medications.administer` | recording doses, and checking another member's high-risk dose              |
+| `medications.manage`     | planning doses, and hearing about missed doses                             |
+
+Admins have all four; members get none, so grant them to the roles that
+prescribe and give medication.
+
+## Medication list
+
+```ts
+const warfarin = await db.medications
+  .saveMedication(organizationId, {
+    name: "Warfarin",
+    unit: "mg",
+    codeSystem: "atc",
+    code: "B01AA03",
+    form: "tablet",
+    strength: "1 mg",
+    highRisk: true,
+  })
+  .orThrow();
+
+const list = await db.medications
+  .medications(organizationId, { search: "war" })
+  .orThrow();
+```
+
+`codeSystem` is `gtin`, `hpk` (the Dutch G-Standaard), `atc`, `rxnorm` or
+`custom`, the default. A code is unique per code system in an organization.
+`archiveMedication` takes a medication off the list; its orders keep it.
+`importMedication` adds a catalog item, or updates the one with its code
+system and code.
+
+## Drug databases
+
+The block bundles no drug data. Wrap your drug database's API in a
+`MedicationCatalog` and pass it as `catalog`:
+
+```ts
+import type { MedicationCatalog } from "better-supabase/blocks/medications";
+
+const catalog: MedicationCatalog = {
+  apiVersion: 1,
+  search: async (query, { signal } = {}) => searchFormulary(query, signal),
+  get: async (code, { signal } = {}) => formularyItem(code, signal),
+};
+
+const medications = createMedications({ transport, catalog });
+const results = await medications.searchCatalog("paracetamol").orThrow();
+await medications.importFromCatalog(organizationId, results[0].code).orThrow();
+```
+
+`search` returns items with a `name`, `unit`, `codeSystem` and `code`, and
+`get` returns one item or `undefined`. A catalog that throws returns an
+`unexpected` error with `MEDICATION_CATALOG_FAILED`. Test a catalog with
+`testMedicationCatalog` from `better-supabase/testing`, which checks the
+`apiVersion`, that searched items come back from `get`, that an unknown code
+is `undefined`, and that an aborted signal rejects:
+
+```ts
+import { testMedicationCatalog } from "better-supabase/testing";
+
+await testMedicationCatalog(catalog, { query: "paracetamol" });
+```
+
+## Orders
+
+```ts
+const order = await db.medications
+  .prescribe(organizationId, { type: "client", id: clientId }, warfarin.id, {
+    dose: 2,
+    route: "oral",
+    schedule: { times: ["08:00", "20:00"] },
+    startsOn: Temporal.PlainDate.from("2026-11-02"),
+    prescriber: "Dr. Visser",
+  })
+  .orThrow();
+
+const asNeeded = await db.medications
+  .prescribe(organizationId, subject, paracetamolId, {
+    dose: 500,
+    asNeeded: true,
+    asNeededReason: "pain",
+    maxPerDay: 2000,
+  })
+  .orThrow();
+```
+
+A scheduled order gives the `times` of day (`HH:MM`), or `everyHours` from a
+`startTime`, and optional ISO `weekdays`. An order without a schedule must
+be `asNeeded`. The dose unit defaults to the medication's unit and the start
+date to today, both in the block's time zone. A high-risk medication's
+orders need a double check; `requiresDoubleCheck` asks for one on any order.
+
+`updateOrder` changes the dose, schedule, dates or other fields; a key it
+leaves out keeps its value and `null` clears it. `pauseOrder` and
+`resumeOrder` pause an order and resume it, and `stopOrder(orderId, reason)`
+stops it for good. Changing, pausing or stopping an order removes its planned
+doses after now, for planning to make again. `ordersOf(subject)` lists a
+record's orders with their medication, newest first.
+
+The order fields follow FHIR R4 `MedicationRequest`: `dose` and `doseUnit`
+are its `dosageInstruction.doseAndRate`, `schedule` its `timing`, `asNeeded`
+and `asNeededReason` its `asNeeded[x]`, and `maxPerDay` its
+`maxDosePerPeriod`. A dose follows `MedicationAdministration`.
+
+### Imported orders
+
+```ts
+const medications = createMedications({ transport, service });
+
+const { created, skipped } = await medications
+  .importOrders(organizationId, [
+    {
+      subject: { type: "client", id: clientId },
+      externalId: "rx-2026-0412",
+      medication: {
+        name: "Metformin",
+        unit: "mg",
+        codeSystem: "atc",
+        code: "A10BA02",
+      },
+      source: "pharmacy",
+      dose: 500,
+      schedule: { times: ["08:00"] },
+    },
+  ])
+  .orThrow();
+```
+
+`importOrders` runs with the service role, so pass a service-role transport
+as `service`. Each order names a `medicationId` from the list or a catalog
+`medication` to add, and an `externalId`; an external id imported before is
+skipped, so a pharmacy feed can send its orders again.
+
+## Doses
+
+```ts
+await db.medications
+  .planAdministrations(
+    organizationId,
+    Temporal.Now.instant().add({ hours: 48 }),
+  )
+  .orThrow();
+
+await db.medications
+  .recordAdministration(doseId, { status: "given", checkedBy: colleagueId })
+  .orThrow();
+
+await db.medications
+  .recordAsNeeded(asNeeded.id, { reason: "headache" })
+  .orThrow();
+```
+
+`planAdministrations` plans the doses of the active scheduled orders up to a
+time at most 31 days ahead and returns how many it added. Run it daily from a
+[job](/docs/blocks/queue), with `medications.manage` or the service role.
+
+`recordAdministration` records a planned or missed dose as `given`, `refused`
+or `skipped`; refused and skipped doses need a `reason`. The dose defaults to
+the order's. A high-risk dose needs `checkedBy`, another member with
+`medications.administer`. `recordAsNeeded` records a dose of an as-needed
+order and refuses one that would pass `maxPerDay` in 24 hours.
+
+`markMissed` marks the planned doses more than `missedAfterMinutes` late as
+missed and returns how many. Run it from a job with the service role. With
+notifications installed, the members with `medications.manage` hear about
+each missed dose.
+
+## Chart
+
+```ts
+const chart = await db.medications
+  .chart({ type: "client", id: clientId })
+  .orThrow();
+// { since, until, orders: [{ ...order, medication }], administrations: [...] }
+```
+
+`chart` returns a record's orders and doses in a range, today in the block's
+time zone by default. The
+[medication chart recipe](/docs/registry/ui-recipes/medication-chart) renders
+it.
+
+## Options
+
+| Option               | Default | Does                                                              |
+| -------------------- | ------- | ----------------------------------------------------------------- |
+| `missedAfterMinutes` | `60`    | Minutes after its planned time a dose counts as missed, 1 to 1440 |
+| `timeZone`           | `"UTC"` | The IANA zone schedule times, start dates and the chart are in    |
+| `extraColumns`       | none    | Extra columns on the medication orders table                      |
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  medications: {
+    options: { missedAfterMinutes: 30, timeZone: "Europe/Amsterdam" },
+  },
+},
+```
+
+Pass a Standard Schema as `fields` to type the extra columns, parse them on
+reads and validate them on `prescribe`, `updateOrder` and `importOrders`:
+
+```ts
+const medications = createMedications({
+  transport,
+  fields: z.object({ ward: z.string().optional() }),
+});
+```
+
+## Adopting tables
+
+An app with its own medication list keeps it: the module runs over the table
+and maps its columns. The form, strength and timestamp columns are optional;
+map them to `null` and the module leaves them out.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  medications: {
+    tables: { medications: "public.drugs" },
+    columns: {
+      medications: { tenant: "org_id", name: "label", form: null, strength: null },
+    },
+  },
+},
+```
+
+## Events
+
+| Event                                                                             | Data                                                                                                                                       |
+| --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `medication_order.created`, `medication_order.updated`, `medication_order.paused` | `organizationId`, `medicationOrderId`, `medicationId`, `subjectType`, `subjectId`, `status`                                                |
+| `medication_order.stopped`                                                        | the same order fields, with `reason`                                                                                                       |
+| `medication_administration.recorded`, `medication_administration.missed`          | `organizationId`, `medicationOrderId`, `medicationAdministrationId`, `subjectType`, `subjectId`, `status`, `scheduledAt`, `administeredAt` |
+
+Resuming an order fires `medication_order.updated`, with `status` `active`.
+
+## Hooks
+
+`before_medication_order_prescribe`, `after_medication_order_prescribe`,
+`before_medication_order_stop`, `after_medication_order_stop`,
+`before_medication_administration_record` and
+`after_medication_administration_record` run in the same transaction as the
+change. See [extending blocks](/docs/extending/blocks).
+
+## Errors
+
+| Hint                                  | Cause                                                                               |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `MEDICATION_FORBIDDEN`                | the caller lacks the permission the call needs                                      |
+| `MEDICATION_INVALID`                  | a bad name, unit or code system, or a code already in the list                      |
+| `MEDICATION_NOT_FOUND`                | no active medication with that id, or no catalog item with that code                |
+| `MEDICATION_NO_CATALOG`               | the client was created without a `catalog`                                          |
+| `MEDICATION_CATALOG_FAILED`           | the catalog threw                                                                   |
+| `MEDICATION_ORDER_INVALID`            | a bad dose, schedule, date range or record, or a scheduled order without a schedule |
+| `MEDICATION_ORDER_NOT_FOUND`          | no order with that id                                                               |
+| `MEDICATION_ORDER_INACTIVE`           | a dose of a paused or stopped order, or an as-needed dose outside its dates         |
+| `MEDICATION_ADMINISTRATION_INVALID`   | the dose is recorded already, or the input is bad                                   |
+| `MEDICATION_ADMINISTRATION_NOT_FOUND` | no dose with that id                                                                |
+| `MEDICATION_REASON_REQUIRED`          | a refused, skipped or as-needed dose, or a stopped order, without a reason          |
+| `MEDICATION_DOUBLE_CHECK_REQUIRED`    | a high-risk dose without `checkedBy`, or a checker who can't administer             |
+| `MEDICATION_DOUBLE_CHECK_SELF`        | the checker is the member recording the dose                                        |
+| `MEDICATION_MAX_DOSE_EXCEEDED`        | the as-needed dose would pass `maxPerDay` in 24 hours                               |
+
+## Without the client
+
+`db.medications` is this client. Code that does not go through `bsb.db()`
+builds it with a transport:
+
+```ts
+import { createMedications } from "better-supabase/blocks/medications";
+
+const medications = createMedications({ transport });
+const chart = await medications.chart(subject).orThrow();
+```

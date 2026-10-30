@@ -163,6 +163,14 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_consent_withdraw",
     "after_consent_withdraw",
   ],
+  medications: [
+    "before_medication_order_prescribe",
+    "after_medication_order_prescribe",
+    "before_medication_order_stop",
+    "after_medication_order_stop",
+    "before_medication_administration_record",
+    "after_medication_administration_record",
+  ],
   collections: [
     "before_collection_create",
     "after_collection_create",

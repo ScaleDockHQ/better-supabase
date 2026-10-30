@@ -57,6 +57,7 @@ import type { LeadScoringSqlOptions } from "./lead-scoring/options.ts";
 import type { LeasesSqlOptions } from "./leases/options.ts";
 import type { LeaveSqlOptions } from "./leave/options.ts";
 import type { MailSyncSqlOptions } from "./mail-sync/options.ts";
+import type { MedicationsSqlOptions } from "./medications/options.ts";
 import type { MembershipsSqlOptions } from "./memberships/options.ts";
 import type { MemorySqlOptions } from "./memory/options.ts";
 import type { MessagingSqlOptions } from "./messaging/options.ts";
@@ -191,6 +192,7 @@ import { leadScoringSqlOptions } from "./lead-scoring/options.ts";
 import { leasesSqlOptions } from "./leases/options.ts";
 import { leaveSqlOptions } from "./leave/options.ts";
 import { mailSyncSqlOptions } from "./mail-sync/options.ts";
+import { medicationsSqlOptions } from "./medications/options.ts";
 import { membershipsSqlOptions } from "./memberships/options.ts";
 import { memorySqlOptions } from "./memory/options.ts";
 import { messagingSqlOptions } from "./messaging/options.ts";
@@ -370,6 +372,7 @@ export interface BlockOptionsRegistry {
   readonly content: ContentSqlOptions;
   readonly qualifications: QualificationsSqlOptions;
   readonly shifts: ShiftsSqlOptions;
+  readonly medications: MedicationsSqlOptions;
   readonly profiles: ProfilesSqlOptions;
   readonly promotions: PromotionsSqlOptions;
   readonly push: PushSqlOptions;
@@ -528,6 +531,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   content: contentSqlOptions,
   qualifications: qualificationsSqlOptions,
   shifts: shiftsSqlOptions,
+  medications: medicationsSqlOptions,
   profiles: profilesSqlOptions,
   promotions: promotionsSqlOptions,
   push: pushSqlOptions,

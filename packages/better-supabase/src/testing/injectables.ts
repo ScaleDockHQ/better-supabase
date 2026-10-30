@@ -10,6 +10,10 @@ import type {
 } from "../blocks/ai-schedules/ai-schedules.ts";
 import type { DriveTextFile, TextExtractor } from "../blocks/drive/extract.ts";
 import type { Embedder } from "../blocks/knowledge/knowledge.ts";
+import type {
+  MedicationCatalog,
+  MedicationCatalogItem,
+} from "../blocks/medications/medications.ts";
 import type { WorkflowGraph } from "../blocks/workflow-editor/graph.ts";
 import type {
   BuilderStartCall,
@@ -506,6 +510,87 @@ export function testTextExtractor(
         expect(
           text === undefined || typeof text === "string",
           "an unknown type must return undefined or its text",
+        );
+      },
+    ],
+  ]);
+}
+
+export interface TestMedicationCatalogOptions {
+  /** A query the catalog has results for. Default `paracetamol`. */
+  readonly query?: string;
+  /** A code the catalog has no item for. Default `does-not-exist`. */
+  readonly unknownCode?: string;
+}
+
+const CODE_SYSTEMS = new Set(["gtin", "hpk", "atc", "rxnorm", "custom"]);
+
+const itemIssue = (item: MedicationCatalogItem): string | undefined => {
+  if (typeof item.name !== "string" || item.name.trim() === "") {
+    return "every item needs a name";
+  }
+
+  if (typeof item.unit !== "string" || item.unit.trim() === "") {
+    return `${item.name} needs a unit`;
+  }
+
+  if (!CODE_SYSTEMS.has(item.codeSystem)) {
+    return `${item.name} has code system ${item.codeSystem}`;
+  }
+
+  return typeof item.code === "string" && item.code !== ""
+    ? undefined
+    : `${item.name} needs a code`;
+};
+
+/**
+ * Proves a `MedicationCatalog` for the medications block returns well-formed
+ * items for `query`, gets each by its code, returns `undefined` for an unknown
+ * code, and rejects once its signal is aborted. It calls the real catalog.
+ */
+export function testMedicationCatalog(
+  catalog: MedicationCatalog,
+  options: TestMedicationCatalogOptions = {},
+): Promise<ConformanceReport> {
+  const query = options.query ?? "paracetamol";
+  const unknown = options.unknownCode ?? "does-not-exist";
+
+  return conform("MedicationCatalog", [
+    hasApiVersion(catalog),
+    [
+      "returns well-formed items that it can get by code",
+      async () => {
+        const items = await catalog.search(query);
+        expect(items.length > 0, `no items for "${query}"`);
+
+        for (const item of items) {
+          const issue = itemIssue(item);
+          expect(issue === undefined, issue ?? "");
+        }
+
+        const [first] = items;
+
+        if (first !== undefined) {
+          const got = await catalog.get(first.code);
+          expect(got?.code === first.code, `get(${first.code}) missed it`);
+        }
+      },
+    ],
+    [
+      "returns undefined for an unknown code",
+      async () => {
+        const got = await catalog.get(unknown);
+        expect(got === undefined, `get(${unknown}) returned an item`);
+      },
+    ],
+    [
+      "rejects once aborted",
+      async () => {
+        expect(
+          await rejects(() =>
+            catalog.search(query, { signal: AbortSignal.abort() }),
+          ),
+          "search must reject when its signal is aborted",
         );
       },
     ],

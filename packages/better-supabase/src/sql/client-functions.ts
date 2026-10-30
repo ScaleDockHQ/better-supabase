@@ -137,6 +137,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "capture_ledger_hold close_ledger_account get_ledger_transaction ledger_account_entries list_ledger_accounts open_ledger_account place_ledger_hold post_ledger_transaction release_ledger_hold reverse_ledger_transaction",
   "mail-sync":
     "connect_mail_account disconnect_mail_account due_mail_accounts get_mail_account get_mail_thread ingest_mail link_mail_thread list_mail_threads mail_accounts_of mail_template_stats mail_threads_of record_sent_mail set_mail_account_status track_mail unlink_mail_thread update_mail_account",
+  medications:
+    "archive_medication import_medication import_medication_orders list_medications mark_missed_medication_administrations medication_chart medication_orders_of pause_medication_order plan_medication_administrations prescribe_medication record_as_needed_administration record_medication_administration save_medication stop_medication_order update_medication_order",
   memory:
     "memory_create memory_delete memory_document_read memory_document_write memory_forget memory_insert memory_list memory_rename memory_restore memory_save memory_search memory_str_replace memory_view pending_memory_embeddings purge_memories purge_memory_documents recall_ai_messages set_ai_message_embedding set_memory_embeddings",
   messaging:

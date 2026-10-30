@@ -107,6 +107,7 @@ describe("blocks.<name>.entities in the SQL", () => {
     hiring: ["'interviews[]'", "'interviews'"],
     inbox: ["'inbox_id'"],
     invoices: ["'invoices:cash:", "'invoiceId'"],
+    medications: ["'medication'", "'medicationId'"],
     memory: ["'/memories'", "'/memories{}'"],
     orders: ["'cartId'", "'orderId'"],
     promotions: ['"promotions"', "'promotionId'"],
