@@ -1,7 +1,7 @@
 -- better-supabase module: drive-files
--- @bsb-block drive-files@1 managed
+-- @bsb-block drive-files@2 managed
 -- @bsb-hash sha256:038d59e4b2f1fb5cf0683db2b125e618a652035d885a3a96017eb08ff51e0270
--- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

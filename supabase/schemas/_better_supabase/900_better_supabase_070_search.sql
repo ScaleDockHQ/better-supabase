@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:e6d9f8225bc3046abb22fdf3344b35c5d486c3140c0caa74408768624fce136b
+-- @bsb-hash sha256:191d3eeee3fac2d15178d31b360bb8f8d090e5262aa64f6bda8ffd8e18b73d72
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -225,9 +225,10 @@ begin
         and s."archived_at" is null;
       v_found := found;
     when 'drive_node' then
-      select s."tenant_id", s."name"::text, null, null
+      select s."tenant_id", f."name"::text, nullif(concat_ws(E'\n', f."content"::text), ''), null
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."drive_nodes" s
+        join "better_supabase"."drive_node_search" f on f."id"::text = s."id"::text
         where s."id" = (search_refresh.subject_id)::uuid
         and s."deleted_at" is null;
       v_found := found;
@@ -476,13 +477,42 @@ create trigger "bsb_search_customer_index"
 
 drop trigger if exists "bsb_search_drive_node_index" on "better_supabase"."drive_nodes";
 create trigger "bsb_search_drive_node_index"
-  after insert or delete or update of "id", "tenant_id", "name", "deleted_at" on "better_supabase"."drive_nodes"
+  after insert or delete or update on "better_supabase"."drive_nodes"
   for each row execute function "better_supabase"."search_index_row"('drive_node', 'id');
 
 drop trigger if exists "bsb_search_project_index" on "public"."projects";
 create trigger "bsb_search_project_index"
   after insert or delete or update of "id", "organization_id", "name", "deleted_at" on "public"."projects"
   for each row execute function "better_supabase"."search_index_row"('project', 'id');
+-- A change in better_supabase.drive_node_texts re-indexes the drive_node it points at.
+create or replace function "better_supabase"."search_watch_drive_node_0"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_id text;
+begin
+  if tg_op in ('UPDATE', 'DELETE') and old."node_id" is not null then
+    perform "better_supabase"."search_refresh"('drive_node', old."node_id"::text);
+  end if;
+  if tg_op in ('INSERT', 'UPDATE') and new."node_id" is not null then
+    perform "better_supabase"."search_refresh"('drive_node', new."node_id"::text);
+  end if;
+  return null;
+end;
+$$;
+revoke execute on function "better_supabase"."search_watch_drive_node_0"() from public, anon, authenticated;
+do $watch$
+begin
+  if to_regclass('better_supabase.drive_node_texts') is not null then
+    drop trigger if exists "bsb_search_drive_node_watch_0" on "better_supabase"."drive_node_texts";
+    create trigger "bsb_search_drive_node_watch_0" after insert or update or delete on "better_supabase"."drive_node_texts"
+      for each row execute function "better_supabase"."search_watch_drive_node_0"();
+  end if;
+end;
+$watch$;
 
 -- Full-text and trigram matches (plus nearest embeddings when the query
 -- carries one, fused by reciprocal rank), as the caller: the policy keeps

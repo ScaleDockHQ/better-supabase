@@ -183,6 +183,77 @@ describe("drive module", () => {
     expect(files).toContain("raise_actor_readonly");
   });
 
+  it("keeps extracted text per file and a search view over it", () => {
+    const core = sqlOf(["drive"], "drive");
+    expect(core).toContain(
+      `create table if not exists "better_supabase"."drive_node_texts"`,
+    );
+    expect(core).toContain(
+      `"node_id" uuid primary key references "better_supabase"."drive_nodes" ("id") on delete cascade`,
+    );
+    expect(core).toContain("drive_node_texts_read");
+    expect(core).toContain(
+      `create or replace view "better_supabase"."drive_node_search" with (security_invoker = true)`,
+    );
+    expect(core).toContain(`left(t."content", 100000) as content`);
+
+    const files = sqlOf(["drive"], "drive-files");
+    expect(files).toContain("drive_text_source");
+    expect(files).toContain("octet_length(v_content) > 1048576");
+    expect(
+      sqlOf(["drive"], "drive-files", withOptions({ maxTextBytes: 4096 })),
+    ).toContain("octet_length(v_content) > 4096");
+    expect(files).toContain(
+      'revoke execute on function "better_supabase"."drive_set_text"(uuid, uuid, text, text) from public, anon, authenticated;',
+    );
+    expect(() =>
+      sqlOf(["drive"], "drive-files", withOptions({ maxTextBytes: 10 })),
+    ).toThrow(/maxTextBytes/);
+  });
+
+  it("searches a node's name alone without file content", () => {
+    const core = sqlOf(["drive"], "drive", APP_DRIVE);
+
+    expect(core).toContain("null::text as content");
+    expect(core).not.toContain("drive_node_texts");
+    expect(sqlOf(["drive"], "drive-files", APP_DRIVE)).not.toContain(
+      "drive_set_text",
+    );
+  });
+
+  it("checks the usage quota before an upload when one is set", () => {
+    expect(sqlOf(["drive", "usage"], "drive-files")).not.toContain(
+      "DRIVE_QUOTA_EXCEEDED",
+    );
+
+    const files = sqlOf(
+      ["drive", "usage"],
+      "drive-files",
+      withOptions({ quota: { meter: "storage" } }),
+    );
+
+    expect(files.match(/DRIVE_QUOTA_EXCEEDED/g)).toHaveLength(2);
+    expect(files).toContain(
+      `"within_quota"(drive_create_file.tenant, 'storage', greatest(coalesce(drive_create_file.size, 0), 0))`,
+    );
+    expect(files).toContain(`errcode = '53400'`);
+    expect(files).toContain(`detail = '{"meter":"storage"}'`);
+    expect(() =>
+      sqlOf(
+        ["drive"],
+        "drive-files",
+        withOptions({ quota: { meter: "storage" } }),
+      ),
+    ).toThrow(/usage block/);
+    expect(() =>
+      sqlOf(
+        ["drive", "usage"],
+        "drive-files",
+        withOptions({ quota: { meter: "Storage" } }),
+      ),
+    ).toThrow(/quota/);
+  });
+
   it("uses versions, trash and share links when they are installed", () => {
     const alone = sqlOf(["drive"], "drive-files");
     expect(alone).not.toContain("version_insert");

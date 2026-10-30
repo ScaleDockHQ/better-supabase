@@ -613,6 +613,7 @@ export interface BlockNameRegistry {
       readonly "drives": "id" | "tenant" | "name" | "kind" | "owner" | "connection" | "downloadBlocked" | "createdBy" | "createdAt" | "updatedAt";
       readonly "driveGrants": "id" | "tenant" | "drive" | "principalType" | "principalId" | "user" | "team" | "role" | "expiresAt" | "createdBy" | "createdAt";
       readonly "connections": "id" | "tenant" | "user" | "provider" | "name" | "status" | "syncCursor" | "syncClaimedAt" | "lastSyncedAt" | "lastSyncError" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "texts": "node" | "tenant" | "attachment" | "extractor" | "content" | "extractedAt";
     };
     readonly functions: "drive_ancestors" | "drive_can" | "drive_can_comment" | "drive_can_download" | "drive_can_upload" | "drive_check_parent" | "drive_clean_name" | "drive_conflict" | "drive_create_folder" | "drive_delete" | "drive_download_blocked" | "drive_free_name" | "drive_get" | "drive_grants" | "drive_hold" | "drive_insert_node" | "drive_list" | "drive_lock" | "drive_lock_siblings" | "drive_move" | "drive_node_held" | "drive_node_json" | "drive_node_moved" | "drive_node_path" | "drive_node_readable" | "drive_node_writable" | "drive_path" | "drive_readable_ids" | "drive_release_hold" | "drive_rename" | "drive_role" | "drive_set_download_blocked" | "drive_share" | "drive_share_link_allowed" | "drive_shared" | "drive_subtree" | "drive_unlock" | "drive_unshare";
     readonly actions: "read" | "create" | "manage";

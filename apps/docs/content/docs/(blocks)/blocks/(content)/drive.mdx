@@ -122,6 +122,8 @@ blocks: {
 | `roleFunctions` | none                            | App functions or provider row grants that give the caller's role                       |
 | `readPolicy`    | `true`                          | The block's read policies; `false` leaves them to the app                              |
 | `extraColumns`  | none                            | Columns on the node table that `fields` reads and writes                               |
+| `quota`         | none                            | `{ meter }`: a usage meter in bytes that uploads must fit, as [Quotas](#quotas) shows  |
+| `maxTextBytes`  | `1048576`                       | The most extracted text kept per file, in bytes                                        |
 
 Each call that creates, renames or moves a node can pass its own `conflict`. Names compare case-insensitively within one folder.
 
@@ -239,6 +241,71 @@ trash: {
 
 `download(id)` signs a download URL for the current content through the `attachments` option, the attachments block over the same transport; `createBlocks` passes it as the `attachments` port when the set has `attachmentsBlock`. Without it, `download` fails with the hint `DRIVE_ATTACHMENTS_CLIENT`. With `requireScan` on the attachments block (the default), a file that isn't scanned clean yet can't be downloaded.
 
+### Text extraction
+
+Files become searchable by their content once their text is extracted. `createDriveText` reads each clean upload through a `TextExtractor` and stores its text in `drive_node_texts`, one row per file, kept at `maxTextBytes`. It runs as the service role: give it a service-role transport and `supabase.storage`, and run its `sink()` on the outbox relay. The sink reacts to `attachment.uploaded` (and to `attachment.scanned`, when uploads are scanned first), so a file is read only once it is clean and again for each new revision.
+
+```ts title="app/api/outbox/route.ts"
+import {
+  createDriveText,
+  plainTextExtractor,
+} from "better-supabase/blocks/drive";
+
+const driveText = createDriveText({
+  transport: rpcTransport(admin.$client),
+  storage: admin.$client.storage,
+  extractor: plainTextExtractor(),
+});
+
+return admin.outbox.relayRoute({
+  secret: env.CRON_SECRET,
+  consumers: { driveText: driveText.sink() },
+})(request);
+```
+
+`plainTextExtractor()` reads text, JSON, XML and YAML files. For PDFs and office documents, write a `TextExtractor` over the library or service you use: `name` is stored with the text, and `extract(file, meta, signal)` returns the text, or `undefined` for a file it doesn't read. `testTextExtractor` from `better-supabase/testing` checks an extractor against the contract.
+
+```ts
+import type { TextExtractor } from "better-supabase/blocks/drive";
+
+const pdf: TextExtractor = {
+  apiVersion: 1,
+  name: "pdf",
+  extract: async (file, meta) =>
+    meta.mimeType === "application/pdf" ? await readPdf(file) : undefined,
+};
+```
+
+A file larger than `maxFileBytes` (25 MB by default) isn't read and loses its stored text. An extractor that throws returns `internal` with the hint `DRIVE_TEXT_FAILED`, and the sink throws so the relay retries. `extract(nodeId)` runs one file by hand, and `job` runs it as a jobs handler with `{ nodeId }`. When a newer revision arrives during the extraction, `drive_set_text` keeps nothing and the outcome is `skipped`.
+
+With `knowledge`, the [knowledge](/docs/blocks/knowledge) block's client, the text also becomes one knowledge document per file, scoped to the node as its subject: each new text replaces the file's earlier document, so the assistant can answer from the file. Text rows follow the node's read grants, and are deleted with the node.
+
+### Quotas
+
+Set `quota` to a [usage](/docs/blocks/usage) meter in bytes, and `drive_create_file` and `drive_upload_revision` check `within_quota(organization, meter, size)` before they accept an upload. An upload that doesn't fit fails with `quota_exceeded`, SQLSTATE `53400` and the hint `DRIVE_QUOTA_EXCEEDED`, before the object is stored. The service role isn't checked. A computed meter keeps the count true without recording each upload:
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  usage: {
+    options: {
+      meters: {
+        storage: {
+          kind: "computed",
+          unit: "bytes",
+          query: `select a.organization_id, sum(a.size)
+            from better_supabase.attachments a
+            join better_supabase.drive_nodes n on n.attachment_id = a.id
+            where n.deleted_at is null group by 1`,
+        },
+      },
+    },
+  },
+  drive: { options: { quota: { meter: "storage" } } },
+},
+```
+
+Quotas need the usage block in the same set; installing `drive-files` with a quota and without usage fails.
+
 ## Check-out, download blocks and previews
 
 `lock(id)` checks a file out for the caller. Until the lock ends (8 hours by default, at most 30 days), nobody else may upload a revision, commit, restore a revision, rename, move, trash or delete it; trashing or deleting a folder fails while a file under it is checked out. Those calls fail with `DRIVE_LOCKED`, and the error's detail names `lockedBy` and `lockedUntil`. Locking needs the write role. `unlock(id)` ends the caller's own lock, and `unlock(id, { force: true })` lets the share role end someone else's. The service role ignores locks. Every node reports `lockedBy`, `lockedUntil` and `lockNote` while a lock applies; an expired lock reads as no lock.
@@ -302,6 +369,21 @@ approvals: {
 
 Anyone who can read a node sees its labels and its approval state. Tagging, untagging and requesting approval need write access, and the tags and approvals functions check the same drive grants when they are called directly with the `drive_node` subject type.
 
+## Metadata
+
+Typed metadata on files and folders comes from the [custom fields](/docs/blocks/custom-fields) block. Define fields on the `drive_node` entity and set them on a node as its subject; with `readAccess: "record"` on the node subject, only members who can read a node see its values and only editors set them (see [Comments, search and relations on nodes](#comments-search-and-relations-on-nodes)).
+
+```ts
+const contract = await db.customFields
+  .saveDefinition("drive_node", "contract_type", "Contract type", "option")
+  .orThrow();
+await db.customFields
+  .setValue({ type: "drive_node", id: fileId }, contract.id, "nda")
+  .orThrow();
+```
+
+A [saved view](/docs/blocks/saved-views) over `drive_node` then filters the drive on those fields, such as every contract of type `nda`.
+
 ## The bin
 
 With trash installed, `trash(id)` moves a node and everything under it to the bin as one batch, and `bin(organizationId)` lists the batches. `restore(binId)` puts the batch back, applying the conflict policy if the name is taken again. A node whose folder is still in the bin can't come back until the folder does. `purge(binId)` deletes it for good and records `drive.node_purged` with the object paths. Run `prune()` from the service role to delete the purged objects from storage:
@@ -338,7 +420,7 @@ Load a folder's children with `list(organizationId, { parentId })` as it opens, 
 
 ## Comments, search and relations on nodes
 
-`driveSubject()` describes the node table as a subject, so the [subject registry](/docs/blocks/sql#subject-registry) lets comments, reactions and other blocks attach to nodes with the drive's read and write rules. It also carries a `search` entry: with the [search block](/docs/blocks/search) installed, node names are indexed as they are created and renamed, trashed nodes drop out of the results, and [relations](/docs/blocks/relations) can link a node to any other subject:
+`driveSubject()` describes the node table as a subject, so the [subject registry](/docs/blocks/sql#subject-registry) lets comments, reactions and other blocks attach to nodes with the drive's read and write rules. It also carries a `search` entry: with the [search block](/docs/blocks/search) installed, node names and their [extracted text](#text-extraction) (its first 100,000 characters) are indexed as they are created, renamed and read, trashed nodes drop out of the results, and [relations](/docs/blocks/relations) can link a node to any other subject:
 
 ```ts title="better-supabase.config.ts"
 import { driveSubject } from "better-supabase/blocks/drive";
@@ -415,6 +497,8 @@ drive: {
 | `DRIVE_LINK_ROLE_INVALID`    | An upload link names a file, `link` opens an upload link, or a view link takes a file                |
 | `DRIVE_LINK_RATE_LIMITED`    | A file request took more files than its rate limit allows                                            |
 | `DRIVE_PREVIEWS_INVALID`     | `drive_set_previews` got no page count or a negative one                                             |
+| `DRIVE_QUOTA_EXCEEDED`       | The upload would pass the organization's `quota` meter                                               |
+| `DRIVE_TEXT_FAILED`          | The text extractor threw while reading the file                                                      |
 | `TRASH_HELD`                 | `purge` names a batch with a subject under a legal hold                                              |
 
 A read-only support session refuses every write with `ACTOR_READ_ONLY`. In a

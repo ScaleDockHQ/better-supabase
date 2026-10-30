@@ -11,6 +11,9 @@ export type DriveRoleHook =
   | string
   | { readonly rows: string; readonly roles: Readonly<Record<string, string>> };
 
+/** `blocks.drive.options.quota`: the usage meter uploads count against. */
+export type DriveQuota = { readonly meter: string };
+
 export type DriveRoleFunctions = {
   readonly node?: DriveRoleHook;
   readonly drive?: DriveRoleHook;
@@ -33,6 +36,8 @@ export type DriveSqlOptions = {
   readonly readPolicy?: boolean;
   readonly previewPrefix?: string;
   readonly extraColumns?: ExtraColumns;
+  readonly maxTextBytes?: number;
+  readonly quota?: DriveQuota;
 };
 
 export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
@@ -52,4 +57,6 @@ export const driveSqlOptions: BlockOptionsSchema<DriveSqlOptions> =
     readPolicy: option.boolean({ default: true }),
     previewPrefix: option.string({ default: "_previews" }),
     extraColumns: option.extraColumns(),
+    maxTextBytes: option.number({ default: 1_048_576 }),
+    quota: option.unknown<DriveQuota>(),
   });

@@ -7039,6 +7039,7 @@
     "values": [
       "createDrive",
       "createDrivePreviews",
+      "createDriveText",
       "dbTransport",
       "DRIVE_ROOT",
       "driveBlock",
@@ -7047,9 +7048,11 @@
       "driveTree",
       "fileTypeCategory",
       "nodeType",
+      "plainTextExtractor",
       "previewRendererOf",
       "rpcTransport",
-      "sqlTransport"
+      "sqlTransport",
+      "textExtractorOf"
     ],
     "types": [
       "BlockTransport",
@@ -7084,6 +7087,12 @@
       "DriveRequestUpload",
       "DriveRevision",
       "DriveStoredObject",
+      "DriveText",
+      "DriveTextFile",
+      "DriveTextJob",
+      "DriveTextKnowledge",
+      "DriveTextOptions",
+      "DriveTextOutcome",
       "DriveTreeData",
       "DriveUpload",
       "NewDrive",
@@ -7091,7 +7100,8 @@
       "NewDriveFolder",
       "PreviewInput",
       "PreviewPage",
-      "PreviewRenderer"
+      "PreviewRenderer",
+      "TextExtractor"
     ]
   },
   "./blocks/signatures": {
@@ -8401,6 +8411,7 @@
       "testStreamStore",
       "testSupportSessionStore",
       "testTaxProvider",
+      "testTextExtractor",
       "testTranscriber",
       "testWebhookSecretStore",
       "testWebhookSigner",
@@ -8494,6 +8505,7 @@
       "TestStreamStoreOptions",
       "TestSupportSessionStoreOptions",
       "TestTaxProviderOptions",
+      "TestTextExtractorOptions",
       "TestTranscriberOptions",
       "TestUser",
       "TestWebhookSecretStoreOptions",

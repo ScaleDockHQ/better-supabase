@@ -2633,7 +2633,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "share-links",
         "tags",
         "approvals",
-        "rate-limit"
+        "rate-limit",
+        "usage"
       ],
       "manifest": "drive",
       "scopes": [

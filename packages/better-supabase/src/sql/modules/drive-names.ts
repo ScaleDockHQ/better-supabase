@@ -107,6 +107,8 @@ export const NAMES: BlockSqlNames = {
     "readPolicy",
     "previewPrefix",
     "extraColumns",
+    "maxTextBytes",
+    "quota",
   ],
   tables: {
     nodes: {
@@ -278,6 +280,21 @@ export const NAMES: BlockSqlNames = {
         "updatedAt",
       ],
       typed: ["provider", "status"],
+    },
+    texts: {
+      name: "drive_node_texts",
+      app: {},
+      optionalTable: true,
+      lifecycle: { tenant: "tenant", export: true },
+      columns: {
+        node: "node_id",
+        tenant: "tenant_id",
+        attachment: "attachment_id",
+        extractor: "extractor",
+        content: "content",
+        extractedAt: "extracted_at",
+      },
+      optional: ["extractor", "extractedAt"],
     },
   },
 };

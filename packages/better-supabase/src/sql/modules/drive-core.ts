@@ -21,6 +21,7 @@ import {
   subtreeLockGuard,
 } from "./drive-locks.ts";
 import { driveTablesSql, driveTriggersSql } from "./drive-tables.ts";
+import { driveTextTableSql } from "./drive-texts.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 /** The tree, grants and sharing: the drive module. */
@@ -927,7 +928,7 @@ ${driveGrantsSql(kit)}
 ${driveHoldsSql(kit)}
 ${driveDrivesSql(kit)}
 ${driveLocksSql(kit)}
-`;
+${driveTextTableSql(kit)}`;
 
   return core;
 }

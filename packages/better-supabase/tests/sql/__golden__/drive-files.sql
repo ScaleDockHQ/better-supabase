@@ -1,8 +1,8 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
--- @bsb-block drive-files@1 managed
+-- @bsb-block drive-files@2 managed
 -- @bsb-hash sha256:fc83c3fc850eb162e2bee332e6c04c6879155cea6bb4eb43bb0f69db2c528f64
--- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -24,22 +24,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block-data drive-files
--- @bsb-hash sha256:ec009a2142b7166e7080ab6e6634a82fddbec5752a75f5af7eaa495213eb8446
+-- @bsb-hash sha256:a9de9d58b473f459508f98079d0d866885f96d734c53177ddc265cc3291cd7ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive-files', 1, 'managed')
+values ('drive-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== with every module: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
--- @bsb-block drive-files@1 managed
--- @bsb-hash sha256:fd9ae92082233e5c958c9e79316ba864418a45dd4e748a1bf42d7bd01076aa62
--- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- @bsb-block drive-files@2 managed
+-- @bsb-hash sha256:f4a0c095507a0503fb6155789da8a70eafdc45e8b77e466188b6087801a61021
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -465,6 +465,72 @@ end;
 $$;
 revoke execute on function "better_supabase"."drive_set_previews"(uuid, uuid, integer) from public, anon, authenticated;
 grant execute on function "better_supabase"."drive_set_previews"(uuid, uuid, integer) to service_role;
+
+-- The current content of a file for a text extractor: its node, the stored
+-- object and the attachment's scan status, found by node or by the attachment
+-- that is a file's content. Null for a folder, a file without content, a node
+-- in the bin or an attachment of another record.
+create or replace function "better_supabase"."drive_text_source"(node uuid default null, attachment uuid default null)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object('nodeId', s."id", 'organizationId', s."tenant_id", 'name', s."name",
+    'attachmentId', f."id", 'bucket', f."bucket", 'path', f."object_path", 'mimeType', f."mime_type",
+    'size', f."size", 'status', f."status")
+  from "better_supabase"."drive_nodes" s
+  join "better_supabase"."attachments" f on f."id" = s."attachment_id"
+  where s."id" = coalesce(drive_text_source.node, (select x."id" from "better_supabase"."drive_nodes" x where x."attachment_id" = drive_text_source.attachment limit 1))
+    and (drive_text_source.attachment is null or s."attachment_id" = drive_text_source.attachment)
+    and s."kind" = 'file' and s."deleted_at" is null
+    and f."uploaded_at" is not null
+$$;
+revoke execute on function "better_supabase"."drive_text_source"(uuid, uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_text_source"(uuid, uuid) to service_role;
+
+-- Stores the text extracted from attachment, the file's content, cut to
+-- 1048576 bytes. Null content forgets the file's text. Returns false when
+-- attachment is no longer the file's content, so a slow extraction of an
+-- older revision never replaces a newer one.
+create or replace function "better_supabase"."drive_set_text"(node uuid, attachment uuid, content text, extractor text default null)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_content text := drive_set_text.content;
+begin
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
+    raise exception 'only the service role stores extracted text' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" s where s."id" = drive_set_text.node for update;
+  if not found or v_node."attachment_id" is distinct from drive_set_text.attachment then
+    return false;
+  end if;
+  if v_content is null or btrim(v_content) = '' then
+    delete from "better_supabase"."drive_node_texts" t where t."node_id" = v_node."id";
+    return true;
+  end if;
+  if octet_length(v_content) > 1048576 then
+    v_content := left(v_content, 1048576);
+    while octet_length(v_content) > 1048576 loop
+      v_content := left(v_content, length(v_content) - greatest(1, (octet_length(v_content) - 1048576) / 4));
+    end loop;
+  end if;
+  insert into "better_supabase"."drive_node_texts" as t ("node_id", "tenant_id", "attachment_id", "content", "extractor", "extracted_at")
+  values (v_node."id", v_node."tenant_id", drive_set_text.attachment, v_content, drive_set_text.extractor, now())
+  on conflict ("node_id") do update
+    set "tenant_id" = excluded."tenant_id", "attachment_id" = excluded."attachment_id", "content" = excluded."content", "extractor" = excluded."extractor", "extracted_at" = excluded."extracted_at";
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_set_text"(uuid, uuid, text, text) from public, anon, authenticated;
+grant execute on function "better_supabase"."drive_set_text"(uuid, uuid, text, text) to service_role;
 
 create or replace function "better_supabase"."drive_revisions"(node uuid)
 returns jsonb
@@ -904,22 +970,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block-data drive-files
--- @bsb-hash sha256:ec009a2142b7166e7080ab6e6634a82fddbec5752a75f5af7eaa495213eb8446
+-- @bsb-hash sha256:a9de9d58b473f459508f98079d0d866885f96d734c53177ddc265cc3291cd7ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive-files', 1, 'managed')
+values ('drive-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
--- @bsb-block drive-files@1 managed
+-- @bsb-block drive-files@2 managed
 -- @bsb-hash sha256:fc83c3fc850eb162e2bee332e6c04c6879155cea6bb4eb43bb0f69db2c528f64
--- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -941,22 +1007,22 @@ grant select on better_supabase.blocks to service_role;
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block-data drive-files
--- @bsb-hash sha256:ec009a2142b7166e7080ab6e6634a82fddbec5752a75f5af7eaa495213eb8446
+-- @bsb-hash sha256:a9de9d58b473f459508f98079d0d866885f96d734c53177ddc265cc3291cd7ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive-files', 1, 'managed')
+values ('drive-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
 -- ==== api schema: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
--- @bsb-block drive-files@1 managed
+-- @bsb-block drive-files@2 managed
 -- @bsb-hash sha256:fc83c3fc850eb162e2bee332e6c04c6879155cea6bb4eb43bb0f69db2c528f64
--- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
+-- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -978,13 +1044,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block-data drive-files
--- @bsb-hash sha256:ec009a2142b7166e7080ab6e6634a82fddbec5752a75f5af7eaa495213eb8446
+-- @bsb-hash sha256:a9de9d58b473f459508f98079d0d866885f96d734c53177ddc265cc3291cd7ee
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('drive-files', 1, 'managed')
+values ('drive-files', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

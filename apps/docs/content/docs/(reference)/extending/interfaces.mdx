@@ -311,6 +311,15 @@ Turns texts into vectors for the knowledge and memory blocks. It has a
 value, all of one length. `testEmbedder` from `better-supabase/testing` is its
 conformance block.
 
+## TextExtractor
+
+Reads the text of a drive file for search and knowledge (see
+[Text extraction](/docs/blocks/drive#text-extraction)). It has a `name`,
+stored with the text, and `extract(file, meta, signal)`, which returns the
+text, or `undefined` for a file it doesn't read. `plainTextExtractor()` reads
+text formats, and `testTextExtractor` from `better-supabase/testing` is its
+conformance block.
+
 ## AiTaskRunner
 
 The function `createAiSchedules` calls for each due run, with the task, the

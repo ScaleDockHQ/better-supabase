@@ -13,6 +13,7 @@ import {
 import { labelTags, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
 import { driveLinksSql } from "./drive-links.ts";
 import { lockGuard, subtreeLockGuard } from "./drive-locks.ts";
+import { driveQuotaCheck, driveTextFunctionsSql } from "./drive-texts.ts";
 
 /**
  * The approvals action a drive file's request uses:
@@ -263,7 +264,7 @@ declare
   v_node ${T}%rowtype;${roles.upload === undefined ? "" : "\n  v_attachment jsonb;"}
 begin
   ${READ_ONLY_GUARD}${uploadOnlyCreate}
-  perform ${fn("drive_check_parent")}(drive_create_file.tenant, drive_create_file.parent, drive_create_file.drive);${
+  perform ${fn("drive_check_parent")}(drive_create_file.tenant, drive_create_file.parent, drive_create_file.drive);${driveQuotaCheck(kit, "drive_create_file.tenant", "drive_create_file.size")}${
     driveColumn
       ? `
   if drive_create_file.parent is not null then
@@ -315,7 +316,7 @@ begin
   ${lockGuard(kit, "v_node")}
   if v_node.${n("kind")} <> 'file' then
     ${fail("DRIVE_NOT_A_FILE", "a folder has no content", "22023")}
-  end if;
+  end if;${driveQuotaCheck(kit, `v_node.${n("tenant")}`, "drive_upload_revision.size")}
   v_attachment := ${attachments.fn("create_attachment")}(v_node.${n("tenant")}, v_node.${n("name")}, drive_upload_revision.mime_type, drive_upload_revision.size, ${typeLit}, v_node.${n("id")}::text);${
     roles.upload === undefined
       ? ""
@@ -985,7 +986,7 @@ drop trigger if exists ${ctx.trigger("drive_node_purged")} on ${T};
 create trigger ${ctx.trigger("drive_node_purged")}
   after delete on ${T}
   for each row execute function ${fn("drive_node_purged")}();
-${fileFunctions}${revisionFunctions}${binFunctions}${stateFunctions}${driveLinksSql(kit)}${labelFunctions}${approvalFunctions}`;
+${fileFunctions}${driveTextFunctionsSql(kit)}${revisionFunctions}${binFunctions}${stateFunctions}${driveLinksSql(kit)}${labelFunctions}${approvalFunctions}`;
 
   return late;
 }
