@@ -252,11 +252,11 @@ describe("knowledge module", () => {
     expect(bigint).toContain('"team_id" bigint,');
   });
 
-  it("upgrades version 3 grants with their tenant", () => {
-    const [plan] = upgradePlan([{ module: "knowledge", version: 3 }]);
+  it("upgrades version 4 grants with their tenant", () => {
+    const [plan] = upgradePlan([{ module: "knowledge", version: 4 }]);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
 
-    expect(plan?.to).toBe(4);
+    expect(plan?.to).toBe(5);
     expect(sql).toContain('add column if not exists "organization_id" uuid;');
     expect(sql).toContain('set "organization_id" = c."organization_id"');
   });
