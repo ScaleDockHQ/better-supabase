@@ -109,7 +109,7 @@ describe.skipIf(!live)("sequences module in Postgres", () => {
 
   const due = (enrollmentId: string) =>
     session.client.query(
-      "update better_supabase.sequence_enrollments set next_run_at = now() - interval '1 minute' where enrollment_id = $1",
+      "update better_supabase.enrollment_steps set due_at = now() - interval '1 minute' where enrollment_id = $1 and completed_at is null",
       [enrollmentId],
     );
 

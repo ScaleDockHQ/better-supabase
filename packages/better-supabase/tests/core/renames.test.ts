@@ -126,4 +126,23 @@ describe("event type renames", () => {
     expect(legacyEventType("person.enriched")).toBe("party.enriched");
     expect(legacyEventType("member.joined")).toBe("member.joined");
   });
+
+  it("names a sequence run's old event only for a sequence program", () => {
+    const run = { program: "sequence:3f0c", id: "e1" };
+
+    expect(legacyEventType("enrollment.cancelled", run)).toBe(
+      "sequence_enrollment.exited",
+    );
+    expect(legacyEventType("enrollment.paused", run)).toBe(
+      "sequence_enrollment.paused",
+    );
+    expect(
+      legacyEventType("enrollment.cancelled", { program: "course:1" }),
+    ).toBe("enrollment.cancelled");
+    expect(legacyEventType("enrollment.created")).toBe("enrollment.created");
+    expect(isOldEventType("sequence_enrollment.exited")).toBe(true);
+    expect(currentEventTypes("sequence_enrollment.exited")).toStrictEqual([
+      "enrollment.cancelled",
+    ]);
+  });
 });

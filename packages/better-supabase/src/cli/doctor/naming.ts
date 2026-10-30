@@ -195,7 +195,7 @@ export const NAMING_RULES: readonly Rule[] = [
     code: "BS424",
     severity: "warning",
     title: "Code uses a renamed event type",
-    description: `Event types are named \`<entity>.<past verb>\`, so 0.47 renamed some (\`work_item.created\` is \`task.created\`) and split the \`saved\` events into \`created\` and \`updated\`. The outbox stores the new types, so a subscriber to an old one misses its events; the outbox \`legacyEventTypes\` option relays the old names to receivers outside the app until the next minor. \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\` renames them in the app's code and SQL, and lists the split ones.`,
+    description: `Event types are named \`<entity>.<past verb>\`, so 0.47 renamed some (\`work_item.created\` is \`task.created\`) and split the \`saved\` events into \`created\` and \`updated\`. A sequence run's \`sequence_enrollment.*\` events are now \`enrollment.*\` events whose \`program\` starts with \`sequence:\`. The outbox stores the new types, so a subscriber to an old one misses its events; the outbox \`legacyEventTypes\` option relays the old names to receivers outside the app until the next minor. \`better-supabase codemod ${ENTITY_RENAMES_CODEMOD}\` renames them in the app's code and SQL, and lists the split ones.`,
     check: oldEventTypes,
   },
 ];

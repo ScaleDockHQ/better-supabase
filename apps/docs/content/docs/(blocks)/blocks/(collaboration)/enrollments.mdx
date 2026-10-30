@@ -187,6 +187,15 @@ an organization, in a user checklist. Those programs live in your
 can't change them and their enrollments can't be cancelled. See
 [Onboarding](/docs/blocks/onboarding).
 
+## Sequences
+
+Each [sequence](/docs/blocks/sequences) run is an enrollment in the program
+`sequence:<sequence id>`. The sequences block adds its `sequence_*` columns
+to `enrollments`, keeps the step that runs next as an open step row with
+`due_at`, and pauses a run with `paused_at`. A run that ends early is
+`cancelled` with the reason in `cancel_reason`. The sequences client owns
+these enrollments: schedules and `open_enrollment_steps` skip them.
+
 ## Functions
 
 | Function                                                                       | Granted to                      | Does                                       |
@@ -219,8 +228,10 @@ can't change them and their enrollments can't be cancelled. See
 | ------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
 | `enrollment_program.created`, `enrollment_program.updated`, `enrollment_program.deleted`          | `organizationId`, `id`, `key`, `version`                                                                        |
 | `enrollment.created`, `enrollment.step_completed`, `enrollment.completed`, `enrollment.cancelled` | `organizationId`, `id`, `program`, `subjectType`, `subjectId`, `status`, `step`, `completedSteps`, `totalSteps` |
+| `enrollment.paused`, `enrollment.resumed`                                                         | the same data                                                                                                   |
 
-`step` is set for `enrollment.step_completed`. Only enrollments in an
+`step` is set for `enrollment.step_completed`, and `reason` for an
+`enrollment.cancelled` that has one. Only enrollments in an
 organization emit events, so a user's own onboarding checklist doesn't. A
 rule on `enrollment.completed` can hand a customer to their account manager
 once onboarding is done.

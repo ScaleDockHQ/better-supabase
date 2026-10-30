@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:0da0c8293a4b4f5848b195c281d8fdf4405df61c9ffd68c122f55bc1045c19e6
+-- @bsb-hash sha256:927dc28e3342f8bf5fc88f8a39e7faf877714b146110eb2938191a714fb2735e
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -110,6 +110,8 @@ create table if not exists "better_supabase"."enrollments" (
   "ends_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
+  "paused_at" timestamptz,
+  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") between 1 and 200),
   "updated_at" timestamptz not null default now(),
   check (("subject_type" = 'user') = ("user_id" is not null)),
   check ("user_id" is null or "subject_id" = "user_id"::text),
@@ -173,7 +175,8 @@ as $$
     'subjectType', x."subject_type", 'subjectId', x."subject_id", 'status', x."status",
     'steps', to_jsonb(x."steps"), 'completedSteps', x."completed_steps", 'totalSteps', cardinality(x."steps"),
     'enrolledBy', x."enrolled_by", 'enrolledAt', x."enrolled_at", 'completedAt', x."completed_at",
-    'cancelledAt', x."cancelled_at", 'updatedAt', x."updated_at",
+    'cancelledAt', x."cancelled_at", 'pausedAt', x."paused_at", 'cancelReason', x."cancel_reason",
+    'updatedAt', x."updated_at",
     'progress', coalesce((
       select jsonb_agg(jsonb_build_object('step', y."step", 'completedAt', y."completed_at", 'completedBy', y."completed_by") order by y."completed_at", array_position(x."steps", y."step"), y."step")
       from "better_supabase"."enrollment_steps" y where y."enrollment_id" = x."id" and y."completed_at" is not null
@@ -243,7 +246,8 @@ revoke execute on function "better_supabase"."enrollment_ensure"(uuid, text, int
 -- the enrollment's start (or enrolled_at) or its end. A due date from the end
 -- stays null until the enrollment has one. Completed rows keep their
 -- completion; open rows of steps without a schedule go. Module programs
--- (keys with a colon) are not in the programs table and render nothing.
+-- (keys with a colon) are not in the programs table, so their module keeps
+-- their open rows.
 create or replace function "better_supabase"."enrollment_schedule"(target uuid)
 returns void
 language plpgsql
@@ -257,7 +261,7 @@ declare
   v_plan jsonb;
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_schedule.target;
-  if v_row."id" is null or v_row."tenant_id" is null then
+  if v_row."id" is null or v_row."tenant_id" is null or position(':' in v_row."program") > 0 then
     return;
   end if;
   select * into v_program from "better_supabase"."enrollment_programs" x
@@ -357,6 +361,94 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_mark"(uuid, text, boolean, uuid) from public, anon, authenticated;
+
+-- Pauses or resumes an active enrollment of a program a module drives, such
+-- as a sequence; false when it already was. actor, when set, is audited.
+create or replace function "better_supabase"."enrollment_pause"(enrollment_id uuid, paused boolean, actor uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_pause.enrollment_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'active' or (v_row."paused_at" is not null) = enrollment_pause.paused then
+    return false;
+  end if;
+  update "better_supabase"."enrollments" x
+  set "paused_at" = case when enrollment_pause.paused then now() end, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  if enrollment_pause.paused then
+  else
+  end if;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."enrollment_pause"(uuid, boolean, uuid) from public, anon, authenticated;
+
+-- Cancels an active enrollment of a program a module drives with why it
+-- ended; false when it wasn't active. Its completed steps stay and its open
+-- steps go. actor, when set, is audited.
+create or replace function "better_supabase"."enrollment_cancel"(enrollment_id uuid, reason text, actor uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_cancel.enrollment_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  if v_row."status" <> 'active' then
+    return false;
+  end if;
+  delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id" and y."completed_at" is null;
+  update "better_supabase"."enrollments" x
+  set "status" = 'cancelled', "cancelled_at" = now(), "paused_at" = null, "cancel_reason" = enrollment_cancel.reason, "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."enrollment_cancel"(uuid, text, uuid) from public, anon, authenticated;
+
+-- Starts an enrollment of a program a module drives over: active, with steps
+-- and none of them done. Emits enrollment.created again.
+create or replace function "better_supabase"."enrollment_restart"(enrollment_id uuid, program_version integer, steps text[], actor uuid)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  v_row "better_supabase"."enrollments";
+begin
+  select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_restart.enrollment_id for update;
+  if v_row."id" is null then
+    raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
+  end if;
+  delete from "better_supabase"."enrollment_steps" y where y."enrollment_id" = v_row."id";
+  update "better_supabase"."enrollments" x
+  set "status" = 'active', "steps" = enrollment_restart.steps, "program_version" = enrollment_restart.program_version, "completed_steps" = 0,
+    "completed_at" = null, "cancelled_at" = null, "paused_at" = null, "cancel_reason" = null,
+    "enrolled_by" = enrollment_restart.actor, "enrolled_at" = now(), "updated_at" = now()
+  where x."id" = v_row."id"
+  returning * into v_row;
+end;
+$$;
+revoke execute on function "better_supabase"."enrollment_restart"(uuid, integer, text[], uuid) from public, anon, authenticated;
 
 -- Creates or changes a program. program is { id?, version?, key, name,
 -- description, subjectTypes, steps, enabled }; keys left out keep their value.
@@ -867,6 +959,8 @@ begin
       join "better_supabase"."enrollments" x on x."id" = y."enrollment_id"
       where y."tenant_id" = open_enrollment_steps.tenant and x."tenant_id" = open_enrollment_steps.tenant
         and y."completed_at" is null and x."status" = 'active'
+        -- A sequence's open step is its next run, which its runner takes.
+        and x."program" not like 'sequence:%'
         and (v_read or y."assignee_user_id" = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
         and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)

@@ -4,6 +4,7 @@ import {
   currentEventTypes,
   EVENT_TYPE_RENAMES,
   EVENT_TYPE_SPLITS,
+  PROGRAM_EVENT_MOVES,
 } from "../../core/renames.ts";
 import { sqlString } from "../../core/template.ts";
 
@@ -22,6 +23,7 @@ function typeMoves(
     ...new Set([
       ...Object.keys(EVENT_TYPE_RENAMES),
       ...Object.keys(EVENT_TYPE_SPLITS),
+      ...Object.keys(PROGRAM_EVENT_MOVES),
     ]),
   ]
     .toSorted()
@@ -43,7 +45,12 @@ function typeRenames(
   const naming = ctx.blockNaming();
   const events = ctx.blockEventNaming();
 
-  return Object.entries(EVENT_TYPE_RENAMES)
+  return [
+    ...Object.entries(EVENT_TYPE_RENAMES),
+    ...Object.entries(PROGRAM_EVENT_MOVES).map(
+      ([old, moved]) => [old, moved.type] as const,
+    ),
+  ]
     .filter(([old]) => !old.endsWith(".*"))
     .toSorted(([a], [b]) => a.localeCompare(b))
     .map(([old, next]) => ({

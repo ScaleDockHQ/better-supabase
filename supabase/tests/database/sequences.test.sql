@@ -89,7 +89,9 @@ select 'ann', (api.enroll_in_sequence((select id from ids where name = 'seq'), '
   '{"variables":{"firstName":"Ann"}}') ->> 'id')::uuid;
 
 select is(
-  (select x.address || ' ' || x.step from better_supabase.sequence_enrollments x where x.enrollment_id = (select id from ids where name = 'ann')),
+  (select x.sequence_address || ' ' || o.step from better_supabase.enrollments x
+    join better_supabase.enrollment_steps o on o.enrollment_id = x.id and o.completed_at is null
+    where x.id = (select id from ids where name = 'ann')),
   'ann@lead.test hello',
   'a member enrolls a person, who gets their address and the first step'
 );
@@ -124,7 +126,7 @@ select throws_ok(
   'another organization can''t read the sequence'
 );
 select is(
-  (select count(*)::integer from better_supabase.sequence_enrollments),
+  (select count(*)::integer from better_supabase.enrollments where sequence_id is not null),
   0,
   'another organization sees no recipients'
 );
@@ -157,8 +159,8 @@ select is(
 );
 
 reset role;
-update better_supabase.sequence_enrollments set next_run_at = now() - interval '1 minute'
-where enrollment_id = (select id from ids where name = 'ann');
+update better_supabase.enrollment_steps set due_at = now() - interval '1 minute'
+where enrollment_id = (select id from ids where name = 'ann') and completed_at is null;
 set local role service_role;
 
 select is(
@@ -167,7 +169,7 @@ select is(
   'once due, the wait and the task step run'
 );
 select is(
-  (select x.status from better_supabase.sequence_enrollments x where x.enrollment_id = (select id from ids where name = 'ann')),
+  (select x.status from better_supabase.enrollments x where x.id = (select id from ids where name = 'ann')),
   'completed',
   'a recipient with every step done completes'
 );
@@ -207,8 +209,8 @@ select api.ingest_mail((select id from ids where name = 'box'), '[
 ]', null);
 
 select is(
-  (select x.status || ':' || x.exit_reason from better_supabase.sequence_enrollments x where x.enrollment_id = (select id from ids where name = 'ben')),
-  'exited:replied',
+  (select x.status || ':' || x.cancel_reason from better_supabase.enrollments x where x.id = (select id from ids where name = 'ben')),
+  'cancelled:replied',
   'an inbound message from the recipient ends their run'
 );
 select is(
@@ -226,12 +228,12 @@ set local role service_role;
 select api.run_due_sequences(10);
 select api.sequence_step_failed((select id from ids where name = 'cat'), 'hello', 'smtp down');
 reset role;
-update better_supabase.sequence_enrollments set next_run_at = now() - interval '1 minute' where enrollment_id = (select id from ids where name = 'cat');
+update better_supabase.enrollment_steps set due_at = now() - interval '1 minute' where enrollment_id = (select id from ids where name = 'cat') and completed_at is null;
 set local role service_role;
 select api.run_due_sequences(10);
 select api.sequence_step_failed((select id from ids where name = 'cat'), 'hello', 'smtp down');
 reset role;
-update better_supabase.sequence_enrollments set next_run_at = now() - interval '1 minute' where enrollment_id = (select id from ids where name = 'cat');
+update better_supabase.enrollment_steps set due_at = now() - interval '1 minute' where enrollment_id = (select id from ids where name = 'cat') and completed_at is null;
 set local role service_role;
 select api.run_due_sequences(10);
 
@@ -249,7 +251,7 @@ select better_supabase.save_sequence('00000000-0000-4000-8000-000000000001',
   jsonb_build_object('id', (select id from ids where name = 'seq'), 'status', 'archived'));
 
 select is(
-  (select x.exit_reason from better_supabase.sequence_enrollments x where x.enrollment_id = (select id from ids where name = 'ann2')),
+  (select x.cancel_reason from better_supabase.enrollments x where x.id = (select id from ids where name = 'ann2')),
   'archived',
   'archiving a sequence ends its running recipients'
 );

@@ -5,6 +5,7 @@ import {
   EVENT_TYPE_RENAMES,
   EVENT_TYPE_SPLITS,
   isOldEventType,
+  PROGRAM_EVENT_MOVES,
   renamed,
 } from "../index.ts";
 
@@ -59,6 +60,10 @@ export const EVENT_REVIEW: readonly ReviewHint[] = [
   ...OLD_SPLITS.map((type): ReviewHint => ({
     pattern: quoted([type]),
     message: `The event \`${type}\` is now ${typeList(type)}: subscribe to the one this code needs, or to both`,
+  })),
+  ...Object.entries(PROGRAM_EVENT_MOVES).map(([type, moved]): ReviewHint => ({
+    pattern: quoted([type]),
+    message: `The event \`${type}\` is now \`${moved.type}\` with a \`program\` starting \`${moved.program}\`: other programs emit it too, so check \`data.program\` after you subscribe`,
   })),
   {
     pattern: quoted(["drive.*", "organization.*"]),

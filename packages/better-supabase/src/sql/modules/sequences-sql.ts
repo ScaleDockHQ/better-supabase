@@ -1,18 +1,46 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { sqlIdent } from "../../core/template.ts";
 import { fail, SERVICE_CALLER } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
+
+/**
+ * The columns sequences adds to the enrollments table for a recipient's run,
+ * after the sequence entity's singular (`sequence_address`). The step that runs
+ * next is the enrollment's open step row, due when it runs.
+ */
+const RUN_COLUMNS = {
+  sequence: "id",
+  address: "address",
+  name: "name",
+  account: "mail_account_id",
+  thread: "mail_thread_id",
+  attempts: "attempts",
+  lastError: "last_error",
+  variables: "variables",
+} as const;
+
+/** A run column of the enrollments table. */
+export type RunColumn = keyof typeof RUN_COLUMNS;
+
+const noun = (ctx: BlockSqlContext): string =>
+  ctx.resolved.entities["sequence"]?.to.singular ?? "sequence";
+
+const runColumn =
+  (ctx: BlockSqlContext) =>
+  (column: RunColumn): string =>
+    sqlIdent(`${noun(ctx)}_${RUN_COLUMNS[column]}`);
 
 /** The SQL pieces the sequences function files share. */
 export interface SequenceSql {
   readonly fn: (name: string) => string;
   /** A column of the sequences table. */
   readonly s: (column: string) => string;
-  /** A column of the sequence enrollments table. */
-  readonly r: (column: string) => string;
+  /** A column sequences adds to the enrollments table. */
+  readonly r: (column: RunColumn) => string;
   /** A column of the enrollments table. */
   readonly e: (column: string) => string;
-  /** A column of the enrollment steps table, the completed steps. */
+  /** A column of the enrollment steps table. */
   readonly d: (column: string) => string;
   readonly has: (table: string, column: string) => boolean;
   /** `alias`'s optional column of `table`, or null when the table has none. */
@@ -20,8 +48,8 @@ export interface SequenceSql {
   /** A text expression written to a fixed-value column of `table`. */
   readonly cast: (table: string, column: string, value: string) => string;
   readonly sequences: string;
-  readonly members: string;
   readonly enrollments: string;
+  /** The enrollment steps table: completed steps and the open one. */
   readonly done: string;
   /** Mail-sync, when it is installed and managed. */
   readonly mail: BlockSqlContext | undefined;
@@ -40,16 +68,12 @@ export interface SequenceSql {
   readonly program: (sequence: string) => string;
   readonly sequenceJson: (row: string) => string;
   /**
-   * Records an event of `v_member`, a row of the sequence enrollments table,
-   * with `step` and `reason` as SQL expressions. `false` leaves it out of the
-   * audit log, for what the runner does.
+   * The run status of enrollment row `row`: `active`, `paused`, `completed` or
+   * `exited`.
    */
-  readonly memberRecord: (
-    type: string,
-    summary: string | false,
-    step?: string,
-    reason?: string,
-  ) => string;
+  readonly runStatus: (row: string) => string;
+  /** The open step row of enrollment `id`: its step and when it runs. */
+  readonly openStep: (id: string, into: string) => string;
 }
 
 const managed = (
@@ -65,8 +89,8 @@ const managed = (
   return other.manages ? other : undefined;
 };
 
-/** The names and helpers the sequences function files build on. */
-export function sequenceSql(ctx: BlockSqlContext): SequenceSql {
+/** The enrollments block a sequence runs on, checked for the run columns. */
+export function sequenceEnrollments(ctx: BlockSqlContext): BlockSqlContext {
   const enrolled = ctx.of("enrollments");
 
   if (!enrolled.manages) {
@@ -75,24 +99,91 @@ export function sequenceSql(ctx: BlockSqlContext): SequenceSql {
     );
   }
 
+  for (const [table, column] of [
+    ["enrollments", "pausedAt"],
+    ["enrollments", "cancelReason"],
+    ["steps", "dueAt"],
+  ] as const) {
+    if (!enrolled.has(table, column)) {
+      throw new TypeError(
+        `blocks.sequences: a run keeps its state in the ${column} column of the enrollments ${table} table, so keep it`,
+      );
+    }
+  }
+
+  return enrolled;
+}
+
+/**
+ * The run columns sequences adds to the enrollments table, with their indexes.
+ * The version 2 upgrade writes them too, so its rows can move before this
+ * module renders.
+ */
+export function sequenceRunColumns(ctx: BlockSqlContext): string {
+  const enrolled = sequenceEnrollments(ctx);
+  const enrollments = enrolled.table("enrollments");
+  const steps = enrolled.table("steps");
+  const e = (column: string): string => enrolled.col("enrollments", column);
+  const d = (column: string): string => enrolled.col("steps", column);
+  const mail = managed(ctx, "mail-sync");
+  const r = runColumn(ctx);
+  const table = enrolled.tableName("enrollments").name;
+  const stepsTable = enrolled.tableName("steps").name;
+
+  const mailbox =
+    mail === undefined
+      ? ""
+      : ` references ${mail.table("accounts")} (${mail.col("accounts", "id")}) on delete set null`;
+
+  const thread =
+    mail === undefined
+      ? ""
+      : ` references ${mail.table("threads")} (${mail.col("threads", "id")}) on delete set null`;
+
+  const columns = [
+    `${r("sequence")} uuid references ${ctx.table("sequences")} (${ctx.col("sequences", "id")}) on delete cascade`,
+    `${r("address")} text check (${r("address")} is null or (length(${r("address")}) <= 320 and ${r("address")} ~ '^[^@[:space:]]+@[^@[:space:]]+$'))`,
+    `${r("name")} text check (${r("name")} is null or length(${r("name")}) <= 200)`,
+    `${r("account")} uuid${mailbox}`,
+    `${r("thread")} uuid${thread}`,
+    `${r("attempts")} integer not null default 0 check (${r("attempts")} >= 0)`,
+    `${r("lastError")} text check (${r("lastError")} is null or length(${r("lastError")}) <= 2000)`,
+    `${r("variables")} jsonb not null default '{}' check (jsonb_typeof(${r("variables")}) = 'object')`,
+  ];
+
+  return `-- A recipient's run is their enrollment in the program sequence:<id>: these
+-- columns say who it goes to and how sending went, and the open step row is
+-- the step that runs next, due when it runs.
+${columns.map((column) => `alter table ${enrollments} add column if not exists ${column};`).join("\n")}
+create index if not exists ${sqlIdent(`${table}_${noun(ctx)}_idx`)} on ${enrollments} (${r("sequence")}, ${e("status")}) where ${r("sequence")} is not null;
+create index if not exists ${sqlIdent(`${table}_${noun(ctx)}_address_idx`)} on ${enrollments} (${e("tenant")}, lower(${r("address")})) where ${r("sequence")} is not null and ${e("status")} = 'active';
+create index if not exists ${sqlIdent(`${table}_${noun(ctx)}_account_idx`)} on ${enrollments} (${r("account")}) where ${r("account")} is not null;
+create index if not exists ${sqlIdent(`${table}_${noun(ctx)}_thread_idx`)} on ${enrollments} (${r("thread")}) where ${r("thread")} is not null;
+create index if not exists ${sqlIdent(`${stepsTable}_open_due_idx`)} on ${steps} (${d("dueAt")}) where ${d("completedAt")} is null;`;
+}
+
+/** The names and helpers the sequences function files build on. */
+export function sequenceSql(ctx: BlockSqlContext): SequenceSql {
+  const enrolled = sequenceEnrollments(ctx);
   const s = (column: string): string => ctx.col("sequences", column);
-  const r = (column: string): string => ctx.col("members", column);
+  const e = (column: string): string => enrolled.col("enrollments", column);
+  const d = (column: string): string => enrolled.col("steps", column);
   const keys = moduleOperations("sequences");
+  const done = enrolled.table("steps");
 
   return {
     fn: (name) => ctx.fn(name),
     s,
-    r,
-    e: (column) => enrolled.col("enrollments", column),
-    d: (column) => enrolled.col("steps", column),
+    r: runColumn(ctx),
+    e,
+    d,
     has: (table, column) => ctx.has(table, column),
     opt: (alias, table, column) =>
       ctx.has(table, column) ? `${alias}.${ctx.col(table, column)}` : "null",
     cast: (table, column, value) => ctx.cast(table, column, value),
     sequences: ctx.table("sequences"),
-    members: ctx.table("members"),
     enrollments: enrolled.table("enrollments"),
-    done: enrolled.table("steps"),
+    done,
     mail: managed(ctx, "mail-sync"),
     tasks: managed(ctx, "tasks"),
     parties: managed(ctx, "contacts"),
@@ -112,22 +203,9 @@ export function sequenceSql(ctx: BlockSqlContext): SequenceSql {
     program: (sequence) => `('sequence:' || ${sequence}::text)`,
     sequenceJson: (row) =>
       `jsonb_build_object('id', ${row}.${s("id")}, 'organizationId', ${row}.${s("tenant")}, 'key', ${row}.${s("key")}, 'name', ${row}.${s("name")}, 'description', ${ctx.has("sequences", "description") ? `${row}.${s("description")}` : "null"}, 'status', ${row}.${s("status")}, 'exitOnReply', ${row}.${s("exitOnReply")}, 'accountId', ${row}.${s("account")}, 'steps', ${row}.${s("steps")}, 'version', ${row}.${s("version")}, 'createdBy', ${row}.${s("createdBy")}, 'createdAt', ${row}.${s("createdAt")}, 'updatedAt', ${row}.${s("updatedAt")})`,
-    memberRecord: (type, summary, step = "null::text", reason = "null::text") =>
-      ctx.record({
-        type,
-        payload: `jsonb_build_object('organizationId', v_member.${r("tenant")}, 'id', v_member.${r("enrollment")}, 'sequenceId', v_member.${r("sequence")}, 'subjectType', v_member.${r("subjectType")}, 'subjectId', v_member.${r("subjectId")}, 'status', v_member.${r("status")}, 'step', ${step}, 'reason', ${reason})`,
-        subject: `'sequence-enrollments/' || v_member.${r("enrollment")}::text`,
-        tenant: `v_member.${r("tenant")}`,
-        audit:
-          summary === false
-            ? false
-            : {
-                category: "data",
-                targetType: "sequence",
-                recordId: `v_member.${r("sequence")}::text`,
-                targetLabel: `v_member.${r("subjectType")} || ':' || v_member.${r("subjectId")}`,
-                summary: `'${summary}'`,
-              },
-      }),
+    runStatus: (row) =>
+      `(case when ${row}.${e("status")} = 'cancelled' then 'exited' when ${row}.${e("status")} = 'completed' then 'completed' when ${row}.${e("pausedAt")} is not null then 'paused' else 'active' end)`,
+    openStep: (id, into) =>
+      `select o.${d("step")}, o.${d("dueAt")} into ${into} from ${done} o where o.${d("enrollment")} = ${id} and o.${d("completedAt")} is null limit 1;`,
   };
 }

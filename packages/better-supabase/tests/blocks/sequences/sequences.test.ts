@@ -419,6 +419,6 @@ describe("sequences manifest", () => {
         .issues,
     ).toBeDefined();
     expect(sequencesBlock.name).toBe("sequences");
-    expect(sequencesEvents.types).toContain("sequence_enrollment.exited");
+    expect(sequencesEvents.types).toContain("sequence.created");
   });
 });

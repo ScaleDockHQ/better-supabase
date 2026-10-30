@@ -18,6 +18,7 @@ export {
   isOldEventType,
   legacyEventType,
   legacyHintOf,
+  PROGRAM_EVENT_MOVES,
   renamed,
   SUBJECT_TYPE_RENAMES,
 } from "./core/renames.ts";

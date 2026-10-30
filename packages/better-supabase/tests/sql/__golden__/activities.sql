@@ -1294,7 +1294,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block-data activities
--- @bsb-hash sha256:8a21af4aa8c016cd3b71476a12f2134463710bb88c3d72f75eb7b58df6a64650
+-- @bsb-hash sha256:967dbdbf2c8fb06fd6c6cac780fc14fd23444117f81d7b66e5cca415925b7d73
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1371,7 +1371,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."assignment_queues"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."assignment_queues" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."assignments" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."field_changes"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."field_changes" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."sequence_enrollments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."sequence_enrollments" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."lead_score_checks"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."lead_score_checks" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."qualification_requirements"') and attname = 'target_type' and not attisdropped) then update "better_supabase"."qualification_requirements" set "target_type" = 'activity' where "target_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;

@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:3fe734f08f823ac8e6de82ce969a1e073c9aaf3edfd344be3477845653ae973f
+-- @bsb-hash sha256:9535abdca5507db47e699d7a59894e21129dacc7792188168b8acab03f582526
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -73,6 +73,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),

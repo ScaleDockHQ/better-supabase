@@ -73,7 +73,7 @@ describe.skipIf(!live)("product presets on the local stack", () => {
         await tables(client, [
           "deals",
           "sequences",
-          "sequence_enrollments",
+          "enrollments",
           "segments",
           "lead_score_checks",
           "forecast_snapshots",

@@ -147,14 +147,42 @@ blocks: {
 | `maxAttempts`  | `3`     | send attempts of an email step before the run fails        |
 | `retryMinutes` | `15`    | minutes before a failed send runs again, times the attempt |
 
+## Where a run lives
+
+A run is a row in the `enrollments` table whose `program` is
+`sequence:<sequence id>`; there is no separate runs table. The block adds
+columns to `enrollments` for what only a sequence needs:
+
+| Column                                                | What it holds                                          |
+| ----------------------------------------------------- | ------------------------------------------------------ |
+| `sequence_id`                                         | the sequence the run belongs to                        |
+| `sequence_address`, `sequence_name`                   | who the emails go to                                   |
+| `sequence_mail_account_id`, `sequence_mail_thread_id` | the mailbox it sends from and the thread it replies on |
+| `sequence_attempts`, `sequence_last_error`            | how the current email step's sends went                |
+| `sequence_variables`                                  | the values for the `{{key}}` placeholders              |
+
+The step that runs next is the run's open `enrollment_steps` row, and its
+`due_at` is when it runs. A paused run has `paused_at` set, and an exited run
+is `cancelled` with the reason (`replied`, `failed`, `archived` or
+`manual`) in `cancel_reason`. The client still returns a run with
+`status` (`active`, `paused`, `completed` or `exited`), `step` and
+`nextRunAt`, so code that reads runs through it doesn't change.
+
 ## Events
 
-The block writes `sequence.created`, `sequence.updated` and `sequence.deleted`, and per run
-`sequence_enrollment.created`, `.step_completed`, `.paused`, `.resumed`,
-`.exited` and `.completed`, to the [outbox](/docs/blocks/outbox). A run event
-names the record (`subjectType`, `subjectId`), so record timelines and the
+The block writes `sequence.created`, `sequence.updated` and
+`sequence.deleted`. A run writes the [enrollments](/docs/blocks/enrollments)
+events: `enrollment.created`, `.step_completed`, `.paused`, `.resumed`,
+`.completed` and `.cancelled` (with the exit reason in `reason`), each with
+`program` set to `sequence:<sequence id>`, to the
+[outbox](/docs/blocks/outbox). A run event names the record (`subjectType`,
+`subjectId`), so record timelines and the
 [watcher sink](/docs/blocks/notifications#watchers) handle it like any other
 subject event. See [Events](/docs/extending/events).
+
+Until 0.48, outbox consumers and automations that match the old
+`sequence_enrollment.*` names still receive these events, and
+`sequence_enrollment.exited` matches `enrollment.cancelled`.
 
 | Error code                      | When                                                  |
 | ------------------------------- | ----------------------------------------------------- |

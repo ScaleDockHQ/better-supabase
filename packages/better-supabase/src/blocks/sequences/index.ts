@@ -47,8 +47,7 @@ export { sequenceEnrollInputSchema, sequenceInputSchema } from "./schemas.ts";
 
 export { sequencesEvents } from "./events.ts";
 
-export type {
-  SequenceEnrollmentEventData,
-  SequenceEventData,
-  SequencesEvents,
-} from "./events.ts";
+export type { SequenceEventData, SequencesEvents } from "./events.ts";
+
+// oxlint-disable-next-line typescript/no-deprecated -- the alias stays exported until 0.48 (1 finding)
+export type { SequenceEnrollmentEventData } from "./events.ts";

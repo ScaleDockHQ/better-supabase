@@ -299,6 +299,43 @@ export const EVENT_TYPE_SPLITS: Readonly<Record<string, readonly string[]>> =
   });
 
 /**
+ * Event types a block stopped emitting because its rows moved onto another
+ * block's: the new type, and the `program` prefix that tells its events apart
+ * from the other block's own. A sequence run is an enrollment in the program
+ * `sequence:<id>` since 0.47 (ADR 0131), and `exited` became `cancelled`, with
+ * the reason in the payload.
+ */
+export const PROGRAM_EVENT_MOVES: Readonly<
+  Record<string, { readonly type: string; readonly program: string }>
+> = /* @__PURE__ */ Object.freeze({
+  "sequence_enrollment.created": {
+    type: "enrollment.created",
+    program: "sequence:",
+  },
+  "sequence_enrollment.step_completed": {
+    type: "enrollment.step_completed",
+    program: "sequence:",
+  },
+  "sequence_enrollment.paused": {
+    type: "enrollment.paused",
+    program: "sequence:",
+  },
+  "sequence_enrollment.resumed": {
+    type: "enrollment.resumed",
+    program: "sequence:",
+  },
+  "sequence_enrollment.exited": {
+    type: "enrollment.cancelled",
+    program: "sequence:",
+  },
+  "sequence_enrollment.completed": {
+    type: "enrollment.completed",
+    program: "sequence:",
+  },
+  "sequence_enrollment.*": { type: "enrollment.*", program: "sequence:" },
+});
+
+/**
  * Subject types stored in `subject_type` columns, old to new: the subject
  * entities whose singular changed. `rename_subject_type` moves stored rows, and
  * the subjects functions read an old type as its new one for one minor.
@@ -420,13 +457,24 @@ const eventSplitsOf = (type: string): readonly string[] =>
 /** Whether no block emits `type` any more: it was renamed or split up. */
 export const isOldEventType = (type: string): boolean =>
   Object.hasOwn(EVENT_TYPE_RENAMES, type) ||
+  Object.hasOwn(PROGRAM_EVENT_MOVES, type) ||
   (eventSplitsOf(type).length > 0 && !KEPT_EVENT_SPLITS.has(type));
 
 /**
  * Every type or pattern a subscriber to `type` needs now: its rename and the
- * types it was split into. A type that did not change is returned as it is.
+ * types it was split into. A type that did not change is returned as it is. A
+ * type in `PROGRAM_EVENT_MOVES` gives the type it moved to, which other
+ * programs emit too.
  */
 export function currentEventTypes(type: string): readonly string[] {
+  const moved = Object.hasOwn(PROGRAM_EVENT_MOVES, type)
+    ? PROGRAM_EVENT_MOVES[type]
+    : undefined;
+
+  if (moved !== undefined) {
+    return [moved.type];
+  }
+
   const own =
     isOldEventType(type) && !Object.hasOwn(EVENT_TYPE_RENAMES, type)
       ? []
@@ -437,11 +485,43 @@ export function currentEventTypes(type: string): readonly string[] {
 
 let legacyEventTypes: ReadonlyMap<string, string> | undefined;
 
+let legacyProgramTypes:
+  | ReadonlyMap<string, readonly (readonly [string, string])[]>
+  | undefined;
+
+const programOf = (data: unknown): unknown =>
+  typeof data === "object" && data !== null && "program" in data
+    ? data.program
+    : undefined;
+
 /**
  * The name `type` had before 0.47, for subscribers that still listen for it, or
- * `type` when it was not renamed.
+ * `type` when it was not renamed. `data` is the event's payload: an
+ * `enrollment.*` event of a `sequence:` program had a `sequence_enrollment.*`
+ * name.
  */
-export function legacyEventType(type: string): string {
+export function legacyEventType(type: string, data?: unknown): string {
+  legacyProgramTypes ??= new Map(
+    Object.values(PROGRAM_EVENT_MOVES).map(({ type: next }) => [
+      next,
+      Object.entries(PROGRAM_EVENT_MOVES)
+        .filter(([, moved]) => moved.type === next)
+        .map(([old, moved]) => [moved.program, old] as const),
+    ]),
+  );
+
+  const program = programOf(data);
+
+  if (typeof program === "string") {
+    const old = legacyProgramTypes
+      .get(type)
+      ?.find(([prefix]) => program.startsWith(prefix));
+
+    if (old !== undefined) {
+      return old[1];
+    }
+  }
+
   legacyEventTypes ??= new Map(
     Object.keys({ ...EVENT_TYPE_RENAMES, ...EVENT_TYPE_SPLITS })
       .filter((old) => !old.endsWith(".*"))

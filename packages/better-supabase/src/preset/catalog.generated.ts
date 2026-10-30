@@ -4830,6 +4830,8 @@ export const PRESET_CATALOG: PresetCatalog = {
               "endsAt": "ends_at",
               "completedAt": "completed_at",
               "cancelledAt": "cancelled_at",
+              "pausedAt": "paused_at",
+              "cancelReason": "cancel_reason",
               "updatedAt": "updated_at"
             }
           }
@@ -6673,10 +6675,6 @@ export const PRESET_CATALOG: PresetCatalog = {
             "table": "sequences",
             "singular": "sequence",
             "primary": true
-          },
-          "sequence_enrollment": {
-            "table": "members",
-            "singular": "sequence_enrollment"
           }
         },
         "tables": {
@@ -6694,30 +6692,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "steps": "steps",
               "version": "version",
               "createdBy": "created_by",
-              "createdAt": "created_at",
-              "updatedAt": "updated_at"
-            }
-          },
-          "members": {
-            "name": "sequence_enrollments",
-            "columns": {
-              "enrollment": "enrollment_id",
-              "tenant": "tenant_id",
-              "sequence": "sequence_id",
-              "subjectType": "subject_type",
-              "subjectId": "subject_id",
-              "address": "address",
-              "name": "name",
-              "account": "mail_account_id",
-              "thread": "mail_thread_id",
-              "step": "step",
-              "nextRunAt": "next_run_at",
-              "status": "status",
-              "exitReason": "exit_reason",
-              "attempts": "attempts",
-              "lastError": "last_error",
-              "variables": "variables",
-              "enrolledBy": "enrolled_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -12098,6 +12072,8 @@ export const PRESET_CATALOG: PresetCatalog = {
           "enrollment_program.deleted",
           "enrollment.created",
           "enrollment.step_completed",
+          "enrollment.paused",
+          "enrollment.resumed",
           "enrollment.completed",
           "enrollment.cancelled"
         ]
@@ -16079,57 +16055,6 @@ export const PRESET_CATALOG: PresetCatalog = {
               "additionalProperties": false
             }
           }
-        },
-        "sequence_enrollment": {
-          "input": {
-            "title": "SequenceEnrollInput",
-            "fields": {
-              "address": {
-                "kind": "string",
-                "optional": true,
-                "minLength": 3,
-                "maxLength": 320
-              },
-              "name": {
-                "kind": "string",
-                "optional": true,
-                "maxLength": 200
-              },
-              "accountId": {
-                "kind": "uuid",
-                "optional": true
-              },
-              "variables": {
-                "kind": "json",
-                "optional": true,
-                "description": "Values for the steps' {{key}} placeholders."
-              }
-            },
-            "jsonSchema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "SequenceEnrollInput",
-              "type": "object",
-              "properties": {
-                "address": {
-                  "type": "string",
-                  "minLength": 3,
-                  "maxLength": 320
-                },
-                "name": {
-                  "type": "string",
-                  "maxLength": 200
-                },
-                "accountId": {
-                  "type": "string",
-                  "format": "uuid"
-                },
-                "variables": {
-                  "description": "Values for the steps' {{key}} placeholders."
-                }
-              },
-              "additionalProperties": false
-            }
-          }
         }
       },
       "events": {
@@ -16137,13 +16062,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "types": [
           "sequence.created",
           "sequence.updated",
-          "sequence.deleted",
-          "sequence_enrollment.created",
-          "sequence_enrollment.step_completed",
-          "sequence_enrollment.paused",
-          "sequence_enrollment.resumed",
-          "sequence_enrollment.exited",
-          "sequence_enrollment.completed"
+          "sequence.deleted"
         ]
       },
       "schedules": [

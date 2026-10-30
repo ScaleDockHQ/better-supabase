@@ -1271,7 +1271,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:8cad0027f1a435648d2481f7346ac811498f1b7051807f48f5b82ce5ec81f9c4
+-- @bsb-hash sha256:c2c6ebcc716d6f629031a8db08c3e4e949e66b0f54d8d3431ff911c0f5c07ba5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1344,6 +1344,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -1439,6 +1445,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),

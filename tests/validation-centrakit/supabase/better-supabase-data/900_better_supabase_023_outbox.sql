@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:4048a4650da9c91502862b1a6aca078de0e0fb9a35001ce85948ba9acce492d5
+-- @bsb-hash sha256:03e075acb7243d106eef81a56430390d3851f88a0b1b07e4bf96953b57d50322
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -73,6 +73,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -168,6 +174,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -297,6 +309,13 @@ with m(old_type, next_types) as (values
   ('segment.removed', array['segment.deleted']::text[]),
   ('segment.saved', array['segment.created', 'segment.updated']::text[]),
   ('sequence.saved', array['sequence.created', 'sequence.updated']::text[]),
+  ('sequence_enrollment.*', array['enrollment.*']::text[]),
+  ('sequence_enrollment.completed', array['enrollment.completed']::text[]),
+  ('sequence_enrollment.created', array['enrollment.created']::text[]),
+  ('sequence_enrollment.exited', array['enrollment.cancelled']::text[]),
+  ('sequence_enrollment.paused', array['enrollment.paused']::text[]),
+  ('sequence_enrollment.resumed', array['enrollment.resumed']::text[]),
+  ('sequence_enrollment.step_completed', array['enrollment.step_completed']::text[]),
   ('signature.*', array['signature_request.*']::text[]),
   ('signature.cancelled', array['signature_request.cancelled']::text[]),
   ('signature.completed', array['signature_request.completed']::text[]),

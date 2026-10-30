@@ -805,15 +805,15 @@ export interface BlockNameRegistry {
   readonly "enrollments": {
     readonly tables: {
       readonly "programs": "id" | "tenant" | "key" | "name" | "description" | "subjectTypes" | "steps" | "enabled" | "version" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "enrollments": "id" | "tenant" | "program" | "programVersion" | "subjectType" | "subjectId" | "user" | "steps" | "completedSteps" | "status" | "enrolledBy" | "enrolledAt" | "startsAt" | "endsAt" | "completedAt" | "cancelledAt" | "updatedAt";
+      readonly "enrollments": "id" | "tenant" | "program" | "programVersion" | "subjectType" | "subjectId" | "user" | "steps" | "completedSteps" | "status" | "enrolledBy" | "enrolledAt" | "startsAt" | "endsAt" | "completedAt" | "cancelledAt" | "pausedAt" | "cancelReason" | "updatedAt";
       readonly "steps": "enrollment" | "tenant" | "step" | "assigneeRole" | "assigneeUser" | "dueAt" | "completedBy" | "completedAt";
     };
-    readonly functions: "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_programs" | "enrollment_schedule" | "enrollment_step" | "list_enrollments" | "open_enrollment_steps" | "reset_enrollment_step" | "save_enrollment_program" | "set_enrollment_dates";
+    readonly functions: "cancel_enrollment" | "complete_enrollment_step" | "delete_enrollment_program" | "enroll" | "enrollment" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_json" | "enrollment_mark" | "enrollment_pause" | "enrollment_programs" | "enrollment_restart" | "enrollment_schedule" | "enrollment_step" | "list_enrollments" | "open_enrollment_steps" | "reset_enrollment_step" | "save_enrollment_program" | "set_enrollment_dates";
     readonly actions: "read" | "enroll" | "manage";
     readonly hooks: never;
     readonly entities: {
       readonly "enrollment_program": "id" | "tenant_id" | "key" | "name" | "description" | "subject_types" | "steps" | "enabled" | "version" | "created_by" | "created_at" | "updated_at";
-      readonly "enrollment": "id" | "tenant_id" | "program" | "program_version" | "subject_type" | "subject_id" | "user_id" | "steps" | "completed_steps" | "status" | "enrolled_by" | "enrolled_at" | "starts_at" | "ends_at" | "completed_at" | "cancelled_at" | "updated_at";
+      readonly "enrollment": "id" | "tenant_id" | "program" | "program_version" | "subject_type" | "subject_id" | "user_id" | "steps" | "completed_steps" | "status" | "enrolled_by" | "enrolled_at" | "starts_at" | "ends_at" | "completed_at" | "cancelled_at" | "paused_at" | "cancel_reason" | "updated_at";
     };
     readonly primary: "enrollment_program";
     readonly formerKeys: never;
@@ -1799,14 +1799,12 @@ export interface BlockNameRegistry {
   readonly "sequences": {
     readonly tables: {
       readonly "sequences": "id" | "tenant" | "key" | "name" | "description" | "status" | "exitOnReply" | "account" | "steps" | "version" | "createdBy" | "createdAt" | "updatedAt";
-      readonly "members": "enrollment" | "tenant" | "sequence" | "subjectType" | "subjectId" | "address" | "name" | "account" | "thread" | "step" | "nextRunAt" | "status" | "exitReason" | "attempts" | "lastError" | "variables" | "enrolledBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "change_sequence_enrollment" | "delete_sequence" | "enroll_in_sequence" | "enrollment_ensure" | "enrollment_mark" | "get_sequence" | "list_sequence_enrollments" | "list_sequences" | "run_due_sequences" | "save_sequence" | "sequence_exit" | "sequence_member_json" | "sequence_place" | "sequence_resync" | "sequence_step_done" | "sequence_step_failed" | "sequence_step_sent" | "sequence_steps_check";
+    readonly functions: "change_sequence_enrollment" | "delete_sequence" | "enroll_in_sequence" | "enrollment_cancel" | "enrollment_ensure" | "enrollment_mark" | "enrollment_pause" | "enrollment_restart" | "get_sequence" | "list_sequence_enrollments" | "list_sequences" | "run_due_sequences" | "save_sequence" | "sequence_exit" | "sequence_member_json" | "sequence_place" | "sequence_resync" | "sequence_step_done" | "sequence_step_failed" | "sequence_step_sent" | "sequence_steps_check";
     readonly actions: "read" | "enroll" | "manage";
     readonly hooks: never;
     readonly entities: {
       readonly "sequence": "id" | "tenant_id" | "key" | "name" | "description" | "status" | "exit_on_reply" | "mail_account_id" | "steps" | "version" | "created_by" | "created_at" | "updated_at";
-      readonly "sequence_enrollment": "enrollment_id" | "tenant_id" | "sequence_id" | "subject_type" | "subject_id" | "address" | "name" | "mail_account_id" | "mail_thread_id" | "step" | "next_run_at" | "status" | "exit_reason" | "attempts" | "last_error" | "variables" | "enrolled_by" | "created_at" | "updated_at";
     };
     readonly primary: "sequence";
     readonly formerKeys: never;

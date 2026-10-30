@@ -18,13 +18,10 @@ end;
 $$;
 `;
 
-// The app's own sequences and runs: enum statuses and exit reasons, no
-// description or last error columns, and no key on the runs' enrollment. The
-// module adds the columns it is missing.
+// The app's own sequences: an enum status and no description column. Runs
+// live on enrollments, which the module adds its run columns to.
 const APP = `
 create type public.cadence_state as enum ('draft', 'active', 'paused', 'archived');
-create type public.run_state as enum ('active', 'paused', 'completed', 'exited');
-create type public.run_exit as enum ('replied', 'manual', 'failed', 'archived');
 
 create table public.cadences (
   id uuid primary key default gen_random_uuid(),
@@ -40,34 +37,13 @@ create table public.cadences (
   updated_at timestamptz not null default now()
 );
 
-create table public.cadence_runs (
-  enrollment_id uuid not null,
-  org_id uuid not null,
-  sequence_id uuid not null references public.cadences (id) on delete cascade,
-  subject_type text not null,
-  subject_id text not null,
-  address text,
-  name text,
-  step text,
-  next_run_at timestamptz,
-  status public.run_state,
-  exit_reason public.run_exit,
-  attempts integer not null default 0,
-  variables jsonb not null default '{}',
-  enrolled_by uuid,
-  created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now()
-);
 `;
 
-const OWN_TABLES = {
-  "public.cadences": "app.sql",
-  "public.cadence_runs": "app.sql",
-};
+const OWN_TABLES = { "public.cadences": "app.sql" };
 
 const BLOCKS: AnyBlocksConfig = {
   sequences: {
-    tables: { sequences: "public.cadences", members: "public.cadence_runs" },
+    tables: { sequences: "public.cadences" },
     columns: {
       sequences: {
         tenant: "org_id",
@@ -75,7 +51,6 @@ const BLOCKS: AnyBlocksConfig = {
         status: "state",
         description: null,
       },
-      members: { tenant: "org_id", lastError: null },
     },
   },
 };
@@ -121,7 +96,7 @@ async function run(check: string): Promise<void> {
 }
 
 describe("sequences over the app's tables", BOOT, () => {
-  it("enrolls, pauses and exits a recipient in enum status columns", async () => {
+  it("enrolls, pauses and exits a recipient on enrollments", async () => {
     await expect(
       run(`do $$
 declare
@@ -141,20 +116,25 @@ begin
   end if;
   v_member := better_supabase.enroll_in_sequence(v_id, 'contact', 'c1', '{"name": "Ada"}'::jsonb);
   v_run := (v_member ->> 'id')::uuid;
-  if v_member ->> 'status' <> 'active' or (select status from public.cadence_runs where enrollment_id = v_run) <> 'active' then
+  if v_member ->> 'status' <> 'active'
+    or (select program from better_supabase.enrollments where id = v_run) <> 'sequence:' || v_id
+    or (select due_at from better_supabase.enrollment_steps where enrollment_id = v_run and completed_at is null) <= now() then
     raise exception 'enrolled %', v_member;
   end if;
   v_member := better_supabase.change_sequence_enrollment(v_run, 'pause');
-  if v_member ->> 'status' <> 'paused' then
+  if v_member ->> 'status' <> 'paused' or (select paused_at from better_supabase.enrollments where id = v_run) is null then
     raise exception 'paused %', v_member;
   end if;
   v_member := better_supabase.change_sequence_enrollment(v_run, 'exit');
-  if (select exit_reason from public.cadence_runs where enrollment_id = v_run) <> 'manual' then
+  if (select cancel_reason from better_supabase.enrollments where id = v_run) <> 'manual'
+    or (select status from better_supabase.enrollments where id = v_run) <> 'cancelled'
+    or v_member ->> 'status' <> 'exited' or v_member ->> 'exitReason' <> 'manual' then
     raise exception 'exited %', v_member;
   end if;
   perform better_supabase.enroll_in_sequence(v_id, 'contact', 'c1', '{"name": "Ada"}'::jsonb);
-  if (select count(*) from public.cadence_runs where enrollment_id = v_run) <> 1
-    or (select status from public.cadence_runs where enrollment_id = v_run) <> 'active' then
+  if (select count(*) from better_supabase.enrollments where program = 'sequence:' || v_id) <> 1
+    or (select status from better_supabase.enrollments where id = v_run) <> 'active'
+    or (select cancel_reason from better_supabase.enrollments where id = v_run) is not null then
     raise exception 'restarted';
   end if;
   if jsonb_array_length(better_supabase.list_sequence_enrollments('${TENANT}', jsonb_build_object('status', 'active'))) <> 1 then
