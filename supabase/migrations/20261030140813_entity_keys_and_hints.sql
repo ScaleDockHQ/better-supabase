@@ -16596,7 +16596,8 @@ end;
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.update_maintenance_requests (
-  changes jsonb
+  changes jsonb,
+  atomic  boolean DEFAULT false
 )
   RETURNS jsonb
   LANGUAGE plpgsql
@@ -16665,6 +16666,14 @@ begin
         update "better_supabase"."maintenance_requests" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."maintenance_requests" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
+        end if;
+        update "better_supabase"."maintenance_requests" x set
+          "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
+          "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
+        where x."id" = v_item;
       when 'attachments' then
         select * into v_row from "better_supabase"."maintenance_requests" x where x."id" = v_item;
         if jsonb_typeof(coalesce((v_change -> 'value'), '[]'::jsonb)) <> 'array' then
@@ -16699,6 +16708,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_maintenance_requests.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('maintenanceRequestId', v_change ->> 'maintenanceRequestId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
@@ -17012,7 +17024,8 @@ end;
 $function$;
 
 CREATE OR REPLACE FUNCTION better_supabase.update_work_items (
-  changes jsonb
+  changes jsonb,
+  atomic  boolean DEFAULT false
 )
   RETURNS jsonb
   LANGUAGE plpgsql
@@ -17081,6 +17094,14 @@ begin
         update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'TASK_ATTRS_INVALID';
+        end if;
+        update "better_supabase"."work_items" x set
+          "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
+          "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
+        where x."id" = v_item;
       when 'attachments' then
         select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
         if jsonb_typeof(coalesce((v_change -> 'value'), '[]'::jsonb)) <> 'array' then
@@ -17111,6 +17132,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_work_items.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;

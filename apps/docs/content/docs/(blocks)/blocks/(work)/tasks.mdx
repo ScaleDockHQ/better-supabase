@@ -163,24 +163,24 @@ The ReUI Kanban blocks commit a drag through `onValueCommit`: call `rank.move("t
 
 ## Errors
 
-| Hint                                           | Cause                                               |
-| ---------------------------------------------- | --------------------------------------------------- |
-| `TASK_FORBIDDEN`                               | the caller lacks the permission                     |
-| `TASK_TITLE_REQUIRED`                          | the title is empty                                  |
-| `TASK_ATTRS_INVALID`                           | a field has an invalid value                        |
-| `TASK_NOT_FOUND`                               | no item the caller can edit                         |
-| `TASK_FIELD_UNKNOWN`                           | `update` names a field it doesn't write             |
-| `TASK_PARENT_CYCLE`                            | the parent would put the item under itself          |
-| `TASK_PARENT_INVALID`                          | the parent is in another organization               |
-| `TASK_LOCKED`                                  | a locked item's dates don't change                  |
-| `TASK_ASSIGNEES_LIMIT`                         | more assignees than `maxAssignees`                  |
+| Hint                                 | Cause                                               |
+| ------------------------------------ | --------------------------------------------------- |
+| `TASK_FORBIDDEN`                     | the caller lacks the permission                     |
+| `TASK_TITLE_REQUIRED`                | the title is empty                                  |
+| `TASK_ATTRS_INVALID`                 | a field has an invalid value                        |
+| `TASK_NOT_FOUND`                     | no item the caller can edit                         |
+| `TASK_FIELD_UNKNOWN`                 | `update` names a field it doesn't write             |
+| `TASK_PARENT_CYCLE`                  | the parent would put the item under itself          |
+| `TASK_PARENT_INVALID`                | the parent is in another organization               |
+| `TASK_LOCKED`                        | a locked item's dates don't change                  |
+| `TASK_ASSIGNEES_LIMIT`               | more assignees than `maxAssignees`                  |
 | `TASK_PROJECT_*`, `TASK_ITERATION_*` | a project or iteration is missing, taken or invalid |
-| `TASK_CHECKLIST_ITEM_INVALID`                  | a checklist step has no title or an invalid rank    |
-| `TASK_CHECKLIST_ITEM_NOT_FOUND`                | no such step on this item                           |
-| `TASK_ATTACHMENTS_INVALID`                     | a file isn't the caller's or already has a subject  |
-| `TASK_ATTACHMENTS_UNAVAILABLE`                 | the attachments block isn't installed               |
-| `TASK_ATTACHMENTS_PATH`                        | the bucket's paths name the subject                 |
-| `TASK_RECURRENCE_INVALID`                      | the rule isn't an RRULE or the time zone is unknown |
+| `TASK_CHECKLIST_ITEM_INVALID`        | a checklist step has no title or an invalid rank    |
+| `TASK_CHECKLIST_ITEM_NOT_FOUND`      | no such step on this item                           |
+| `TASK_ATTACHMENTS_INVALID`           | a file isn't the caller's or already has a subject  |
+| `TASK_ATTACHMENTS_UNAVAILABLE`       | the attachments block isn't installed               |
+| `TASK_ATTACHMENTS_PATH`              | the bucket's paths name the subject                 |
+| `TASK_RECURRENCE_INVALID`            | the rule isn't an RRULE or the time zone is unknown |
 
 ## Your own columns
 
