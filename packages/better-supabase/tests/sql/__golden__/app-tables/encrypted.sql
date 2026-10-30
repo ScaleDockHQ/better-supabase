@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:c2350db060d54c979c553c33477b21b2580303bc9572cb30f1bb34fe0f162dae
+-- @bsb-hash sha256:6f52c12cb05abe4b85944712e341fa97ff045d713dfdd3b8c89daadecb5fd049
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -140,7 +140,7 @@ begin
     end if;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."ssn" := "better_supabase"."field_seal"(v_key, new."ssn");
-  elsif new."ssn" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."ssn" is distinct from old."ssn" end then
+  elsif new."ssn" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."ssn" is distinct from old."ssn" end) then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."ssn" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."ssn"));
   end if;
@@ -151,7 +151,7 @@ begin
     end if;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."email" := "better_supabase"."field_seal"(v_key, new."email");
-  elsif new."email" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."email" is distinct from old."email" end then
+  elsif new."email" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."email" is distinct from old."email" end) then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."email" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."email"));
   end if;
@@ -159,14 +159,14 @@ begin
     new."born_on" := ((new."born_on")::date)::text;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."born_on" := "better_supabase"."field_seal"(v_key, new."born_on");
-  elsif new."born_on" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."born_on" is distinct from old."born_on" end then
+  elsif new."born_on" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."born_on" is distinct from old."born_on" end) then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."born_on" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."born_on"));
   end if;
   if new."diagnosis" is not null and left(new."diagnosis", 5) is distinct from 'bsf1:' then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."diagnosis" := "better_supabase"."field_seal"(v_key, new."diagnosis");
-  elsif new."diagnosis" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."diagnosis" is distinct from old."diagnosis" end then
+  elsif new."diagnosis" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."diagnosis" is distinct from old."diagnosis" end) then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."diagnosis" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."diagnosis"));
   end if;
@@ -286,7 +286,7 @@ begin
   if new."body" is not null and left(new."body", 5) is distinct from 'bsf1:' then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."body" := "better_supabase"."field_seal"(v_key, new."body");
-  elsif new."body" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."body" is distinct from old."body" end then
+  elsif new."body" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."body" is distinct from old."body" end) then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."body" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."body"));
   end if;
@@ -374,7 +374,7 @@ begin
     new."secret" := ((new."secret")::jsonb)::text;
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."secret" := "better_supabase"."field_seal"(v_key, new."secret");
-  elsif new."secret" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."secret" is distinct from old."secret" end then
+  elsif new."secret" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."secret" is distinct from old."secret" end) then
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."secret" := "better_supabase"."field_seal"(v_key, "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."secret"));
   end if;

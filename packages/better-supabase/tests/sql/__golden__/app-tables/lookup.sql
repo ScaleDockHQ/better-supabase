@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_app_tables.sql
 -- better-supabase module: app-tables
 -- @bsb-tables
--- @bsb-hash sha256:f5b621b2485a163d4eaf009953c28fb20f9c6826e2551f2973c847f3d1168c2d
+-- @bsb-hash sha256:f9f0539e3af9a5a5ddbd25ec344e71d8da90fcac708ecbd71f112f482218229f
 -- The tables the app owns, from `appTables`, in public.
 -- Managed by `better-supabase upgrade`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `appTables` in better-supabase.config.ts.
@@ -183,7 +183,7 @@ begin
     new."bsn_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."bsn");
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."bsn" := "better_supabase"."field_seal"(v_key, new."bsn");
-  elsif new."bsn" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."bsn" is distinct from old."bsn" end then
+  elsif new."bsn" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."bsn" is distinct from old."bsn" end) then
     v_plain := "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."bsn");
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."bsn_lookup" := "better_supabase"."field_hash"(v_lookup_key, v_plain);
@@ -204,7 +204,7 @@ begin
     new."email_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."email");
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."email" := "better_supabase"."field_seal"(v_key, new."email");
-  elsif new."email" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."email" is distinct from old."email" end then
+  elsif new."email" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."email" is distinct from old."email" end) then
     v_plain := "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."email");
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."email_lookup" := "better_supabase"."field_hash"(v_lookup_key, v_plain);
@@ -222,7 +222,7 @@ begin
     new."born_on_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."born_on");
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."born_on" := "better_supabase"."field_seal"(v_key, new."born_on");
-  elsif new."born_on" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."born_on" is distinct from old."born_on" end then
+  elsif new."born_on" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."born_on" is distinct from old."born_on" end) then
     v_plain := "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."born_on");
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."born_on_lookup" := "better_supabase"."field_hash"(v_lookup_key, v_plain);
@@ -407,7 +407,7 @@ begin
     new."token_lookup" := "better_supabase"."field_hash"(v_lookup_key, new."token");
     v_key := coalesce(v_key, "better_supabase"."field_key"(v_owner, true));
     new."token" := "better_supabase"."field_seal"(v_key, new."token");
-  elsif new."token" is not null and v_moved and not case when tg_op = 'INSERT' then true else new."token" is distinct from old."token" end then
+  elsif new."token" is not null and v_moved and not (case when tg_op = 'INSERT' then true else new."token" is distinct from old."token" end) then
     v_plain := "better_supabase"."field_open"("better_supabase"."field_key"(v_old_owner, false), new."token");
     v_lookup_key := coalesce(v_lookup_key, "better_supabase"."field_lookup_key"(v_owner, true));
     new."token_lookup" := "better_supabase"."field_hash"(v_lookup_key, v_plain);

@@ -151,7 +151,8 @@ export function sealSql(
         using errcode = '23514';
     end if;`;
 
-    const fresh = `case when tg_op = 'INSERT' then true else ${value} is distinct from old.${sqlIdent(name)} end`;
+    // Parenthesized: PL/pgSQL ends an `elsif` condition at its first `then`.
+    const fresh = `(case when tg_op = 'INSERT' then true else ${value} is distinct from old.${sqlIdent(name)} end)`;
 
     const hashed = (plain: string): string =>
       `\n    v_lookup_key := coalesce(v_lookup_key, ${lookupKey}(v_owner, true));\n    new.${lookup ?? ""} := ${hash}(v_lookup_key, ${plain});`;
