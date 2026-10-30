@@ -362,6 +362,68 @@ describe.skipIf(!live)("work items", () => {
     }
   });
 
+  it("moves a window in one write and keeps all or none of an atomic batch", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      const owner = await s.user("owner");
+      await s.install(MODULES, layout());
+      const org = await s.organization(owner);
+      const items = createTasks({ transport: sqlTransport(s.sql) });
+
+      await s.as(owner);
+
+      const item = await items
+        .create(org, {
+          title: "Launch",
+          startAt: Temporal.Instant.from("2026-11-02T09:00:00Z"),
+          endAt: Temporal.Instant.from("2026-11-03T17:00:00Z"),
+        })
+        .orThrow();
+
+      const later = {
+        startAt: Temporal.Instant.from("2026-11-10T09:00:00Z"),
+        endAt: Temporal.Instant.from("2026-11-11T17:00:00Z"),
+      };
+
+      const split = await items
+        .update([
+          { workItemId: item.id, field: "startAt", value: later.startAt },
+          { workItemId: item.id, field: "endAt", value: later.endAt },
+        ])
+        .orThrow();
+
+      expect(split.rejected.map((change) => change.field)).toEqual(["startAt"]);
+
+      const moved = await items
+        .update([{ workItemId: item.id, field: "window", value: later }])
+        .orThrow();
+
+      expect(moved).toEqual({
+        accepted: [{ workItemId: item.id, field: "window" }],
+        rejected: [],
+      });
+
+      const failed = await items.update(
+        [
+          { workItemId: item.id, field: "title", value: "Launch v2" },
+          { workItemId: item.id, field: "priority", value: "high" },
+        ],
+        { atomic: true },
+      );
+
+      expect(failed.ok).toBe(false);
+
+      const kept = await items.get(item.id).orThrow();
+
+      expect(kept?.title).toBe("Launch");
+      expect(kept?.startAt?.toString()).toBe(later.startAt.toString());
+      expect(kept?.endAt?.toString()).toBe(later.endAt.toString());
+    } finally {
+      await s.close();
+    }
+  });
+
   it("keeps checklists, watchers, attachments and a repeat rule", async () => {
     const s = await BlockSession.open(pool);
 

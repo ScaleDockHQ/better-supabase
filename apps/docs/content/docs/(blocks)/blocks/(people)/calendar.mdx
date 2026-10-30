@@ -99,6 +99,12 @@ and the `event` row that applies, which is the override when there is one.
 | `setAttendee`, `removeAttendee`       | Invites or removes an attendee by email                                                                                   |
 | `respond(eventId, response)`          | The signed-in user answers: `accepted`, `declined`, `tentative` or `needs-action`                                         |
 
+A new event's `created_by` (and its `owner_id` with per-calendar access) is
+the signed-in user. A server that saves on a member's behalf, such as a sync
+job running as the service role, passes the member as
+`upsert(calendarId, input, { actor: userId })`. Only the service role may
+name a user other than the caller (`CALENDAR_FORBIDDEN`).
+
 `editFollowing` ends the old series the second before the occurrence (its
 `COUNT` becomes an `UNTIL`) and starts a new series there with the remaining
 count and a new uid. EXDATEs and overrides after the split move to the new
@@ -278,6 +284,35 @@ The table needs `tenant` and `event` columns and an offset; `user`,
 `summary` and `createdAt` can each be `null` when your table lacks them. A
 row with a user is that member's own alarm: only they read it, and saving the
 event's `alarms` leaves it alone.
+
+### Default alarms
+
+With `options.defaultAlarms: true`, each calendar keeps the alarms a new event
+gets when its input sets no `alarms`, in `calendar_default_alarms`. A default
+counts for timed events, or with `allDay` for all-day ones. An all-day
+default counts its `offsetMinutes` back from `anchor` (`HH:MM`, default
+`09:00`) on the event's day, so `{ allDay: true, offsetMinutes: 1440 }` alarms
+at 09:00 the day before. The event stores the result as an ordinary alarm, so
+changing the defaults later leaves saved events alone, and an input with
+`alarms: []` saves an event without any.
+
+```ts title="src/features/calendar/defaults.ts"
+await db.calendar
+  .setDefaultAlarms(calendarId, [
+    { offsetMinutes: 10 },
+    { allDay: true, offsetMinutes: 1440, anchor: "08:30" },
+  ])
+  .orThrow();
+
+const defaults = await db.calendar.defaultAlarms(calendarId).orThrow();
+```
+
+`setDefaultAlarms` replaces the calendar's defaults and needs the right to
+manage the calendar; members who read the calendar read them. Overrides of a
+recurring event don't get defaults. The option needs the alarms table, and
+over your own tables you map `tables.defaultAlarms` with `tenant`,
+`calendar`, `allDay` and `offsetMinutes` columns; `method`, `anchor` and
+`createdAt` can be `null`.
 
 ## iCal feed
 

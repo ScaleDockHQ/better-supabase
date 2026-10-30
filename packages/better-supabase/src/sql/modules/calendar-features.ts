@@ -18,6 +18,7 @@ export interface CalendarFeatures {
   readonly rdates: boolean;
   readonly anyAttendee: boolean;
   readonly details: boolean;
+  readonly defaultAlarms: boolean;
 }
 
 /** SQL that is true when `user` may act on calendar `calendar` (uuids). */
@@ -169,6 +170,17 @@ export function calendarFeatures(ctx: BlockSqlContext): CalendarFeatures {
     );
   }
 
+  const defaultAlarms = ctx.flag("defaultAlarms", false);
+
+  if (
+    defaultAlarms &&
+    (!ctx.hasTable("alarms") || !ctx.hasTable("defaultAlarms"))
+  ) {
+    throw new TypeError(
+      "blocks.calendar.options.defaultAlarms needs the alarms and defaultAlarms tables",
+    );
+  }
+
   const readFn = isRecord(functions)
     ? appFunction(ctx, functions["read"], "read")
     : undefined;
@@ -195,6 +207,7 @@ export function calendarFeatures(ctx: BlockSqlContext): CalendarFeatures {
     rdates: table || ctx.flag("rdates", false),
     anyAttendee: attendeeKey === "any",
     details: ctx.flag("calendarDetails", false),
+    defaultAlarms,
   };
 }
 

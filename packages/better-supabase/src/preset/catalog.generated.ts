@@ -9478,6 +9478,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "CalendarControllerOptions"
         },
         {
+          "name": "CalendarDefaultAlarm"
+        },
+        {
           "name": "CalendarEvent"
         },
         {
@@ -9519,6 +9522,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CalendarReminder"
+        },
+        {
+          "name": "CalendarSaveOptions"
         },
         {
           "name": "CalendarSnapshot"
@@ -23075,10 +23081,16 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "WorkItemState"
         },
         {
+          "name": "WorkItemUpdateOptions"
+        },
+        {
           "name": "WorkItemWatcher"
         },
         {
           "name": "WorkItemWatchLevel"
+        },
+        {
+          "name": "WorkItemWindow"
         }
       ],
       "entitySchemas": {

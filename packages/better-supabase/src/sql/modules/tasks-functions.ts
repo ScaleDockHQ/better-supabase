@@ -200,6 +200,17 @@ export function workItemFunctions(
         : `      when ${sqlString(field.field)} then
         ${fail("WORK_ITEM_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no ${field.column} column`, "22023")}`,
     ),
+    has("startAt") && has("endAt")
+      ? `      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          ${fail("WORK_ITEM_ATTRS_INVALID", "window must be an object of startAt and endAt", "22023")}
+        end if;
+        update ${t("items")} x set
+          ${w("startAt")} = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x.${w("startAt")} end,
+          ${w("endAt")} = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x.${w("endAt")} end
+        where x.${w("id")} = v_item;`
+      : `      when 'window' then
+        ${fail("WORK_ITEM_FIELD_UNSUPPORTED", `this ${ctx.tableName("items").name} table has no startAt and endAt columns`, "22023")}`,
     `      when 'attachments' then
         select * into v_row from ${t("items")} x where x.${w("id")} = v_item;
         ${linkAttachmentsSql(ctx, n, "v_row", "(v_change -> 'value')")}`,
@@ -544,8 +555,11 @@ ${userGrant(`${fn("create_work_item")}(${ctx.idType}, jsonb, uuid[])`)}
 
 -- Applies a batch of { workItemId, field, value } changes, each on its
 -- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
--- field, hint, reason }] }.
-create or replace function ${fn("update_work_items")}(changes jsonb)
+-- field, hint, reason }] }. With atomic, the first change that fails raises
+-- its error and no change is kept. The window field ({ startAt, endAt })
+-- writes both ends in one update, so the end-after-start check sees both.
+drop function if exists ${fn("update_work_items")}(jsonb);
+create or replace function ${fn("update_work_items")}(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -590,6 +604,9 @@ ${writes}
         ["text", "v_field"],
       ])}
     exception when others then
+      if update_work_items.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object(${itemId}, v_change ->> ${itemId}, 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
@@ -600,7 +617,7 @@ ${writes}
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-${userGrant(`${fn("update_work_items")}(jsonb)`)}
+${userGrant(`${fn("update_work_items")}(jsonb, boolean)`)}
 
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. work_item.assigned is recorded only

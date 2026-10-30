@@ -199,6 +199,16 @@ ${keyedFields(
   const subjects = fieldSubjects(ctx);
   const recordSubjects = recordReadSubjects(subjects, readAccess);
 
+  const keyed = subjects.find(
+    ([, subject]) => subject.extra["keys"] !== undefined,
+  );
+
+  if (keyed !== undefined) {
+    throw new TypeError(
+      `blocks.custom-fields.on.${keyed[0]}.keys applies only to layout "keyed"`,
+    );
+  }
+
   if (readAccess === "record" && subjects.length === 0) {
     throw new TypeError(
       'blocks.custom-fields.options.readAccess "record" needs record types in config.subjects or blocks.custom-fields.on',

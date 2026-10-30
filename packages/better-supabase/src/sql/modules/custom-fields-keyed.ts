@@ -4,6 +4,7 @@ import type { BoundSubject, PolymorphicColumns } from "../subject-columns.ts";
 import type { Subject } from "../subjects.ts";
 
 import { CUSTOM_FIELD_TYPES } from "../../core/contracts/field-formats.ts";
+import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
 import { customFieldValueCheck } from "../format-checks.ts";
@@ -55,11 +56,86 @@ export function keyedOptions(ctx: BlockSqlContext): KeyedOptions {
   return { rankType, readAccess };
 }
 
-/** `blocks.custom-fields.on`, with `column` and `readAccess` read per subject. */
+/**
+ * `blocks.custom-fields.on`, with `column`, `readAccess` and `keys` read per
+ * subject.
+ */
 export function fieldSubjects(
   ctx: BlockSqlContext,
 ): readonly (readonly [string, Subject])[] {
-  return subjectsOption(ctx, ["column", "readAccess"]);
+  return subjectsOption(ctx, ["column", "readAccess", "keys"]);
+}
+
+/** The permission keys of the keyed layout's checks. */
+export interface FieldKeys {
+  readonly manage: string;
+  readonly read: string;
+}
+
+/**
+ * `on.<type>.keys`: the permission keys that gate one record type's values,
+ * each falling back to the module's own key.
+ */
+function subjectFieldKeys(
+  subjects: readonly (readonly [string, Subject])[],
+): readonly (readonly [string, Partial<FieldKeys>])[] {
+  return subjects.flatMap(([type, subject]) => {
+    const keys = subject.extra["keys"];
+
+    if (keys === undefined) {
+      return [];
+    }
+
+    const where = `blocks.custom-fields.on.${type}.keys`;
+
+    if (!isRecord(keys)) {
+      throw new TypeError(`${where} must be an object of manage and read`);
+    }
+
+    const own: { manage?: string; read?: string } = {};
+
+    for (const [name, key] of Object.entries(keys)) {
+      if (name !== "manage" && name !== "read") {
+        throw new TypeError(
+          `${where}.${name} is not an option. Options: manage, read`,
+        );
+      }
+
+      if (typeof key !== "string" || key.trim() === "") {
+        throw new TypeError(`${where}.${name} must be a permission key`);
+      }
+
+      own[name] = key;
+    }
+
+    return [[type, own] as const];
+  });
+}
+
+/**
+ * The tenant check for `kind` on a value of the record type `type`: the type's
+ * own key from `on.<type>.keys`, else the module's.
+ */
+function keyCheck(
+  ctx: BlockSqlContext,
+  perType: readonly (readonly [string, Partial<FieldKeys>])[],
+  fallback: FieldKeys,
+  kind: keyof FieldKeys,
+  at: { readonly type: string; readonly tenant: string },
+): string {
+  const own = perType.flatMap(([type, keys]) => {
+    const key = keys[kind];
+
+    return key === undefined ? [] : [[type, sqlString(key)] as const];
+  });
+
+  const can = (key: string): string => ctx.scope.can(at.tenant, key);
+
+  if (own.length === 0) {
+    return can(fallback[kind]);
+  }
+
+  return `(case ${at.type}${own.map(([type, key]) => ` when ${sqlString(type)} then ${can(key)}`).join("")} else ${can(fallback[kind])} end)`;
 }
 
 /**
@@ -314,7 +390,7 @@ ${lockTable(values, { read: true })}
  */
 export function keyedFields(
   ctx: BlockSqlContext,
-  keys: { readonly manage: string; readonly read: string },
+  keys: FieldKeys,
   options: KeyedOptions,
 ): string {
   checkSubjectColumns(ctx, true);
@@ -339,6 +415,10 @@ export function keyedFields(
   const subjects = fieldSubjects(ctx);
   const bound = boundSubjects(ctx);
   const poly = polymorphic(ctx);
+  const perType = subjectFieldKeys(subjects);
+
+  const allowed = (kind: keyof FieldKeys, type: string, tenant: string) =>
+    keyCheck(ctx, perType, keys, kind, { type, tenant });
 
   const check = (type: string, id: string, tenant: string): string =>
     andSubjectAction(
@@ -426,7 +506,11 @@ export function keyedFields(
         id: "read_field_values.subject_id",
         tenant: "read_field_values.tenant",
       })})${canRead}`,
-      tenant: ctx.scope.can("read_field_values.tenant", keys.read),
+      tenant: allowed(
+        "read",
+        "read_field_values.subject_type",
+        "read_field_values.tenant",
+      ),
     },
   )})`;
 
@@ -449,7 +533,7 @@ declare
   v_id uuid;
   v_type text := ${s("type")};
 begin
-  if not (auth.role() = 'service_role' or ${ctx.scope.can(s("tenant"), keys.manage)}) then
+  if not (auth.role() = 'service_role' or ${allowed("manage", s("subject_type"), s("tenant"))}) then
     ${fail("FIELD_FORBIDDEN", "not allowed to set custom fields")}
   end if;
   if coalesce(trim(${s("key")}), '') = '' or coalesce(trim(${s("label")}), '') = '' or v_type is null or v_type not in (${CUSTOM_FIELD_TYPES.map((type) => sqlString(type)).join(", ")}) then
@@ -526,7 +610,7 @@ begin
   if not found then
     ${fail("FIELD_VALUE_NOT_FOUND", "field value not found", "P0002")}
   end if;
-  if not (auth.role() = 'service_role' or (${ctx.scope.can("v_tenant", keys.manage)} and ${check("v_type", "v_subject", "v_tenant")})) then
+  if not (auth.role() = 'service_role' or (${allowed("manage", "v_type", "v_tenant")} and ${check("v_type", "v_subject", "v_tenant")})) then
     ${fail("FIELD_FORBIDDEN", "not allowed to delete this field value")}
   end if;
   delete from ${values} where ${c("id")} = delete_field_value.value_id;

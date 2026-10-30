@@ -4,7 +4,7 @@ import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
-import type { CalendarAlarm } from "./alarms.ts";
+import type { CalendarAlarm, CalendarDefaultAlarm } from "./alarms.ts";
 import type {
   CalendarEventKind,
   CalendarTransparency,
@@ -45,7 +45,7 @@ import {
   requiredInstant,
   textOf,
 } from "../shared.ts";
-import { alarmItem, alarmOf, reminderOf } from "./alarms.ts";
+import { alarmItem, alarmOf, defaultAlarmOf, reminderOf } from "./alarms.ts";
 import {
   CALENDAR_EVENT_KINDS,
   CALENDAR_TRANSPARENCIES,
@@ -182,6 +182,15 @@ export interface CalendarOccurrenceRef {
   readonly originalStart: Temporal.Instant;
 }
 
+export interface CalendarSaveOptions {
+  /**
+   * The user a new event is created by and owned by, for a server that saves on
+   * a user's behalf. Only the service role may name a user other than the
+   * caller.
+   */
+  readonly actor?: string;
+}
+
 export interface SavedCalendarEvent {
   readonly id: string;
   readonly uid: string;
@@ -221,7 +230,18 @@ export interface Calendar<F extends object = Record<never, never>> {
   upsert(
     calendarId: string,
     input: CalendarEventInput & Partial<F> & { readonly id?: string },
+    options?: CalendarSaveOptions,
   ): AsyncResult<SavedCalendarEvent>;
+  /** With `options.defaultAlarms`: the alarms a new event of the calendar gets. */
+  defaultAlarms(calendarId: string): AsyncResult<CalendarDefaultAlarm[]>;
+  /**
+   * With `options.defaultAlarms`: replaces the calendar's default alarms, for
+   * events saved from now on. Needs the right to manage the calendar.
+   */
+  setDefaultAlarms(
+    calendarId: string,
+    alarms: readonly CalendarDefaultAlarm[],
+  ): AsyncResult<CalendarDefaultAlarm[]>;
   delete(eventId: string): AsyncResult<boolean>;
   /** The rows that can fall in the range: events, series and their overrides. */
   events(
@@ -615,10 +635,24 @@ export function createCalendar<
   const save = (
     calendarId: string,
     input: Parameters<typeof itemOf>[0],
+    saveOptions: CalendarSaveOptions = {},
   ): AsyncResult<SavedCalendarEvent> =>
     checked(input).andThen((item) =>
-      call("save_calendar_event", { calendar_id: calendarId, item }, saved),
+      call(
+        "save_calendar_event",
+        {
+          calendar_id: calendarId,
+          item,
+          ...(saveOptions.actor === undefined
+            ? {}
+            : { actor: saveOptions.actor }),
+        },
+        saved,
+      ),
     );
+
+  const defaultAlarmsOf = (value: unknown): CalendarDefaultAlarm[] =>
+    recordsOf(value, "calendar default alarms").map(defaultAlarmOf);
 
   const list = (
     calendarIds: readonly string[],
@@ -724,6 +758,25 @@ export function createCalendar<
         }),
       ),
     upsert: save,
+    defaultAlarms: (calendarId) =>
+      call(
+        "list_calendar_default_alarms",
+        { calendar_id: calendarId },
+        defaultAlarmsOf,
+      ),
+    setDefaultAlarms: (calendarId, alarms) =>
+      call(
+        "set_calendar_default_alarms",
+        {
+          calendar_id: calendarId,
+          alarms: alarms.map((alarm) => {
+            const { id: _id, ...item } = alarm;
+
+            return item;
+          }),
+        },
+        defaultAlarmsOf,
+      ),
     delete: (eventId) =>
       call(
         "delete_calendar_event",

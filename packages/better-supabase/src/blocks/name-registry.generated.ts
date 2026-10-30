@@ -338,6 +338,7 @@ export interface BlockNameRegistry {
       readonly "events": "id" | "tenant" | "calendar" | "uid" | "title" | "description" | "location" | "startsAt" | "endsAt" | "allDay" | "tz" | "status" | "rrule" | "exdates" | "recurrence" | "originalStart" | "subjectType" | "subjectId" | "color" | "kind" | "transparency" | "autoDecline" | "createdBy" | "createdAt" | "updatedAt" | "visibility" | "owner" | "rdates";
       readonly "attendees": "id" | "tenant" | "event" | "email" | "name" | "user" | "role" | "response" | "subjectType" | "subjectId" | "organizer" | "optional";
       readonly "alarms": "id" | "tenant" | "event" | "user" | "method" | "offsetMinutes" | "related" | "at" | "repeat" | "repeatMinutes" | "description" | "summary" | "createdAt";
+      readonly "defaultAlarms": "id" | "tenant" | "calendar" | "allDay" | "method" | "offsetMinutes" | "anchor" | "createdAt";
       readonly "workingHours": "id" | "tenant" | "user" | "weekday" | "startsAt" | "endsAt" | "tz";
       readonly "grants": "id" | "tenant" | "calendar" | "user" | "role" | "createdAt";
       readonly "rules": "id" | "tenant" | "event" | "rrule" | "freq" | "interval" | "count" | "until" | "byDay" | "byMonthDay" | "byMonth" | "bySetPos";

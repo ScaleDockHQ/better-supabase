@@ -27,6 +27,12 @@ import {
   workingHoursTable,
 } from "./calendar-availability.ts";
 import {
+  defaultAlarmFunctions,
+  defaultAlarmsContract,
+  defaultAlarmsTable,
+  defaultAlarmWrites,
+} from "./calendar-default-alarms.ts";
+import {
   accessCall,
   accessFunctions,
   calendarFeatures,
@@ -291,7 +297,7 @@ ${addCheck({
 })}${eventColumns}${addExtraColumns(events, eventExtras(ctx))}
 ${lockTable(events, { read: true })}
 ${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { drop: true, target: events })}
-${attendeesTable()}${alarmsTable(ctx)}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
+${attendeesTable()}${alarmsTable(ctx)}${defaultAlarmsTable(ctx)}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
     : "";
 
   const attendeeFunctions = attendeesSql(ctx, writesEvent);
@@ -514,8 +520,11 @@ ${userGrant(`${fn("delete_calendar")}(uuid)`)}
 
 -- Inserts an event, or updates the one named by item.id (keys left out keep
 -- their value). An item with recurrenceId and originalStart overrides one
--- occurrence of that series and takes the series' uid.
-create or replace function ${fn("save_calendar_event")}(calendar_id uuid, item jsonb)
+-- occurrence of that series and takes the series' uid. Only the service role
+-- may pass an actor other than the caller; a new event's creator and owner are
+-- the actor, else the caller.
+drop function if exists ${fn("save_calendar_event")}(uuid, jsonb);
+create or replace function ${fn("save_calendar_event")}(calendar_id uuid, item jsonb, actor uuid default null)
 returns jsonb
 language plpgsql
 security definer
@@ -530,6 +539,7 @@ declare
   v_master uuid := nullif(v_item ->> 'recurrenceId', '')::uuid;
   v_uid text := nullif(v_item ->> 'uid', '');
   v_created boolean := false;
+  v_actor uuid := coalesce(save_calendar_event.actor, auth.uid());
   v_exdates timestamptz[];${features.rdates ? "\n  v_rdates timestamptz[];" : ""}
 begin
   select ${k("tenant")}, ${k("tz")} into v_tenant, v_tz from ${calendars} where ${k("id")} = save_calendar_event.calendar_id;
@@ -538,6 +548,9 @@ begin
   end if;
   if not ${writesCalendar("save_calendar_event.calendar_id", "v_tenant")} then
     ${fail("CALENDAR_FORBIDDEN", "not allowed to change this calendar")}
+  end if;
+  if save_calendar_event.actor is not null and save_calendar_event.actor is distinct from auth.uid() and auth.role() <> 'service_role' then
+    ${fail("CALENDAR_FORBIDDEN", "only the service role saves an event as another user")}
   end if;${
     features.access
       ? `
@@ -593,7 +606,7 @@ ${
     v_id := gen_random_uuid();
     v_uid := coalesce(v_uid, v_id::text);
     insert into ${events} (${e("id")}, ${e("tenant")}, ${e("calendar")}, ${e("uid")}, ${e("recurrence")}, ${e("originalStart")}, ${fields.map(([column]) => column).join(", ")}${ctx.has("events", "createdBy") ? `, ${e("createdBy")}` : ""}${features.access && ctx.has("events", "owner") ? `, ${e("owner")}` : ""}${eventInserted.columns})
-    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, ${fields.map(([, value]) => value).join(", ")}${ctx.has("events", "createdBy") ? ", auth.uid()" : ""}${features.access && ctx.has("events", "owner") ? ", auth.uid()" : ""}${eventInserted.values});
+    values (v_id, v_tenant, save_calendar_event.calendar_id, v_uid, v_master, (v_item ->> 'originalStart')::timestamptz, ${fields.map(([, value]) => value).join(", ")}${ctx.has("events", "createdBy") ? ", v_actor" : ""}${features.access && ctx.has("events", "owner") ? ", v_actor" : ""}${eventInserted.values});
     v_created := true;
   else
     update ${events} set
@@ -603,7 +616,7 @@ ${
     if not found then
       ${fail("CALENDAR_EVENT_NOT_FOUND", "event not found", "P0002")}
     end if;
-  end if;${tableWrites}${alarmWrites(ctx)}
+  end if;${tableWrites}${alarmWrites(ctx)}${defaultAlarmWrites(ctx)}
   if exists (select 1 from ${events} where ${e("id")} = v_id and ${e("endsAt")} < ${e("startsAt")}) then
     ${fail("CALENDAR_EVENT_INVALID", "endsAt must not be before startsAt", "22023")}
   end if;
@@ -617,7 +630,7 @@ ${
   return jsonb_build_object('id', v_id, 'uid', v_uid, 'created', v_created);
 end;
 $$;
-${userGrant(`${fn("save_calendar_event")}(uuid, jsonb)`)}
+${userGrant(`${fn("save_calendar_event")}(uuid, jsonb, uuid)`)}
 
 create or replace function ${fn("delete_calendar_event")}(event_id uuid)
 returns boolean
@@ -852,7 +865,7 @@ as $$
   where k.${k("tenant")} = list_calendars.tenant
 $$;
 ${userGrant(`${fn("list_calendars")}(${ctx.idType})`)}
-${updateCalendar}${grantFunctions(ctx)}${attendeeFunctions}${availabilitySql(ctx)}${feed(ctx, events, calendars, attendees)}`;
+${updateCalendar}${grantFunctions(ctx)}${defaultAlarmFunctions(ctx)}${attendeeFunctions}${availabilitySql(ctx)}${feed(ctx, events, calendars, attendees)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -900,7 +913,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     { name: "delete_calendar", args: ["uuid"], returns: "boolean" },
-    { name: "save_calendar_event", args: ["uuid", "jsonb"], returns: "jsonb" },
+    {
+      name: "save_calendar_event",
+      args: ["uuid", "jsonb", "uuid"],
+      returns: "jsonb",
+    },
     { name: "delete_calendar_event", args: ["uuid"], returns: "boolean" },
     {
       name: "cancel_calendar_occurrence",
@@ -952,6 +969,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         ]
       : []),
     ...availabilityContract(ctx),
+    ...defaultAlarmsContract(ctx),
     ...(ctx.installed("share-links")
       ? [{ name: "calendar_feed", args: ["text"], returns: "jsonb" }]
       : []),

@@ -16,6 +16,8 @@ export {
   type Tasks,
   type TasksOptions,
   type WorkItemState,
+  type WorkItemUpdateOptions,
+  type WorkItemWindow,
   type WorkItemWatcher,
   type WorkItemWatchLevel,
 } from "./tasks.ts";

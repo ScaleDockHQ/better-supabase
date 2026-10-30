@@ -14,6 +14,7 @@ export {
   type CalendarOptions,
   type CalendarUserFeedData,
   type CalendarVisibility,
+  type CalendarSaveOptions,
   type SavedCalendarEvent,
 } from "./calendar.ts";
 
@@ -85,5 +86,6 @@ export { calendarAlarmSchema, calendarEventInputSchema } from "./schemas.ts";
 export type {
   CalendarAlarm,
   CalendarAlarmAction,
+  CalendarDefaultAlarm,
   CalendarReminder,
 } from "./alarms.ts";
