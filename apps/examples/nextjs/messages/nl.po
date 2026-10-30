@@ -356,6 +356,26 @@ msgctxt "inbox.DRlmpk"
 msgid "Customer conversations from the Help widget and chat channels, kept live over Realtime."
 msgstr "Klantgesprekken uit de Help-widget en chatkanalen, live bijgewerkt via Realtime."
 
+#: src/app/[locale]/(app)/inspections/page.tsx
+msgctxt "inspections.Sl9G4R"
+msgid "Pick an inspection"
+msgstr "Kies een inspectie"
+
+#: src/app/[locale]/(app)/inspections/page.tsx
+msgctxt "inspections.1cJBOV"
+msgid "Open an inspection in the programme to see its team, checklist and findings."
+msgstr "Open een inspectie in het programma om het team, de checklist en de bevindingen te zien."
+
+#: src/app/[locale]/(app)/inspections/page.tsx
+msgctxt "inspections.PcgHMz"
+msgid "Audits and inspections"
+msgstr "Audits en inspecties"
+
+#: src/app/[locale]/(app)/inspections/page.tsx
+msgctxt "inspections.vDNGRZ"
+msgid "The audit programme with each inspection's status, and the findings of the one you open, each nonconformity with its case."
+msgstr "Het auditprogramma met de status van elke inspectie, en de bevindingen van de inspectie die je opent, elke afwijking met haar case."
+
 #: src/app/[locale]/(app)/knowledge/page.tsx
 msgctxt "knowledge.5OteMI"
 msgid "Knowledge"
@@ -8093,6 +8113,240 @@ msgctxt "inbox.pC2KQV"
 msgid "Cancel scheduled reply"
 msgstr "Ingepland antwoord annuleren"
 
+#: src/features/inspections/components/inspection-labels.tsx
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.kp0NPF"
+msgid "Planned"
+msgstr "Gepland"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.q1WWIr"
+msgid "In progress"
+msgstr "Bezig"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.reFEEC"
+msgid "Reporting"
+msgstr "Rapportage"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.PFtMy9"
+msgid "Canceled"
+msgstr "Geannuleerd"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.mggZ5q"
+msgid "Internal audit"
+msgstr "Interne audit"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.uwBliE"
+msgid "External audit"
+msgstr "Externe audit"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.aPzMHj"
+msgid "Supplier audit"
+msgstr "Leveranciersaudit"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.a_4qQv"
+msgid "Certification audit"
+msgstr "Certificeringsaudit"
+
+#: src/features/inspections/components/inspection-labels.tsx
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.uXm916"
+msgid "Inspection"
+msgstr "Inspectie"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.SeccvP"
+msgid "Major nonconformity"
+msgstr "Grote afwijking"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.V7YzXS"
+msgid "Minor nonconformity"
+msgstr "Kleine afwijking"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.oVLHje"
+msgid "Observation"
+msgstr "Observatie"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.sHGUY0"
+msgid "Opportunity"
+msgstr "Verbeterkans"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.dHVUaP"
+msgid "Positive"
+msgstr "Positief"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.bhfSJZ"
+msgid "Lead"
+msgstr "Leider"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.lDuLc5"
+msgid "Auditor"
+msgstr "Auditor"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.TLrvIO"
+msgid "Observer"
+msgstr "Waarnemer"
+
+#: src/features/inspections/components/inspection-labels.tsx
+msgctxt "inspections.3eSoRF"
+msgid "Auditee"
+msgstr "Geauditeerde"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.ygO7pY"
+msgid "Not planned"
+msgstr "Niet gepland"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.e5x8FT"
+msgid "Kind"
+msgstr "Soort"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.QFFOs-"
+msgid "Programme"
+msgstr "Programma"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.ioTsJl"
+msgid "Audit programme"
+msgstr "Auditprogramma"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.7k4L6V"
+msgid "Every audit and inspection in the month it is planned. Open one to work its findings."
+msgstr "Elke audit en inspectie in de maand waarin die gepland is. Open er een om de bevindingen te behandelen."
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.5c97oi"
+msgid "The audit programme didn't load"
+msgstr "Het auditprogramma is niet geladen"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.w0SB6T"
+msgid "No inspections planned"
+msgstr "Geen inspecties gepland"
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.0q27Qn"
+msgid "Approve an audit programme for the year, then schedule its audits with a lead and a checklist."
+msgstr "Keur een auditprogramma voor het jaar goed en plan daarna de audits met een leider en een checklist."
+
+#: src/features/inspections/components/inspection-program-calendar.tsx
+msgctxt "inspections.BADGBv"
+msgid "Read the inspections guide"
+msgstr "Lees de handleiding voor inspecties"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.ab2qRi"
+msgid "Case raised"
+msgstr "Case geopend"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.1_3-n8"
+msgid "Closed {number}"
+msgstr "{number} gesloten"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.CdpWpS"
+msgid "The inspection didn't load"
+msgstr "De inspectie is niet geladen"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.qXe_G4"
+msgid "{number}: {title}"
+msgstr "{number}: {title}"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.-FJKqK"
+msgid "Checklist submitted"
+msgstr "Checklist ingediend"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.xOSQpB"
+msgid "Checklist in draft"
+msgstr "Checklist in concept"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.YkdyYx"
+msgid "{count, plural, =0 {No team yet} one {# team member} other {# team members}}"
+msgstr "{count, plural, =0 {Nog geen team} one {# teamlid} other {# teamleden}}"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.VMNy1w"
+msgid "{count, plural, one {# finding needs a case} other {# findings need a case}} before this inspection can close"
+msgstr "{count, plural, one {# bevinding heeft een case nodig} other {# bevindingen hebben een case nodig}} voordat deze inspectie kan sluiten"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.YvG-lF"
+msgid "Every nonconformity has its case"
+msgstr "Elke afwijking heeft haar case"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.7bd5eX"
+msgid "No findings yet"
+msgstr "Nog geen bevindingen"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.MmeGCo"
+msgid "The lead and auditors record findings while the inspection is in progress."
+msgstr "De leider en auditors leggen bevindingen vast terwijl de inspectie bezig is."
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.Pl0v8W"
+msgid "Raise case"
+msgstr "Case openen"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.ItE4vE"
+msgid "Open case"
+msgstr "Case bekijken"
+
+#: src/features/inspections/components/inspection-run.tsx
+msgctxt "inspections.PjaypS"
+msgid "Close inspection"
+msgstr "Inspectie sluiten"
+
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.IvjoDS"
 msgid "Connected"
@@ -9045,6 +9299,11 @@ msgstr "Risico's"
 msgctxt "navigation.TTLDST"
 msgid "Cases"
 msgstr "Cases"
+
+#: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation.PcgHMz"
+msgid "Audits and inspections"
+msgstr "Audits en inspecties"
 
 #: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.poLbhw"

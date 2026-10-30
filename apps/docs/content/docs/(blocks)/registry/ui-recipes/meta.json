@@ -67,6 +67,8 @@
     "risk-heatmap",
     "case-board",
     "case-detail",
+    "inspection-program-calendar",
+    "inspection-run",
     "---People---",
     "employee-directory",
     "qualification-matrix",

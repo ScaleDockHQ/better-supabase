@@ -37,6 +37,7 @@ import {
   LayoutTemplateIcon,
   FileUpIcon,
   FileWarningIcon,
+  ClipboardCheckIcon,
   Trash2Icon,
   CreditCardIcon,
   FlaskConicalIcon,
@@ -118,6 +119,7 @@ const ICONS = {
   qualifications: BadgeCheckIcon,
   risks: ShieldAlertIcon,
   cases: FileWarningIcon,
+  inspections: ClipboardCheckIcon,
   shifts: CalendarDaysIcon,
   finance: LandmarkIcon,
   observations: HeartPulseIcon,
@@ -291,6 +293,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "cases": {
         return t("Cases");
+      }
+
+      case "inspections": {
+        return t("Audits and inspections");
       }
 
       case "shifts": {
