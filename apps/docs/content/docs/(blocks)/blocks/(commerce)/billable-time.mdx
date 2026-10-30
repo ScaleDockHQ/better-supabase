@@ -33,10 +33,10 @@ running timer is never billed.
 
 ## Tables
 
-| Table                  | Holds                                                                                                                                                 |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `time_rates`           | The rate card: an hourly `rate` and `currency`, an optional member (`user_id`) and record (`subject_type`, `subject_id`), and the day it takes effect |
-| `time_invoice_entries` | One row per billed time entry: the invoice, the rate and currency it was billed at, and the seconds billed                                            |
+| Table                  | Holds                                                                                                                                                                                   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `time_rates`           | The rate card: an hourly `rate`, an optional hourly `cost_amount` and `currency`, an optional member (`user_id`) and record (`subject_type`, `subject_id`), and the day it takes effect |
+| `time_invoice_entries` | One row per billed time entry: the invoice, the rate and currency it was billed at, and the seconds billed                                                                              |
 
 Both tables are read through the functions only. Members with
 `billable_time.read` read the rate card and the billed entries.
@@ -84,6 +84,9 @@ time-tracking block's `timeZone`. Setting a rate on the same key and day
 replaces it. An entry that carries its own `rate` keeps that rate. Setting
 and deleting rates needs `billable_time.manage`.
 
+A rate can also carry a `cost`, what an hour costs you, in the rate's
+currency. Project costing values time at the cost of the rate that applies.
+
 | Method                             | Returns                                                    |
 | ---------------------------------- | ---------------------------------------------------------- |
 | `setRate(input)`                   | the rate                                                   |
@@ -93,6 +96,7 @@ and deleting rates needs `billable_time.manage`.
 | `unbilled(query)`                  | the lines, one total per currency, and the unrated entries |
 | `invoice(input)`                   | the draft invoice's id, its total and the billed entry ids |
 | `invoicedEntries(invoiceId)`       | the entries an invoice billed, with their rates            |
+| `projectCosts(projectId)`          | a project's costs, revenue, margin and budget use          |
 
 ## Preview and invoice
 
@@ -145,6 +149,31 @@ An organization purge deletes the billed rows with the invoices. Erasing a
 member doesn't delete their billed time; it stays as an accounting record
 until the invoice is voided.
 
+## Project costing
+
+With the [tasks](/docs/blocks/tasks) block and its projects table installed,
+`projectCosts(projectId)` adds up what a project cost and earned. It needs
+`billable_time.read`.
+
+```ts
+const costs = await db.billableTime.projectCosts(projectId).orThrow();
+
+costs.totals; // [{ currency, timeCost, billed, expenses, income, margin }]
+costs.budgetUsed; // { hours: 0.5, amount: 0.68 }
+```
+
+It counts the finished time on the project (when your app registers
+projects as a record type) and on the project's work items. `timeCost` is
+that time at the rate card's `cost`, and `uncostedHours` the time no cost
+covers. `billed` is the time billed on invoices at the billed rate. With
+[accounting](/docs/blocks/accounting) installed, `expenses` and `income` are
+the posted expense and income lines whose `project` dimension is the project,
+such as expense claims and purchase bills booked to it. Leave the `project`
+dimension off invoice lines that bill time, or that revenue counts twice. The
+margin is `billed` and `income` less `timeCost` and `expenses`, per currency.
+`budgetUsed` compares the hours to the project's `budgetHours`, and the time
+cost and expenses in the budget's currency to its `budget`.
+
 ## Section
 
 The [billable time binding](/docs/repository/record-bindings) shows a record's unbilled
@@ -152,19 +181,21 @@ time on its page, with `setRate` and `invoice` writes.
 
 ## Errors
 
-| Hint                             | Cause                                                                                                      |
-| -------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `BILLABLE_TIME_FORBIDDEN`        | the caller lacks `billable_time.read`, `.manage` or `.invoice`                                             |
-| `TIME_RATE_INVALID`              | the rate is negative, the currency isn't a currency code, or only one of the record type and id was passed |
-| `TIME_RATE_SUBJECT_INVALID`      | the record is unknown or not in the organization                                                           |
-| `TIME_RATE_MEMBER_INVALID`       | `userId` isn't a member of the organization                                                                |
-| `TIME_RATE_NOT_FOUND`            | no rate with this id in the organization                                                                   |
-| `BILLABLE_TIME_GROUPING_INVALID` | `groupBy` isn't `subject`, `member` or `entry`                                                             |
-| `TIME_RATE_MISSING`              | a billable entry has no rate                                                                               |
-| `BILLABLE_TIME_CURRENCIES`       | the entries bill in more than one currency and none was picked                                             |
-| `BILLABLE_TIME_EMPTY`            | the scope selects no unbilled time                                                                         |
-| `INVOICE_NOT_FOUND`              | `invoicedEntries` named an invoice outside the organization                                                |
-| `TIME_ENTRY_INVOICED`            | the entry is on an invoice; void the invoice to change it                                                  |
+| Hint                             | Cause                                                                                                              |
+| -------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
+| `BILLABLE_TIME_FORBIDDEN`        | the caller lacks `billable_time.read`, `.manage` or `.invoice`                                                     |
+| `TIME_RATE_INVALID`              | the rate or cost is negative, the currency isn't a currency code, or only one of the record type and id was passed |
+| `TIME_RATE_COST_UNSUPPORTED`     | the rate table has no cost column                                                                                  |
+| `TIME_RATE_SUBJECT_INVALID`      | the record is unknown or not in the organization                                                                   |
+| `TIME_RATE_MEMBER_INVALID`       | `userId` isn't a member of the organization                                                                        |
+| `TIME_RATE_NOT_FOUND`            | no rate with this id in the organization                                                                           |
+| `BILLABLE_TIME_GROUPING_INVALID` | `groupBy` isn't `subject`, `member` or `entry`                                                                     |
+| `TIME_RATE_MISSING`              | a billable entry has no rate                                                                                       |
+| `BILLABLE_TIME_CURRENCIES`       | the entries bill in more than one currency and none was picked                                                     |
+| `BILLABLE_TIME_EMPTY`            | the scope selects no unbilled time                                                                                 |
+| `INVOICE_NOT_FOUND`              | `invoicedEntries` named an invoice outside the organization                                                        |
+| `TIME_ENTRY_INVOICED`            | the entry is on an invoice; void the invoice to change it                                                          |
+| `WORK_ITEM_PROJECT_NOT_FOUND`    | `projectCosts` named a project the caller can't read                                                               |
 
 ## Events
 

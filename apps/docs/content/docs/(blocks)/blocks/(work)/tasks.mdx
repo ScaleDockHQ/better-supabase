@@ -107,7 +107,7 @@ The notification carries the item's title as its subject label, and `options.act
 
 Dependencies between items are [relations](/docs/blocks/relations): `link(design, build, { kind: "blocks" })` is a finish-to-start dependency, and `edges("blocks")` reads them for the chart.
 
-`saveProject(organizationId, { key, name, status, startOn, targetOn })` keeps a project (`PAY`) with the share of its items that are completed. `saveIteration(organizationId, { name, teamId, startsOn, endsOn })` keeps a cycle or a sprint. Turn either table off with `tables: { projects: null }` or `tables: { iterations: null }`.
+`saveProject(organizationId, { key, name, status, startOn, targetOn })` keeps a project (`PAY`) with the share of its items that are completed. A project can carry a `budget` (a `Money`) and `budgetHours`, which [billable time](/docs/blocks/billable-time#project-costing) compares its costs to. With [accounting](/docs/blocks/accounting) installed, saving a project keeps a value of the `project` dimension in step, coded by the project id, so expense and bill lines can name it. `saveIteration(organizationId, { name, teamId, startsOn, endsOn })` keeps a cycle or a sprint. Turn either table off with `tables: { projects: null }` or `tables: { iterations: null }`.
 
 ## Checklists, files, repeat rules and watchers
 

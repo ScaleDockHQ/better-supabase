@@ -136,31 +136,91 @@ assetId)` sets it, and `null` clears it. Locations and assets are registered
 subjects, so [relations](/docs/blocks/relations), comments and attachments
 work on them.
 
+## Depreciation and disposal
+
+Each asset can carry a book value: `acquisitionCost` (a `Money`, which also
+sets the asset's currency), `acquiredOn`, `residualValue` (default zero) and a
+`depreciationMethod`. `straight_line` needs `usefulLifeMonths` and spreads the
+cost less the residual value evenly over that many months. `declining_balance`
+needs `depreciationRateBps`, an annual rate in basis points applied each month
+to the remaining book value, and books the rest in the last month of the
+useful life when one is set. `none` (the default) keeps the cost without
+depreciating it. Set these fields with `updateAsset`:
+
+```ts
+await db.assets
+  .updateAsset(van.id, {
+    acquisitionCost: money(3_600_000n, "EUR"),
+    acquiredOn: Temporal.PlainDate.from("2026-01-15"),
+    usefulLifeMonths: 60,
+    residualValue: money(600_000n, "EUR"),
+    depreciationMethod: "straight_line",
+  })
+  .orThrow();
+```
+
+`runDepreciation({ organizationId, until })` books every month that has ended
+by `until` (default today) and has no row yet, from the acquisition month on,
+in `asset_depreciations` with a unique row per asset and month. Run it from a
+monthly job with the service role; a second run books nothing new. Once a
+month is booked, the cost, its currency and the acquisition date are fixed
+(`ASSETS_DEPRECIATION_STARTED`). `depreciations(assetId)` lists the months,
+and `asset(id)` adds `accumulatedDepreciation` and `bookValue`.
+
+```ts title="app/api/cron/depreciation/route.ts"
+export async function GET() {
+  const run = await createAssets({ transport: rpcTransport(admin) })
+    .runDepreciation()
+    .orThrow();
+
+  return Response.json(run);
+}
+```
+
+`dispose(assetId, { on, proceeds })` needs `assets.manage`. It books the
+depreciation up to the end of the month before `on`, retires the asset, ends
+its assignment and stores `disposedOn` and `disposalAmount`. The proceeds are
+in the asset's currency. A disposed asset stays retired and its book value
+fields can't change (`ASSETS_DISPOSED`).
+
+With [accounting](/docs/blocks/accounting) installed, each month posts an
+`asset_depreciation` entry (debit `depreciation_expense`, credit
+`accumulated_depreciation`) dated at the month's end, and a disposal posts an
+`asset_disposal` entry: the proceeds to `bank`, the accumulated depreciation
+against the cost on `fixed_asset`, and the difference to `disposal_gain` or
+`disposal_loss`.
+
 ## Errors
 
-| Hint                           | Cause                                                     |
-| ------------------------------ | --------------------------------------------------------- |
-| `ASSETS_FORBIDDEN`             | the caller lacks the permission for this                  |
-| `ASSETS_LOCATION_NOT_FOUND`    | no location with this id in the organization              |
-| `ASSETS_NOT_FOUND`             | no asset with this id in the organization                 |
-| `ASSETS_CODE_TAKEN`            | a location with this code already exists                  |
-| `ASSETS_TAG_TAKEN`             | an asset with this tag already exists                     |
-| `ASSETS_LOCATION_CYCLE`        | the parent is one of the location's own sublocations      |
-| `ASSETS_LOCATION_IN_USE`       | the location still holds open sublocations or assets      |
-| `ASSETS_RETIRED`               | the asset is retired                                      |
-| `ASSETS_ASSIGNEE_INVALID`      | the assignee isn't valid, or the member can't read assets |
-| `ASSETS_POINT_INVALID`         | a latitude or longitude is missing or out of range        |
-| `ASSETS_RADIUS_INVALID`        | the radius isn't a positive number of meters              |
-| `ASSETS_PATCH_INVALID`         | the patch names a key that can't be changed               |
-| `ASSETS_POSTGIS_REQUIRED`      | `locationsAt` needs the `postgis` option                  |
-| `ASSETS_LINK_UNSUPPORTED`      | the link target isn't a booking resource or a work item   |
-| `ASSETS_LINK_TARGET_NOT_FOUND` | no booking resource or work item with this id             |
+| Hint                              | Cause                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------- |
+| `ASSETS_FORBIDDEN`                | the caller lacks the permission for this                                  |
+| `ASSETS_LOCATION_NOT_FOUND`       | no location with this id in the organization                              |
+| `ASSETS_NOT_FOUND`                | no asset with this id in the organization                                 |
+| `ASSETS_CODE_TAKEN`               | a location with this code already exists                                  |
+| `ASSETS_TAG_TAKEN`                | an asset with this tag already exists                                     |
+| `ASSETS_LOCATION_CYCLE`           | the parent is one of the location's own sublocations                      |
+| `ASSETS_LOCATION_IN_USE`          | the location still holds open sublocations or assets                      |
+| `ASSETS_RETIRED`                  | the asset is retired                                                      |
+| `ASSETS_ASSIGNEE_INVALID`         | the assignee isn't valid, or the member can't read assets                 |
+| `ASSETS_POINT_INVALID`            | a latitude or longitude is missing or out of range                        |
+| `ASSETS_RADIUS_INVALID`           | the radius isn't a positive number of meters                              |
+| `ASSETS_PATCH_INVALID`            | the patch names a key that can't be changed                               |
+| `ASSETS_POSTGIS_REQUIRED`         | `locationsAt` needs the `postgis` option                                  |
+| `ASSETS_LINK_UNSUPPORTED`         | the link target isn't a booking resource or a work item                   |
+| `ASSETS_LINK_TARGET_NOT_FOUND`    | no booking resource or work item with this id                             |
+| `ASSETS_DEPRECIATION_INVALID`     | the book value fields don't fit together, such as a method without a cost |
+| `ASSETS_DEPRECIATION_STARTED`     | the cost, currency or acquisition date changed after a month was booked   |
+| `ASSETS_DEPRECIATION_UNSUPPORTED` | the assets table has no book value columns                                |
+| `ASSETS_DISPOSED`                 | the asset is disposed                                                     |
+| `ASSETS_DISPOSAL_INVALID`         | the disposal date or proceeds aren't valid                                |
 
 ## Events
 
 `asset_location.created`, `asset_location.updated` and
 `asset_location.archived`, and `asset.created`, `asset.updated`,
-`asset.assigned` and `asset.released`. The
+`asset.assigned`, `asset.released`, `asset.depreciated` (each booked month)
+and `asset.disposed`. The
 [events page](/docs/extending/events) lists their payloads.
 
 ## Without the client
