@@ -356,7 +356,7 @@ on conflict (name) do update
 
 -- better-supabase module: outbox
 -- @bsb-block-data outbox
--- @bsb-hash sha256:45f87795f52d4533a19c5e8eb56aae022ffffa7ed2292a581a9c07062eb4d9e5
+-- @bsb-hash sha256:83eb93332508b2972b76630f6941b38e43332a0a7a7f04fd1fa02c019c142969
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -429,6 +429,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -517,6 +523,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -639,6 +651,13 @@ with m(old_type, next_types) as (values
   ('segment.removed', array['segment.deleted']::text[]),
   ('segment.saved', array['segment.created', 'segment.updated']::text[]),
   ('sequence.saved', array['sequence.created', 'sequence.updated']::text[]),
+  ('sequence_enrollment.*', array['enrollment.*']::text[]),
+  ('sequence_enrollment.completed', array['enrollment.completed']::text[]),
+  ('sequence_enrollment.created', array['enrollment.created']::text[]),
+  ('sequence_enrollment.exited', array['enrollment.cancelled']::text[]),
+  ('sequence_enrollment.paused', array['enrollment.paused']::text[]),
+  ('sequence_enrollment.resumed', array['enrollment.resumed']::text[]),
+  ('sequence_enrollment.step_completed', array['enrollment.step_completed']::text[]),
   ('signature.*', array['signature_request.*']::text[]),
   ('signature.cancelled', array['signature_request.cancelled']::text[]),
   ('signature.completed', array['signature_request.completed']::text[]),
@@ -694,7 +713,7 @@ on conflict (name) do update
 
 -- better-supabase module: webhooks-out
 -- @bsb-block-data webhooks-out
--- @bsb-hash sha256:cbbcb8c5e735c10d0782b2d794165240337bdd80c16a1d7c4052475b2a69cd05
+-- @bsb-hash sha256:e22059a63e739ae8299b6d48935aa83fdb23207bfb06cafad37e87d2239456d5
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -801,6 +820,13 @@ with m(old_type, next_types) as (values
   ('segment.removed', array['segment.deleted']::text[]),
   ('segment.saved', array['segment.created', 'segment.updated']::text[]),
   ('sequence.saved', array['sequence.created', 'sequence.updated']::text[]),
+  ('sequence_enrollment.*', array['enrollment.*']::text[]),
+  ('sequence_enrollment.completed', array['enrollment.completed']::text[]),
+  ('sequence_enrollment.created', array['enrollment.created']::text[]),
+  ('sequence_enrollment.exited', array['enrollment.cancelled']::text[]),
+  ('sequence_enrollment.paused', array['enrollment.paused']::text[]),
+  ('sequence_enrollment.resumed', array['enrollment.resumed']::text[]),
+  ('sequence_enrollment.step_completed', array['enrollment.step_completed']::text[]),
   ('signature.*', array['signature_request.*']::text[]),
   ('signature.cancelled', array['signature_request.cancelled']::text[]),
   ('signature.completed', array['signature_request.completed']::text[]),
@@ -1831,7 +1857,7 @@ on conflict (name) do update
 
 -- better-supabase module: activities
 -- @bsb-block-data activities
--- @bsb-hash sha256:6a727dbf9518c5c9b5ec5b2609461252c86cb9c69f9f59bb4e50c4fdfc8ccade
+-- @bsb-hash sha256:a6ea1d3da02e6ae4b5987abc394086409cfe011f15394e5b96eb4f2a650dbb1d
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1901,7 +1927,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."assignment_queues"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."assignment_queues" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."assignments" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."field_changes"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."field_changes" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."sequence_enrollments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."sequence_enrollments" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."lead_score_checks"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."lead_score_checks" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."qualification_requirements"') and attname = 'target_type' and not attisdropped) then update "better_supabase"."qualification_requirements" set "target_type" = 'activity' where "target_type" = 'engagement'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'activity' where "subject_type" = 'engagement'; end if; end $$;
@@ -2014,7 +2039,7 @@ on conflict (name) do update
 
 -- better-supabase module: automations
 -- @bsb-block-data automations
--- @bsb-hash sha256:7fa6e8aa6effe1fa8c6d185c3da3c268cc2acda8eaa2e1924fce2e50602c19e8
+-- @bsb-hash sha256:86e3c916fc7d0b9f6af41c40316ebe1eab79cd57b7d81fcea7449bcdb4e74af0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2087,6 +2112,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -2175,6 +2206,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -2336,7 +2373,7 @@ on conflict (name) do update
 
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:fe9353abc529f3063d69d1706743b88637094508ba93fb7a1595a0a3b516261e
+-- @bsb-hash sha256:4e02254e6f8058e49d421be09a51c7f55f200490156451c70a90365b02ecd048
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2406,7 +2443,6 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."assignment_queues"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."assignment_queues" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."field_changes"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."field_changes" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
-do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."sequence_enrollments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."sequence_enrollments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."lead_score_checks"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."lead_score_checks" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."qualification_requirements"') and attname = 'target_type' and not attisdropped) then update "better_supabase"."qualification_requirements" set "target_type" = 'compliance_policy' where "target_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."acknowledgement_assignments"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."acknowledgement_assignments" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
@@ -2476,7 +2512,7 @@ on conflict (name) do update
 
 -- better-supabase module: timeline
 -- @bsb-block-data timeline
--- @bsb-hash sha256:3fe734f08f823ac8e6de82ce969a1e073c9aaf3edfd344be3477845653ae973f
+-- @bsb-hash sha256:9535abdca5507db47e699d7a59894e21129dacc7792188168b8acab03f582526
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2549,6 +2585,12 @@ from (values
   ('rule.matched', 'automation.matched'),
   ('rule.removed', 'automation.deleted'),
   ('segment.removed', 'segment.deleted'),
+  ('sequence_enrollment.completed', 'enrollment.completed'),
+  ('sequence_enrollment.created', 'enrollment.created'),
+  ('sequence_enrollment.exited', 'enrollment.cancelled'),
+  ('sequence_enrollment.paused', 'enrollment.paused'),
+  ('sequence_enrollment.resumed', 'enrollment.resumed'),
+  ('sequence_enrollment.step_completed', 'enrollment.step_completed'),
   ('signature.cancelled', 'signature_request.cancelled'),
   ('signature.completed', 'signature_request.completed'),
   ('signature.declined', 'signature_request.declined'),
@@ -2656,14 +2698,14 @@ on conflict (name) do update
 
 -- better-supabase module: sequences
 -- @bsb-block-data sequences
--- @bsb-hash sha256:fe62775dbd286939b1e0c564d816fd08a8089ab466afd777958e59dc6b732381
+-- @bsb-hash sha256:882f94cc0c9f6809311120cc5646344d881689fd649d666011977bb8ccc9624a
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('sequences', 1, 'managed')
+values ('sequences', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
