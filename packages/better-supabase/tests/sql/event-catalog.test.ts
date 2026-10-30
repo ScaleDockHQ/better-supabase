@@ -61,6 +61,7 @@ const RECORDED = (() => {
 /** Events only a module option turns on. */
 const OPTIONAL = new Set([
   "field_value.viewed",
+  "subject.accessed",
   "field_value.deleted",
   "team.restored",
   "timesheet.rejected",

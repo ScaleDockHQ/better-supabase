@@ -1,7 +1,7 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:2b3aeb1bf786331413c2f61c46a0b6bd68223fb0d5d956e6c60b68308cbdabff
--- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
+-- @bsb-hash sha256:c7c124954d168ad09b324fb02fff03d1c059ad1fbc7677c02c4eef2dd3ff44bf
+-- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -990,7 +990,7 @@ grant execute on function "better_supabase"."can_subject"(text, text, text) to a
 create or replace function "better_supabase"."record_summary"(subject_type text, subject_id text, sections text[], seen_at timestamptz default null)
 returns jsonb
 language plpgsql
-stable
+volatile
 security invoker
 set search_path = ''
 as $$
@@ -1008,6 +1008,7 @@ begin
   if not "better_supabase"."can_subject"(record_summary.subject_type, record_summary.subject_id, 'read') then
     return null;
   end if;
+  perform "better_supabase"."record_subject_read"(record_summary.subject_type, record_summary.subject_id, null, 'subjects', 'record_summary');
   if 'comments' = any (record_summary.sections) then
     select count(*), max(x."sent_at")
       into v_count, v_latest
@@ -1907,6 +1908,181 @@ end;
 $$;
 revoke execute on function "better_supabase"."close_subject_member"(uuid) from public, anon, authenticated;
 
+-- Logs that the caller read a record whose type has auditReads (category
+-- read, event subject.accessed), with the NEN 7513 fields. Another type, a
+-- missing record, a record the caller can't read or a call without a user
+-- logs nothing. A read within 60 seconds of the caller's last
+-- logged read of the record (reads.collapseSeconds) writes no new entry,
+-- unless it gives another purpose or only one of the two was under emergency
+-- access.
+create or replace function "better_supabase"."record_subject_read"(subject_type text, subject_id text, purpose text default null, block_name text default null, function_name text default null)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_emergency boolean;
+  v_purpose text := nullif(btrim(record_subject_read.purpose), '');
+begin
+  if auth.uid() is null or not (record_subject_read.subject_type = any ('{customer}'::text[])) then
+    return;
+  end if;
+  if length(v_purpose) > 500 then
+    raise exception 'purpose takes at most 500 characters' using errcode = '22023', hint = 'SUBJECT_READ_INVALID';
+  end if;
+  begin
+  case record_subject_read.subject_type
+    when 'customer' then
+      select s."organization_id" into v_tenant from "public"."customers" s
+      where s."id" = (record_subject_read.subject_id)::uuid and s."archived_at" is null;
+    else
+      v_tenant := null;
+  end case;
+  exception
+    when invalid_text_representation then
+      return;
+  end;
+  if v_tenant is null
+    or not coalesce("better_supabase"."can_subject"(record_subject_read.subject_type, record_subject_read.subject_id, 'read'), false) then
+    return;
+  end if;
+  v_emergency := exists (
+    select 1 from "better_supabase"."subject_members" m
+    where m."subject_type" = record_subject_read.subject_type
+        and m."subject_id" = record_subject_read.subject_id
+        and m."tenant_id" = v_tenant
+      and m."emergency"
+      and (m."user_id" = auth.uid() or (m."team_id" is not null and exists (
+          select 1 from "better_supabase"."team_members" tm
+          where tm."team_id" = m."team_id"
+            and tm."user_id" = auth.uid())))
+        and (m."starts_on" is null or m."starts_on" <= current_date)
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now())
+  );
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtext('better_supabase.record_subject_read'),
+    pg_catalog.hashtext(auth.uid()::text || ':' || record_subject_read.subject_type || ':' || record_subject_read.subject_id));
+  if exists (
+    select 1 from "better_supabase"."audit_events" l
+    where l."table_name" is null
+        and l."record_id" = record_subject_read.subject_id
+        and l."event_type" = 'subject.accessed'
+        and l."organization_id" = v_tenant
+        and l."metadata" ->> 'subjectType' = record_subject_read.subject_type
+      and l."actor_id" = auth.uid()
+      and l."occurred_at" > now() - make_interval(secs => 60)
+      and coalesce((l."metadata" ->> 'emergency')::boolean, false) = v_emergency
+      and l."metadata" ->> 'purpose' is not distinct from v_purpose
+  ) then
+    return;
+  end if;
+  perform better_supabase.audit_event(
+    event_type => 'subject.accessed',
+    category => 'read',
+    target_type => 'subject',
+    record_id => record_subject_read.subject_id,
+    summary => 'Read ' || record_subject_read.subject_type || ' ' || record_subject_read.subject_id,
+    tenant => (v_tenant)::uuid,
+    metadata => jsonb_build_object('organizationId', v_tenant, 'subjectType', record_subject_read.subject_type, 'subjectId', record_subject_read.subject_id, 'purpose', v_purpose, 'emergency', v_emergency, 'block', record_subject_read.block_name, 'function', record_subject_read.function_name)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."record_subject_read"(text, text, text, text, text) from public, anon;
+grant execute on function "better_supabase"."record_subject_read"(text, text, text, text, text) to authenticated, service_role;
+
+-- Who read a record and when, newest first: the subject.accessed entries of
+-- the audit log since `since`. The holders of audit.read in
+-- its tenant, the record team's leads today, the record's own guest party
+-- and a representative with act authority may ask.
+create or replace function "better_supabase"."subject_access_log"(subject_type text, subject_id text, since timestamptz default null, max_rows integer default 100)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+begin
+  if not (subject_access_log.subject_type = any ('{customer}'::text[])) then
+    raise exception 'this subject type does not log reads' using errcode = '22023', hint = 'SUBJECT_READ_INVALID';
+  end if;
+  begin
+  case subject_access_log.subject_type
+    when 'customer' then
+      select s."organization_id" into v_tenant from "public"."customers" s
+      where s."id" = (subject_access_log.subject_id)::uuid and s."archived_at" is null;
+    else
+      v_tenant := null;
+  end case;
+  exception
+    when invalid_text_representation then
+      v_tenant := null;
+  end;
+  if v_tenant is null then
+    raise exception 'subject not found' using errcode = 'P0002', hint = 'SUBJECT_READ_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+    or coalesce(better_supabase.can('tenant', v_tenant, 'audit.read'), false)
+    or exists (
+      select 1 from "better_supabase"."subject_members" m
+      where m."subject_type" = subject_access_log.subject_type
+        and m."subject_id" = subject_access_log.subject_id
+        and m."tenant_id" = v_tenant
+        and m."role" = 'lead'
+        and (m."user_id" = auth.uid() or (m."team_id" is not null and exists (
+          select 1 from "better_supabase"."team_members" tm
+          where tm."team_id" = m."team_id"
+            and tm."user_id" = auth.uid())))
+        and (m."starts_on" is null or m."starts_on" <= current_date)
+        and (m."ends_on" is null or m."ends_on" >= current_date)
+        and (m."ends_at" is null or m."ends_at" > now()))
+    or ((v_tenant)::text, (subject_access_log.subject_type)::text, (subject_access_log.subject_id)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g)
+    or exists (
+      select 1 from "better_supabase"."relations" r
+      where r."kind" = 'represents' and r."source_type" = 'person'
+        and r."tenant_id"::text = v_tenant::text
+        and r."target_type" = subject_access_log.subject_type and r."target_id" = subject_access_log.subject_id
+        and r."data" ->> 'authority' = 'act'
+        and (case when r."data" ->> 'valid_from' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_from', 'date') then (r."data" ->> 'valid_from')::date <= current_date
+      else false end) and (case when r."data" ->> 'valid_until' is null then true
+      when pg_input_is_valid(r."data" ->> 'valid_until', 'date') then (r."data" ->> 'valid_until')::date >= current_date
+      else false end)
+        and ((v_tenant)::text, ('person')::text, (r."source_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))) then
+    raise exception 'you may not see who read this record' using errcode = '42501', hint = 'SUBJECT_READ_FORBIDDEN';
+  end if;
+  return (
+    select coalesce(jsonb_agg(e.entry order by e.at desc), '[]'::jsonb)
+    from (
+      select jsonb_build_object(
+      'id', l."id"::text,
+      'actorId', l."actor_id",
+      'actorName', (select coalesce(u.raw_user_meta_data ->> 'full_name', u.raw_user_meta_data ->> 'name', u.email::text) from auth.users u where u.id = l."actor_id"),
+      'at', l."occurred_at",
+      'purpose', l."metadata" ->> 'purpose',
+      'emergency', coalesce((l."metadata" ->> 'emergency')::boolean, false),
+      'block', l."metadata" ->> 'block',
+      'function', l."metadata" ->> 'function') as entry, l."occurred_at" as at
+      from "better_supabase"."audit_events" l
+      where l."table_name" is null
+        and l."record_id" = subject_access_log.subject_id
+        and l."event_type" = 'subject.accessed'
+        and l."organization_id" = v_tenant
+        and l."metadata" ->> 'subjectType' = subject_access_log.subject_type
+        and (subject_access_log.since is null or l."occurred_at" >= subject_access_log.since)
+      order by l."occurred_at" desc
+      limit least(greatest(coalesce(subject_access_log.max_rows, 100), 1), 500)
+    ) e
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."subject_access_log"(text, text, timestamptz, integer) from public, anon;
+grant execute on function "better_supabase"."subject_access_log"(text, text, timestamptz, integer) to authenticated, service_role;
+
 -- The caller's own reminders sent in the last week, for my_work. Reminders
 -- have no read policy, so this reads them past it, keeping only the caller's.
 create or replace function "better_supabase"."my_reminders_due"(tenant uuid default null)
@@ -2225,6 +2401,24 @@ set search_path = ''
 as $$ select "better_supabase"."my_subjects"($1, $2, $3, $4) $$;
 revoke execute on function "api"."my_subjects"(uuid, text, integer, text) from public, anon;
 grant execute on function "api"."my_subjects"(uuid, text, integer, text) to authenticated, service_role;
+
+create or replace function "api"."record_subject_read"(subject_type text, subject_id text, purpose text default null, block_name text default null, function_name text default null)
+returns void
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."record_subject_read"($1, $2, $3, $4, $5) $$;
+revoke execute on function "api"."record_subject_read"(text, text, text, text, text) from public, anon;
+grant execute on function "api"."record_subject_read"(text, text, text, text, text) to authenticated, service_role;
+
+create or replace function "api"."subject_access_log"(subject_type text, subject_id text, since timestamptz default null, max_rows integer default 100)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."subject_access_log"($1, $2, $3, $4) $$;
+revoke execute on function "api"."subject_access_log"(text, text, timestamptz, integer) from public, anon;
+grant execute on function "api"."subject_access_log"(text, text, timestamptz, integer) to authenticated, service_role;
 
 create or replace function "api"."my_reminders_due"(tenant uuid default null)
 returns table (reminder uuid, subject_type text, subject_id text, at timestamptz)

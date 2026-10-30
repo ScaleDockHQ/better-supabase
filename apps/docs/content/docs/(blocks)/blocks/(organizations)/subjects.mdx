@@ -30,6 +30,8 @@ better-supabase add subjects
 | `end_subject_member(member_id, ends_on)`                              | Ends a record team membership                                                  |
 | `list_subject_members(subject_type, subject_id)`                      | The record's team                                                              |
 | `my_subjects(tenant, subject_type, page_size, cursor)`                | The records whose team the caller is on today                                  |
+| `record_subject_read(subject_type, subject_id, purpose)`              | Logs a read of a record whose type has `auditReads`                            |
+| `subject_access_log(subject_type, subject_id, since, max_rows)`       | Who read the record and when                                                   |
 
 The functions live in the block schema (`better_supabase` by default), and a
 type registered in `config.subjects` gets a branch in each one.
@@ -61,6 +63,21 @@ record's team. A membership granted through an
 [access request](/docs/blocks/access-requests#record-access) has an `endsAt`
 instant as well. [Record teams](/docs/blocks/sql#record-teams) covers the
 config, the roles and who may manage a team.
+
+`reads` reads and writes the read log of the types that set
+`subjects.<type>.auditReads`. The blocks' read functions log on their own;
+`log(subject, { purpose })` logs a read from a screen that selects the row
+itself, and `list(subject, { since, limit })` returns who read it:
+
+```ts
+const entries = await subjects.reads
+  .list({ type: "patient", id: patientId })
+  .orThrow();
+```
+
+Plain Data API selects are not logged. [Record read log](/docs/blocks/sql#record-read-log)
+covers the config, who may list the log and how to send every read through
+the functions.
 
 The [SQL modules page](/docs/blocks/sql#subject-registry) covers the
 registry's SQL and merges, and [Record types](/docs/repository/record-types)

@@ -21,13 +21,17 @@ import {
 const summary = () => resolved(undefined);
 const myWork = () => resolved([]);
 
-// SAFETY: batchSubjects passes members through without calling them.
+// SAFETY: batchSubjects passes members and reads through without calling them.
 const members = {} as Subjects["members"];
+
+// SAFETY: as above.
+const reads = {} as Subjects["reads"];
 
 const resolver = () => ({
   summary: vi.fn(summary),
   myWork: vi.fn(myWork),
   members,
+  reads,
   resolve: vi.fn((refs: readonly RecordRef[]) =>
     resolved<Readonly<Record<string, ResolvedSubject>>>(
       Object.fromEntries(
@@ -63,6 +67,7 @@ describe("batchSubjects", () => {
       summary,
       myWork,
       members,
+      reads,
       resolve: () => failed<Readonly<Record<string, ResolvedSubject>>>("down"),
     });
 
@@ -79,6 +84,7 @@ describe("batchSubjects", () => {
       summary,
       myWork,
       members,
+      reads,
       resolve: () => resolved<Readonly<Record<string, ResolvedSubject>>>({}),
     });
 
@@ -108,10 +114,11 @@ describe("batchSubjects", () => {
     expect(inner.myWork).toHaveBeenCalledWith({ pageSize: 5 });
   });
 
-  it("keeps the source's members", () => {
+  it("keeps the source's members and reads", () => {
     const inner = resolver();
 
     expect(batchSubjects(inner).members).toBe(members);
+    expect(batchSubjects(inner).reads).toBe(reads);
   });
 });
 

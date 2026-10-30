@@ -531,6 +531,22 @@ export interface SubjectMemberEventData extends SubjectEventData {
   readonly endsOn: string | null;
 }
 
+/**
+ * `subject.accessed`, from the subjects block: a read of a record whose type
+ * has `subjects.<type>.auditReads`. Audit log only, under category `read`.
+ */
+export interface SubjectAccessedEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** Why the record was read, when the caller gave a purpose. */
+  readonly purpose: string | null;
+  /** The reader held emergency access to the record. */
+  readonly emergency: boolean;
+  /** The block whose read function returned the record, such as `comments`. */
+  readonly block: string | null;
+  /** That read function, such as `list_comments`. */
+  readonly function: string | null;
+}
+
 /** Events from the documents module. */
 export interface DocumentEventData extends SubjectEventData {
   readonly organizationId: string;

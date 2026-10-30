@@ -18,6 +18,22 @@ const TEAM_SUBJECT = {
   record: { table: "public.records", team: { actions: ["read"] } },
 } as const;
 
+/** The same subject with read logging, which needs the audit block. */
+const READ_SUBJECT = {
+  record: { ...TEAM_SUBJECT.record, auditReads: true },
+} as const;
+
+/** The module's files with read logging on, or none when it can't render so. */
+function readLoggedFiles(names: readonly string[]) {
+  try {
+    return renderBlocks([...names, "subjects", "audit"], {
+      subjects: READ_SUBJECT,
+    });
+  } catch {
+    return [];
+  }
+}
+
 /** The SQL of `module`, rendered next to the modules it needs most often. */
 function moduleSql(module: string): string {
   for (const names of [
@@ -25,8 +41,12 @@ function moduleSql(module: string): string {
     [module, "outbox", "organizations"],
   ]) {
     try {
-      return [names, [...names, "subjects"]]
-        .flatMap((each) => renderBlocks(each, { subjects: TEAM_SUBJECT }))
+      return [
+        ...[names, [...names, "subjects"]].flatMap((each) =>
+          renderBlocks(each, { subjects: TEAM_SUBJECT }),
+        ),
+        ...readLoggedFiles(names),
+      ]
         .filter((file) => file.module === module)
         .map((file) => file.contents)
         .join("\n");

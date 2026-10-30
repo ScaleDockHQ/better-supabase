@@ -279,6 +279,11 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "subjects.*.cascade": { default: false },
   "subjects.*.deletedAt": { description: "The soft-delete column." },
+  "subjects.*.auditReads": {
+    default: false,
+    description:
+      "Log every read through the blocks' read functions in the audit log, with the NEN 7513 fields. Needs the audit block.",
+  },
   "subjects.*.rank": {
     description:
       "The rank key column and the column it is grouped by, for `move()`.",

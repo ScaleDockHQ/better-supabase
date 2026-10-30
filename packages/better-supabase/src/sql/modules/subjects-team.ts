@@ -80,7 +80,7 @@ const MAX_MY_SUBJECTS = 200;
 const ROLE = /^[a-z][a-z0-9_-]{0,62}$/;
 
 /** `blocks.subjects.options.recordTeam.roles`, checked. */
-function recordTeamRoles(ctx: BlockSqlContext): readonly string[] {
+export function recordTeamRoles(ctx: BlockSqlContext): readonly string[] {
   const raw = ctx.option("recordTeam");
 
   if (raw === undefined) {
@@ -131,7 +131,7 @@ function teamType(ctx: BlockSqlContext): string {
  * Row `m` of `subject_members` counts for `user` today: their own row or one
  * for a team they are on, with dates that include today.
  */
-function activeFor(
+export function activeFor(
   ctx: BlockSqlContext,
   user: string,
   through: "table" | "caller",
@@ -158,7 +158,7 @@ function datesInclude(ctx: BlockSqlContext, alias: string): string {
 }
 
 /** The role a lead holds: `lead`, else the first of `recordTeam.roles`. */
-function leadRole(roles: readonly string[]): string {
+export function leadRole(roles: readonly string[]): string {
   return roles.includes("lead") ? "lead" : (roles[0] ?? "lead");
 }
 

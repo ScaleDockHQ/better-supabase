@@ -784,6 +784,7 @@ const FLAT = {
         held: v.optional(v.string()),
         readAccess: v.optional(v.picklist(["tenant", "record"])),
         team: v.optional(v.strictObject({ actions: strings })),
+        auditReads: v.optional(v.boolean()),
         search: v.optional(blockSchemas.subjectSearchSchema),
         rank: v.optional(
           v.strictObject({ column: v.string(), group: v.optional(v.string()) }),

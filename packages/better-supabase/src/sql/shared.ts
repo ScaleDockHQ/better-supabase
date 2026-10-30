@@ -1260,6 +1260,13 @@ ${indent}  ${options.purged} := ${options.purged} + v_part_rows;
 ${indent}end loop;`;
 }
 
+/**
+ * A `ctx.read` statement on a line of its own after the previous one, or
+ * nothing when the read isn't logged.
+ */
+export const readLine = (statement: string, indent = "  "): string =>
+  statement === "" ? "" : `\n${indent}${statement}`;
+
 /** SQL that grants a function to signed-in users and the service role. */
 export const userGrant = (signature: string): string =>
   `revoke execute on function ${signature} from public, anon;

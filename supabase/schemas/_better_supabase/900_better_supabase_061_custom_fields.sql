@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:f75edbaf9dec37727837c0716c621b6f82c26b4ebc887061c91f164e675316d9
+-- @bsb-hash sha256:9392967dc152d4f7b9c1db2436950249feb33f2e5e7cc1efd8409ff4d649002a
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -226,6 +226,9 @@ begin
     tenant => (read_field_values.tenant)::uuid,
     metadata => jsonb_build_object('organizationId', read_field_values.tenant, 'subjectType', read_field_values.subject_type, 'subjectId', read_field_values.subject_id, 'ids', v_read)
   );
+  end if;
+  if jsonb_array_length(v_values) > 0 then
+    perform "better_supabase"."record_subject_read"(read_field_values.subject_type, read_field_values.subject_id, null, 'custom-fields', 'read_field_values');
   end if;
   return v_values;
 end;

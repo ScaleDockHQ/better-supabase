@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@8 managed
--- @bsb-hash sha256:4c6e072c6f0219398d556857e4823283876622fcb9b798cc374b2e1e470ca787
+-- @bsb-hash sha256:9e1d0587b9f02d42834a7cc416f19fa1e80b5ac05109ada68b0efed81aa9f754
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -292,7 +292,7 @@ create or replace function "better_supabase"."list_comments"(
 )
 returns jsonb
 language plpgsql
-stable
+volatile
 security invoker
 set search_path = ''
 as $$
@@ -302,6 +302,7 @@ begin
   if v_conv is null then
     return '[]'::jsonb;
   end if;
+  perform "better_supabase"."record_subject_read"(list_comments.subject_type, list_comments.subject_id, null, 'comments', 'list_comments');
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null

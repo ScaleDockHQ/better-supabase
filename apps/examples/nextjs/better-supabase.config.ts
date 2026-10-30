@@ -111,6 +111,8 @@ export default defineConfig({
       permissions: { read: "customers.read", write: "customers.write" },
       // The account team on a customer reads and edits it without the keys.
       team: { actions: ["read", "write"] },
+      // Every read through the blocks' read functions lands in the audit log.
+      auditReads: true,
       search: {},
     },
     // Members ask for read access to a file or folder they cannot open.

@@ -202,6 +202,48 @@ function checkTeam(
   }
 }
 
+/** `auditReads`: a boolean, on a type with a tenant. */
+function checkAuditReads(
+  where: string,
+  entry: SubjectConfig,
+  tenant: string | undefined,
+): void {
+  const auditReads: unknown = entry.auditReads;
+
+  if (auditReads === undefined) {
+    return;
+  }
+
+  if (typeof auditReads !== "boolean") {
+    throw new TypeError(`${where}.auditReads must be true or false`);
+  }
+
+  if (auditReads && tenant === undefined) {
+    throw new TypeError(
+      `${where}.auditReads needs a tenant column: read entries belong to the record's tenant`,
+    );
+  }
+}
+
+/** Whether some type in `config.subjects` logs its reads. */
+export function logsSubjectReads(
+  subjects: SubjectsConfig | undefined,
+): boolean {
+  return Object.values(subjects ?? {}).some(
+    (subject) => subject.auditReads === true && subject.tenant !== false,
+  );
+}
+
+/** The subjects with `auditReads: true`, whose reads land in the audit log. */
+export function auditedSubjects(
+  subjects: readonly RegisteredSubject[],
+): readonly RegisteredSubject[] {
+  return subjects.filter(
+    (subject) =>
+      subject.config.auditReads === true && subject.tenant !== undefined,
+  );
+}
+
 /** The actions `subjects.<type>.team` grants to the record's team. */
 export function teamActions(subject: RegisteredSubject): readonly string[] {
   return subject.tenant === undefined
@@ -298,6 +340,7 @@ export function registeredSubjects(
     }
 
     checkTeam(where, entry, tenant);
+    checkAuditReads(where, entry, tenant);
 
     if (
       tenant === undefined &&

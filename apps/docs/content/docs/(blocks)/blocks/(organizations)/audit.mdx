@@ -203,6 +203,51 @@ whatever the number of rows, so listing a page of records costs one insert.
 List them with `category: "read"`; [retention](#retention) purges them with
 the other entries.
 
+## Read logging
+
+A record type with
+[`subjects.<type>.auditReads`](/docs/blocks/sql#record-read-log) logs each
+read through the blocks' read functions as a `subject.accessed` entry under
+the `read` category. The entry carries the fields NEN 7513 asks of a health
+record's access log:
+
+| NEN 7513 asks for | Where the entry keeps it                                                             |
+| ----------------- | ------------------------------------------------------------------------------------ |
+| Who               | `actor_id`, and `actorName` in `subject_access_log`                                  |
+| Which record      | `metadata.subjectType` and `metadata.subjectId`, with `record_id` and the tenant     |
+| When              | `occurred_at`                                                                        |
+| How               | `metadata.block` and `metadata.function`: the read function that returned the record |
+| Why               | `metadata.purpose`, when the caller passes one to `reads.log`                        |
+| Under what access | `metadata.emergency`: the reader held emergency access to the record                 |
+
+Reads by one member of one record within 60 seconds, for the same purpose
+and under the same access, collapse into one entry
+(`blocks.subjects.options.reads.collapseSeconds`). A plain `select` over the
+Data API, the service role and SQL that doesn't call a read function are not
+logged; revoke `select` on the table to send every read through the
+functions. A read-only support session can't write the entry, so its logged
+reads fail with `ACTOR_READ_ONLY`.
+
+`subjects.reads.list(subject, { since })` returns a record's read log to the
+holders of `audit.read`, the record team's leads, and the record's own guest
+or a representative with `act` authority, so a client can ask who looked at
+their file:
+
+```ts
+import { createSubjects } from "better-supabase/blocks/subjects";
+
+const subjects = createSubjects({ transport });
+
+await subjects.reads
+  .log({ type: "patient", id: patientId }, { purpose: "treatment" })
+  .orThrow();
+
+const reads = await subjects.reads
+  .list({ type: "patient", id: patientId })
+  .orThrow();
+// [{ id, actorId, actorName, at, purpose, emergency, block, function }]
+```
+
 ## Recording CloudEvents
 
 `audit.sink()` returns an `EventSink` that records each CloudEvent it

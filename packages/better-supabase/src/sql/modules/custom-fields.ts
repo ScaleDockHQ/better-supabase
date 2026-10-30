@@ -233,6 +233,12 @@ ${keyedFields(
 
   const audited = ctx.flag("auditReads", false);
 
+  const logRead = ctx.read(
+    "read_field_values.subject_type",
+    "read_field_values.subject_id",
+    "read_field_values",
+  );
+
   if (audited && !ctx.installed("audit")) {
     throw new TypeError(
       "blocks.custom-fields.options.auditReads needs the audit block; add it to blocks",
@@ -335,7 +341,7 @@ ${userGrant(`${ctx.fn("save_field_definition")}(${ctx.idType}, text, text, text,
 create or replace function ${ctx.fn("read_field_values")}(tenant ${ctx.idType}, subject_type text, subject_id text)
 returns jsonb
 language plpgsql
-${audited ? "volatile" : "stable"}
+${audited ? "volatile" : ctx.readVolatility()}
 security definer
 set search_path = ''
 as $$
@@ -385,6 +391,13 @@ begin${encrypted === "" ? "" : `\n  v_key := ${encryption?.fn("field_key")}('ten
     })}
   end if;`
         : ""
+    }${
+      logRead === ""
+        ? ""
+        : `
+  if jsonb_array_length(v_values) > 0 then
+    ${logRead}
+  end if;`
     }
   return v_values;
 end;

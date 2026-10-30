@@ -66,6 +66,21 @@ function build(ctx: BlockSqlContext): string {
   const a = (logical: string): string => ctx.col("activity", logical);
   const fn = (name: string): string => ctx.fn(name);
   const reads = activityReads(ctx);
+
+  const readCall = ctx.read(
+    "list_activity.subject_type",
+    "list_activity.subject_id",
+    "list_activity",
+  );
+
+  const logRead =
+    readCall === ""
+      ? ""
+      : `
+  if list_activity.subject_id is not null and jsonb_array_length(v_rows) > 0 then
+    ${readCall}
+  end if;`;
+
   const read = ctx.permission("read", moduleOperations("timeline").read);
 
   // A column definition, left out when the app maps the column to null.
@@ -171,7 +186,7 @@ create or replace function ${fn("list_activity")}(
 )
 returns jsonb
 language plpgsql
-stable
+${ctx.readVolatility()}
 security invoker
 set search_path = ''
 as $$
@@ -196,7 +211,7 @@ begin${reads.gate}${reads.auditSetup}
     ) u
     order by u.at desc, u.id desc
     limit v_limit
-  ) x;
+  ) x;${logRead}
   return v_rows;
 end;
 $$;

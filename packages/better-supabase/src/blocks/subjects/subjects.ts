@@ -4,6 +4,7 @@ import type { RecordRef } from "../../schema/types.ts";
 import type { BlockOptions } from "../shared.ts";
 import type { SubjectMembers } from "./members.ts";
 import type { MyWorkKind } from "./my-work-kinds.ts";
+import type { SubjectReads } from "./reads.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
 import { subjectKey } from "../../core/block-subjects.ts";
@@ -18,6 +19,7 @@ import {
 } from "../shared.ts";
 import { subjectMembers } from "./members.ts";
 import { MY_WORK_KINDS } from "./my-work-kinds.ts";
+import { subjectReads } from "./reads.ts";
 
 /** The most refs one `subject_titles` call takes; `resolve` splits above it. */
 export const SUBJECT_TITLES_LIMIT = 500;
@@ -108,6 +110,12 @@ export interface Subjects {
    * don't wrap these.
    */
   readonly members: SubjectMembers;
+  /**
+   * The read log, for types with `config.subjects.<type>.auditReads`: log a
+   * read with its purpose, and list who read a record. `hooks` don't wrap
+   * these.
+   */
+  readonly reads: SubjectReads;
 }
 
 function resolvedOf(value: unknown): ResolvedSubject | undefined {
@@ -276,6 +284,7 @@ export function createSubjects(options: SubjectsOptions): Subjects {
         workList,
       ),
     members: subjectMembers(call),
+    reads: subjectReads(call),
   };
 
   return withBlockHooks(client, options.hooks, {
