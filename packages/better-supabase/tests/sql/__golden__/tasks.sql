@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:ae284e4e9db4dc17276c479d57ee1035da60a5adeaa362fd6d49cc7c90a123b8
+-- @bsb-hash sha256:6bc665dce5d73b34ae006ebda8e73b6ce4a2eb32c653c3df8e89f2f8da1178bc
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -353,8 +353,11 @@ grant execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid
 
 -- Applies a batch of { workItemId, field, value } changes, each on its
 -- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
--- field, hint, reason }] }.
-create or replace function "better_supabase"."update_work_items"(changes jsonb)
+-- field, hint, reason }] }. With atomic, the first change that fails raises
+-- its error and no change is kept. The window field ({ startAt, endAt })
+-- writes both ends in one update, so the end-after-start check sees both.
+drop function if exists "better_supabase"."update_work_items"(jsonb);
+create or replace function "better_supabase"."update_work_items"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -422,6 +425,14 @@ begin
         update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
+        end if;
+        update "better_supabase"."work_items" x set
+          "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
+          "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
+        where x."id" = v_item;
       when 'attachments' then
         select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
@@ -441,6 +452,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_work_items.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
@@ -451,8 +465,8 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_work_items"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_work_items"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_work_items"(jsonb, boolean) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. work_item.assigned is recorded only
@@ -959,7 +973,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:ad64c351ef58406ed3214e7dbd2f121eb33d7c50619eb2159d1877ea333c4a47
+-- @bsb-hash sha256:0de5b0f19734aaf08d73dd91db139f3b42ba13d489f63d58fc058531aa7541b4
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1322,8 +1336,11 @@ grant execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid
 
 -- Applies a batch of { workItemId, field, value } changes, each on its
 -- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
--- field, hint, reason }] }.
-create or replace function "better_supabase"."update_work_items"(changes jsonb)
+-- field, hint, reason }] }. With atomic, the first change that fails raises
+-- its error and no change is kept. The window field ({ startAt, endAt })
+-- writes both ends in one update, so the end-after-start check sees both.
+drop function if exists "better_supabase"."update_work_items"(jsonb);
+create or replace function "better_supabase"."update_work_items"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1391,6 +1408,14 @@ begin
         update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
+        end if;
+        update "better_supabase"."work_items" x set
+          "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
+          "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
+        where x."id" = v_item;
       when 'attachments' then
         select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
         if jsonb_typeof(coalesce((v_change -> 'value'), '[]'::jsonb)) <> 'array' then
@@ -1421,6 +1446,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_work_items.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
@@ -1431,8 +1459,8 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_work_items"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_work_items"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_work_items"(jsonb, boolean) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. work_item.assigned is recorded only
@@ -2089,7 +2117,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:a5d5f3aebca5544c7ae258147defe8d618783de2072721ee7795e112d025dbb5
+-- @bsb-hash sha256:05984619574effc7831cca5fbdbcdda5527b4f0b522f961bae59b971d3aa1edb
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2446,8 +2474,11 @@ grant execute on function "app_private"."create_work_item"(uuid, jsonb, uuid[]) 
 
 -- Applies a batch of { workItemId, field, value } changes, each on its
 -- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
--- field, hint, reason }] }.
-create or replace function "app_private"."update_work_items"(changes jsonb)
+-- field, hint, reason }] }. With atomic, the first change that fails raises
+-- its error and no change is kept. The window field ({ startAt, endAt })
+-- writes both ends in one update, so the end-after-start check sees both.
+drop function if exists "app_private"."update_work_items"(jsonb);
+create or replace function "app_private"."update_work_items"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -2515,6 +2546,14 @@ begin
         update "app_private"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "app_private"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
+        end if;
+        update "app_private"."work_items" x set
+          "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
+          "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
+        where x."id" = v_item;
       when 'attachments' then
         select * into v_row from "app_private"."work_items" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
@@ -2534,6 +2573,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_work_items.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
@@ -2544,8 +2586,8 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "app_private"."update_work_items"(jsonb) from public, anon;
-grant execute on function "app_private"."update_work_items"(jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."update_work_items"(jsonb, boolean) from public, anon;
+grant execute on function "app_private"."update_work_items"(jsonb, boolean) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. work_item.assigned is recorded only
@@ -3052,7 +3094,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:39a817bf22fc8fc8190eb84b835e4ac01442e1485a7a9cee4f72f50d72f40b01
+-- @bsb-hash sha256:a67d78a57123241a1a72d422486979e6fa81e74127e7770f05462e36a9246ef3
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3404,8 +3446,11 @@ grant execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid
 
 -- Applies a batch of { workItemId, field, value } changes, each on its
 -- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
--- field, hint, reason }] }.
-create or replace function "better_supabase"."update_work_items"(changes jsonb)
+-- field, hint, reason }] }. With atomic, the first change that fails raises
+-- its error and no change is kept. The window field ({ startAt, endAt })
+-- writes both ends in one update, so the end-after-start check sees both.
+drop function if exists "better_supabase"."update_work_items"(jsonb);
+create or replace function "better_supabase"."update_work_items"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -3473,6 +3518,14 @@ begin
         update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
+        end if;
+        update "better_supabase"."work_items" x set
+          "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
+          "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
+        where x."id" = v_item;
       when 'attachments' then
         select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
@@ -3492,6 +3545,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_work_items.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
@@ -3502,8 +3558,8 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_work_items"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_work_items"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_work_items"(jsonb, boolean) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. work_item.assigned is recorded only
@@ -3984,6 +4040,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."update_work_items"(jsonb);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -4011,14 +4069,14 @@ as $$ select "better_supabase"."create_work_item"($1, $2, $3) $$;
 revoke execute on function "api"."create_work_item"(uuid, jsonb, uuid[]) from public, anon;
 grant execute on function "api"."create_work_item"(uuid, jsonb, uuid[]) to authenticated, service_role;
 
-create or replace function "api"."update_work_items"(changes jsonb)
+create or replace function "api"."update_work_items"(changes jsonb, atomic boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."update_work_items"($1) $$;
-revoke execute on function "api"."update_work_items"(jsonb) from public, anon;
-grant execute on function "api"."update_work_items"(jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."update_work_items"($1, $2) $$;
+revoke execute on function "api"."update_work_items"(jsonb, boolean) from public, anon;
+grant execute on function "api"."update_work_items"(jsonb, boolean) to authenticated, service_role;
 
 create or replace function "api"."set_work_item_assignees"(work_item uuid, users uuid[])
 returns integer
@@ -4149,7 +4207,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:de15f2cd7fbaacb33efdad7ef997830dbe56ea546c74f12dfd71c313c0630559
+-- @bsb-hash sha256:a5f545bbe65bdbc81a81dfa1534e75fa20a84a555453f73c4e4bbf10d1646b68
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4504,8 +4562,11 @@ grant execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid
 
 -- Applies a batch of { workItemId, field, value } changes, each on its
 -- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
--- field, hint, reason }] }.
-create or replace function "better_supabase"."update_work_items"(changes jsonb)
+-- field, hint, reason }] }. With atomic, the first change that fails raises
+-- its error and no change is kept. The window field ({ startAt, endAt })
+-- writes both ends in one update, so the end-after-start check sees both.
+drop function if exists "better_supabase"."update_work_items"(jsonb);
+create or replace function "better_supabase"."update_work_items"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -4573,6 +4634,14 @@ begin
         update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."work_items" x set "close_reason" = better_supabase.as_column_type(nullif(trim(v_change -> 'value' #>> '{}'), ''), (null::"better_supabase"."work_items")."close_reason") where x."id" = v_item;
+      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
+        end if;
+        update "better_supabase"."work_items" x set
+          "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
+          "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
+        where x."id" = v_item;
       when 'attachments' then
         select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
@@ -4592,6 +4661,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_work_items.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
@@ -4602,8 +4674,8 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_work_items"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_work_items"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_work_items"(jsonb, boolean) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. work_item.assigned is recorded only
@@ -5110,7 +5182,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:fd5b4261c096cd81928bce26894312767766d2fe6e7c6c745494a2ab4a62b52d
+-- @bsb-hash sha256:1d63ff08691497268bc2e1c4861f471d040d6dfd467449467832357501d209bd
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5462,8 +5534,11 @@ grant execute on function "better_supabase"."create_work_item"(uuid, jsonb, uuid
 
 -- Applies a batch of { workItemId, field, value } changes, each on its
 -- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
--- field, hint, reason }] }.
-create or replace function "better_supabase"."update_work_items"(changes jsonb)
+-- field, hint, reason }] }. With atomic, the first change that fails raises
+-- its error and no change is kept. The window field ({ startAt, endAt })
+-- writes both ends in one update, so the end-after-start check sees both.
+drop function if exists "better_supabase"."update_work_items"(jsonb);
+create or replace function "better_supabase"."update_work_items"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -5531,6 +5606,14 @@ begin
         update "better_supabase"."work_items" x set "stage_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_item;
       when 'closeReason' then
         update "better_supabase"."work_items" x set "close_reason" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_item;
+      when 'window' then
+        if jsonb_typeof(v_change -> 'value') <> 'object' then
+          raise exception 'window must be an object of startAt and endAt' using errcode = '22023', hint = 'WORK_ITEM_ATTRS_INVALID';
+        end if;
+        update "better_supabase"."work_items" x set
+          "start_at" = case when v_change -> 'value' ? 'startAt' then (v_change -> 'value' ->> 'startAt')::timestamptz else x."start_at" end,
+          "end_at" = case when v_change -> 'value' ? 'endAt' then (v_change -> 'value' ->> 'endAt')::timestamptz else x."end_at" end
+        where x."id" = v_item;
       when 'attachments' then
         select * into v_row from "better_supabase"."work_items" x where x."id" = v_item;
         if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
@@ -5550,6 +5633,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_work_items.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
       v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
@@ -5560,8 +5646,8 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_work_items"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_work_items"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_work_items"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_work_items"(jsonb, boolean) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. work_item.assigned is recorded only
