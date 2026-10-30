@@ -104,6 +104,12 @@ export interface FormField {
   readonly correct?: FormJson;
   /** What a correct answer earns. Default 1; needs `correct`. */
   readonly points?: number;
+  /**
+   * Data for other blocks, kept with the field and ignored by forms: `{
+   * observation: "heart_rate" }` records the answer as an observation
+   * (observations block), with `component` for one part of it.
+   */
+  readonly meta?: Readonly<Record<string, FormJson>>;
 }
 
 export interface FormStep {
@@ -224,6 +230,7 @@ export const FORM_DEFINITION_SCHEMA: FormJsonSchema = {
                 },
                 correct: {},
                 points: { type: "number", minimum: 0, maximum: 10_000 },
+                meta: { type: "object", maxProperties: 20 },
               },
             },
           },

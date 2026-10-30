@@ -257,4 +257,5 @@ export const MODULE_PERMISSION_SCOPES: {
     manage: "tenant",
   },
   consents: { read: "tenant", record: "tenant", manage: "tenant" },
+  observations: { read: "tenant", record: "tenant", manage: "tenant" },
 };

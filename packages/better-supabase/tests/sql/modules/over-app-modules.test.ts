@@ -104,6 +104,7 @@ const MODULES = [
   "ai-files",
   "risks",
   "accounting",
+  "observations",
 ] as const;
 
 interface Setup {

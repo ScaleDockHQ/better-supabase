@@ -1225,6 +1225,20 @@ export interface BlockNameRegistry {
     readonly entities: {};
     readonly primary: never;
   };
+  readonly "observations": {
+    readonly tables: {
+      readonly "definitions": "id" | "tenant" | "key" | "title" | "valueType" | "unit" | "codeSystem" | "code" | "components" | "decimals" | "validLow" | "validHigh" | "referenceLow" | "referenceHigh" | "criticalLow" | "criticalHigh" | "archivedAt" | "createdAt" | "updatedAt";
+      readonly "observations": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "observedAt" | "valueNumber" | "valueText" | "valueCode" | "components" | "flag" | "status" | "replaces" | "reason" | "method" | "device" | "source" | "externalId" | "submission" | "performer" | "note" | "createdAt";
+    };
+    readonly functions: "amend_observation" | "archive_observation_definition" | "ingest_observations" | "latest_observations" | "list_observation_definitions" | "list_observations" | "mark_observation_error" | "observation_definition_id" | "observation_flag" | "observation_insert" | "observation_series" | "record_observation" | "record_observations" | "save_observation_definition";
+    readonly actions: "read" | "record" | "manage";
+    readonly hooks: "before_observation_definition_save" | "after_observation_definition_save" | "before_observation_record" | "after_observation_record" | "before_observation_amend" | "after_observation_amend" | "before_observation_mark_error" | "after_observation_mark_error";
+    readonly entities: {
+      readonly "observation": "id" | "tenant_id" | "definition_id" | "subject_type" | "subject_id" | "observed_at" | "value_number" | "value_text" | "value_code" | "components" | "flag" | "status" | "replaces_id" | "reason" | "method" | "device" | "source" | "external_id" | "submission_id" | "performer_id" | "note" | "created_at";
+      readonly "observation_definition": "id" | "tenant_id" | "key" | "title" | "value_type" | "unit" | "code_system" | "code" | "components" | "decimals" | "valid_low" | "valid_high" | "reference_low" | "reference_high" | "critical_low" | "critical_high" | "archived_at" | "created_at" | "updated_at";
+    };
+    readonly primary: "observation";
+  };
   readonly "onboarding": {
     readonly tables: {};
     readonly functions: "complete_onboarding_step" | "onboarding_progress" | "reset_onboarding_step";

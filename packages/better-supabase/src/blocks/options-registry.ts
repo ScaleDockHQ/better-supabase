@@ -65,6 +65,7 @@ import type { ModerationSqlOptions } from "./moderation/options.ts";
 import type { NotificationsSqlOptions } from "./notifications/options.ts";
 import type { NumberingSqlOptions } from "./numbering/options.ts";
 import type { OauthServerSqlOptions } from "./oauth-server/options.ts";
+import type { ObservationsSqlOptions } from "./observations/options.ts";
 import type { OnboardingSqlOptions } from "./onboarding/options.ts";
 import type { BlockOptionsSchema } from "./options.ts";
 import type { OrdersSqlOptions } from "./orders/options.ts";
@@ -198,6 +199,7 @@ import { moderationSqlOptions } from "./moderation/options.ts";
 import { notificationsSqlOptions } from "./notifications/options.ts";
 import { numberingSqlOptions } from "./numbering/options.ts";
 import { oauthServerSqlOptions } from "./oauth-server/options.ts";
+import { observationsSqlOptions } from "./observations/options.ts";
 import { onboardingSqlOptions } from "./onboarding/options.ts";
 import { NO_OPTIONS } from "./options.ts";
 import { ordersSqlOptions } from "./orders/options.ts";
@@ -383,6 +385,7 @@ export interface BlockOptionsRegistry {
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
   readonly reviews: ReviewsSqlOptions;
   readonly risks: RisksSqlOptions;
+  readonly observations: ObservationsSqlOptions;
   readonly "rls-guard": None;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly scores: ScoresSqlOptions;
@@ -540,6 +543,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   "reserved-slugs": reservedSlugsSqlOptions,
   reviews: reviewsSqlOptions,
   risks: risksSqlOptions,
+  observations: observationsSqlOptions,
   "rls-guard": NO_OPTIONS,
   "saved-views": savedViewsSqlOptions,
   scores: scoresSqlOptions,

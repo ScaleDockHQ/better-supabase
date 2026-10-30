@@ -149,6 +149,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   numbering: "next_number preview_number",
   "oauth-server":
     "create_oauth_authorization_code create_oauth_device_code decide_oauth_device_code delete_oauth_client is_oauth_token_revoked list_oauth_grants oauth_client oauth_device_request poll_oauth_device_code purge_oauth_server redeem_oauth_authorization_code register_oauth_client revoke_oauth_grant revoke_oauth_token rotate_oauth_client_secret update_oauth_client verify_oauth_client verify_oauth_registration_token",
+  observations:
+    "amend_observation archive_observation_definition ingest_observations latest_observations list_observation_definitions list_observations mark_observation_error observation_series observations_from_submission record_observation record_observations save_observation_definition",
   onboarding:
     "complete_onboarding_step onboarding_progress reset_onboarding_step",
   orders:
