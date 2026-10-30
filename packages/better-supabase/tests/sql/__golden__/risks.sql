@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_143_risks.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
 -- @bsb-hash sha256:15189b05292abd665d9faefa7149b623e2112811e3a2ae3be3cd83a2df541097
@@ -1059,7 +1059,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_143_risks.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block-data risks
 -- @bsb-hash sha256:c9230989b9b165e7c6a5c6270cc003d39bc7d1c14630c7d79e62a15caf694035
@@ -1073,7 +1073,7 @@ values ('risks', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_143_risks.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
 -- @bsb-hash sha256:a74442cd4b02cb6094138238bb59e8b5b024ffacb097190deae9a4dfba6802df
@@ -2248,7 +2248,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_143_risks.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block-data risks
 -- @bsb-hash sha256:c9230989b9b165e7c6a5c6270cc003d39bc7d1c14630c7d79e62a15caf694035
@@ -2262,7 +2262,7 @@ values ('risks', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_risks.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
 -- @bsb-hash sha256:5826732932611a20423f4ab3bc1e25dfd221080676f520e3b86d6a80f971a80a
@@ -3328,7 +3328,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_143_risks.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block-data risks
 -- @bsb-hash sha256:c9230989b9b165e7c6a5c6270cc003d39bc7d1c14630c7d79e62a15caf694035
@@ -3342,7 +3342,7 @@ values ('risks', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_143_risks.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
 -- @bsb-hash sha256:7d2f91d51335a37d951383a2b302132f97eeff44e00fe28098852c308f91022f
@@ -4542,7 +4542,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_143_risks.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block-data risks
 -- @bsb-hash sha256:c9230989b9b165e7c6a5c6270cc003d39bc7d1c14630c7d79e62a15caf694035
@@ -4556,7 +4556,7 @@ values ('risks', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_143_risks.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
 -- @bsb-hash sha256:99712fa0f6ed2cbd8786b709c28e0188865d0ecf035bd747eb7beb4235e969d5
@@ -5602,7 +5602,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_143_risks.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block-data risks
 -- @bsb-hash sha256:c9230989b9b165e7c6a5c6270cc003d39bc7d1c14630c7d79e62a15caf694035
@@ -5616,7 +5616,7 @@ values ('risks', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_143_risks.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
 -- @bsb-hash sha256:2352d1bdde6326da74025debda137cafc8326eb977652e2f9e7254de9d559c9f
@@ -6677,7 +6677,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_143_risks.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block-data risks
 -- @bsb-hash sha256:c9230989b9b165e7c6a5c6270cc003d39bc7d1c14630c7d79e62a15caf694035

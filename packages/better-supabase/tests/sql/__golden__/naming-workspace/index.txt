@@ -107,3 +107,4 @@ lead-scoring
 posts
 content
 qualifications
+risks

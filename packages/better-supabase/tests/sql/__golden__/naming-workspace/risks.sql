@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_143_risks.sql
+-- ==== schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
 -- @bsb-hash sha256:08323d47a77c0510d15de74345c756a17c9da5a4dae2f8646d6c7b9289c9a14d
@@ -1059,7 +1059,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_143_risks.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block-data risks
 -- @bsb-hash sha256:c9230989b9b165e7c6a5c6270cc003d39bc7d1c14630c7d79e62a15caf694035

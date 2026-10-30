@@ -1,6 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:091f9c181a52e55885b35ec8294cab124797bf959fe5f2e819d2270a60812058
+-- @bsb-hash sha256:45681101032098175a224938f4df5735c8eea71d6ebafb30d7cbffdb830672c4
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -253,6 +253,7 @@ declare
       when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = (start_sla_clocks.subject_id)::uuid)
+      when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (start_sla_clocks.subject_id)::uuid)
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (start_sla_clocks.subject_id)::uuid)
@@ -307,6 +308,7 @@ begin
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (start_sla_clocks.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
@@ -395,6 +397,7 @@ declare
       when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = (record_sla_event.subject_id)::uuid)
+      when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = (record_sla_event.subject_id)::uuid)
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = (record_sla_event.subject_id)::uuid)
@@ -449,6 +452,7 @@ begin
       when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
+      when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
       when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id" = (record_sla_event.subject_id)::uuid and s."tenant_id"::text = v_tenant::text)
