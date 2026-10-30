@@ -93,7 +93,7 @@ export interface ServicePrincipal<F extends object = Record<never, never>> {
 
 /**
  * Who asks for a change. With `createdBy`, that member needs
- * `service_principals.manage` and may assign the role; without it the service
+ * `service_accounts.manage` and may assign the role; without it the service
  * acts on its own.
  */
 export interface ServicePrincipalActor {

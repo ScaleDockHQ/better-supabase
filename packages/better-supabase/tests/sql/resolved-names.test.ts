@@ -46,7 +46,7 @@ describe("resolveNames", () => {
         "work_items",
         "work_item_id",
         "create_work_item",
-        "work_items.read",
+        "tasks.read",
         "work_item.created",
         "tasks/",
         "workItemId",

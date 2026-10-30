@@ -368,13 +368,13 @@ export const permissions = {
     moderate: "messages.moderate",
   },
   company: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   contacts: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
   },
   conversation: {
     read: "messages.read",
@@ -441,8 +441,8 @@ export const permissions = {
     transferOwnership: "organization.transfer_ownership",
   },
   person: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   pipelines: {
     read: "pipelines.read",
@@ -461,17 +461,17 @@ export const permissions = {
     manage: "subjects.manage",
   },
   tasks: {
-    read: "work_items.read",
-    write: "work_items.write",
-    manage: "work_items.manage",
+    read: "tasks.read",
+    write: "tasks.write",
+    manage: "tasks.manage",
   },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
   },
   work_item: {
-    read: "work_items.read",
-    write: "work_items.write",
+    read: "tasks.read",
+    write: "tasks.write",
   },
 } as const;
 
@@ -480,7 +480,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "guests.manage" | "guests.read" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "guests.manage" | "guests.read" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

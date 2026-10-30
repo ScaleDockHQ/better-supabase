@@ -104,7 +104,7 @@ describe("activity module", () => {
     expect(sql).toMatch(
       /activity_subject_deliveries"\(tenant uuid[\s\S]*?security definer/,
     );
-    expect(sql).toContain("'activity.read'");
+    expect(sql).toContain("'timeline.read'");
     expect(sql).toContain("'notifications.send'");
     expect(sql).toContain(
       `(list_activity.sources is null or 'delivery' = any (list_activity.sources))`,

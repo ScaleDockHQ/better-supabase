@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:d15a8194fd034ddfe2e3eafe22ddf3c675cedd255f8e39ef7e249312e1ca6eb6
+-- @bsb-hash sha256:27998c88535c414b2780e2c692e6e289a375aef6d4f25ce821d7ec2632db7fa7
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -58,7 +58,7 @@ grant execute on function "better_supabase"."activity_subject_readable"(text, te
 drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
 create policy activity_entries_read on "better_supabase"."activity_entries"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
+  using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read'))
     and ("subject_type" is null or "subject_id" is null
       or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")));
@@ -81,7 +81,7 @@ begin
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where activity_subject_deliveries.subject_type = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[])
     and ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin'))
-      or (coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'activity.read'), false) and coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'notifications.send'), false)))
+      or (coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'timeline.read'), false) and coalesce(better_supabase.can('tenant', activity_subject_deliveries.tenant, 'notifications.send'), false)))
     and ev."organization_id" = activity_subject_deliveries.tenant
     and ev."subject_type" = activity_subject_deliveries.subject_type
     and ev."subject_id" = activity_subject_deliveries.subject_id
@@ -315,7 +315,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."activity_entries" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('activity.read'))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read'))
     and ("subject_type" is null or "subject_id" is null
       or not ("subject_type" = any ('{message,conversation,channel,company,person,deal,course,post,engagement,quote,work_item,employee,invoice,ledger_account,product,product_variant,order,calendar_event,booking,asset,asset_location,lease,expense_report,expense_line,donation_fund,work_order,shipment,contract,control,policy,qualification_type,risk,incident,content_entry,form,document,customer,drive_node,application,change_request,project,task}'::text[]))
       or "better_supabase"."activity_subject_readable"("subject_type", "subject_id")))

@@ -21,14 +21,14 @@ import { useSavedViews } from "@/hooks/use-saved-views";
 
 ## Scopes and permissions
 
-| Scope    | Who sees it                              | Who can change it                      |
-| -------- | ---------------------------------------- | -------------------------------------- |
-| `user`   | The owner                                | The owner                              |
-| `team`   | Members of the team (the `teams` module) | Members of the team with `views.share` |
-| `tenant` | Everyone in the organization             | Anyone with `views.share`              |
+| Scope    | Who sees it                              | Who can change it                            |
+| -------- | ---------------------------------------- | -------------------------------------------- |
+| `user`   | The owner                                | The owner                                    |
+| `team`   | Members of the team (the `teams` module) | Members of the team with `saved_views.share` |
+| `tenant` | Everyone in the organization             | Anyone with `saved_views.share`              |
 
-Reading any view needs `views.read`. The default roles give members
-`views.read` and admins `views.*`. Without the `teams` module installed, team
+Reading any view needs `saved_views.read`. The default roles give members
+`saved_views.read` and admins `saved_views.*`. Without the `teams` module installed, team
 views can't be created and are never visible.
 
 ## Save and list views
@@ -79,7 +79,7 @@ first view. It skips views the caller hid.
 
 ## Personal preferences
 
-Changing a shared view's slot default needs `views.share`. A member who only
+Changing a shared view's slot default needs `saved_views.share`. A member who only
 reads a team or organization view can still make it their own default, hide
 it from their menu or pin it. `setPreference` stores those flags in
 `saved_view_preferences`, one row per view and user, and needs only that the
@@ -106,7 +106,7 @@ then always false.
 `duplicate(id, { name, scope, teamId })` copies the state, kind and list of
 a view the caller sees. The copy is a personal view unless you pass `scope`,
 and it goes through the same checks as `upsert`, so a `team` or `tenant` copy
-needs `views.share`. A member can copy a shared view to change it on their
+needs `saved_views.share`. A member can copy a shared view to change it on their
 own.
 
 ```ts

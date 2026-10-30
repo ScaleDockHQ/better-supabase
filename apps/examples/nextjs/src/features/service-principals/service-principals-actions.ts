@@ -15,8 +15,8 @@ const API_SCHEMA = blockConfig["service-accounts"].api;
 
 /**
  * Registering and disabling a principal are service-role functions; with
- * `createdBy` the SQL still checks that member's `service_principals.manage`
- * and that they may assign the role.
+ * `createdBy` the SQL still checks that member's `service_accounts.manage` and
+ * that they may assign the role.
  */
 function serviceClient() {
   const admin = bsb.admin().$client;
@@ -37,7 +37,7 @@ export const createServicePrincipal = bsb.action(
       isDefault: v.boolean(),
     }),
     requireTenant: true,
-    permission: "service_principals.manage",
+    permission: "service_accounts.manage",
   },
   async ({ name, role, isDefault }, { tenant, auth }) => {
     if (auth.kind !== "user") {
@@ -64,7 +64,7 @@ export const disableServicePrincipal = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
-    permission: "service_principals.manage",
+    permission: "service_accounts.manage",
   },
   async ({ id }, { auth }) => {
     if (auth.kind !== "user") {

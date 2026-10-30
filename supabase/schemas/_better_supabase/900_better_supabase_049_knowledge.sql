@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@4 managed
--- @bsb-hash sha256:b6351b5f3f736352ac71055b1982f1e6a9bd14ce6d4a4b88d3cae3a174766575
+-- @bsb-hash sha256:f410f4a88dbef1a9a553788e6f6149707d34cddb9b42d6cc3039bb162eec4484
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -109,9 +109,9 @@ as $$
   select exists (
     select 1 from "better_supabase"."knowledge_collections" c
     where c."id" = knowledge_collection_readable.collection_id
-      and (c."organization_id" is null or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', c."organization_id", 'ai.read'), false))
+      and (c."organization_id" is null or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', c."organization_id", 'knowledge.read'), false))
       and (c."visibility" = 'automatic'
-        or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (c."organization_id" is not null and coalesce(better_supabase.can('tenant', c."organization_id", 'ai.admin'), false)))
+        or (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (c."organization_id" is not null and coalesce(better_supabase.can('tenant', c."organization_id", 'knowledge.manage'), false)))
         or exists (
           select 1 from "better_supabase"."knowledge_collection_grants" x
           where x."collection_id" = c."id" and (x."user_id" = auth.uid() or (x."team_id" is not null and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = x."team_id" and tm."user_id" = auth.uid())))
@@ -145,7 +145,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_knowledge_collection.tenant is not null and coalesce(better_supabase.can('tenant', create_knowledge_collection.tenant, 'ai.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_knowledge_collection.tenant is not null and coalesce(better_supabase.can('tenant', create_knowledge_collection.tenant, 'knowledge.manage'), false))) then
     raise exception 'only admins add knowledge collections' using errcode = '42501', hint = 'KNOWLEDGE_FORBIDDEN';
   end if;
   if create_knowledge_collection.visibility is null or create_knowledge_collection.visibility not in ('automatic', 'restricted', 'disabled') then
@@ -175,7 +175,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_collections" x where x."id" = update_knowledge_collection.collection_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false))) then
     raise exception 'collection % not found', update_knowledge_collection.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
   if update_knowledge_collection.patch ? 'visibility' then
@@ -211,7 +211,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_collections" x where x."id" = delete_knowledge_collection.collection_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false))) then
     raise exception 'collection % not found', delete_knowledge_collection.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
   delete from "better_supabase"."knowledge_collections" x where x."id" = v_row."id";
@@ -254,7 +254,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_collections" x where x."id" = set_knowledge_collection_grant.collection_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false))) then
     raise exception 'collection % not found', set_knowledge_collection_grant.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
   if (set_knowledge_collection_grant.user_id is null) = (set_knowledge_collection_grant.team_id is null) then
@@ -289,7 +289,7 @@ declare
   v_row "better_supabase"."knowledge_collections"%rowtype;
 begin
   select * into v_row from "better_supabase"."knowledge_collections" x where x."id" = list_knowledge_collection_grants.collection_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."organization_id" is not null and coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false))) then
     raise exception 'collection % not found', list_knowledge_collection_grants.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
   return (
@@ -360,7 +360,7 @@ grant execute on function "better_supabase"."knowledge_subject_readable"(text, t
 drop policy if exists knowledge_documents_read on "better_supabase"."knowledge_documents";
 create policy knowledge_documents_read on "better_supabase"."knowledge_documents"
   for select to authenticated
-  using (("organization_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")));
+  using (("organization_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")));
 
 -- A chunk is visible when its document is, so search inherits the scopes.
 create table if not exists "better_supabase"."knowledge_chunks" (
@@ -420,7 +420,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or create_knowledge_document.tenant is null or not coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'ai.create'), false)) then
+  if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and (auth.uid() is null or create_knowledge_document.tenant is null or not coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'knowledge.write'), false)) then
     raise exception 'you may not add knowledge here' using errcode = '42501', hint = 'KNOWLEDGE_FORBIDDEN';
   end if;
   if create_knowledge_document.tenant is null then
@@ -434,7 +434,7 @@ begin
   ) then
     raise exception 'collection % not found', create_knowledge_document.collection_id using errcode = 'P0002', hint = 'KNOWLEDGE_COLLECTION_NOT_FOUND';
   end if;
-  if create_knowledge_document.scope in ('organization', 'agent') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'ai.admin'), false)) then
+  if create_knowledge_document.scope in ('organization', 'agent') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'knowledge.manage'), false)) then
     raise exception 'only admins add % knowledge', create_knowledge_document.scope using errcode = '42501', hint = 'KNOWLEDGE_FORBIDDEN';
   end if;
   if create_knowledge_document.scope = 'user' then
@@ -456,14 +456,14 @@ begin
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'messages.read'), false)
     when 'channel' then exists (select 1 from "better_supabase"."channels" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'messages.read'), false)
-    when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'parties.read'), false)
-    when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'parties.read'), false)
+    when 'company' then exists (select 1 from "better_supabase"."companies" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'contacts.read'), false)
+    when 'person' then exists (select 1 from "better_supabase"."people" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'contacts.read'), false)
     when 'deal' then exists (select 1 from "better_supabase"."deals" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'deals.read'), false)
     when 'course' then exists (select 1 from "better_supabase"."courses" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'courses.read'), false)
     when 'post' then exists (select 1 from "better_supabase"."posts" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'posts.read'), false)
-    when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'engagements.read'), false)
+    when 'engagement' then exists (select 1 from "better_supabase"."engagements" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'activities.read'), false)
     when 'quote' then exists (select 1 from "better_supabase"."quotes" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'quotes.read'), false)
-    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'work_items.read'), false)
+    when 'work_item' then exists (select 1 from "better_supabase"."work_items" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'tasks.read'), false)
     when 'employee' then exists (select 1 from "better_supabase"."employees" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'employees.read'), false)
     when 'invoice' then exists (select 1 from "better_supabase"."invoices" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'invoices.read'), false)
     when 'ledger_account' then exists (select 1 from "better_supabase"."ledger_accounts" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'ledger.read'), false)
@@ -481,8 +481,8 @@ begin
     when 'work_order' then exists (select 1 from "better_supabase"."work_orders" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'dispatch.read'), false)
     when 'shipment' then exists (select 1 from "better_supabase"."shipments" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'shipments.read'), false)
     when 'contract' then exists (select 1 from "better_supabase"."contracts" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'contracts.read'), false)
-    when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'controls.read'), false)
-    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'controls.read'), false)
+    when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'compliance.read'), false)
+    when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'compliance.read'), false)
     when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'qualifications.read'), false)
     when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'risks.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'incidents.read'), false)
@@ -507,7 +507,7 @@ begin
     where x."id" = create_knowledge_document.file_id
       and x."organization_id" = create_knowledge_document.tenant
       and x."status" = 'ready'
-      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'ai.admin'), false))
+      and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'knowledge.manage'), false))
   ) then
     raise exception 'file % not found', file_id using errcode = 'P0002', hint = 'AI_FILE_NOT_FOUND';
   end if;
@@ -540,7 +540,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_documents" x where x."id" = write_knowledge_chunks.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'KNOWLEDGE_NOT_FOUND';
   end if;
   if coalesce(jsonb_typeof(v_items), '') <> 'array' or jsonb_array_length(v_items) > 10000 then
@@ -636,7 +636,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."knowledge_documents" x where x."id" = delete_knowledge_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'knowledge.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."knowledge_documents" x where x."id" = v_row."id";
@@ -903,7 +903,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."knowledge_documents"
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("organization_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('ai.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")))
+    or (("organization_id" is null or case when "scope" = 'subject' then "better_supabase"."knowledge_subject_readable"("subject_type", "subject_id") else ("owner_id" = (select auth.uid()) or ("scope" in ('organization', 'agent') and "organization_id" in (select better_supabase.tenant_ids_with('knowledge.read'))) or "organization_id" in (select better_supabase.tenant_ids_with('knowledge.manage')) or ("scope" = 'chat' and ("scope_id" is not null and "better_supabase"."ai_chat_can_read"("scope_id")))) end) and ("collection_id" is null or "better_supabase"."knowledge_collection_readable"("collection_id")))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."knowledge_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."knowledge_documents" as restrictive

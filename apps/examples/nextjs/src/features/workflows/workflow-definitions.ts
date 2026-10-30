@@ -44,8 +44,8 @@ export function approvalToken(runId: string): string {
 
 /**
  * Waits for an approval. `metadata` is `hookMetadata(context,
- * "workflow.admin")`, so `authorizeHook` lets the requester or an admin of the
- * tenant decide, never a caller who only has the token.
+ * "workflows.manage")`, so `authorizeHook` lets the requester or an admin of
+ * the tenant decide, never a caller who only has the token.
  */
 export async function expenseApproval(
   context: RequestContext,

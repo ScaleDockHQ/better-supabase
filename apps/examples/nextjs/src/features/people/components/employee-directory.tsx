@@ -31,7 +31,7 @@ import { PeopleLoadError } from "./people-load-error";
 /**
  * Render inside `<Suspense>`: the employees as an org chart, each manager above
  * their reports, with a search. Private details open in a sheet for callers
- * with `employees.view_sensitive`.
+ * with `employees.read_sensitive`.
  */
 export async function EmployeeDirectory() {
   const [t, permissions] = await Promise.all([
@@ -50,7 +50,7 @@ export async function EmployeeDirectory() {
   }
 
   const canWrite = can(permissions, "employees.write");
-  const canViewSensitive = can(permissions, "employees.view_sensitive");
+  const canViewSensitive = can(permissions, "employees.read_sensitive");
 
   const managers =
     directory.kind === "ok"

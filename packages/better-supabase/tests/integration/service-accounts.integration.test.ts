@@ -32,8 +32,8 @@ const LAYOUT: BlockSqlLayout = {
         admin: [
           "organization.read",
           "members.*",
-          "workflow.*",
-          "service_principals.*",
+          "workflow_editor.*",
+          "service_accounts.*",
         ],
         member: ["organization.read", "members.read"],
         reader: ["organization.read", "crm.read"],
@@ -233,7 +233,7 @@ describe.skipIf(!live)("service principals", () => {
       ).toBe(true);
       expect(
         await s.value<boolean>(
-          "better_supabase.member_can($1, $2, 'workflow.publish')",
+          "better_supabase.member_can($1, $2, 'workflow_editor.publish')",
           [principal.id, tenant],
         ),
       ).toBe(false);

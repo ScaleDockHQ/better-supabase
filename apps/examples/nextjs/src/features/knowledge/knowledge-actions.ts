@@ -23,7 +23,7 @@ export const addDocument = bsb.action(
       folderId: v.optional(v.pipe(v.string(), v.uuid())),
     }),
     requireTenant: true,
-    permission: "ai.create",
+    permission: "knowledge.write",
   },
   async ({ title, text, folderId }, { tenant, supabase }) => {
     const base = knowledge(supabase);
@@ -53,7 +53,7 @@ export const removeDocument = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()) }),
     requireTenant: true,
-    permission: "ai.create",
+    permission: "knowledge.write",
   },
   async ({ id }, { supabase }) => {
     const removed = await knowledge(supabase).documents.remove(id);
@@ -82,7 +82,7 @@ export const searchKnowledge = bsb.action(
       query: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(500)),
     }),
     requireTenant: true,
-    permission: "ai.create",
+    permission: "knowledge.write",
   },
   ({ query }, { tenant, supabase }) =>
     knowledge(supabase)

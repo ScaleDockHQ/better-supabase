@@ -70,7 +70,7 @@ export const createWorkItem = bsb.action(
       custom: v.optional(v.record(v.string(), v.string()), {}),
     }),
     requireTenant: true,
-    permission: "work_items.write",
+    permission: "tasks.write",
   },
   async ({ title, teamId, priority, custom }, { tenant, db, auth }) => {
     const created = await db.$blocks.tasks.create(
@@ -137,7 +137,7 @@ export const moveWorkItem = bsb.action(
       nextId: OptionalId,
     }),
     requireTenant: true,
-    permission: "work_items.write",
+    permission: "tasks.write",
   },
   async ({ id, stageId, stageChanged, previousId, nextId }, { db, auth }) => {
     if (stageChanged) {
@@ -170,7 +170,7 @@ export const setWorkItemStage = bsb.action(
   {
     input: v.object({ id: Id, stageId: Id }),
     requireTenant: true,
-    permission: "work_items.write",
+    permission: "tasks.write",
   },
   async ({ id, stageId }, { db, auth }) => {
     const moved = await applyChanges(db, [
@@ -192,7 +192,7 @@ export const setWorkItemAssignee = bsb.action(
   {
     input: v.object({ id: Id, userId: OptionalId }),
     requireTenant: true,
-    permission: "work_items.write",
+    permission: "tasks.write",
   },
   async ({ id, userId }, { db, auth }) => {
     const assigned = await db.$blocks.tasks.assign(id, userId ? [userId] : []);
@@ -239,7 +239,7 @@ export const saveWorkView = bsb.action(
       sort: WorkItemSortSchema,
     }),
     requireTenant: true,
-    permission: "views.read",
+    permission: "saved_views.read",
   },
   async ({ name, q, state, sort }, { tenant, db, auth }) => {
     const query: WorkViewQuery = { sort };
@@ -273,7 +273,7 @@ export const deleteWorkView = bsb.action(
   {
     input: v.object({ id: Id }),
     requireTenant: true,
-    permission: "views.read",
+    permission: "saved_views.read",
   },
   async ({ id }, { db, auth }) => {
     const deleted = await db.$blocks.savedViews.delete(id);

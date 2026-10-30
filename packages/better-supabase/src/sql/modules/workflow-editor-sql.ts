@@ -96,8 +96,8 @@ export interface BuilderSql {
    * Whether the caller may `action` the definition (a uuid expression) in
    * `tenant`: always when it isn't restricted, else through a grant that names
    * them, one of their teams or their role (an `edit` grant also runs),
-   * `workflow.admin` in the tenant, or the service role. Combine it with
-   * `allowed`, which checks the tenant permission.
+   * `workflow_editor.manage` in the tenant, or the service role. Combine it
+   * with `allowed`, which checks the tenant permission.
    */
   readonly granted: (
     definition: string,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:1d844a07f3e1895a61f71f41b6b5bd74faa793a40b77b937f7e9b7a4b3bedbdf
+-- @bsb-hash sha256:78c14b4df672e75fd307e9e7723a4ef026ec894c71486c98255576d424e6406f
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -137,7 +137,7 @@ grant all on "better_supabase"."workflow_definitions" to service_role;
 drop policy if exists workflow_definitions_read on "better_supabase"."workflow_definitions";
 create policy workflow_definitions_read on "better_supabase"."workflow_definitions"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow_editor.read'))));
 
 -- The tenants that opted out of a definition, usually a system one: its
 -- triggers and starts skip them (WORKFLOW_OPTED_OUT).
@@ -157,7 +157,7 @@ grant all on "better_supabase"."workflow_opt_outs" to service_role;
 drop policy if exists workflow_opt_outs_read on "better_supabase"."workflow_opt_outs";
 create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')));
 
 -- Who may run or edit a restricted definition: a user, a team or an
 -- organization role. An edit grant also runs it.
@@ -273,7 +273,7 @@ grant all on "better_supabase"."workflow_credentials" to service_role;
 drop policy if exists workflow_credentials_read on "better_supabase"."workflow_credentials";
 create policy workflow_credentials_read on "better_supabase"."workflow_credentials"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')));
 
 -- The steps the deployment provides, synced from code: the palette of the
 -- builder and the names a published graph may use.
@@ -529,7 +529,7 @@ begin
   if v_scope = 'system' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role saves a system workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.write'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."workflow_definitions" x
@@ -541,7 +541,7 @@ begin
     end if;
     if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_row."id"), false)
-      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = v_row."id"
@@ -551,7 +551,7 @@ begin
       )) then
       raise exception 'You may not edit this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
     end if;
-    if restricted is not null and restricted <> v_row."restricted" and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+    if restricted is not null and restricted <> v_row."restricted" and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
       raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
     end if;
     update "better_supabase"."workflow_definitions" x set
@@ -563,7 +563,7 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   else
-    if coalesce(restricted, false) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+    if coalesce(restricted, false) and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
       raise exception 'Only a workflow admin restricts a workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
     end if;
     insert into "better_supabase"."workflow_definitions" ("tenant_id", "slug", "name", "description", "subject_types", "scope", "restricted", "created_by")
@@ -684,7 +684,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."workflow_definitions" x
-  where x."id" = definition and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+  where x."id" = definition and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow_editor.manage'), false)));
   return found;
 end;
 $$;
@@ -714,9 +714,9 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.write'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
-      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = definition
@@ -785,7 +785,7 @@ as $$
       '{}'::jsonb ->> (n.value ->> 'step'),
       (select coalesce('{}'::jsonb ->> s."operation", s."operation")
         from "better_supabase"."workflow_step_library" s where s."name" = n.value ->> 'step'),
-      'workflow.run'
+      'workflow_editor.run'
     ) as p
     from jsonb_array_elements(
       case when jsonb_typeof(workflow_graph_permissions.graph -> 'nodes') = 'array'
@@ -838,7 +838,7 @@ begin
         using errcode = '42501', hint = 'WORKFLOW_PUBLISHER_REVOKED';
     end if;
     select string_agg(p, ', ' order by p) into v_missing
-    from unnest(array_append(v_row."permissions", 'workflow.publish')) p
+    from unnest(array_append(v_row."permissions", 'workflow_editor.publish')) p
     where not coalesce(better_supabase.can_user(v_row."published_by", 'tenant', v_tenant, p), false);
     if v_missing is not null then
       raise exception 'The user who published this workflow no longer holds %', v_missing
@@ -886,9 +886,9 @@ begin
     raise exception 'No such workflow version' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
   select x."tenant_id" into v_tenant from "better_supabase"."workflow_definitions" x where x."id" = v_row."definition_id";
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.publish'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.publish'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_row."definition_id"), false)
-      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = v_row."definition_id"
@@ -1050,7 +1050,7 @@ begin
   if not found then
     raise exception 'Workflow definition not found' using errcode = '42501', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'workflow_editor.manage'), false))) then
     raise exception 'Changing what a workflow is for needs workflow.admin' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if coalesce(is_default, false) and purpose <> 'lifecycle' then
@@ -1176,9 +1176,9 @@ begin
   if v_def."scope" = 'system' and v_tenant is null then
     raise exception 'Pass the tenant a system workflow runs in' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.run'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.run'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
-      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = definition
@@ -1298,9 +1298,9 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow_editor.write'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
-      or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow.admin'), false))
+      or (v_def."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_def."tenant_id", 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = definition
@@ -1401,12 +1401,12 @@ begin
   if not found or not (v_src."scope" = 'system' or v_src."tenant_id" is not distinct from tenant) then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.edit'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.write'), false))) then
     raise exception 'You may not edit workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_src."scope" = 'tenant' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = source), false)
-      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))
+      or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = source
@@ -1464,7 +1464,7 @@ begin
   if tenant is null then
     raise exception 'Pass the tenant that opts out' using errcode = '22023', hint = 'WORKFLOW_TENANT_REQUIRED';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if not exists (
@@ -1512,7 +1512,7 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage access to this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if principal_kind is null or principal_kind not in ('user', 'team', 'role') then
@@ -1581,9 +1581,9 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.write'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = definition), false)
-      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = definition
@@ -1660,10 +1660,10 @@ begin
   delete from "better_supabase"."workflow_triggers" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = trigger and y."id" = x."definition_id"
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.edit'), false)))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow_editor.write'), false)))
     and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = y."id"), false)
-      or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.admin'), false))
+      or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = y."id"
@@ -1701,9 +1701,9 @@ begin
   if not found then
     raise exception 'No such trigger' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.edit'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.write'), false))) and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
       or not coalesce((select z."restricted" from "better_supabase"."workflow_definitions" z where z."id" = v_definition), false)
-      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))
+      or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.manage'), false))
       or exists (
         select 1 from "better_supabase"."workflow_definition_grants" gr
         where gr."definition_id" = v_definition
@@ -1771,7 +1771,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage workflow credentials here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_workflow_credential.ref is not null and jsonb_typeof(save_workflow_credential.ref) <> 'null'
@@ -1860,7 +1860,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."workflow_credentials" x
-  where x."id" = credential and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)))
+  where x."id" = credential and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow_editor.manage'), false)))
   returning * into v_row;
   if not found then
     return null;
@@ -2032,7 +2032,7 @@ begin
   if not found then
     raise exception 'No such workflow' using errcode = 'P0002', hint = 'WORKFLOW_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'workflow_editor.manage'), false))) then
     raise exception 'You may not manage alerts for this workflow' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if alert is null then
@@ -2095,7 +2095,7 @@ begin
   delete from "better_supabase"."workflow_alerts" x
   using "better_supabase"."workflow_definitions" y
   where x."id" = alert and y."id" = x."definition_id"
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (y."tenant_id" is not null and coalesce(better_supabase.can('tenant', y."tenant_id", 'workflow_editor.manage'), false)));
   return found;
 end;
 $$;
@@ -2196,7 +2196,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_definitions
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow.read'))))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow_editor.read'))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_definitions";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_definitions" as restrictive
@@ -2217,7 +2217,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_opt_outs" a
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_opt_outs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_opt_outs" as restrictive
@@ -2238,7 +2238,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_credentials
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_credentials";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_credentials" as restrictive

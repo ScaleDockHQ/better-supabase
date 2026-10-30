@@ -67,5 +67,9 @@ export const settingsTabs: readonly SettingsTab[] = [
   },
   { id: "jobs", href: "/settings/jobs", requires: "audit.read" },
   { id: "audit", href: "/settings/audit", requires: "audit.read" },
-  { id: "aiProviders", href: "/settings/ai-providers", requires: "ai.admin" },
+  {
+    id: "aiProviders",
+    href: "/settings/ai-providers",
+    requires: "ai_keys.manage",
+  },
 ];

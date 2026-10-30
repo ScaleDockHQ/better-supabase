@@ -10,7 +10,11 @@ import { aiTasks } from "./ai-tasks-server";
 
 /** Schedules a weekday summary for the caller, so the queue has a row to show. */
 export const scheduleSampleTask = bsb.action(
-  { input: v.object({}), requireTenant: true, permission: "ai.create" },
+  {
+    input: v.object({}),
+    requireTenant: true,
+    permission: "ai_schedules.write",
+  },
   async (_input, { tenant, supabase }) => {
     const created = await aiTasks(supabase).create(tenant, {
       title: "Weekday customer summary",
@@ -34,7 +38,7 @@ export const setAiTaskEnabled = bsb.action(
   {
     input: v.object({ id: v.pipe(v.string(), v.uuid()), enabled: v.boolean() }),
     requireTenant: true,
-    permission: "ai.create",
+    permission: "ai_schedules.write",
   },
   async ({ id, enabled }, { tenant, supabase }) => {
     const tasks = aiTasks(supabase);

@@ -75,8 +75,8 @@ async function retry() {
 
 /**
  * Render inside `<Suspense>`: the machine identities workflows and webhooks run
- * as, with their role. Members with `service_principals.manage` add and disable
- * them. Members without `service_principals.read` see nothing.
+ * as, with their role. Members with `service_accounts.manage` add and disable
+ * them. Members without `service_accounts.read` see nothing.
  */
 export async function ServicePrincipalsTable() {
   const [t, format, permissions] = await Promise.all([
@@ -85,7 +85,7 @@ export async function ServicePrincipalsTable() {
     getPermissions(),
   ]);
 
-  if (!can(permissions, "service_principals.read")) {
+  if (!can(permissions, "service_accounts.read")) {
     return null;
   }
 
@@ -95,7 +95,7 @@ export async function ServicePrincipalsTable() {
     return null;
   }
 
-  const manage = can(permissions, "service_principals.manage");
+  const manage = can(permissions, "service_accounts.manage");
 
   const roles = new Map([
     ["owner", t("Owner")],

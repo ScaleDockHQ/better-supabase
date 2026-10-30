@@ -419,7 +419,7 @@ the entity out of the subject registry. A bare string for `entities` renames
 the block's primary entity. `work_item: "task"` turns the `work_items` table
 into `tasks`, `work_item_id` into `task_id`, `create_work_item` into
 `create_task`, `work_item.created` into `task.created` and the
-`work_items.read` permission into `tasks.read`:
+`tasks.read` permission into `tasks.read`:
 
 ```ts title="better-supabase.config.ts"
 blocks: {
@@ -1066,7 +1066,7 @@ was purged is stored and processed again.
 `impersonation` records who viewed the app as whom, for
 [support mode](/docs/auth/impersonation). It needs `permissions` and `audit`.
 `start_support_session(target, reason, ttl, read_only, metadata, tenant)`
-checks `is_platform('support.start')` for the caller, ends the caller's
+checks `is_platform('impersonation.start')` for the caller, ends the caller's
 previous session, writes `support.started` to the audit log and returns the
 session as jsonb. An admin has one active session (a unique index). It refuses
 a target with platform permissions and a writable session unless the options
@@ -1075,12 +1075,12 @@ permissions when a row in `invitations.options.platformRoles.table` names them,
 and, with `platformRoles.through.where`, only when that row's role matches the
 condition, so a roles table that also holds tenant roles counts only its
 platform ones. `end_support_session(session_id)` ends it for its admin
-(`ended_by` is `admin`), a caller with `support.revoke` (`revoked`) or the
+(`ended_by` is `admin`), a caller with `impersonation.revoke` (`revoked`) or the
 service role, which alone passes `ended_by`. `expire_support_sessions()`,
 for the service role only, ends every running session past its expiry with
 `ended_by` set to `expired` and returns them, so each one gets its
 `support.ended` entry. `active_support_session` called
-as the admin checks `support.start` again. Errors carry `SUPPORT_FORBIDDEN`,
+as the admin checks `impersonation.start` again. Errors carry `SUPPORT_FORBIDDEN`,
 `SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TARGET_PLATFORM`,
 `SUPPORT_WRITES_DISABLED`, `SUPPORT_TTL`, `SUPPORT_REASON_REQUIRED` or
 `SUPPORT_APPROVAL_REQUIRED` in the `hint`.
@@ -1100,7 +1100,7 @@ refuses it with `SUPPORT_SELF_APPROVAL`, and the
 `support_requests_distinct_approver` check constraint refuses the row even
 for the service role. Clients can read their own requests but can't insert
 or update the table. Without an authorization provider, an approver needs
-`is_platform('support.start')` (rename it with
+`is_platform('impersonation.start')` (rename it with
 `blocks["impersonation"].permissions.approve`). With one that sets
 [`isApprover`](/docs/extending/authorization-providers#approvals), the module
 calls it with `{kind}` `'support-session'` and `{subject}` the request id
@@ -1136,7 +1136,7 @@ and the writes call that instead of the built-in check.
 | `auditCategory`        | `support`  | the audit log category of `support.started` and `support.ended`          |
 | `claimsHook`           | none       | `schema.function` of your access token hook, for `support_target_claims` |
 
-The permission keys are `support.start`, `support.read` and `support.revoke`;
+The permission keys are `impersonation.start`, `impersonation.read` and `impersonation.revoke`;
 rename them with `blocks["impersonation"].permissions`. The hooks
 `before_support_start(admin, target, reason, metadata)`,
 `after_support_start(session_id)` and `after_support_end(session_id)` run in

@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:570ed1947840dd56880b3bfb99466694afae04c70fddf8df4c3cd2a2f9e4b5b0
+-- @bsb-hash sha256:3713592e54ebb7749df49cbfd4c3fcb50714fe874085c08902f89dd98aa27e03
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -130,7 +130,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not coalesce(better_supabase.can('tenant', save_segment.tenant, 'segments.edit'), false) then
+  if not coalesce(better_supabase.can('tenant', save_segment.tenant, 'segments.write'), false) then
     raise exception 'You need segments.edit to save a segment' using errcode = '42501', hint = 'SEGMENT_FORBIDDEN';
   end if;
   if jsonb_typeof(segment) is distinct from 'object' then
@@ -217,7 +217,7 @@ begin
   if v_row."id" is null then
     return false;
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'segments.edit'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'segments.write'), false)) then
     raise exception 'You need segments.edit to remove a segment' using errcode = '42501', hint = 'SEGMENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."segments" x where x."id" = v_row."id";
@@ -292,14 +292,14 @@ begin
     when 'message' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'messages.read'), false)
     when 'conversation' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'messages.read'), false)
     when 'channel' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'messages.read'), false)
-    when 'company' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'parties.read'), false)
-    when 'person' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'parties.read'), false)
+    when 'company' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contacts.read'), false)
+    when 'person' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contacts.read'), false)
     when 'deal' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deals.read'), false)
     when 'course' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'courses.read'), false)
     when 'post' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'posts.read'), false)
-    when 'engagement' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'engagements.read'), false)
+    when 'engagement' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'activities.read'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'quotes.read'), false)
-    when 'work_item' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'work_items.read'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'tasks.read'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.read'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ledger.read'), false)
@@ -317,8 +317,8 @@ begin
     when 'work_order' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'dispatch.read'), false)
     when 'shipment' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'shipments.read'), false)
     when 'contract' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'contracts.read'), false)
-    when 'control' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)
-    when 'policy' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'controls.read'), false)
+    when 'control' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)
+    when 'policy' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'compliance.read'), false)
     when 'qualification_type' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'qualifications.read'), false)
     when 'risk' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'risks.read'), false)
     when 'incident' then coalesce(better_supabase.can('tenant', v_row."tenant_id", 'incidents.read'), false)
@@ -364,14 +364,14 @@ as $$
     when 'message' then coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
     when 'conversation' then coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
     when 'channel' then coalesce(better_supabase.can('tenant', x."tenant_id", 'messages.read'), false)
-    when 'company' then coalesce(better_supabase.can('tenant', x."tenant_id", 'parties.read'), false)
-    when 'person' then coalesce(better_supabase.can('tenant', x."tenant_id", 'parties.read'), false)
+    when 'company' then coalesce(better_supabase.can('tenant', x."tenant_id", 'contacts.read'), false)
+    when 'person' then coalesce(better_supabase.can('tenant', x."tenant_id", 'contacts.read'), false)
     when 'deal' then coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.read'), false)
     when 'course' then coalesce(better_supabase.can('tenant', x."tenant_id", 'courses.read'), false)
     when 'post' then coalesce(better_supabase.can('tenant', x."tenant_id", 'posts.read'), false)
-    when 'engagement' then coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.read'), false)
+    when 'engagement' then coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.read'), false)
     when 'quote' then coalesce(better_supabase.can('tenant', x."tenant_id", 'quotes.read'), false)
-    when 'work_item' then coalesce(better_supabase.can('tenant', x."tenant_id", 'work_items.read'), false)
+    when 'work_item' then coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)
     when 'employee' then coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.read'), false)
     when 'invoice' then coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false)
     when 'ledger_account' then coalesce(better_supabase.can('tenant', x."tenant_id", 'ledger.read'), false)
@@ -389,8 +389,8 @@ as $$
     when 'work_order' then coalesce(better_supabase.can('tenant', x."tenant_id", 'dispatch.read'), false)
     when 'shipment' then coalesce(better_supabase.can('tenant', x."tenant_id", 'shipments.read'), false)
     when 'contract' then coalesce(better_supabase.can('tenant', x."tenant_id", 'contracts.read'), false)
-    when 'control' then coalesce(better_supabase.can('tenant', x."tenant_id", 'controls.read'), false)
-    when 'policy' then coalesce(better_supabase.can('tenant', x."tenant_id", 'controls.read'), false)
+    when 'control' then coalesce(better_supabase.can('tenant', x."tenant_id", 'compliance.read'), false)
+    when 'policy' then coalesce(better_supabase.can('tenant', x."tenant_id", 'compliance.read'), false)
     when 'qualification_type' then coalesce(better_supabase.can('tenant', x."tenant_id", 'qualifications.read'), false)
     when 'risk' then coalesce(better_supabase.can('tenant', x."tenant_id", 'risks.read'), false)
     when 'incident' then coalesce(better_supabase.can('tenant', x."tenant_id", 'incidents.read'), false)
@@ -770,7 +770,7 @@ begin
   if v_tenant is null then
     raise exception 'No segment has this id' using errcode = 'P0002', hint = 'SEGMENT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'segments.edit'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'segments.write'), false)) then
     raise exception 'You need segments.edit to refresh a segment' using errcode = '42501', hint = 'SEGMENT_FORBIDDEN';
   end if;
   return "better_supabase"."evaluate_segment"(refresh_segment.segment);

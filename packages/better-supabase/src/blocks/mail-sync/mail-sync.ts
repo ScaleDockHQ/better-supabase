@@ -195,7 +195,7 @@ export interface MailSync {
     accountId: string,
     options?: { readonly purge?: boolean },
   ): AsyncResult<boolean>;
-  /** The caller's mailboxes; every member's with `mail.manage`. */
+  /** The caller's mailboxes; every member's with `mail_sync.manage`. */
   accounts(organizationId: string): AsyncResult<MailAccount[]>;
   /** The threads the caller can see, the latest first (25, at most 100). */
   threads(

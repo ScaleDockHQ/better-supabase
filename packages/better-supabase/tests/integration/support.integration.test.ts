@@ -37,7 +37,7 @@ const OTHER = crypto.randomUUID();
 const adminClaims = {
   sub: ADMIN,
   role: "authenticated",
-  platform_permissions: ["support.*"],
+  platform_permissions: ["impersonation.*"],
 };
 
 describe.skipIf(!live)("support sessions against the local database", () => {

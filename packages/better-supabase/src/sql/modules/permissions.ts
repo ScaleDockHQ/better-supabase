@@ -34,6 +34,7 @@ import {
   tenantScope,
 } from "./permissions-model.ts";
 import { operationsSql } from "./permissions-operations.ts";
+import { catalogKeyRenames } from "./permissions-renames.ts";
 import {
   catalogRoleFunctions,
   rendersRoleFunctions,
@@ -1139,5 +1140,6 @@ export const ACCESS: BlockSqlDefinition = {
   ],
   unusedPermissions: (ctx) =>
     rendersRoleFunctions(ctx) ? [] : ["listRoles", "setOverride"],
+  data: catalogKeyRenames,
   build: accessSql,
 };

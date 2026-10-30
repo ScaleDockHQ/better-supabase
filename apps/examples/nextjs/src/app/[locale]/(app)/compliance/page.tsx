@@ -24,7 +24,7 @@ export default function CompliancePage() {
         )}
       />
       <Suspense fallback={<ControlPostureSkeleton />}>
-        <PermissionGate permission="controls.read">
+        <PermissionGate permission="compliance.read">
           <ControlPosture />
         </PermissionGate>
       </Suspense>

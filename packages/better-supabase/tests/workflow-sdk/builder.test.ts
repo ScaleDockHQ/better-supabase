@@ -119,7 +119,7 @@ const CALL: BuilderStartCall = {
     publishedAt: undefined,
     publishedBy: "u1",
     owner: "user",
-    permissions: ["workflow.run"],
+    permissions: ["workflow_editor.run"],
     graph: GRAPH,
   },
   input: { email: "a@x.test" },

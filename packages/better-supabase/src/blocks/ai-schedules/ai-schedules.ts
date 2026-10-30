@@ -172,7 +172,10 @@ export interface AiSchedules<F extends object = Record<never, never>> {
   /** Enables a task again; it runs at its next occurrence. */
   resume(organizationId: string, taskId: string): AsyncResult<AiTask & F>;
   remove(taskId: string): AsyncResult<boolean>;
-  /** The caller's tasks, or every task in the tenant with `all` and `ai.admin`. */
+  /**
+   * The caller's tasks, or every task in the tenant with `all` and
+   * `ai_schedules.manage`.
+   */
   list(
     organizationId: string,
     options?: { readonly all?: boolean },

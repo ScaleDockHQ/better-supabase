@@ -1,3 +1,8 @@
+import {
+  currentPermissionKeys,
+  upgradePermissionKey,
+} from "../../core/renames.ts";
+
 /**
  * The caller's permission keys in one tenant, as `my_permissions` returned
  * them. It is plain data, so a Server Component can pass it to the client.
@@ -17,16 +22,22 @@ export type PermissionFlags<M extends Readonly<Record<string, string>>> = {
   readonly [N in keyof M & string as `can${Capitalize<N>}`]: boolean;
 };
 
+const grants = (granted: string, wanted: string): boolean =>
+  granted === "*" ||
+  granted === wanted ||
+  (granted.endsWith(".*") && wanted.startsWith(granted.slice(0, -1)));
+
 /**
  * Whether a granted key covers a wanted one: the same rule as the SQL
  * `permission_matches`, where `*` grants every key and `prefix.*` every key
- * under `prefix`.
+ * under `prefix`. A key the 0.46 convention renamed matches as its new keys on
+ * either side until the next minor, and a wanted one is logged once.
  */
 export function permissionMatches(granted: string, wanted: string): boolean {
-  return (
-    granted === "*" ||
-    granted === wanted ||
-    (granted.endsWith(".*") && wanted.startsWith(granted.slice(0, -1)))
+  const wants = upgradePermissionKey(wanted);
+
+  return currentPermissionKeys(granted).some((each) =>
+    wants.some((key) => grants(each, key)),
   );
 }
 

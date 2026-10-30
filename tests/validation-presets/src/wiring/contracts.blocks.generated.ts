@@ -187,13 +187,13 @@ export const permissions = {
     viewAll: "billing.read",
   },
   company: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   contacts: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
   },
   contract: {
     read: "contracts.read",
@@ -232,8 +232,8 @@ export const permissions = {
     transferOwnership: "organization.transfer_ownership",
   },
   person: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   reminders: {
     manage: "reminders.manage",
@@ -269,7 +269,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contracts.manage" | "contracts.read" | "contracts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "contracts.manage" | "contracts.read" | "contracts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "signatures.manage" | "signatures.read" | "signatures.request" | "subjects.manage" | "teams.manage" | "teams.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

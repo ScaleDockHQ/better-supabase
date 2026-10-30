@@ -7035,8 +7035,8 @@ function TaskRows({ tasks }: { tasks: readonly AiTaskRow[] }) {
 
 /**
  * The caller's scheduled AI tasks, read on the server through `aiTasks.list`,
- * with each task's next occurrence and its latest run. An admin with `ai.admin`
- * sees every task in the organization.
+ * with each task's next occurrence and its latest run. An admin with
+ * `ai_schedules.manage` sees every task in the organization.
  */
 export function AiTaskQueue({ read }: { read: AiTasksRead }) {
   const t = useExtracted("aiTasks");
@@ -11706,7 +11706,7 @@ export async function ContactDetail({
     getPermissions(),
   ]);
 
-  if (!can(permissions, "parties.read")) {
+  if (!can(permissions, "contacts.read")) {
     forbidden();
   }
 
@@ -11837,7 +11837,7 @@ export async function ContactDetail({
                 ))}
               </ul>
             )}
-            {can(permissions, "parties.write") ? (
+            {can(permissions, "contacts.write") ? (
               <LinkPersonForm
                 companyId={contact.id}
                 people={contact.candidates.map((person) => ({
@@ -12180,7 +12180,7 @@ export async function ActivityTimeline({
     getPermissions(),
   ]);
 
-  if (!can(permissions, "engagements.read")) {
+  if (!can(permissions, "activities.read")) {
     return null;
   }
 
@@ -12190,7 +12190,7 @@ export async function ActivityTimeline({
     return null;
   }
 
-  const canLog = can(permissions, "engagements.write");
+  const canLog = can(permissions, "activities.write");
 
   const types = new Map([
     ["call", t("Call")],
@@ -12474,7 +12474,7 @@ export async function TargetsProgress() {
     getPermissions(),
   ]);
 
-  if (!can(permissions, "targets.read")) {
+  if (!can(permissions, "goals.read")) {
     return null;
   }
 
@@ -12484,7 +12484,7 @@ export async function TargetsProgress() {
     return null;
   }
 
-  const canManage = can(permissions, "targets.manage");
+  const canManage = can(permissions, "goals.manage");
 
   const amountOf = (target: TargetRow, value: bigint) =>
     target.currency === null
@@ -14650,7 +14650,7 @@ npx shadcn add card empty skeleton
 /**
  * Render inside `<Suspense>`: the employees as an org chart, each manager above
  * their reports, with a search. Private details open in a sheet for callers
- * with `employees.view_sensitive`.
+ * with `employees.read_sensitive`.
  */
 export async function EmployeeDirectory() {
   const [t, permissions] = await Promise.all([
@@ -14669,7 +14669,7 @@ export async function EmployeeDirectory() {
   }
 
   const canWrite = can(permissions, "employees.write");
-  const canViewSensitive = can(permissions, "employees.view_sensitive");
+  const canViewSensitive = can(permissions, "employees.read_sensitive");
 
   const managers =
     directory.kind === "ok"
@@ -21462,8 +21462,8 @@ async function retry() {
 
 /**
  * Render inside `<Suspense>`: the machine identities workflows and webhooks run
- * as, with their role. Members with `service_principals.manage` add and disable
- * them. Members without `service_principals.read` see nothing.
+ * as, with their role. Members with `service_accounts.manage` add and disable
+ * them. Members without `service_accounts.read` see nothing.
  */
 export async function ServicePrincipalsTable() {
   const [t, format, permissions] = await Promise.all([
@@ -21472,7 +21472,7 @@ export async function ServicePrincipalsTable() {
     getPermissions(),
   ]);
 
-  if (!can(permissions, "service_principals.read")) {
+  if (!can(permissions, "service_accounts.read")) {
     return null;
   }
 
@@ -21482,7 +21482,7 @@ export async function ServicePrincipalsTable() {
     return null;
   }
 
-  const manage = can(permissions, "service_principals.manage");
+  const manage = can(permissions, "service_accounts.manage");
 
   const roles = new Map([
     ["owner", t("Owner")],
@@ -21761,7 +21761,7 @@ npx shadcn add alert badge button card empty skeleton
 
 ```tsx title="apps/examples/nextjs/src/features/privacy/components/privacy-settings.tsx"
 /**
- * Data exports for the caller and, with `organization.export`, for the
+ * Data exports for the caller and, with `data_lifecycle.export`, for the
  * organization, each with its status and a download. Owners schedule the
  * organization's deletion here; account deletion stays on the security page.
  */

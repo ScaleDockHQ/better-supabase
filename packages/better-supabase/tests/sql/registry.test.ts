@@ -1098,7 +1098,7 @@ describe("modulePermissionKeys", () => {
     expect(keys).toContainEqual({
       module: "impersonation",
       action: "start",
-      key: "support.start",
+      key: "impersonation.start",
       scope: "platform",
     });
     expect(keys.map((entry) => entry.module)).not.toContain("notifications");
@@ -1127,7 +1127,7 @@ describe("modulePermissionKeys", () => {
       {
         module: "numbering",
         action: "assign",
-        key: "number_sequences.assign",
+        key: "numbering.assign",
         scope: "tenant",
       },
       {
@@ -1196,7 +1196,7 @@ describe("modulePermissionKeys", () => {
 
     expect(key(invite, "invitations", "revoke")).toBe("member.invite");
     expect(key(invite, "invitations", "view")).toBe("member.invite");
-    expect(key(invite, "waitlist", "invite")).toBe("member.invite");
+    expect(key(invite, "waitlist", "invite")).toBe("waitlist.invite");
     expect(
       key(
         { billing: { permissions: { read: "billing.view" } } },
@@ -1222,7 +1222,7 @@ describe("modulePermissionKeys", () => {
         "view",
       ),
     ).toBe("member.view");
-    expect(key({}, "waitlist", "invite")).toBe("members.invite");
+    expect(key({}, "waitlist", "invite")).toBe("waitlist.invite");
   });
 
   it("applies blocks.<module>.permissions and skips custom modules", () => {

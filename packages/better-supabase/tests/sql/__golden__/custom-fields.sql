@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:11714d4dfa7e6ed7c15d5911cd574d24f845863c478e1497a7a7ef7906fba4ed
+-- @bsb-hash sha256:a7b00bc83c285668752b4c6564da39f8269569671299cffbd1dcaaf4f5080e17
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -209,7 +209,7 @@ begin
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
@@ -410,7 +410,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:b89b200b8d397dc32cb99b51127dbc704123a367aa68d5392211f2ab22087112
+-- @bsb-hash sha256:75a06a88cf506eca42b8670bba13fb1ff71d0cba3ba0202259e6bb8f3f51b5ef
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -620,7 +620,7 @@ begin
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
@@ -858,7 +858,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:d8d0f96925cbe5d9b7244f63aeb6dfe22f93a08d4f99a30e965f4c8641e2f862
+-- @bsb-hash sha256:ac05fe7fea926c685e51b9b524e572c29b7b1584855ceab48cb44c943c10cb2c
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1071,7 +1071,7 @@ begin
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
@@ -1272,7 +1272,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:6770593b8c55071de6df1ed2c384107b563128b911f912505de590bdeb0ea746
+-- @bsb-hash sha256:70bad148c2a137532a9fad91e62081d74ca8fc4cf1e90249062d136cf8935b7f
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1480,7 +1480,7 @@ begin
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
@@ -1775,7 +1775,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:0ef5187cee28b206bdf65e094b481dee4a3cf7300e5c3caa38f1c26f9c1b2795
+-- @bsb-hash sha256:82a637e7ff83f9b06763ea4069ec99e161a2245c5de005bfdeac6bea524346c3
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1964,7 +1964,7 @@ begin
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+        or coalesce(better_supabase.can('tenant', v."tenant_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;
@@ -2165,7 +2165,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@3 managed
--- @bsb-hash sha256:0138bdc4a6829b5e52e825b14068195170828ddfb323ff488f8cea8a7799e55a
+-- @bsb-hash sha256:d6b674d39bc56c246e4b3d61f5eb44ef1188fd85c9417699a0d03b7a65498ce3
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2373,7 +2373,7 @@ begin
     and v."subject_id" = read_field_values.subject_id
     and (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', read_field_values.tenant, 'custom_fields.read'), false))
     and (not coalesce(d."sensitive", false)
-        or coalesce(better_supabase.can('tenant', v."org_id", coalesce(d."permission", 'custom_fields.sensitive.read')), false));
+        or coalesce(better_supabase.can('tenant', v."org_id", coalesce(d."permission", 'custom_fields.read_sensitive')), false));
   return v_values;
 end;
 $$;

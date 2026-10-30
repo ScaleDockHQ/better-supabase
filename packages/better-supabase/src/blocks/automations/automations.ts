@@ -86,7 +86,7 @@ export interface RuleInput {
   readonly description?: string | null;
   readonly conditions?: FilterQuery;
   readonly actions?: readonly RuleAction[];
-  /** Turning a rule on takes `rules.publish`. */
+  /** Turning a rule on takes `automations.publish`. */
   readonly enabled?: boolean;
   readonly stopProcessing?: boolean;
 }
@@ -157,7 +157,7 @@ export interface AutomationsOptions extends BlockTemporalOptions {
 export interface Automations {
   /** The field catalog, for one subject type or all of them. */
   fields(subjectType?: string): AsyncResult<readonly RuleField[]>;
-  /** The organization's rules in evaluation order (needs `rules.read`). */
+  /** The organization's rules in evaluation order (needs `automations.read`). */
   list(
     organizationId: string,
     options?: RuleListOptions,
@@ -165,23 +165,24 @@ export interface Automations {
   /** `undefined` when the caller can't read a rule with this id. */
   get(id: string): AsyncResult<Rule | undefined>;
   /**
-   * Creates or changes a rule. `rules.edit` covers disabled rules; enabling a
-   * rule or changing an enabled one takes `rules.publish`.
+   * Creates or changes a rule. `automations.write` covers disabled rules;
+   * enabling a rule or changing an enabled one takes `automations.publish`.
    */
   upsert(organizationId: string, input: RuleInput): AsyncResult<Rule>;
-  /** Turns a rule on or off (needs `rules.publish`). */
+  /** Turns a rule on or off (needs `automations.publish`). */
   setEnabled(id: string, enabled: boolean): AsyncResult<Rule>;
   /** Moves a rule to a rank key from `rankBetween` over its neighbours. */
   move(id: string, rank: string): AsyncResult<Rule>;
   /**
-   * Removes a rule with its history (needs `rules.admin`); `false` when there
-   * is none to remove. A default automation fails with `RULE_DEFAULT`; turn it
-   * off instead.
+   * Removes a rule with its history (needs `automations.manage`); `false` when
+   * there is none to remove. A default automation fails with `RULE_DEFAULT`;
+   * turn it off instead.
    */
   remove(id: string): AsyncResult<boolean>;
   /**
-   * Restores a default automation to what its block ships (needs `rules.edit`,
-   * or `rules.publish` when it is or becomes enabled).
+   * Restores a default automation to what its block ships (needs
+   * `automations.write`, or `automations.publish` when it is or becomes
+   * enabled).
    */
   resetDefault(id: string): AsyncResult<Rule>;
   /** Saved versions, newest first. */
@@ -201,7 +202,8 @@ export interface Automations {
   ): AsyncResult<readonly RuleMatch[]>;
   /**
    * Runs a rule's stored conditions on a sample record and logs it as a test
-   * (needs `rules.edit`). Nothing runs; the result says what would match.
+   * (needs `automations.write`). Nothing runs; the result says what would
+   * match.
    */
   test(
     rule: Rule,

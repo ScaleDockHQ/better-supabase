@@ -278,13 +278,13 @@ export interface PolicyAcknowledgements {
 }
 
 export interface Compliance<F extends object = Record<never, never>> {
-  /** Needs `controls.manage`. */
+  /** Needs `compliance.manage`. */
   saveFramework(
     organizationId: string,
     input: ControlFrameworkInput,
   ): AsyncResult<ControlFramework>;
   frameworks(organizationId: string): AsyncResult<readonly ControlFramework[]>;
-  /** Needs `controls.manage`. */
+  /** Needs `compliance.manage`. */
   saveControl(input: ControlInput<F>): AsyncResult<Control<F>>;
   getControl(controlId: string): AsyncResult<ControlDetail<F>>;
   /** By framework and code. */
@@ -292,14 +292,14 @@ export interface Compliance<F extends object = Record<never, never>> {
     organizationId: string,
     options?: ControlListOptions,
   ): AsyncResult<readonly Control<F>[]>;
-  /** Needs `controls.collect`, or being the evidence task's assignee. */
+  /** Needs `compliance.collect`, or being the evidence task's assignee. */
   addEvidence(
     controlId: string,
     input: ControlEvidenceInput,
   ): AsyncResult<ControlEvidence>;
-  /** Needs `controls.manage`. */
+  /** Needs `compliance.manage`. */
   removeEvidence(evidenceId: string): AsyncResult<ControlEvidence>;
-  /** Needs `controls.manage`. */
+  /** Needs `compliance.manage`. */
   saveEvidenceTask(
     controlId: string,
     input: EvidenceTaskInput,
@@ -319,11 +319,11 @@ export interface Compliance<F extends object = Record<never, never>> {
    * Service role only; run it daily.
    */
   notifyOverdue(): AsyncResult<number>;
-  /** Needs `controls.manage`. */
+  /** Needs `compliance.manage`. */
   savePolicy(organizationId: string, input: PolicyInput): AsyncResult<Policy>;
   /**
    * Publishes the policy's text as a new frozen version. Members acknowledge
-   * each published version again. Needs `controls.manage`.
+   * each published version again. Needs `compliance.manage`.
    */
   publishPolicy(
     policyId: string,
@@ -333,14 +333,14 @@ export interface Compliance<F extends object = Record<never, never>> {
   archivePolicy(policyId: string): AsyncResult<Policy>;
   /**
    * The caller acknowledges the published version. Needs
-   * `controls.acknowledge`.
+   * `compliance.acknowledge`.
    */
   acknowledgePolicy(policyId: string): AsyncResult<Policy>;
   policies(
     organizationId: string,
     options?: PolicyListOptions,
   ): AsyncResult<readonly Policy[]>;
-  /** Every member and when they acknowledged. Needs `controls.read`. */
+  /** Every member and when they acknowledged. Needs `compliance.read`. */
   acknowledgements(policyId: string): AsyncResult<PolicyAcknowledgements>;
 }
 

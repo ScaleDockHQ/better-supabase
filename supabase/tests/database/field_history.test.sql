@@ -94,7 +94,7 @@ set local role authenticated;
 select is(
   jsonb_array_length(api.field_history('company', (select id from ids where name = 'company')::text)),
   1,
-  'a member with history.read reads a company''s history'
+  'a member with field_history.read reads a company''s history'
 );
 select is(
   (select count(*)::integer from better_supabase.field_changes),

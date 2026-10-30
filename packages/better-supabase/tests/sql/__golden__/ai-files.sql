@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:527b1a258b7c4982a5700e64107a0d4b7e8b23c898c64a4f65cb3fc56a9bd247
+-- @bsb-hash sha256:8c7364cc6853f50fa404f7f95d6be54698e509c26e54fa40245606179a29f24e
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,7 +98,7 @@ grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -138,7 +138,7 @@ grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 create table if not exists "better_supabase"."ai_document_versions" (
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
@@ -201,8 +201,8 @@ as $$
     where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
-        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false) or false
-        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false)
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false) or false
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false)
         else false
       end
   )
@@ -246,7 +246,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai.create'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai_files.upload'), false) then
     raise exception 'you may not upload files here' using errcode = '42501', hint = 'AI_FILE_FORBIDDEN';
   end if;
   if byte_size < 0 or byte_size > 52428800 then
@@ -355,7 +355,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_files" x where x."id" = delete_ai_file.file_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_files" x where x."id" = v_row."id";
@@ -493,7 +493,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai.create'), false)) then
+  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_files.upload'), false)) then
     raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
@@ -529,7 +529,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = update_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   if expected_version is not null and expected_version <> v_row."current_version" then
@@ -564,7 +564,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
@@ -627,7 +627,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_doc from "better_supabase"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false) or false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false) or false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
@@ -673,7 +673,7 @@ begin
   if found then
     select * into v_doc from "better_supabase"."ai_documents" x where x."id" = v_row."document_id";
   end if;
-  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false)) then
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false)) then
     raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
   end if;
   update "better_supabase"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
@@ -699,7 +699,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = delete_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."ai_documents" x where x."id" = v_row."id";
@@ -730,7 +730,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restric
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
@@ -751,7 +751,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as res
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
@@ -801,7 +801,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:8ad4974151bbd1ed7c28003a65178087ebea6cd4132bb65ee4c7db81d9cf8fde
+-- @bsb-hash sha256:39fcdf81bec3c45c77afa9404f036b32aab63fd78c8d4cd20ce21516acb23296
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -898,7 +898,7 @@ grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -938,7 +938,7 @@ grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
 
 create table if not exists "better_supabase"."ai_document_versions" (
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
@@ -1001,8 +1001,8 @@ as $$
     where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
-        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false) or (a."chat_id" is not null and "better_supabase"."ai_chat_can_read"(a."chat_id"))
-        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false)
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false) or (a."chat_id" is not null and "better_supabase"."ai_chat_can_read"(a."chat_id"))
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false)
         else false
       end
   )
@@ -1046,7 +1046,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai.create'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai_files.upload'), false) then
     raise exception 'you may not upload files here' using errcode = '42501', hint = 'AI_FILE_FORBIDDEN';
   end if;
   if byte_size < 0 or byte_size > 52428800 then
@@ -1155,7 +1155,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_files" x where x."id" = delete_ai_file.file_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_files" x where x."id" = v_row."id";
@@ -1294,7 +1294,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai.create'), false)) then
+  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_files.upload'), false)) then
     raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
@@ -1330,7 +1330,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = update_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   if expected_version is not null and expected_version <> v_row."current_version" then
@@ -1365,7 +1365,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
@@ -1428,7 +1428,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_doc from "better_supabase"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false) or (v_doc."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_doc."chat_id")))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false) or (v_doc."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_doc."chat_id")))) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
@@ -1474,7 +1474,7 @@ begin
   if found then
     select * into v_doc from "better_supabase"."ai_documents" x where x."id" = v_row."document_id";
   end if;
-  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false)) then
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false)) then
     raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
   end if;
   update "better_supabase"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
@@ -1500,7 +1500,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = delete_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."ai_documents" x where x."id" = v_row."id";
@@ -1531,7 +1531,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restric
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
@@ -1552,7 +1552,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as res
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
@@ -1602,7 +1602,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:9f352d000e1cee8c4d7e0f449cc07843ba6218536d95a4f13ab1cdb1b90d4e5b
+-- @bsb-hash sha256:8b24a545c528df90e1840b187f6b6f5d955ccf138f2b9c0bbaf08de1876458a2
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1704,7 +1704,7 @@ grant all on "app_private"."ai_files" to service_role;
 drop policy if exists ai_files_read on "app_private"."ai_files";
 create policy ai_files_read on "app_private"."ai_files"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -1744,7 +1744,7 @@ grant all on "app_private"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "app_private"."ai_documents";
 create policy ai_documents_read on "app_private"."ai_documents"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 create table if not exists "app_private"."ai_document_versions" (
   "document_id" uuid not null references "app_private"."ai_documents" ("id") on delete cascade,
@@ -1807,8 +1807,8 @@ as $$
     where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
-        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false) or false
-        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false)
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false) or false
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false)
         else false
       end
   )
@@ -1852,7 +1852,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai.create'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai_files.upload'), false) then
     raise exception 'you may not upload files here' using errcode = '42501', hint = 'AI_FILE_FORBIDDEN';
   end if;
   if byte_size < 0 or byte_size > 52428800 then
@@ -1961,7 +1961,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."ai_files" x where x."id" = delete_ai_file.file_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return null;
   end if;
   delete from "app_private"."ai_files" x where x."id" = v_row."id";
@@ -2099,7 +2099,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai.create'), false)) then
+  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_files.upload'), false)) then
     raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
   end if;
   insert into "app_private"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
@@ -2135,7 +2135,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."ai_documents" x where x."id" = update_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   if expected_version is not null and expected_version <> v_row."current_version" then
@@ -2170,7 +2170,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   select * into v_old from "app_private"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
@@ -2233,7 +2233,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_doc from "app_private"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false) or false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false) or false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   insert into "app_private"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
@@ -2279,7 +2279,7 @@ begin
   if found then
     select * into v_doc from "app_private"."ai_documents" x where x."id" = v_row."document_id";
   end if;
-  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false)) then
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false)) then
     raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
   end if;
   update "app_private"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
@@ -2305,7 +2305,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."ai_documents" x where x."id" = delete_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return false;
   end if;
   delete from "app_private"."ai_documents" x where x."id" = v_row."id";
@@ -2336,7 +2336,7 @@ create policy bsb_tenant_scope_select on "app_private"."ai_files" as restrictive
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_files";
 create policy bsb_tenant_scope_insert on "app_private"."ai_files" as restrictive
@@ -2357,7 +2357,7 @@ create policy bsb_tenant_scope_select on "app_private"."ai_documents" as restric
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_documents";
 create policy bsb_tenant_scope_insert on "app_private"."ai_documents" as restrictive
@@ -2407,7 +2407,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:ebce5e306236fc63e54cf3f9001bdc906871449b02bfea8abab82a362af1cc31
+-- @bsb-hash sha256:8c9e7b5df419bf25ae4d8847db146bf1d7111c669d71f7f098e3e97bd71039c1
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2504,7 +2504,7 @@ grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -2544,7 +2544,7 @@ grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 create table if not exists "better_supabase"."ai_document_versions" (
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
@@ -2607,8 +2607,8 @@ as $$
     where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
-        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false) or false
-        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false)
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false) or false
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false)
         else false
       end
   )
@@ -2652,7 +2652,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai.create'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai_files.upload'), false) then
     raise exception 'you may not upload files here' using errcode = '42501', hint = 'AI_FILE_FORBIDDEN';
   end if;
   if byte_size < 0 or byte_size > 52428800 then
@@ -2761,7 +2761,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_files" x where x."id" = delete_ai_file.file_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_files" x where x."id" = v_row."id";
@@ -2899,7 +2899,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai.create'), false)) then
+  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_files.upload'), false)) then
     raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
@@ -2935,7 +2935,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = update_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   if expected_version is not null and expected_version <> v_row."current_version" then
@@ -2970,7 +2970,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
@@ -3033,7 +3033,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_doc from "better_supabase"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false) or false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false) or false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
@@ -3079,7 +3079,7 @@ begin
   if found then
     select * into v_doc from "better_supabase"."ai_documents" x where x."id" = v_row."document_id";
   end if;
-  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false)) then
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false)) then
     raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
   end if;
   update "better_supabase"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
@@ -3105,7 +3105,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = delete_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."ai_documents" x where x."id" = v_row."id";
@@ -3136,7 +3136,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restric
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
@@ -3157,7 +3157,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as res
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
@@ -3415,7 +3415,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:7f85ccba26937e9a6e91d967f69664a0bfe3daf7c9dd4b3aa1b173915117bf16
+-- @bsb-hash sha256:598042665f6a059753f855b572ee5d92bc42ca4c1d6e18365d98efb251374385
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3526,7 +3526,7 @@ grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists bsb_ai_files_read on "better_supabase"."ai_files";
 create policy bsb_ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -3562,7 +3562,7 @@ grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists bsb_ai_documents_read on "better_supabase"."ai_documents";
 create policy bsb_ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- better_supabase.ai_document_versions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_document_versions" add column if not exists "document_id" uuid references "better_supabase"."ai_documents" ("id") on delete cascade;
@@ -3619,8 +3619,8 @@ as $$
     where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
-        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false) or false
-        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai.admin'), false)
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false) or false
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false)
         else false
       end
   )
@@ -3664,7 +3664,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai.create'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai_files.upload'), false) then
     raise exception 'you may not upload files here' using errcode = '42501', hint = 'AI_FILE_FORBIDDEN';
   end if;
   if byte_size < 0 or byte_size > 52428800 then
@@ -3773,7 +3773,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_files" x where x."id" = delete_ai_file.file_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_files" x where x."id" = v_row."id";
@@ -3911,7 +3911,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai.create'), false)) then
+  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_files.upload'), false)) then
     raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
@@ -3947,7 +3947,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = update_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   if expected_version is not null and expected_version <> v_row."current_version" then
@@ -3982,7 +3982,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
@@ -4045,7 +4045,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_doc from "better_supabase"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false) or false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false) or false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
@@ -4091,7 +4091,7 @@ begin
   if found then
     select * into v_doc from "better_supabase"."ai_documents" x where x."id" = v_row."document_id";
   end if;
-  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai.admin'), false)) then
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false)) then
     raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
   end if;
   update "better_supabase"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
@@ -4117,7 +4117,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = delete_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."ai_documents" x where x."id" = v_row."id";
@@ -4148,7 +4148,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restric
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
@@ -4169,7 +4169,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as res
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
@@ -4219,7 +4219,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@1 managed
--- @bsb-hash sha256:d0febd5677cbfe11cf06ffb23a8c8a1e12e4a984e09b57bdc50d82820617ff66
+-- @bsb-hash sha256:028970df87f7e4eec2be7bf8fa5c8a0d30f38dc285f63f07f193fecb2d2bdc17
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4316,7 +4316,7 @@ grant all on "better_supabase"."ai_files" to service_role;
 drop policy if exists ai_files_read on "better_supabase"."ai_files";
 create policy ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -4356,7 +4356,7 @@ grant all on "better_supabase"."ai_documents" to service_role;
 drop policy if exists ai_documents_read on "better_supabase"."ai_documents";
 create policy ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false));
+  using (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
 create table if not exists "better_supabase"."ai_document_versions" (
   "document_id" uuid not null references "better_supabase"."ai_documents" ("id") on delete cascade,
@@ -4419,8 +4419,8 @@ as $$
     where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
-        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."org_id", 'ai.admin'), false) or false
-        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."org_id", 'ai.admin'), false)
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."org_id", 'ai_files.manage'), false) or false
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."org_id", 'ai_files.manage'), false)
         else false
       end
   )
@@ -4464,7 +4464,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai.create'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', reserve_ai_file.tenant, 'ai_files.upload'), false) then
     raise exception 'you may not upload files here' using errcode = '42501', hint = 'AI_FILE_FORBIDDEN';
   end if;
   if byte_size < 0 or byte_size > 52428800 then
@@ -4573,7 +4573,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_files" x where x."id" = delete_ai_file.file_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_files.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_files" x where x."id" = v_row."id";
@@ -4711,7 +4711,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai.create'), false)) then
+  if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_files.upload'), false)) then
     raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_documents" ("org_id", "owner_id", "chat_id", "kind", "title")
@@ -4747,7 +4747,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = update_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   if expected_version is not null and expected_version <> v_row."current_version" then
@@ -4782,7 +4782,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   select * into v_old from "better_supabase"."ai_document_versions" x where x."document_id" = v_row."id" and x."version" = rollback_ai_document.version;
@@ -4845,7 +4845,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_doc from "better_supabase"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."org_id", 'ai.admin'), false) or false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."org_id", 'ai_files.manage'), false) or false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
@@ -4891,7 +4891,7 @@ begin
   if found then
     select * into v_doc from "better_supabase"."ai_documents" x where x."id" = v_row."document_id";
   end if;
-  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."org_id", 'ai.admin'), false)) then
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."org_id", 'ai_files.manage'), false)) then
     raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
   end if;
   update "better_supabase"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
@@ -4917,7 +4917,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = delete_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_files.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."ai_documents" x where x."id" = v_row."id";
@@ -4948,7 +4948,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restric
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_files";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
@@ -4969,7 +4969,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as res
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')) or false))
+    or (("owner_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_documents";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive

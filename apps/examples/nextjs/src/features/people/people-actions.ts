@@ -37,7 +37,7 @@ const PlainDate = v.pipe(v.string(), v.isoDate());
 
 /**
  * Adds an employee. Phone and personal email are private details, saved only
- * when the caller may see them (`employees.view_sensitive`).
+ * when the caller may see them (`employees.read_sensitive`).
  */
 export const createEmployee = bsb.action(
   {
@@ -90,7 +90,7 @@ export const createEmployee = bsb.action(
       input.personalEmail === "" ? undefined : input.personalEmail;
 
     if (
-      can(await getPermissions(), "employees.view_sensitive") &&
+      can(await getPermissions(), "employees.read_sensitive") &&
       (input.phone !== undefined || personalEmail !== undefined)
     ) {
       const details: Writable<PrivateDetailsInput> = {};
@@ -121,13 +121,13 @@ export const createEmployee = bsb.action(
 
 /**
  * An employee's private details; the block refuses callers without
- * `employees.view_sensitive`.
+ * `employees.read_sensitive`.
  */
 export const getPrivateDetails = bsb.action(
   {
     input: v.object({ employeeId: Id }),
     requireTenant: true,
-    permission: "employees.view_sensitive",
+    permission: "employees.read_sensitive",
   },
   async ({ employeeId }, { db }) => {
     const details = await db.employees.privateDetails(employeeId);

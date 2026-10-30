@@ -37,7 +37,7 @@ const LAYOUT: BlockSqlLayout = {
     permissions: {
       roles: {
         owner: ["*"],
-        admin: ["organization.read", "members.read", "workflow.*"],
+        admin: ["organization.read", "members.read", "workflow_editor.*"],
         member: ["organization.read", "members.read"],
       },
     },
@@ -108,7 +108,7 @@ describe.skipIf(!live)("workflow-editor publisher rights", () => {
         status: "published",
         publishedBy: admin.id,
         owner: "user",
-        permissions: ["workflow.run"],
+        permissions: ["workflow_editor.run"],
       });
     } finally {
       await s.close();

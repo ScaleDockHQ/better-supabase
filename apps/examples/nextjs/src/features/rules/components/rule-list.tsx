@@ -42,7 +42,7 @@ export async function RuleList() {
     getPermissions(),
   ]);
 
-  if (!can(permissions, "rules.read")) {
+  if (!can(permissions, "automations.read")) {
     forbidden();
   }
 
@@ -52,7 +52,7 @@ export async function RuleList() {
     return null;
   }
 
-  const canEdit = can(permissions, "rules.edit");
+  const canEdit = can(permissions, "automations.write");
 
   const newRule = (
     <Link

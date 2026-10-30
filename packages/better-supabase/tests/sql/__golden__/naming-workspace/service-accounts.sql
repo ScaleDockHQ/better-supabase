@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:816608f3f0de13634541e0b946a8989a9b4fb612a2df6b4497c158c5200e6b36
+-- @bsb-hash sha256:d5bf389642d3e9e2fdb89588d4a19cf1acee81718a463dec60d70734a1ce4ec4
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,7 +50,7 @@ grant all on "better_supabase"."service_principals" to service_role;
 drop policy if exists service_principals_read on "better_supabase"."service_principals";
 create policy service_principals_read on "better_supabase"."service_principals"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')));
 
 -- Registers an auth.users row the service created for a principal and adds
 -- its membership with role. The user must carry
@@ -70,7 +70,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if register_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(register_service_principal.created_by, register_service_principal.tenant, 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(register_service_principal.created_by, register_service_principal.tenant, register_service_principal.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -124,7 +124,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if set_service_principal_role.created_by is not null and not (
-    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(set_service_principal_role.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(set_service_principal_role.created_by, v_row."tenant_id", set_service_principal_role.role), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -163,7 +163,7 @@ begin
     raise exception 'Service principals are managed by the service' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
   end if;
   if disable_service_principal.created_by is not null and not (
-    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_principals.manage'), false)
+    coalesce(better_supabase.member_can(disable_service_principal.created_by, v_row."tenant_id", 'service_accounts.manage'), false)
     and coalesce(better_supabase.can_assign_as(disable_service_principal.created_by, v_row."tenant_id", v_row."role"), false)
   ) then
     raise exception 'You may not manage service principals with this role' using errcode = '42501', hint = 'SERVICE_PRINCIPAL_FORBIDDEN';
@@ -231,7 +231,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."service_principals" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_principals.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('service_accounts.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."service_principals";
 create policy bsb_tenant_scope_insert on "better_supabase"."service_principals" as restrictive

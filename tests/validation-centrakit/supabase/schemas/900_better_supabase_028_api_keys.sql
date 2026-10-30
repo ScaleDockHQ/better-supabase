@@ -1,6 +1,6 @@
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:f321288ed739213fe5ec682d1b3006ef21b7ff0e315b00d6dd5fe7908eef5048
+-- @bsb-hash sha256:eb18d8e663713ed3a492c66ee60d0903e8ff453aaefde97d950341814deff7c9
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -142,7 +142,7 @@ begin
       raise exception 'Not allowed to create API keys for every tenant' using errcode = '42501', hint = 'API_KEY_FORBIDDEN';
     end if;
   end if;
-  if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s <> all ('{activity.read,api_keys.manage,api_keys.own,attachments.manage,attachments.read,attachments.upload,audit.revert,audit.view,comments.create,comments.moderate,comments.read,crm.read,custom_fields.manage,custom_fields.read,custom_fields.sensitive.read,deals.manage,deals.read,deals.write,drive.create,drive.manage,drive.read,imports.manage,members.invite,members.remove,members.update_role,notifications.read,notifications.send,number_sequences.assign,organization.delete,organization.export,organization.transfer_ownership,organization.update,people.manage,people.read,people.view-sensitive,pipelines.manage,pipelines.read,platform.invite,platform.users.manage,reminders.manage,reminders.read,settings.manage,settings.read,settings.update,share_links.create,share_links.read,support.revoke,tags.manage,tags.read,teams.manage,teams.read,webhook.manage,webhook.view,work_items.manage,work_items.read,work_items.write}'::text[])) then
+  if exists (select 1 from unnest(coalesce(scopes, '{}')) s where s <> all ('{timeline.read,api_keys.manage,api_keys.own,attachments.manage,attachments.read,attachments.upload,audit.revert,audit.view,comments.create,comments.moderate,comments.read,crm.read,custom_fields.manage,custom_fields.read,custom_fields.read_sensitive,deals.manage,deals.read,deals.write,drive.create,drive.manage,drive.read,imports.manage,members.invite,members.remove,members.update_role,notifications.read,notifications.send,numbering.assign,organization.delete,data_lifecycle.export,organization.transfer_ownership,organization.update,people.manage,people.read,people.view-sensitive,pipelines.manage,pipelines.read,platform.invite,platform.users.manage,reminders.manage,reminders.read,settings.manage,settings.read,settings.update,share_links.create,share_links.read,impersonation.revoke,tags.manage,tags.read,teams.manage,teams.read,webhook.manage,webhook.view,tasks.manage,tasks.read,tasks.write}'::text[])) then
     raise exception 'A scope is not one of blocks.api-keys.options.scopes' using errcode = '22023', hint = 'API_KEY_SCOPE_UNKNOWN';
   end if;
   if expires_at is not null and expires_at <= now() then

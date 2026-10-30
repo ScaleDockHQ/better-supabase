@@ -158,7 +158,7 @@ describe("impersonation module", () => {
     );
     expect(sql).not.toMatch(/grant (insert|update)[^;]*support_requests/);
     expect(sql).toContain(
-      `if not service and not "better_supabase"."is_platform"('support.start') then`,
+      `if not service and not "better_supabase"."is_platform"('impersonation.start') then`,
     );
     expect(sql).toContain(
       'grant execute on function "better_supabase"."approve_support_request"(uuid, uuid) to authenticated, service_role;',
@@ -244,7 +244,7 @@ describe("impersonation approvers from the provider", () => {
     const sql = withApprover();
     expect(sql).not.toContain("can_approve");
     expect(sql).toContain(
-      `if not service and not "better_supabase"."is_platform"('support.start') then`,
+      `if not service and not "better_supabase"."is_platform"('impersonation.start') then`,
     );
   });
 });

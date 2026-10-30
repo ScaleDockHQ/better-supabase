@@ -229,7 +229,7 @@ export const permissions = {
   "custom-fields": {
     manage: "custom_fields.manage",
     read: "custom_fields.read",
-    sensitive: "custom_fields.sensitive.read",
+    sensitive: "custom_fields.read_sensitive",
   },
   enrollments: {
     read: "enrollments.read",
@@ -270,8 +270,8 @@ export const permissions = {
     write: "catalog.manage",
   },
   "saved-views": {
-    read: "views.read",
-    share: "views.share",
+    read: "saved_views.read",
+    share: "saved_views.share",
   },
   search: {
     read: "search.read",
@@ -300,7 +300,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "catalog.manage" | "catalog.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "imports.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "bulk.run" | "catalog.manage" | "catalog.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "imports.manage" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "saved_views.read" | "saved_views.share" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

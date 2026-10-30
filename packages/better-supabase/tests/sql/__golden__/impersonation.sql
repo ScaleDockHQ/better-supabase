@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:9cb53c70fd7903a8cf1c8790c8b578b4ff1fbd8782a71e1cb1eee6a4ea533a54
+-- @bsb-hash sha256:862338da4e929397f8adfda110d68000a6b1009bc7496bf0c4ed6470c378f959
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ grant select on "better_supabase"."support_sessions" to service_role;
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
 create policy bsb_support_read on "better_supabase"."support_sessions"
   for select to authenticated
-  using ((select "better_supabase"."is_platform"('support.read')));
+  using ((select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
 -- A support session waits for a second admin: the requester asks here, and
@@ -125,7 +125,7 @@ drop policy if exists bsb_support_requests_read on "better_supabase"."support_re
 create policy bsb_support_requests_read on "better_supabase"."support_requests"
   for select to authenticated
   using ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')));
+    or (select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
 
 
@@ -167,7 +167,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin) or approved_by is not null
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to ask for a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -248,7 +248,7 @@ begin
   if v_row."admin_id" = approver then
     raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
-  if not service and not "better_supabase"."is_platform"('support.start') then
+  if not service and not "better_supabase"."is_platform"('impersonation.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
   end if;
   return "better_supabase"."apply_support_approval"(request_id, approver);
@@ -345,7 +345,7 @@ as $$
   )
   from "better_supabase"."support_requests" x
   where x."id" = $1
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('support.start'))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('impersonation.start'))
 $$;
 
 -- The approved request a start would use, or null; the caller is the admin,
@@ -426,7 +426,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -549,7 +549,7 @@ begin
     end
   where s."id" = session_id and s."ended_at" is null
     and (service or s."admin_id" = auth.uid()
-      or "better_supabase"."is_platform"('support.revoke'))
+      or "better_supabase"."is_platform"('impersonation.revoke'))
   returning jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
@@ -666,7 +666,7 @@ as $$
     and s."ended_at" is null
     and s."expires_at" > now()
     and case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then s."admin_id" = $2
-      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('support.start')
+      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('impersonation.start')
     end
 $$;
 
@@ -698,7 +698,7 @@ as $$
   )
   from "better_supabase"."support_sessions" s
   where (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or "better_supabase"."is_platform"('support.read'))
+      or "better_supabase"."is_platform"('impersonation.read'))
     and ($1 is null or s."admin_id" = $1)
     and ($2 is null or s."target_user_id" = $2)
     and ($3 is null
@@ -783,7 +783,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ((select "better_supabase"."is_platform"('support.read')))
+    or ((select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
@@ -805,7 +805,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')))
+    or (select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
@@ -851,7 +851,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:ba49735e9d51df6dad98c650e04d380b34119ff4af2157828b79ebec4d1d3cc1
+-- @bsb-hash sha256:7099059407233473f0526d7414682f8cfb09efde395d498c8808b6ad16a71cf9
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -941,7 +941,7 @@ grant select on "better_supabase"."support_sessions" to service_role;
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
 create policy bsb_support_read on "better_supabase"."support_sessions"
   for select to authenticated
-  using ((select "better_supabase"."is_platform"('support.read')));
+  using ((select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
 -- A support session waits for a second admin: the requester asks here, and
@@ -975,7 +975,7 @@ drop policy if exists bsb_support_requests_read on "better_supabase"."support_re
 create policy bsb_support_requests_read on "better_supabase"."support_requests"
   for select to authenticated
   using ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')));
+    or (select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
 
 
@@ -1017,7 +1017,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin) or approved_by is not null
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to ask for a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -1104,7 +1104,7 @@ begin
   if v_row."admin_id" = approver then
     raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
-  if not service and not "better_supabase"."is_platform"('support.start') then
+  if not service and not "better_supabase"."is_platform"('impersonation.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
   end if;
   return "better_supabase"."apply_support_approval"(request_id, approver);
@@ -1191,7 +1191,7 @@ begin
   return found and v_row."approved_by" is null and v_row."session_id" is null
     and v_row."expires_at" > now()
     and (select auth.uid()) is not null and v_row."admin_id" <> (select auth.uid())
-    and coalesce("better_supabase"."is_platform"('support.start'), false);
+    and coalesce("better_supabase"."is_platform"('impersonation.start'), false);
 end;
 $$;
 revoke execute on function "better_supabase"."support_request_approvable"(uuid) from public, anon, authenticated;
@@ -1234,7 +1234,7 @@ as $$
   )
   from "better_supabase"."support_requests" x
   where x."id" = $1
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('support.start'))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('impersonation.start'))
 $$;
 
 -- The approved request a start would use, or null; the caller is the admin,
@@ -1315,7 +1315,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -1439,7 +1439,7 @@ begin
     end
   where s."id" = session_id and s."ended_at" is null
     and (service or s."admin_id" = auth.uid()
-      or "better_supabase"."is_platform"('support.revoke'))
+      or "better_supabase"."is_platform"('impersonation.revoke'))
   returning jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
@@ -1557,7 +1557,7 @@ as $$
     and s."ended_at" is null
     and s."expires_at" > now()
     and case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then s."admin_id" = $2
-      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('support.start')
+      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('impersonation.start')
     end
 $$;
 
@@ -1589,7 +1589,7 @@ as $$
   )
   from "better_supabase"."support_sessions" s
   where (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or "better_supabase"."is_platform"('support.read'))
+      or "better_supabase"."is_platform"('impersonation.read'))
     and ($1 is null or s."admin_id" = $1)
     and ($2 is null or s."target_user_id" = $2)
     and ($3 is null
@@ -1674,7 +1674,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ((select "better_supabase"."is_platform"('support.read')))
+    or ((select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
@@ -1696,7 +1696,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')))
+    or (select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
@@ -1742,7 +1742,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:5b2d2003b8d01870e2798405d0563e405ed13ec0f112fdc31e5e5b0dac39c42c
+-- @bsb-hash sha256:c66f4ee39faafdab71bf4523828908dbb8342bdcc567c9335ed8660a903f6542
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1832,7 +1832,7 @@ grant select on "app_private"."support_sessions" to service_role;
 drop policy if exists bsb_support_read on "app_private"."support_sessions";
 create policy bsb_support_read on "app_private"."support_sessions"
   for select to authenticated
-  using ((select "better_supabase"."is_platform"('support.read')));
+  using ((select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "app_private"."support_sessions" to authenticated;
 
 -- A support session waits for a second admin: the requester asks here, and
@@ -1866,7 +1866,7 @@ drop policy if exists bsb_support_requests_read on "app_private"."support_reques
 create policy bsb_support_requests_read on "app_private"."support_requests"
   for select to authenticated
   using ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')));
+    or (select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "app_private"."support_requests" to authenticated;
 
 
@@ -1908,7 +1908,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin) or approved_by is not null
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to ask for a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -1989,7 +1989,7 @@ begin
   if v_row."admin_id" = approver then
     raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
-  if not service and not "better_supabase"."is_platform"('support.start') then
+  if not service and not "better_supabase"."is_platform"('impersonation.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
   end if;
   return "app_private"."apply_support_approval"(request_id, approver);
@@ -2086,7 +2086,7 @@ as $$
   )
   from "app_private"."support_requests" x
   where x."id" = $1
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('support.start'))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('impersonation.start'))
 $$;
 
 -- The approved request a start would use, or null; the caller is the admin,
@@ -2167,7 +2167,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -2290,7 +2290,7 @@ begin
     end
   where s."id" = session_id and s."ended_at" is null
     and (service or s."admin_id" = auth.uid()
-      or "better_supabase"."is_platform"('support.revoke'))
+      or "better_supabase"."is_platform"('impersonation.revoke'))
   returning jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
@@ -2407,7 +2407,7 @@ as $$
     and s."ended_at" is null
     and s."expires_at" > now()
     and case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then s."admin_id" = $2
-      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('support.start')
+      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('impersonation.start')
     end
 $$;
 
@@ -2439,7 +2439,7 @@ as $$
   )
   from "app_private"."support_sessions" s
   where (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or "better_supabase"."is_platform"('support.read'))
+      or "better_supabase"."is_platform"('impersonation.read'))
     and ($1 is null or s."admin_id" = $1)
     and ($2 is null or s."target_user_id" = $2)
     and ($3 is null
@@ -2524,7 +2524,7 @@ create policy bsb_tenant_scope_select on "app_private"."support_sessions" as res
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ((select "better_supabase"."is_platform"('support.read')))
+    or ((select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."support_sessions";
 create policy bsb_tenant_scope_insert on "app_private"."support_sessions" as restrictive
@@ -2546,7 +2546,7 @@ create policy bsb_tenant_scope_select on "app_private"."support_requests" as res
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')))
+    or (select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."support_requests";
 create policy bsb_tenant_scope_insert on "app_private"."support_requests" as restrictive
@@ -2592,7 +2592,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:ddc61cfc87e0b703c7bbbf39ea00750f2f04954d0d8fd4caeecb9dc108b735d8
+-- @bsb-hash sha256:6a3ce9eeed76c48ac522f3066992e48459bdddcd46b8d47d50ca494f9de42b43
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2682,7 +2682,7 @@ grant select on "better_supabase"."support_sessions" to service_role;
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
 create policy bsb_support_read on "better_supabase"."support_sessions"
   for select to authenticated
-  using ((select "better_supabase"."is_platform"('support.read')));
+  using ((select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
 -- A support session waits for a second admin: the requester asks here, and
@@ -2716,7 +2716,7 @@ drop policy if exists bsb_support_requests_read on "better_supabase"."support_re
 create policy bsb_support_requests_read on "better_supabase"."support_requests"
   for select to authenticated
   using ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')));
+    or (select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
 
 
@@ -2758,7 +2758,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin) or approved_by is not null
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to ask for a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -2839,7 +2839,7 @@ begin
   if v_row."admin_id" = approver then
     raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
-  if not service and not "better_supabase"."is_platform"('support.start') then
+  if not service and not "better_supabase"."is_platform"('impersonation.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
   end if;
   return "better_supabase"."apply_support_approval"(request_id, approver);
@@ -2936,7 +2936,7 @@ as $$
   )
   from "better_supabase"."support_requests" x
   where x."id" = $1
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('support.start'))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('impersonation.start'))
 $$;
 
 -- The approved request a start would use, or null; the caller is the admin,
@@ -3017,7 +3017,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -3140,7 +3140,7 @@ begin
     end
   where s."id" = session_id and s."ended_at" is null
     and (service or s."admin_id" = auth.uid()
-      or "better_supabase"."is_platform"('support.revoke'))
+      or "better_supabase"."is_platform"('impersonation.revoke'))
   returning jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
@@ -3257,7 +3257,7 @@ as $$
     and s."ended_at" is null
     and s."expires_at" > now()
     and case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then s."admin_id" = $2
-      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('support.start')
+      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('impersonation.start')
     end
 $$;
 
@@ -3289,7 +3289,7 @@ as $$
   )
   from "better_supabase"."support_sessions" s
   where (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or "better_supabase"."is_platform"('support.read'))
+      or "better_supabase"."is_platform"('impersonation.read'))
     and ($1 is null or s."admin_id" = $1)
     and ($2 is null or s."target_user_id" = $2)
     and ($3 is null
@@ -3374,7 +3374,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ((select "better_supabase"."is_platform"('support.read')))
+    or ((select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
@@ -3396,7 +3396,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')))
+    or (select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
@@ -3554,7 +3554,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:3147553611b2dec9ab57ff4b607a7b8f385c27c4c56a8ebdf6adfb08365b3498
+-- @bsb-hash sha256:76f8c8ba610e429e7bdf92dc7cf096954a396f471f4162dd1b90af4066b78c64
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3638,7 +3638,7 @@ grant select on "better_supabase"."support_sessions" to service_role;
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
 create policy bsb_support_read on "better_supabase"."support_sessions"
   for select to authenticated
-  using ((select "better_supabase"."is_platform"('support.read')));
+  using ((select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
 -- A support session waits for a second admin: the requester asks here, and
@@ -3666,7 +3666,7 @@ drop policy if exists bsb_support_requests_read on "better_supabase"."support_re
 create policy bsb_support_requests_read on "better_supabase"."support_requests"
   for select to authenticated
   using ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')));
+    or (select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
 
 
@@ -3708,7 +3708,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin) or approved_by is not null
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to ask for a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -3789,7 +3789,7 @@ begin
   if v_row."admin_id" = approver then
     raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
-  if not service and not "better_supabase"."is_platform"('support.start') then
+  if not service and not "better_supabase"."is_platform"('impersonation.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
   end if;
   return "better_supabase"."apply_support_approval"(request_id, approver);
@@ -3886,7 +3886,7 @@ as $$
   )
   from "better_supabase"."support_requests" x
   where x."id" = $1
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('support.start'))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('impersonation.start'))
 $$;
 
 -- The approved request a start would use, or null; the caller is the admin,
@@ -3967,7 +3967,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -4090,7 +4090,7 @@ begin
     end
   where s."id" = session_id and s."ended_at" is null
     and (service or s."admin_id" = auth.uid()
-      or "better_supabase"."is_platform"('support.revoke'))
+      or "better_supabase"."is_platform"('impersonation.revoke'))
   returning jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
@@ -4207,7 +4207,7 @@ as $$
     and s."ended_at" is null
     and s."expires_at" > now()
     and case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then s."admin_id" = $2
-      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('support.start')
+      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('impersonation.start')
     end
 $$;
 
@@ -4239,7 +4239,7 @@ as $$
   )
   from "better_supabase"."support_sessions" s
   where (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or "better_supabase"."is_platform"('support.read'))
+      or "better_supabase"."is_platform"('impersonation.read'))
     and ($1 is null or s."admin_id" = $1)
     and ($2 is null or s."target_user_id" = $2)
     and ($3 is null
@@ -4324,7 +4324,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ((select "better_supabase"."is_platform"('support.read')))
+    or ((select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
@@ -4346,7 +4346,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')))
+    or (select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
@@ -4392,7 +4392,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:86e04cffbc6c61b23b6d87ed1e4339330b8b6deb046b4eb8cf37d68b415bc6a2
+-- @bsb-hash sha256:522cfdaf2121a5eb83bf7291aa00554524e15014f45f6765d6a739e4f42a8cfb
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4482,7 +4482,7 @@ grant select on "better_supabase"."support_sessions" to service_role;
 drop policy if exists bsb_support_read on "better_supabase"."support_sessions";
 create policy bsb_support_read on "better_supabase"."support_sessions"
   for select to authenticated
-  using ((select "better_supabase"."is_platform"('support.read')));
+  using ((select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_sessions" to authenticated;
 
 -- A support session waits for a second admin: the requester asks here, and
@@ -4516,7 +4516,7 @@ drop policy if exists bsb_support_requests_read on "better_supabase"."support_re
 create policy bsb_support_requests_read on "better_supabase"."support_requests"
   for select to authenticated
   using ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')));
+    or (select "better_supabase"."is_platform"('impersonation.read')));
 grant select on "better_supabase"."support_requests" to authenticated;
 
 
@@ -4558,7 +4558,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin) or approved_by is not null
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to ask for a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -4639,7 +4639,7 @@ begin
   if v_row."admin_id" = approver then
     raise exception 'An admin cannot approve their own support session' using errcode = '42501', hint = 'SUPPORT_SELF_APPROVAL';
   end if;
-  if not service and not "better_supabase"."is_platform"('support.start') then
+  if not service and not "better_supabase"."is_platform"('impersonation.start') then
     raise exception 'Not allowed to approve this support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
   end if;
   return "better_supabase"."apply_support_approval"(request_id, approver);
@@ -4736,7 +4736,7 @@ as $$
   )
   from "better_supabase"."support_requests" x
   where x."id" = $1
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('support.start'))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or x."admin_id" = auth.uid() or "better_supabase"."is_platform"('impersonation.start'))
 $$;
 
 -- The approved request a start would use, or null; the caller is the admin,
@@ -4817,7 +4817,7 @@ begin
   else
     admin := auth.uid();
     if admin is null or (admin_id is not null and admin_id <> admin)
-      or not "better_supabase"."is_platform"('support.start') then
+      or not "better_supabase"."is_platform"('impersonation.start') then
       raise exception 'Not allowed to start a support session' using errcode = '42501', hint = 'SUPPORT_FORBIDDEN';
     end if;
   end if;
@@ -4940,7 +4940,7 @@ begin
     end
   where s."id" = session_id and s."ended_at" is null
     and (service or s."admin_id" = auth.uid()
-      or "better_supabase"."is_platform"('support.revoke'))
+      or "better_supabase"."is_platform"('impersonation.revoke'))
   returning jsonb_build_object(
     'id', s."id",
     'admin_id', s."admin_id",
@@ -5057,7 +5057,7 @@ as $$
     and s."ended_at" is null
     and s."expires_at" > now()
     and case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then s."admin_id" = $2
-      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('support.start')
+      else s."admin_id" = auth.uid() and "better_supabase"."is_platform"('impersonation.start')
     end
 $$;
 
@@ -5089,7 +5089,7 @@ as $$
   )
   from "better_supabase"."support_sessions" s
   where (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or "better_supabase"."is_platform"('support.read'))
+      or "better_supabase"."is_platform"('impersonation.read'))
     and ($1 is null or s."admin_id" = $1)
     and ($2 is null or s."target_user_id" = $2)
     and ($3 is null
@@ -5174,7 +5174,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ((select "better_supabase"."is_platform"('support.read')))
+    or ((select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_sessions";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
@@ -5196,7 +5196,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
-    or (select "better_supabase"."is_platform"('support.read')))
+    or (select "better_supabase"."is_platform"('impersonation.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."support_requests";
 create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive

@@ -22,11 +22,11 @@ better-supabase add workflows   # adds tenant and access as well
 | `workflow_semaphores`     | The holders of each semaphore key, until they release it or their lease ends                                                                                                                                                         |
 | `workflow_start_requests` | Starts waiting for room under their key's concurrency, debounce or singleton rule                                                                                                                                                    |
 
-| Permission       | Lets                                                        | Default roles   |
-| ---------------- | ----------------------------------------------------------- | --------------- |
-| `workflow.read`  | members read the tenant's runs and schedules                | none by default |
-| `workflow.run`   | members start runs, for helpers such as `protectWebHandler` | none by default |
-| `workflow.admin` | members cancel any run of the tenant and manage schedules   | none by default |
+| Permission         | Lets                                                        | Default roles   |
+| ------------------ | ----------------------------------------------------------- | --------------- |
+| `workflows.read`   | members read the tenant's runs and schedules                | none by default |
+| `workflows.run`    | members start runs, for helpers such as `protectWebHandler` | none by default |
+| `workflows.manage` | members cancel any run of the tenant and manage schedules   | none by default |
 
 Grant the keys to your roles in `blocks.permissions.roles`. A user always
 reads the runs they started, without a permission.
@@ -86,7 +86,7 @@ const rows = useWorkflows({ limit: 50 });
 `runs.get` and `requestCancel` take the row's id or the engine's run id.
 `list` returns the newest runs first; pass the last run's
 `createdAt` as `cursor` for the next page. `requestCancel` sets `cancel_requested_at`
-for the run's actor, a `workflow.admin` of its tenant or the service role.
+for the run's actor, a `workflows.manage` of its tenant or the service role.
 The engine does the cancelling. The Workflow SDK adapter calls
 `run.cancel()` for you.
 
@@ -281,7 +281,7 @@ its permissions, never as the member who created it (see
 The start call says which it is in `call.source` (`schedule` or
 `admission`), and names the schedule's creator in `call.actor` for audit.
 
-Members with `workflow.admin` create, pause and remove the schedules of
+Members with `workflows.manage` create, pause and remove the schedules of
 their tenant; the service role manages every schedule.
 
 ## Semaphores and admission

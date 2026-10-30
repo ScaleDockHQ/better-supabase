@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:16c43cddb9539333720b1672468a507cc5fb82b7ba04b227c8cf213fa844f2eb
+-- @bsb-hash sha256:b8b78ad1b3bc244aa50725fdb672f4c61efd91a80557c9e0122043851ecf52a5
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,7 +231,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not create this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   if length(trim(create_invite_code.code)) < 8 then
@@ -270,7 +270,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not see these invite codes' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   return (
@@ -298,7 +298,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not revoke this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   update "better_supabase"."invite_codes" x set "revoked_at" = now()
@@ -481,7 +481,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:22ce0483d0e09efa948bff0b801c563656d9ad596c3e43124e76b4ee9e06df1b
+-- @bsb-hash sha256:5d77fe02a09ad07fb214f9d4b38794a1c99cd6ffc07816e15ab62134bb4a09ff
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -727,7 +727,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not create this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   if length(trim(create_invite_code.code)) < 8 then
@@ -775,7 +775,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not see these invite codes' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   return (
@@ -803,7 +803,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not revoke this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   update "better_supabase"."invite_codes" x set "revoked_at" = now()
@@ -1003,7 +1003,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:b30148be2b353cd3a4ff556458c944f9c7840f6cb0b185165167ab4128e04f53
+-- @bsb-hash sha256:e3f0cab3f08767d93bb90897de0e4513b70aea0f993629308c99436bb3a45a10
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1238,7 +1238,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not create this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   if length(trim(create_invite_code.code)) < 8 then
@@ -1277,7 +1277,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not see these invite codes' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   return (
@@ -1305,7 +1305,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not revoke this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   update "app_private"."invite_codes" x set "revoked_at" = now()
@@ -1488,7 +1488,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:5dd633f2fc7cd01e76064b38626965f8d45cf9eddacbb92480e38543d95b10a8
+-- @bsb-hash sha256:2f52256608b997ba30bc1122d86eaa86efeb36243f3344816ff512e698256785
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1718,7 +1718,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not create this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   if length(trim(create_invite_code.code)) < 8 then
@@ -1757,7 +1757,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not see these invite codes' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   return (
@@ -1785,7 +1785,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not revoke this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   update "better_supabase"."invite_codes" x set "revoked_at" = now()
@@ -2073,7 +2073,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:7ec5d145c8ae115fcc06f58784acd94f8b8bf8a71b3e0d289a4403a935cb0640
+-- @bsb-hash sha256:9be5619ef2a42e3014d8e9a84ae4320e111d2ec299c1f6aee4af3add258b4544
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2315,7 +2315,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not create this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   if length(trim(create_invite_code.code)) < 8 then
@@ -2355,7 +2355,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not see these invite codes' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   return (
@@ -2383,7 +2383,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not revoke this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   update "better_supabase"."invite_codes" x set "revoked_at" = now()
@@ -2566,7 +2566,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:183ec7e60ea45bb0aabe2dd2c9fd243545467d2f1d157f2db54cbea958ded6d4
+-- @bsb-hash sha256:3349e771344d085edae8ba4ac581744927974973ca8ec770d43f834dd3ba0f5c
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2796,7 +2796,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (create_invite_code.tenant is not null and coalesce(better_supabase.can('tenant', create_invite_code.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not create this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   if length(trim(create_invite_code.code)) < 8 then
@@ -2835,7 +2835,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (list_invite_codes.tenant is not null and coalesce(better_supabase.can('tenant', list_invite_codes.tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not see these invite codes' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   return (
@@ -2863,7 +2863,7 @@ begin
   if not found then
     return false;
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'members.invite'), false))) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('waitlist.manage'), false))) or (v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'waitlist.invite'), false))) then
     raise exception 'You may not revoke this invite code' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   update "better_supabase"."invite_codes" x set "revoked_at" = now()

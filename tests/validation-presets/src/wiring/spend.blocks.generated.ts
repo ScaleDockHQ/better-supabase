@@ -162,8 +162,8 @@ export const blocks = {
  */
 export const permissions = {
   "ai-files": {
-    upload: "ai.create",
-    manage: "ai.admin",
+    upload: "ai_files.upload",
+    manage: "ai_files.manage",
   },
   "api-keys": {
     manage: "api_keys.manage",
@@ -256,7 +256,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai.admin" | "ai.create" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
+export type PermissionKey = "ai_files.manage" | "ai_files.upload" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

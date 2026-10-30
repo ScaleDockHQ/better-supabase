@@ -103,7 +103,7 @@ and functions by one convention, so you can guess a name from the block and
 the noun.
 [ADR 0130](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0130-one-naming-convention-for-blocks.md)
 records the decision. Some names from before it still break the rules
-(`controls.*` keys on the `compliance` block, `work_item.*` events on
+(`compliance.*` keys on the `compliance` block, `work_item.*` events on
 `tasks`); one breaking minor renames them, with a codemod and one minor in
 which the old names keep working.
 
@@ -138,7 +138,7 @@ which the old names keep working.
    (`approve`, `submit`, `review`, `acknowledge`, `collect`, `assign`,
    `grant`, `assess`, `close`, `invite`, `record`). There is no `view`,
    `edit` or `admin`, and a key never has three parts:
-   `custom_fields.read_sensitive`, not `custom_fields.sensitive.read`.
+   `custom_fields.read_sensitive`, not `custom_fields.read_sensitive`.
 7. An event type is `<entity singular>.<past tense verb>`, where the entity
    is the one that changed, whichever block wrote it. The lifecycle verbs
    are `created`, `updated`, `deleted`, `archived`, `restored` and `purged`.

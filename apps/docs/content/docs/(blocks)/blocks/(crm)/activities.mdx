@@ -7,7 +7,7 @@ description: Calls, emails, meetings, notes and tasks logged on one or more reco
 
 This block is the logged work, not the system history. The [activity feed](/docs/blocks/timeline) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
 
-Reading needs `engagements.read`, and logging needs `engagements.write`. The author and the owner edit an engagement, and `engagements.manage` edits anyone's. Admins get every permission, and members get `engagements.read` and `engagements.write`.
+Reading needs `activities.read`, and logging needs `activities.write`. The author and the owner edit an engagement, and `activities.manage` edits anyone's. Admins get every permission, and members get `activities.read` and `activities.write`.
 
 ```bash
 better-supabase add activities
@@ -168,7 +168,7 @@ const recording = await engagements
   .orThrow();
 ```
 
-`attachRecording(engagementId, fileId)` links a ready ai-files file of the same organization: the author, the owner and `engagements.manage` may attach one, and the file must be the caller's unless they hold `engagements.manage`. The recording starts `pending`. With the [jobs](/docs/blocks/queue) block installed it queues a transcription on `engagements.transcribe`; register `transcribeJob()` as that queue's handler, and its last attempt marks the recording `failed` with the error. Without jobs, call `transcribe(recordingId)` yourself or run `drainRecordings()` on a schedule as the service role.
+`attachRecording(engagementId, fileId)` links a ready ai-files file of the same organization: the author, the owner and `activities.manage` may attach one, and the file must be the caller's unless they hold `activities.manage`. The recording starts `pending`. With the [jobs](/docs/blocks/queue) block installed it queues a transcription on `engagements.transcribe`; register `transcribeJob()` as that queue's handler, and its last attempt marks the recording `failed` with the error. Without jobs, call `transcribe(recordingId)` yourself or run `drainRecordings()` on a schedule as the service role.
 
 `transcribe` signs the file's URL and reads its bytes through `files`, calls the transcriber and saves its speaker turns. `saveTranscript(recordingId, transcript)` stores a transcript you already have, such as one a meeting tool exports; saving again replaces it. Each segment has a `speaker` label, an optional `speakerUserId`, `startMs` and `endMs` from the start of the recording, its `text` and an optional `confidence`.
 
@@ -202,7 +202,7 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 
 | Hint                                                                           | Cause                                                      |
 | ------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| `ENGAGEMENT_FORBIDDEN`                                                         | the caller lacks `engagements.write`                       |
+| `ENGAGEMENT_FORBIDDEN`                                                         | the caller lacks `activities.write`                        |
 | `ENGAGEMENT_TYPE_INVALID`                                                      | not a configured type                                      |
 | `ENGAGEMENT_TITLE_REQUIRED`                                                    | the title is empty                                         |
 | `ENGAGEMENT_SUBJECTS_INVALID`                                                  | `subjects` isn't a list of `{ type, id }`                  |

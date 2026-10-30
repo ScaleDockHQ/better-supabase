@@ -15,7 +15,7 @@ const body = (
     .join("\n");
 
 describe("employees module", () => {
-  it("needs the private details write key with view_sensitive when set", () => {
+  it("needs the private details write key with read_sensitive when set", () => {
     const sql = body(["employees"], {
       modules: {
         employees: { permissions: { privateDetailsWrite: "people.write" } },
@@ -23,19 +23,19 @@ describe("employees module", () => {
     });
 
     expect(sql).toMatch(
-      /save_employee_private_details[\s\S]*'employees\.view_sensitive'[\s\S]*'people\.write'/u,
+      /save_employee_private_details[\s\S]*'employees\.read_sensitive'[\s\S]*'people\.write'/u,
     );
     expect(body(["employees"])).not.toContain("people.write");
   });
 
-  it("guards the manager chain and keeps private details behind view_sensitive", () => {
+  it("guards the manager chain and keeps private details behind read_sensitive", () => {
     const sql = body(["employees"]);
     expect(sql).toContain("EMPLOYEE_MANAGER_CYCLE");
     expect(sql).toContain(
       'create trigger bsb_employee_manager_guard before insert or update of "manager_id"',
     );
     expect(sql).toContain("create trigger bsb_employee_user_mirror");
-    expect(sql).toContain("'employees.view_sensitive'");
+    expect(sql).toContain("'employees.read_sensitive'");
     expect(sql).toContain(
       "array['employee', 'contractor', 'intern', 'temporary']::text[]",
     );

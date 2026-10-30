@@ -82,11 +82,14 @@ describe.skipIf(!live)("workflow-editor module", () => {
           )
         )[0]?.p;
 
-      expect(await permissionsOf()).toEqual(["workflow.run"]);
+      expect(await permissionsOf()).toEqual(["workflow_editor.run"]);
       await service.steps
         .sync([STEPS[0]!, { ...STEPS[1]!, operation: "invoices.void" }])
         .orThrow();
-      expect(await permissionsOf()).toEqual(["invoices.void", "workflow.run"]);
+      expect(await permissionsOf()).toEqual([
+        "invoices.void",
+        "workflow_editor.run",
+      ]);
       await service.steps.sync().orThrow();
 
       await s.asRole(member);

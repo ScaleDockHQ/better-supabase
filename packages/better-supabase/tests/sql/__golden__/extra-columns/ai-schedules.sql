@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:d03cd22a3efd9ca837d24eea18e9dc3a53b19377f763765ecee32d5bdda2f7fe
+-- @bsb-hash sha256:1269c98c2de6ed0bb71cf8b0bcef6dda44c74cad2017194741d6b759305d3ba1
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,7 +94,7 @@ grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
 drop policy if exists ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks";
 create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 
 create table if not exists "better_supabase"."ai_task_runs" (
   "id" uuid primary key default gen_random_uuid(),
@@ -119,7 +119,7 @@ grant all on "better_supabase"."ai_task_runs" to service_role;
 drop policy if exists ai_task_runs_read on "better_supabase"."ai_task_runs";
 create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 
 -- Creates (id null) or changes a task. Only the service role sets
 -- next_run_at; for anyone else a new task, or a changed cron or timezone,
@@ -154,7 +154,7 @@ begin
     end;
   end if;
   if v_id is null then
-    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai.create'), false)) or auth.uid() is null then
+    if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_task.tenant, 'ai_schedules.write'), false)) or auth.uid() is null then
       raise exception 'you may not schedule tasks here' using errcode = '42501', hint = 'AI_TASK_FORBIDDEN';
     end if;
     insert into "better_supabase"."ai_scheduled_tasks" ("organization_id", "user_id", "title", "prompt", "cron")
@@ -162,7 +162,7 @@ begin
     returning * into v_row;
   else
     select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id and x."organization_id" = save_ai_task.tenant for update;
-    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_schedules.manage'), false)) then
       raise exception 'task % not found', v_id using errcode = 'P0002', hint = 'AI_TASK_NOT_FOUND';
     end if;
   end if;
@@ -216,7 +216,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."user_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_schedules.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."ai_scheduled_tasks" x where x."id" = v_id;
@@ -226,7 +226,7 @@ $$;
 revoke execute on function "better_supabase"."delete_ai_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."delete_ai_task"(uuid) to authenticated, service_role;
 
--- The caller's tasks in a tenant (or every task, for 'ai.admin').
+-- The caller's tasks in a tenant (or every task, for 'ai_schedules.manage').
 create or replace function "better_supabase"."list_ai_tasks"(tenant uuid, mine boolean default true)
 returns jsonb
 language sql
@@ -396,7 +396,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_scheduled_tasks" 
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_scheduled_tasks" as restrictive
@@ -417,7 +417,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_task_runs" as res
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_task_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_task_runs" as restrictive

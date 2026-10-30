@@ -63,7 +63,7 @@
   ],
   "permissions": [
     {
-      "key": "activity.read",
+      "key": "timeline.read",
       "sqlComplete": true,
       "scopes": ["organization"]
     },
@@ -133,7 +133,7 @@
       "scopes": ["organization"]
     },
     {
-      "key": "custom_fields.sensitive.read",
+      "key": "custom_fields.read_sensitive",
       "sqlComplete": true,
       "scopes": ["organization"]
     },
@@ -198,7 +198,7 @@
       "scopes": ["organization"]
     },
     {
-      "key": "number_sequences.assign",
+      "key": "numbering.assign",
       "sqlComplete": true,
       "scopes": ["organization"]
     },
@@ -208,7 +208,7 @@
       "scopes": ["organization"]
     },
     {
-      "key": "organization.export",
+      "key": "data_lifecycle.export",
       "sqlComplete": true,
       "scopes": ["organization"]
     },
@@ -290,7 +290,7 @@
       "scopes": ["organization"]
     },
     {
-      "key": "support.revoke",
+      "key": "impersonation.revoke",
       "sqlComplete": true
     },
     {
@@ -324,17 +324,17 @@
       "scopes": ["organization"]
     },
     {
-      "key": "work_items.manage",
+      "key": "tasks.manage",
       "sqlComplete": true,
       "scopes": ["organization"]
     },
     {
-      "key": "work_items.read",
+      "key": "tasks.read",
       "sqlComplete": true,
       "scopes": ["organization"]
     },
     {
-      "key": "work_items.write",
+      "key": "tasks.write",
       "sqlComplete": true,
       "scopes": ["organization"]
     }

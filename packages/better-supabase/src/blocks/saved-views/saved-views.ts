@@ -104,7 +104,7 @@ export interface SavedViewPreferenceInput {
 
 export interface DuplicateViewInput {
   readonly name?: string;
-  /** Default `user`. `team` and `tenant` need `views.share`. */
+  /** Default `user`. `team` and `tenant` need `saved_views.share`. */
   readonly scope?: SavedViewScope;
   /** The team, for `scope: "team"`. */
   readonly teamId?: string;
@@ -165,7 +165,7 @@ export interface SaveViewInput<
   readonly state: SavedViewState<Q>;
   /** Default `table`. */
   readonly kind?: SavedViewKind;
-  /** Default `user`. `team` and `tenant` need `views.share`. */
+  /** Default `user`. `team` and `tenant` need `saved_views.share`. */
   readonly scope?: SavedViewScope;
   /** The team, for `scope: "team"`. */
   readonly teamId?: string;

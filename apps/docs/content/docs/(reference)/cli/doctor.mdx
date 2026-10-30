@@ -1824,6 +1824,19 @@ and the permissive policy for `supabase_auth_admin` that the Supabase hook guide
 describes. Or make the hook `security definer`, owned by a role that bypasses
 row level security.
 
+### BS422
+
+**Warning: code or config uses a renamed permission key.** Since 0.46 a
+permission key is `<area>.<verb>`: the area is the block name in snake_case
+(`contacts`, `workflow_editor`) and the verb is `read`, `write`, `delete`,
+`manage` or a verb of the domain (`approve`, `publish`). Doctor reports an old
+key in `blocks.permissions.roles`, in a block's `permissions` overrides and in
+a quoted string in the app sources in `doctor.sources`. Old keys keep working
+until the next minor, with a warning. Run `better-supabase codemod 0.46` to
+rename them, then check the keys it lists for review, such as the `ai.*` keys
+that split into one area per AI block. The
+[0.45 to 0.46 guide](/docs/migration/0.45-to-0.46) has the full table.
+
 ## Env files
 
 ### BS501

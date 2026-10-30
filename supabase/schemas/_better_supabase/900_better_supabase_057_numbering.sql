@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:ef35fa2043c9cfcef2d53f97e6673c9aab0696c530add07e266a16b1eec2bf24
+-- @bsb-hash sha256:59638630a70aee60c5a9408b0dab7a8e86cdd0c1731904d03b92772c25971955
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -283,7 +283,7 @@ declare
   v_period text;
   v_last bigint;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', p_tenant, 'number_sequences.assign'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', p_tenant, 'numbering.assign'), false)) then
     raise exception 'not allowed to number documents in this tenant' using errcode = '42501', hint = 'NUMBER_FORBIDDEN';
   end if;
   v_format := "better_supabase"."number_format"(p_tenant, p_entity);

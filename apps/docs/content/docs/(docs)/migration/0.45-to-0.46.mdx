@@ -1,19 +1,103 @@
 ---
 title: From 0.45 to 0.46
-description: What to check when upgrading from better-supabase 0.45 to 0.46, where PowerSync streams move to edition 3, attachments fill object_path from a trigger, doctor adds BS421 and the rate limiter moves to its own entry.
+description: What to check when upgrading from better-supabase 0.45 to 0.46, where PowerSync streams move to edition 3, attachments fill object_path from a trigger, doctor adds BS421, the rate limiter moves to its own entry and permission keys use the block name as their area.
 ---
 
-0.46.0 collects fixes reported by an app in production. Most of them add
-options. Four can need a step: the regenerated module SQL, the PowerSync
-streams, a new doctor error and an import path.
+0.46.0 renames permission keys so each one is the block name and a verb: run
+`better-supabase codemod 0.46` and check the keys it lists for review. Old keys
+keep working until the next minor, with a warning. The release also collects
+fixes reported by an app in production. Most of them add options; four can
+need a step: the regenerated module SQL, the PowerSync streams, a new doctor
+error and an import path.
 
 | Section                                                 | Needs code                                   |
 | ------------------------------------------------------- | -------------------------------------------- |
+| [Permission keys](#permission-keys)                     | Run `codemod 0.46`, then check `ai.*` keys   |
 | [The SQL modules](#the-sql-modules)                     | Run `upgrade` and generate a migration       |
 | [PowerSync streams](#powersync-streams)                 | Upload the regenerated streams               |
 | [Access token hooks (BS421)](#access-token-hooks-bs421) | When doctor reports BS421                    |
 | [The rate limiter import](#the-rate-limiter-import)     | Optional; the old import still works         |
 | [Generated code](#generated-code)                       | Run `gen`; drop casts on `createdAt` inserts |
+
+## Permission keys
+
+Every permission key is now `<area>.<verb>`. The area is the block name in
+snake_case (`contacts`, `workflow_editor`), and the verb is `read`,
+`write`, `delete`, `manage` or a verb of the domain such as `approve` or
+`publish`. A block installed as a named instance checks its own area: a
+`tickets` instance of `tasks` checks `tickets.read`, not `tasks.read`.
+
+Run the codemod. It renames the keys in strings in your code and config and in
+quoted keys in your own SQL. It also moves code off the oauth-server names
+0.44 deprecated (`createOAuthServer` and the `OAuth` types become `Oauth`):
+
+```sh
+npx better-supabase@latest codemod 0.46
+```
+
+| 0.45                                | 0.46                                               |
+| ----------------------------------- | -------------------------------------------------- |
+| `parties.*`                         | `contacts.*`                                       |
+| `engagements.*`                     | `activities.*`                                     |
+| `rules.read`, `rules.edit`          | `automations.read`, `automations.write`            |
+| `rules.publish`, `rules.admin`      | `automations.publish`, `automations.manage`        |
+| `controls.*`                        | `compliance.*`                                     |
+| `support.start`, `support.read`     | `impersonation.start`, `impersonation.read`        |
+| `support.revoke`                    | `impersonation.revoke`                             |
+| `work_items.*`                      | `tasks.*`                                          |
+| `targets.*`                         | `goals.*`                                          |
+| `views.*`                           | `saved_views.*`                                    |
+| `history.read`                      | `field_history.read`                               |
+| `mail.*`                            | `mail_sync.*`                                      |
+| `number_sequences.assign`           | `numbering.assign`                                 |
+| `service_principals.*`              | `service_accounts.*`                               |
+| `activity.read`                     | `timeline.read`                                    |
+| `segments.edit`                     | `segments.write`                                   |
+| `ai_chat.admin`                     | `ai_chat.manage`                                   |
+| `custom_fields.sensitive.read`      | `custom_fields.read_sensitive`                     |
+| `employees.view_sensitive`          | `employees.read_sensitive`                         |
+| `workflow.edit`, `workflow.publish` | `workflow_editor.write`, `workflow_editor.publish` |
+| `workflow.read`, `workflow.run`     | `workflows.*` and `workflow_editor.*` (below)      |
+| `organization.export`               | `data_lifecycle.export`                            |
+| `members.invite` (waitlist codes)   | `waitlist.invite`                                  |
+
+The full list, with the wildcards, is `PERMISSION_KEY_RENAMES` and
+`PERMISSION_KEY_SPLITS` in `better-supabase/blocks/permissions`. The same
+entry exports `isOldPermissionKey(key)`, which tells whether a key was
+renamed, and `currentPermissionKeys(key)`, which returns its new keys, for
+code that checks keys stored outside better-supabase. `RENAMES_CODEMOD` names
+the codemod that renames them.
+
+The codemod lists some keys for review instead of guessing:
+
+- The `ai.*` keys split into one area per AI block: `agents`, `ai_files`,
+  `ai_keys`, `ai_schedules`, `connectors`, `knowledge` and `memory`. A
+  check for `ai.read` becomes the read key of the block it guards, such as
+  `knowledge.read`; a check for `ai.create` becomes `agents.write`,
+  `ai_files.upload`, `ai_keys.use`, `ai_schedules.write`,
+  `connectors.use` or `knowledge.write`.
+- `workflow.read`, `workflow.run` and `workflow.admin` were shared by the
+  workflows block and the workflow editor. Use `workflows.*` for runs and
+  `workflow_editor.*` for definitions.
+- `support.*` and `workflow.*` are also event patterns
+  (`support.started`, `workflow.published`). Rename them only where they are
+  permission wildcards.
+- The waitlist block checks `waitlist.invite` instead of the invitations
+  block's `members.invite`, and data exports check
+  `data_lifecycle.export` instead of `organization.export`. Grant the new
+  key where a custom role should keep the access.
+
+Old keys keep working until the next minor. A role in
+`blocks.permissions.roles` that lists one gets the new keys too, and
+`permissionMatches` accepts both, with a warning once per key. Doctor reports
+each old key it finds ([BS422](/docs/cli/doctor#bs422)).
+
+With the catalog access model, `upgrade` renders a data step that renames the
+rows in `permissions` and copies their role and override links to the new
+keys. When the sessions module keeps authorization versions, the step bumps
+every user's version so tokens pick up the new keys. With the `provider` or
+`custom` models the keys live outside better-supabase: rename them in the
+provider's roles, or in the functions your SQL defines, with the table above.
 
 ## The SQL modules
 

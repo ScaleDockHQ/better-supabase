@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:4c8446593ffef3c2f2b202a100c6443d1e0c6db91d97c1390f24471eeefd1941
+-- @bsb-hash sha256:6c670c859fc40daccb77b2521064b6553f241102e71c69b1618b844f606abb50
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -595,8 +595,8 @@ begin
         select 1 from "better_supabase"."companies" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.write'), false)
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'contacts.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'contacts.write'), false)
           else true
         end)
       );
@@ -605,8 +605,8 @@ begin
         select 1 from "better_supabase"."people" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'parties.write'), false)
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'contacts.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'contacts.write'), false)
           else true
         end)
       );
@@ -645,8 +645,8 @@ begin
         select 1 from "better_supabase"."engagements" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'engagements.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'engagements.write'), false)
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'activities.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'activities.write'), false)
           else true
         end)
       );
@@ -665,8 +665,8 @@ begin
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'work_items.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'work_items.write'), false)
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'tasks.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'tasks.write'), false)
           else true
         end)
       );
@@ -846,8 +846,8 @@ begin
         select 1 from "better_supabase"."controls" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'controls.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'controls.manage'), false)
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'compliance.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'compliance.manage'), false)
           else true
         end)
       );
@@ -856,8 +856,8 @@ begin
         select 1 from "better_supabase"."policies" s
         where s."id" = (can_subject.subject_id)::uuid
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
-          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'controls.read'), false)
-          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'controls.manage'), false)
+          when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'compliance.read'), false)
+          when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'compliance.manage'), false)
           else true
         end)
       );
@@ -1097,8 +1097,8 @@ begin
         select 1 from "better_supabase"."companies" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.write'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'contacts.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'contacts.write'), false)
           else false
         end
       );
@@ -1107,8 +1107,8 @@ begin
         select 1 from "better_supabase"."people" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'parties.write'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'contacts.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'contacts.write'), false)
           else false
         end
       );
@@ -1147,8 +1147,8 @@ begin
         select 1 from "better_supabase"."engagements" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'engagements.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'engagements.write'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'activities.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'activities.write'), false)
           else false
         end
       );
@@ -1167,8 +1167,8 @@ begin
         select 1 from "better_supabase"."work_items" s
         where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'work_items.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'work_items.write'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'tasks.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'tasks.write'), false)
           else false
         end
       );
@@ -1348,8 +1348,8 @@ begin
         select 1 from "better_supabase"."controls" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'controls.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'controls.manage'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.manage'), false)
           else false
         end
       );
@@ -1358,8 +1358,8 @@ begin
         select 1 from "better_supabase"."policies" s
         where s."id" = (can_subject_for.subject_id)::uuid
           and case can_subject_for.action
-          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'controls.read'), false)
-          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'controls.manage'), false)
+          when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.read'), false)
+          when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'compliance.manage'), false)
           else false
         end
       );

@@ -303,7 +303,7 @@ export interface AiChat<F extends object = Record<never, never>> {
       chatId: string,
       approvalIds?: readonly string[],
     ): AsyncResult<readonly AiToolApproval[]>;
-    /** Sets a tool's policy for a tenant (`ai_chat.admin`); `null` removes it. */
+    /** Sets a tool's policy for a tenant (`ai_chat.manage`); `null` removes it. */
     setPolicy(
       organizationId: string,
       tool: string,

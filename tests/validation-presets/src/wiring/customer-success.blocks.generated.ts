@@ -190,9 +190,9 @@ export const blocks = {
  */
 export const permissions = {
   activities: {
-    read: "engagements.read",
-    write: "engagements.write",
-    manage: "engagements.manage",
+    read: "activities.read",
+    write: "activities.write",
+    manage: "activities.manage",
   },
   "api-keys": {
     manage: "api_keys.manage",
@@ -204,10 +204,10 @@ export const permissions = {
     revert: "audit.revert",
   },
   automations: {
-    read: "rules.read",
-    edit: "rules.edit",
-    publish: "rules.publish",
-    admin: "rules.admin",
+    read: "automations.read",
+    edit: "automations.write",
+    publish: "automations.publish",
+    admin: "automations.manage",
   },
   billing: {
     read: "billing.read",
@@ -215,17 +215,17 @@ export const permissions = {
     viewAll: "billing.read",
   },
   company: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   contacts: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
   },
   engagement: {
-    read: "engagements.read",
-    write: "engagements.write",
+    read: "activities.read",
+    write: "activities.write",
   },
   enrollments: {
     read: "enrollments.read",
@@ -269,8 +269,8 @@ export const permissions = {
     transferOwnership: "organization.transfer_ownership",
   },
   person: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   reminders: {
     manage: "reminders.manage",
@@ -300,7 +300,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "reminders.manage" | "reminders.read" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
+export type PermissionKey = "activities.manage" | "activities.read" | "activities.write" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forms.manage" | "forms.read" | "forms.review" | "forms.submit" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "metrics.manage" | "metrics.read" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "scores.compute" | "scores.manage" | "scores.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

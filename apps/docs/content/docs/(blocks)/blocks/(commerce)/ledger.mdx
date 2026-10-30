@@ -12,7 +12,7 @@ accounts. Entries can't be changed or deleted: a correction is a reversal.
 
 Reading every account needs `ledger.read`, posting needs `ledger.post`, and
 opening and closing accounts needs `ledger.manage`. Admins get all three.
-An account can also name a `readPermission` (such as `parties.read`) that
+An account can also name a `readPermission` (such as `contacts.read`) that
 grants reading it, and an `ownerId` who can always read it, so a member sees
 their own balance without `ledger.read`.
 
@@ -44,7 +44,7 @@ const credits = await db.ledger
     name: "Store credit",
     unit: "EUR",
     holder: { type: "party", id: partyId },
-    readPermission: "parties.read",
+    readPermission: "contacts.read",
   })
   .orThrow();
 
@@ -180,7 +180,7 @@ const credits = await ledger
     name: "Store credit",
     unit: "EUR",
     holder: { type: "party", id: partyId },
-    readPermission: "parties.read",
+    readPermission: "contacts.read",
   })
   .orThrow();
 

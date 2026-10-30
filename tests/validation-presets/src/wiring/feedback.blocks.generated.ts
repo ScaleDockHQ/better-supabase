@@ -310,17 +310,17 @@ export const permissions = {
     apply: "tags.apply",
   },
   tasks: {
-    read: "work_items.read",
-    write: "work_items.write",
-    manage: "work_items.manage",
+    read: "tasks.read",
+    write: "tasks.write",
+    manage: "tasks.manage",
   },
   teams: {
     manage: "teams.manage",
     read: "teams.read",
   },
   work_item: {
-    read: "work_items.read",
-    write: "work_items.write",
+    read: "tasks.read",
+    write: "tasks.write",
   },
 } as const;
 
@@ -329,7 +329,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "moderation.ban" | "moderation.manage" | "moderation.read" | "moderation.report" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "posts.manage" | "posts.moderate" | "posts.read" | "posts.write" | "reactions.create" | "reactions.manage" | "reactions.read" | "relations.manage" | "relations.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "tasks.manage" | "tasks.read" | "tasks.write" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
