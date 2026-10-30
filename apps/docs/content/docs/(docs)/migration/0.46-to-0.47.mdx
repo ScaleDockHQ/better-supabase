@@ -1,6 +1,6 @@
 ---
 title: From 0.46 to 0.47
-description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed, every event type names its entity and a past verb, policy acknowledgements move onto the acknowledgements block, sequence runs move onto enrollments, and doctor adds BS423 and BS424. AI document versions move onto the versions block, and with the tasks block postmortem action items become tasks.
+description: What to check when upgrading from better-supabase 0.46 to 0.47. Block entity keys equal the entity's singular, subject types, hint codes and function names take the new nouns, and every event type names its entity and a past verb. AI document versions, policy acknowledgements and sequence runs move onto the versions, acknowledgements and enrollments blocks, postmortem action items become tasks, and doctor adds BS423 and BS424.
 ---
 
 0.47.0 finishes the naming convention (ADR 0130): the key of every entity in
@@ -11,9 +11,11 @@ lists for review. Old entity keys and the old subject types keep working until
 0.48, with a warning. The outbox stores the new event types, so subscribers to
 an old type miss its events until you rename them; receivers outside the app
 can keep the old names for one minor with the outbox `legacyEventTypes`
-option. AI document versions move onto the versions block, with the tasks
-block postmortem action items become tasks, and sequence runs move onto
-enrollments.
+option. AI document versions move onto the versions block, policy
+acknowledgements onto the acknowledgements block and sequence runs onto
+enrollments, and with the tasks block installed, postmortem action items
+become tasks. Everything this guide calls deprecated is listed in
+[Removed in 0.48](#removed-in-048).
 
 | Section                                             | Needs code                                          |
 | --------------------------------------------------- | --------------------------------------------------- |
@@ -27,6 +29,7 @@ enrollments.
 | [Policy acknowledgements](#policy-acknowledgements) | Call the acknowledgements block                     |
 | [Sequence runs](#sequence-runs)                     | Rename SQL that reads `sequence_enrollments`        |
 | [The SQL modules](#the-sql-modules)                 | Run `upgrade` and generate a migration              |
+| [Removed in 0.48](#removed-in-048)                  | Move off each item before 0.48                      |
 
 ## Entity keys
 
@@ -267,6 +270,20 @@ retention. Document versions stay private to ai-files: `list_versions` and the
 other versions functions refuse `ai_document` for members, and RLS hides those
 rows, so only the ai-files functions read them.
 
+SQL that read the old table reads the versions table:
+
+```sql
+-- 0.46
+select version, content, created_by_message_id
+from better_supabase.ai_document_versions
+where document_id = $1;
+
+-- 0.47
+select number, content ->> 'text', content ->> 'messageId'
+from better_supabase.versions
+where subject_type = 'ai_document' and subject_id = $1::text;
+```
+
 The `blocks["ai-files"].tables.versions` key is gone. If you renamed or adopted
 `ai_document_versions`, the generated migration doesn't find it: copy its rows
 into the versions table yourself before you drop it. `codemod 0.47` lists the
@@ -280,6 +297,22 @@ creates one and links it in the new `incident_postmortem_actions` table,
 `removePostmortemAction(actionId)` removes the link, and a postmortem's
 `actions` lists the linked tasks. With `tasks`, `savePostmortem` refuses
 `actionItems` with `INCIDENTS_INVALID`. Without `tasks` nothing changes.
+
+```ts
+// 0.46
+await db.incidents.savePostmortem(incidentId, {
+  actionItems: [{ title: "Add a disk alert" }],
+});
+
+// 0.47, with the tasks block
+const postmortem = (
+  await db.incidents.savePostmortem(incidentId, {})
+).orThrow();
+await db.incidents.addPostmortemAction(postmortem.id, {
+  title: "Add a disk alert",
+  assigneeId,
+});
+```
 
 `actionItems` and the `action_items` column are deprecated. They stay readable
 until 0.48, which removes them. Existing items aren't copied into tasks: add
@@ -377,3 +410,17 @@ types and the stored event types:
 npx better-supabase@latest upgrade
 npx better-supabase@latest db diff -f upgrade_0_46
 ```
+
+## Removed in 0.48
+
+These keep working in 0.47 and go in 0.48. `codemod 0.47` and doctor point
+at each one.
+
+| Deprecated in 0.47                                                   | Use instead                                            |
+| -------------------------------------------------------------------- | ------------------------------------------------------ |
+| Old keys in `blocks.<name>.entities`                                 | The entity's singular                                  |
+| The old subject types                                                | `task`, `activity` and `compliance_policy`             |
+| The outbox `legacyEventTypes` option                                 | The new event types in every receiver                  |
+| Postmortem `actionItems` and the `action_items` column               | `addPostmortemAction` and the postmortem's `actions`   |
+| `acknowledgePolicy`, `acknowledgements(policyId)`, `{ pendingOnly }` | `db.acknowledgements.acknowledge`, `mine` and `status` |
+| `SequenceEnrollmentEventData`                                        | `EnrollmentEventData`                                  |
