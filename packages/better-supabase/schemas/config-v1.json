@@ -1685,6 +1685,7 @@
               "reminders",
               "reserved-slugs",
               "reviews",
+              "risks",
               "rls-guard",
               "saved-views",
               "scores",
@@ -1841,6 +1842,7 @@
                   "reminders",
                   "reserved-slugs",
                   "reviews",
+                  "risks",
                   "rls-guard",
                   "saved-views",
                   "scores",
@@ -2201,6 +2203,9 @@
             },
             "reviews": {
               "$ref": "#/$defs/blocks/reviews"
+            },
+            "risks": {
+              "$ref": "#/$defs/blocks/risks"
             },
             "rls-guard": {
               "$ref": "#/$defs/blocks/rls-guard"
@@ -6347,6 +6352,31 @@
                 "type": "boolean",
                 "default": false
               },
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "risks": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "categories": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "defaultMatrix": {},
               "extraColumns": {
                 "type": "object",
                 "additionalProperties": {

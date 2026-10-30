@@ -91,6 +91,7 @@ import type { RelationsSqlOptions } from "./relations/options.ts";
 import type { RemindersSqlOptions } from "./reminders/options.ts";
 import type { ReservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
 import type { ReviewsSqlOptions } from "./reviews/options.ts";
+import type { RisksSqlOptions } from "./risks/options.ts";
 import type { SavedViewsSqlOptions } from "./saved-views/options.ts";
 import type { ScoresSqlOptions } from "./scores/options.ts";
 import type { SearchSqlOptions } from "./search/options.ts";
@@ -220,6 +221,7 @@ import { relationsSqlOptions } from "./relations/options.ts";
 import { remindersSqlOptions } from "./reminders/options.ts";
 import { reservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
 import { reviewsSqlOptions } from "./reviews/options.ts";
+import { risksSqlOptions } from "./risks/options.ts";
 import { savedViewsSqlOptions } from "./saved-views/options.ts";
 import { scoresSqlOptions } from "./scores/options.ts";
 import { searchSqlOptions } from "./search/options.ts";
@@ -370,6 +372,7 @@ export interface BlockOptionsRegistry {
   readonly reminders: RemindersSqlOptions;
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
   readonly reviews: ReviewsSqlOptions;
+  readonly risks: RisksSqlOptions;
   readonly "rls-guard": None;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly scores: ScoresSqlOptions;
@@ -522,6 +525,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   reminders: remindersSqlOptions,
   "reserved-slugs": reservedSlugsSqlOptions,
   reviews: reviewsSqlOptions,
+  risks: risksSqlOptions,
   "rls-guard": NO_OPTIONS,
   "saved-views": savedViewsSqlOptions,
   scores: scoresSqlOptions,

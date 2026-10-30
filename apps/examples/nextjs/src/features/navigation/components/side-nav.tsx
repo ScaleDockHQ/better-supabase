@@ -15,6 +15,7 @@ import {
   TableIcon,
   ShieldCheckIcon,
   ShieldHalfIcon,
+  ShieldAlertIcon,
   ContactRoundIcon,
   KanbanIcon,
   SendIcon,
@@ -109,6 +110,7 @@ const ICONS = {
   metrics: ChartColumnIcon,
   compliance: ShieldHalfIcon,
   qualifications: BadgeCheckIcon,
+  risks: ShieldAlertIcon,
   notifications: BellIcon,
   workflows: WorkflowIcon,
   workflowBuilder: WaypointsIcon,
@@ -269,6 +271,10 @@ export function useNavLabel(): (id: NavId) => string {
 
       case "qualifications": {
         return t("Qualifications");
+      }
+
+      case "risks": {
+        return t("Risks");
       }
 
       case "notifications": {

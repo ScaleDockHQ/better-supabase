@@ -63,3 +63,4 @@ courses
 messaging
 posts
 qualifications
+risks

@@ -946,7 +946,7 @@ type Extensions = readonly [ReturnType<typeof updatedAtExtension>, ReturnType<ty
 const extensions: Extensions = [updatedAtExtension(), membershipsExtension(), trashExtension()];
 
 /** The app's subject types, from `config.subjects`. */
-export const subjectTypes = ["message", "conversation", "channel", "company", "person", "deal", "course", "post", "engagement", "quote", "work_item", "employee", "invoice", "ledger_account", "product", "product_variant", "order", "calendar_event", "booking", "asset", "asset_location", "lease", "expense_report", "expense_line", "donation_fund", "work_order", "shipment", "contract", "control", "policy", "qualification_type", "incident", "content_entry", "form", "document", "customer", "drive_node", "application", "change_request", "project", "task"] as const;
+export const subjectTypes = ["message", "conversation", "channel", "company", "person", "deal", "course", "post", "engagement", "quote", "work_item", "employee", "invoice", "ledger_account", "product", "product_variant", "order", "calendar_event", "booking", "asset", "asset_location", "lease", "expense_report", "expense_line", "donation_fund", "work_order", "shipment", "contract", "control", "policy", "qualification_type", "risk", "incident", "content_entry", "form", "document", "customer", "drive_node", "application", "change_request", "project", "task"] as const;
 export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };

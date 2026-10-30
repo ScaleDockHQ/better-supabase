@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:a01ed64637ce3daa88163ac5d353a743e4e978a9edbf4be57e3dde154f5918b3
+-- @bsb-hash sha256:c539b34a6c65e07a4a2f3d5d3a640d3862f0080691996b5c344bc1928b61420f
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -157,6 +157,7 @@ begin
       when 'control' then (select s."tenant_id"::text from "better_supabase"."controls" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'policy' then (select s."tenant_id"::text from "better_supabase"."policies" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'qualification_type' then (select s."tenant_id"::text from "better_supabase"."qualification_types" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
+      when 'risk' then (select s."tenant_id"::text from "better_supabase"."risks" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'incident' then (select s."tenant_id"::text from "better_supabase"."incidents" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'content_entry' then (select s."tenant_id"::text from "better_supabase"."content_entries" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)
       when 'form' then (select s."tenant_id"::text from "better_supabase"."forms" s where s."id" = ((create_channel.attrs ->> 'subjectId'))::uuid)

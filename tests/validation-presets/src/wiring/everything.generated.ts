@@ -53,6 +53,7 @@ import { leadScoringBlock } from "better-supabase/blocks/lead-scoring";
 import { postsBlock } from "better-supabase/blocks/posts";
 import { contentBlock } from "better-supabase/blocks/content";
 import { qualificationsBlock } from "better-supabase/blocks/qualifications";
+import { risksBlock } from "better-supabase/blocks/risks";
 import { driveBlock } from "better-supabase/blocks/drive";
 import { employeesBlock } from "better-supabase/blocks/employees";
 import { activitiesBlock } from "better-supabase/blocks/activities";
@@ -181,6 +182,7 @@ export const blockSet = defineBlocks(blockConfig, {
   posts: postsBlock,
   content: contentBlock,
   qualifications: qualificationsBlock,
+  risks: risksBlock,
   drive: driveBlock,
   employees: employeesBlock,
   activities: activitiesBlock,

@@ -6944,6 +6944,145 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "risks",
+      "title": "Risks",
+      "category": "work",
+      "requires": [
+        "memberships",
+        "permissions",
+        "subjects",
+        "versions"
+      ],
+      "integrates": [
+        "compliance",
+        "relations",
+        "numbering",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "risks",
+      "scopes": [
+        "tenant"
+      ],
+      "extraColumns": "risks",
+      "entities": {
+        "specs": {
+          "risk": {
+            "table": "risks",
+            "singular": "risk",
+            "primary": true,
+            "subject": {
+              "title": "title",
+              "deletedAt": "archivedAt",
+              "permissions": {
+                "read": "read",
+                "write": "write"
+              },
+              "search": {
+                "title": "title",
+                "body": [
+                  "number",
+                  "description",
+                  "cause",
+                  "consequence"
+                ]
+              }
+            }
+          },
+          "risk_matrix": {
+            "table": "matrices",
+            "singular": "risk_matrix",
+            "plural": "risk_matrices"
+          },
+          "risk_assessment": {
+            "table": "assessments",
+            "singular": "risk_assessment"
+          }
+        },
+        "tables": {
+          "risks": {
+            "name": "risks",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "number": "number",
+              "sequence": "sequence",
+              "matrix": "matrix_id",
+              "title": "title",
+              "description": "description",
+              "category": "category",
+              "cause": "cause",
+              "consequence": "consequence",
+              "owner": "owner_id",
+              "status": "status",
+              "treatment": "treatment",
+              "reviewIntervalMonths": "review_interval_months",
+              "nextReviewOn": "next_review_on",
+              "reviewedAt": "reviewed_at",
+              "reviewNotifiedFor": "review_notified_for",
+              "inherentLikelihood": "inherent_likelihood",
+              "inherentImpact": "inherent_impact",
+              "inherentScore": "inherent_score",
+              "inherentBand": "inherent_band",
+              "residualLikelihood": "residual_likelihood",
+              "residualImpact": "residual_impact",
+              "residualScore": "residual_score",
+              "residualBand": "residual_band",
+              "currentAssessment": "current_assessment_id",
+              "closedAt": "closed_at",
+              "archivedAt": "archived_at",
+              "createdBy": "created_by",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "matrices": {
+            "name": "risk_matrices",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "key": "key",
+              "name": "name",
+              "likelihoodLevels": "likelihood_levels",
+              "impactLevels": "impact_levels",
+              "bands": "bands",
+              "scoring": "scoring",
+              "isDefault": "is_default",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "assessments": {
+            "name": "risk_assessments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "risk": "risk_id",
+              "inherentLikelihood": "inherent_likelihood",
+              "inherentImpact": "inherent_impact",
+              "inherentScore": "inherent_score",
+              "inherentBand": "inherent_band",
+              "residualLikelihood": "residual_likelihood",
+              "residualImpact": "residual_impact",
+              "residualScore": "residual_score",
+              "residualBand": "residual_band",
+              "rationale": "rationale",
+              "version": "version_id",
+              "assessedBy": "assessed_by",
+              "assessedAt": "assessed_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "risks.read",
+          "write": "risks.write",
+          "assess": "risks.assess",
+          "manage": "risks.manage"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -14439,6 +14578,404 @@ export const PRESET_CATALOG: PresetCatalog = {
           "qualification.expired"
         ]
       }
+    },
+    {
+      "name": "risks",
+      "sql": [
+        "risks"
+      ],
+      "category": "work",
+      "client": {
+        "export": "risksBlock",
+        "subpath": "better-supabase/blocks/risks"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Risk",
+          "fields": true
+        },
+        {
+          "name": "RiskAssessedEventData"
+        },
+        {
+          "name": "RiskAssessment"
+        },
+        {
+          "name": "RiskAssessmentInput"
+        },
+        {
+          "name": "RiskChange",
+          "fields": true
+        },
+        {
+          "name": "RiskClosedEventData"
+        },
+        {
+          "name": "RiskDetail",
+          "fields": true
+        },
+        {
+          "name": "RiskEventData"
+        },
+        {
+          "name": "RiskHeatmap"
+        },
+        {
+          "name": "RiskHeatmapCell"
+        },
+        {
+          "name": "RiskInput",
+          "fields": true
+        },
+        {
+          "name": "RiskLink"
+        },
+        {
+          "name": "RiskListOptions"
+        },
+        {
+          "name": "RiskMatrix"
+        },
+        {
+          "name": "RiskMatrixBand"
+        },
+        {
+          "name": "RiskMatrixEventData"
+        },
+        {
+          "name": "RiskMatrixInput"
+        },
+        {
+          "name": "RiskMatrixLevel"
+        },
+        {
+          "name": "RiskRating"
+        },
+        {
+          "name": "RiskReviewDateReachedEventData"
+        },
+        {
+          "name": "RiskReviewedEventData"
+        },
+        {
+          "name": "Risks",
+          "fields": true
+        },
+        {
+          "name": "RiskScoring"
+        },
+        {
+          "name": "RisksEvents"
+        },
+        {
+          "name": "RisksOptions"
+        },
+        {
+          "name": "RisksSqlOptions"
+        },
+        {
+          "name": "RiskStatus"
+        },
+        {
+          "name": "RiskTreatment"
+        },
+        {
+          "name": "RiskTreatmentChangedEventData"
+        }
+      ],
+      "entitySchemas": {
+        "risk": {
+          "input": {
+            "title": "RiskInput",
+            "fields": {
+              "title": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "category": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64,
+                "description": "One of `options.categories`."
+              },
+              "description": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "cause": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "consequence": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true,
+                "maxLength": 10000
+              },
+              "ownerId": {
+                "kind": "uuid",
+                "optional": true,
+                "nullable": true
+              },
+              "matrixId": {
+                "kind": "uuid",
+                "optional": true
+              },
+              "reviewIntervalMonths": {
+                "kind": "integer",
+                "optional": true,
+                "nullable": true,
+                "minimum": 1,
+                "maximum": 120
+              },
+              "fields": {
+                "kind": "json",
+                "optional": true,
+                "description": "The extra columns, keyed by database name."
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "RiskInput",
+              "type": "object",
+              "properties": {
+                "title": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                "category": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64,
+                  "description": "One of `options.categories`."
+                },
+                "description": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "cause": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "consequence": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 10000
+                },
+                "ownerId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "format": "uuid"
+                },
+                "matrixId": {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                "reviewIntervalMonths": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 120
+                },
+                "fields": {
+                  "description": "The extra columns, keyed by database name."
+                }
+              },
+              "required": [
+                "title",
+                "category"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "risk_matrix": {
+          "input": {
+            "title": "RiskMatrixInput",
+            "fields": {
+              "key": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "name": {
+                "kind": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "likelihoodLevels": {
+                "kind": "json",
+                "array": true,
+                "description": "2 to 10 levels `{ value, label }`, values 1 to n."
+              },
+              "impactLevels": {
+                "kind": "json",
+                "array": true,
+                "description": "2 to 10 levels `{ value, label }`, values 1 to n."
+              },
+              "bands": {
+                "kind": "json",
+                "array": true,
+                "description": "Bands `{ key, label, min, max }` that cover every score without gaps."
+              },
+              "scoring": {
+                "kind": "enum",
+                "optional": true,
+                "values": [
+                  "product",
+                  "sum"
+                ]
+              },
+              "isDefault": {
+                "kind": "boolean",
+                "optional": true
+              },
+              "matrixId": {
+                "kind": "uuid",
+                "optional": true
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "RiskMatrixInput",
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200
+                },
+                "likelihoodLevels": {
+                  "type": "array",
+                  "items": {},
+                  "description": "2 to 10 levels `{ value, label }`, values 1 to n."
+                },
+                "impactLevels": {
+                  "type": "array",
+                  "items": {},
+                  "description": "2 to 10 levels `{ value, label }`, values 1 to n."
+                },
+                "bands": {
+                  "type": "array",
+                  "items": {},
+                  "description": "Bands `{ key, label, min, max }` that cover every score without gaps."
+                },
+                "scoring": {
+                  "type": "string",
+                  "enum": [
+                    "product",
+                    "sum"
+                  ]
+                },
+                "isDefault": {
+                  "type": "boolean"
+                },
+                "matrixId": {
+                  "type": "string",
+                  "format": "uuid"
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "likelihoodLevels",
+                "impactLevels",
+                "bands"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "risk_assessment": {
+          "input": {
+            "title": "RiskAssessmentInput",
+            "fields": {
+              "inherent": {
+                "kind": "json",
+                "description": "`{ likelihood, impact }` before controls."
+              },
+              "residual": {
+                "kind": "json",
+                "description": "`{ likelihood, impact }` after controls."
+              },
+              "rationale": {
+                "kind": "string",
+                "optional": true,
+                "maxLength": 10000
+              }
+            },
+            "jsonSchema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "title": "RiskAssessmentInput",
+              "type": "object",
+              "properties": {
+                "inherent": {
+                  "description": "`{ likelihood, impact }` before controls."
+                },
+                "residual": {
+                  "description": "`{ likelihood, impact }` after controls."
+                },
+                "rationale": {
+                  "type": "string",
+                  "maxLength": 10000
+                }
+              },
+              "required": [
+                "inherent",
+                "residual"
+              ],
+              "additionalProperties": false
+            }
+          }
+        }
+      },
+      "events": {
+        "type": "RisksEvents",
+        "types": [
+          "risk_matrix.created",
+          "risk_matrix.updated",
+          "risk.created",
+          "risk.updated",
+          "risk.assessed",
+          "risk.treatment_changed",
+          "risk.reviewed",
+          "risk.closed",
+          "risk.review_date_reached"
+        ]
+      },
+      "schedules": [
+        {
+          "name": "review-due",
+          "cron": "0 6 * * *",
+          "runs": "notifyDueReviews()",
+          "description": "Reports the risks whose review date has come."
+        }
+      ]
     },
     {
       "name": "drive",

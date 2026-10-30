@@ -50,6 +50,7 @@ import {
   GaugeIcon,
   GlobeIcon,
   GraduationCapIcon,
+  Grid3x3Icon,
   HandCoinsIcon,
   HandHeartIcon,
   HourglassIcon,
@@ -302,6 +303,7 @@ export const BLOCK_ICONS = {
   contracts: FileSignatureIcon,
   compliance: ClipboardCheckIcon,
   incidents: SirenIcon,
+  risks: Grid3x3Icon,
   // Database primitives
   "updated-at": ClockIcon,
   "realtime-tables": RadioIcon,

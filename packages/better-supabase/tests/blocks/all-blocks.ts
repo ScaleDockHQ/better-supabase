@@ -105,6 +105,7 @@ import type { relationsBlock } from "../../src/blocks/relations/manifest.ts";
 import type { remindersBlock } from "../../src/blocks/reminders/manifest.ts";
 import type { reservedSlugsBlock } from "../../src/blocks/reserved-slugs/manifest.ts";
 import type { reviewsBlock } from "../../src/blocks/reviews/manifest.ts";
+import type { risksBlock } from "../../src/blocks/risks/manifest.ts";
 import type { rlsGuardBlock } from "../../src/blocks/rls-guard/manifest.ts";
 import type { savedViewsBlock } from "../../src/blocks/saved-views/manifest.ts";
 import type { scoresBlock } from "../../src/blocks/scores/manifest.ts";
@@ -255,6 +256,7 @@ export type AllBlocks = {
   readonly reminders: typeof remindersBlock;
   readonly reservedSlugs: typeof reservedSlugsBlock;
   readonly reviews: typeof reviewsBlock;
+  readonly risks: typeof risksBlock;
   readonly rules: typeof automationsBlock;
   readonly vercelMarketplace: typeof vercelMarketplaceBlock;
   readonly savedViews: typeof savedViewsBlock;

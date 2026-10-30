@@ -454,6 +454,16 @@ msgctxt "qualifications.gfuJNy"
 msgid "The certificates and licences members hold, and the required ones that are missing or about to expire."
 msgstr "The certificates and licences members hold, and the required ones that are missing or about to expire."
 
+#: src/app/[locale]/(app)/risks/page.tsx
+msgctxt "risks._s79W_"
+msgid "Risks"
+msgstr "Risks"
+
+#: src/app/[locale]/(app)/risks/page.tsx
+msgctxt "risks.OdQFCS"
+msgid "Where the open risks sit on the organization's matrix, and the register with each risk's residual rating and next review."
+msgstr "Where the open risks sit on the organization's matrix, and the register with each risk's residual rating and next review."
+
 #: src/app/[locale]/(app)/rules/[rule]/page.tsx
 msgctxt "rules.XkosHt"
 msgid "All rules"
@@ -8060,6 +8070,11 @@ msgid "Qualifications"
 msgstr "Qualifications"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation._s79W_"
+msgid "Risks"
+msgstr "Risks"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Notifications"
@@ -9904,6 +9919,158 @@ msgstr "Status"
 msgctxt "qualifications.xhQMeQ"
 msgid "Expires"
 msgstr "Expires"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.4_EFCP"
+msgid "The heatmap didn't load"
+msgstr "The heatmap didn't load"
+
+#: src/features/risks/components/risk-heatmap.tsx
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.162kF7"
+msgid "Try again in a moment."
+msgstr "Try again in a moment."
+
+#: src/features/risks/components/risk-heatmap.tsx
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.62nsdy"
+msgid "Retry"
+msgstr "Retry"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.WEDRDw"
+msgid "Heatmap"
+msgstr "Heatmap"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.CAjgWt"
+msgid "{total, plural, =0 {No open risks} one {# open risk} other {# open risks}} on the {matrix} matrix, by residual rating."
+msgstr "{total, plural, =0 {No open risks} one {# open risk} other {# open risks}} on the {matrix} matrix, by residual rating."
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.I6E7Lp"
+msgid "Nothing assessed yet"
+msgstr "Nothing assessed yet"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.A39el3"
+msgid "Assessed risks appear here in the cell of their residual likelihood and impact."
+msgstr "Assessed risks appear here in the cell of their residual likelihood and impact."
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.2tEF5W"
+msgid "Read how assessment works"
+msgstr "Read how assessment works"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.mAboH5"
+msgid "Risks by likelihood and impact"
+msgstr "Risks by likelihood and impact"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.SgnTZy"
+msgid "Likelihood / impact"
+msgstr "Likelihood / impact"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.BAeF44"
+msgid "{band}: {count, plural, one {# risk} other {# risks}}"
+msgstr "{band}: {count, plural, one {# risk} other {# risks}}"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.3Q1Pj6"
+msgid "Not assessed"
+msgstr "Not assessed"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.fyIg53"
+msgid "{band} · {score, number}"
+msgstr "{band} · {score, number}"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.7cv4Uf"
+msgid "Identified"
+msgstr "Identified"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.asYiRT"
+msgid "Assessed"
+msgstr "Assessed"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.n50oTI"
+msgid "Treating"
+msgstr "Treating"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.aFyFm0"
+msgid "Accepted"
+msgstr "Accepted"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.Fv1ZSz"
+msgid "Closed"
+msgstr "Closed"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.kFkPWB"
+msgid "Number"
+msgstr "Number"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.v6rYjQ"
+msgid "Risk"
+msgstr "Risk"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ccXLVi"
+msgid "Category"
+msgstr "Category"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.Efoqaa"
+msgid "Residual"
+msgstr "Residual"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ep8Oy7"
+msgid "Next review"
+msgstr "Next review"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.mvPZOS"
+msgid "Risk register"
+msgstr "Risk register"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.Kg4CZR"
+msgid "Every identified risk with its residual rating after controls. A review moves the next review date ahead by the risk's interval."
+msgstr "Every identified risk with its residual rating after controls. A review moves the next review date ahead by the risk's interval."
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.dJC62W"
+msgid "The risk register didn't load"
+msgstr "The risk register didn't load"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.XwQph0"
+msgid "No risks yet"
+msgstr "No risks yet"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.xjr51A"
+msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix."
+msgstr "Register a risk with its cause and consequence, then assess it against the organization's matrix."
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ruQnUX"
+msgid "Read the risks guide"
+msgstr "Read the risks guide"
 
 #: src/features/roles/components/permission-matrix.tsx
 msgctxt "roles.JzR7p4"

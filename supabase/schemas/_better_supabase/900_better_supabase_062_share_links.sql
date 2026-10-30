@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:379d78663a13aea120838f9c6aa0f0b14f1a534d31da069299528e0ac62ee403
+-- @bsb-hash sha256:ccd5f157edbb8da053b229ddec52ce16fec432d99ffdc26cd83b71b4f2e03a4d
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -203,6 +203,7 @@ begin
     when 'control' then exists (select 1 from "better_supabase"."controls" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'controls.read'), false)
     when 'policy' then exists (select 1 from "better_supabase"."policies" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'controls.read'), false)
     when 'qualification_type' then exists (select 1 from "better_supabase"."qualification_types" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'qualifications.read'), false)
+    when 'risk' then exists (select 1 from "better_supabase"."risks" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'risks.read'), false)
     when 'incident' then exists (select 1 from "better_supabase"."incidents" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'incidents.read'), false)
     when 'content_entry' then exists (select 1 from "better_supabase"."content_entries" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'content.read'), false)
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (create_share_link.subject_id)::uuid and s."tenant_id" = create_share_link.tenant) and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'documents.read'), false)

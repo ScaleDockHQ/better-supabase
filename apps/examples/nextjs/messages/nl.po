@@ -454,6 +454,16 @@ msgctxt "qualifications.gfuJNy"
 msgid "The certificates and licences members hold, and the required ones that are missing or about to expire."
 msgstr "De certificaten en vergunningen die leden hebben, en de verplichte die ontbreken of bijna verlopen."
 
+#: src/app/[locale]/(app)/risks/page.tsx
+msgctxt "risks._s79W_"
+msgid "Risks"
+msgstr "Risico's"
+
+#: src/app/[locale]/(app)/risks/page.tsx
+msgctxt "risks.OdQFCS"
+msgid "Where the open risks sit on the organization's matrix, and the register with each risk's residual rating and next review."
+msgstr "Waar de open risico's op de matrix van de organisatie staan, en het register met de restrisicoscore en de volgende review van elk risico."
+
 #: src/app/[locale]/(app)/rules/[rule]/page.tsx
 msgctxt "rules.XkosHt"
 msgid "All rules"
@@ -8060,6 +8070,11 @@ msgid "Qualifications"
 msgstr "Kwalificaties"
 
 #: src/features/navigation/components/side-nav.tsx
+msgctxt "navigation._s79W_"
+msgid "Risks"
+msgstr "Risico's"
+
+#: src/features/navigation/components/side-nav.tsx
 msgctxt "navigation.NAidKb"
 msgid "Notifications"
 msgstr "Meldingen"
@@ -9904,6 +9919,158 @@ msgstr "Status"
 msgctxt "qualifications.xhQMeQ"
 msgid "Expires"
 msgstr "Verloopt"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.4_EFCP"
+msgid "The heatmap didn't load"
+msgstr "De heatmap is niet geladen"
+
+#: src/features/risks/components/risk-heatmap.tsx
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.162kF7"
+msgid "Try again in a moment."
+msgstr "Probeer het zo opnieuw."
+
+#: src/features/risks/components/risk-heatmap.tsx
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.62nsdy"
+msgid "Retry"
+msgstr "Opnieuw proberen"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.WEDRDw"
+msgid "Heatmap"
+msgstr "Heatmap"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.CAjgWt"
+msgid "{total, plural, =0 {No open risks} one {# open risk} other {# open risks}} on the {matrix} matrix, by residual rating."
+msgstr "{total, plural, =0 {Geen open risico's} one {# open risico} other {# open risico's}} op de matrix {matrix}, op restrisico."
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.I6E7Lp"
+msgid "Nothing assessed yet"
+msgstr "Nog niets beoordeeld"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.A39el3"
+msgid "Assessed risks appear here in the cell of their residual likelihood and impact."
+msgstr "Beoordeelde risico's verschijnen hier in de cel van hun restkans en restimpact."
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.2tEF5W"
+msgid "Read how assessment works"
+msgstr "Lees hoe beoordelen werkt"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.mAboH5"
+msgid "Risks by likelihood and impact"
+msgstr "Risico's per kans en impact"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.SgnTZy"
+msgid "Likelihood / impact"
+msgstr "Kans / impact"
+
+#: src/features/risks/components/risk-heatmap.tsx
+msgctxt "risks.BAeF44"
+msgid "{band}: {count, plural, one {# risk} other {# risks}}"
+msgstr "{band}: {count, plural, one {# risico} other {# risico's}}"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.3Q1Pj6"
+msgid "Not assessed"
+msgstr "Niet beoordeeld"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.fyIg53"
+msgid "{band} · {score, number}"
+msgstr "{band} · {score, number}"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.7cv4Uf"
+msgid "Identified"
+msgstr "Geïdentificeerd"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.asYiRT"
+msgid "Assessed"
+msgstr "Beoordeeld"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.n50oTI"
+msgid "Treating"
+msgstr "In behandeling"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.aFyFm0"
+msgid "Accepted"
+msgstr "Geaccepteerd"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.Fv1ZSz"
+msgid "Closed"
+msgstr "Gesloten"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.kFkPWB"
+msgid "Number"
+msgstr "Nummer"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.v6rYjQ"
+msgid "Risk"
+msgstr "Risico"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ccXLVi"
+msgid "Category"
+msgstr "Categorie"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.Efoqaa"
+msgid "Residual"
+msgstr "Restrisico"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.tzMNF3"
+msgid "Status"
+msgstr "Status"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ep8Oy7"
+msgid "Next review"
+msgstr "Volgende review"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.mvPZOS"
+msgid "Risk register"
+msgstr "Risicoregister"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.Kg4CZR"
+msgid "Every identified risk with its residual rating after controls. A review moves the next review date ahead by the risk's interval."
+msgstr "Elk geïdentificeerd risico met de restscore na beheersmaatregelen. Een review schuift de volgende reviewdatum op met de interval van het risico."
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.dJC62W"
+msgid "The risk register didn't load"
+msgstr "Het risicoregister is niet geladen"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.XwQph0"
+msgid "No risks yet"
+msgstr "Nog geen risico's"
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.xjr51A"
+msgid "Register a risk with its cause and consequence, then assess it against the organization's matrix."
+msgstr "Registreer een risico met oorzaak en gevolg en beoordeel het daarna op de matrix van de organisatie."
+
+#: src/features/risks/components/risk-register.tsx
+msgctxt "risks.ruQnUX"
+msgid "Read the risks guide"
+msgstr "Lees de gids over risico's"
 
 #: src/features/roles/components/permission-matrix.tsx
 msgctxt "roles.JzR7p4"
