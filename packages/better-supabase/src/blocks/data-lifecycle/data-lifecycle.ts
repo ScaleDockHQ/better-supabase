@@ -58,11 +58,19 @@ export interface LifecycleStorage {
 
 export type DataExportStatus = "pending" | "running" | "ready" | "failed";
 
+export type DataExportFormat = "ndjson" | "csv";
+
 export interface DataExport {
   readonly id: string;
-  readonly subject: "user" | "organization";
+  /** `record` is one `config.subjects` record, from `requestSubjectExport`. */
+  readonly subject: "user" | "organization" | "record";
   readonly userId: string | undefined;
   readonly organizationId: string | undefined;
+  /** Subject `record`: its `config.subjects` type and id. */
+  readonly subjectType: string | undefined;
+  readonly subjectId: string | undefined;
+  /** The file format the export asked for; `undefined` uses the export job's. */
+  readonly format: DataExportFormat | undefined;
   readonly status: DataExportStatus;
   readonly bucket: string;
   /** Object paths, one file per table: `{id}/{schema.table}.ndjson` (or `.csv`). */
@@ -117,6 +125,17 @@ export interface DataLifecycle {
   requestExport(options?: {
     readonly organizationId?: string;
   }): AsyncResult<DataExport>;
+  /**
+   * Exports one `config.subjects` record: its row, with encrypted columns
+   * decrypted as the caller (and audited when the table audits reads), and
+   * every installed block's rows attached to it. Needs `organization.export` in
+   * the record's tenant or the record's `manage` action.
+   */
+  requestSubjectExport(
+    subjectType: string,
+    subjectId: string,
+    options?: { readonly format?: DataExportFormat },
+  ): AsyncResult<DataExport>;
   /** The caller's exports, or a tenant's, newest first. */
   exports(organizationId?: string): AsyncResult<readonly DataExport[]>;
   /** Signed URLs for a ready export's files. */
@@ -140,6 +159,14 @@ export interface DataLifecycle {
   ): AsyncResult<OrganizationDeletion | undefined>;
 }
 
+const EXPORT_SUBJECTS: readonly DataExport["subject"][] = [
+  "user",
+  "organization",
+  "record",
+];
+
+const EXPORT_FORMATS: readonly DataExportFormat[] = ["ndjson", "csv"];
+
 const EXPORT_STATUSES: readonly DataExportStatus[] = [
   "pending",
   "running",
@@ -162,9 +189,14 @@ export function exportOf(value: unknown): DataExport {
 
   return {
     id: textOf(row["id"]),
-    subject: row["subject"] === "organization" ? "organization" : "user",
+    subject:
+      EXPORT_SUBJECTS.find((candidate) => candidate === row["subject"]) ??
+      "user",
     userId: optionalText(row["user_id"]),
     organizationId: optionalText(row["organization_id"]),
+    subjectType: optionalText(row["subject_type"]),
+    subjectId: optionalText(row["subject_id"]),
+    format: EXPORT_FORMATS.find((candidate) => candidate === row["format"]),
     status,
     bucket: textOf(row["bucket"]),
     files: stringsOf(row["files"]),
@@ -236,6 +268,16 @@ export function createDataLifecycle(
         request.organizationId === undefined
           ? { subject: "user" }
           : { subject: "organization", tenant: request.organizationId },
+        exportOf,
+      ),
+    requestSubjectExport: (subjectType, subjectId, request = {}) =>
+      call(
+        "request_subject_export",
+        {
+          subject_type: subjectType,
+          subject_id: subjectId,
+          format: request.format ?? "ndjson",
+        },
         exportOf,
       ),
     exports: (organizationId) =>

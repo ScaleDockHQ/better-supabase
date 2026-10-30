@@ -6,6 +6,7 @@ import { OPERATIONS_RECIPES } from "./operations.ts";
  * is available; the planned ones in `planned.ts` name what they wait for.
  */
 import { PLANNED } from "./planned.ts";
+import { QUALITY_RECIPES } from "./quality.ts";
 import { RECORD_RECIPES } from "./records.ts";
 import { SAAS_RECIPES } from "./saas.ts";
 import { NATIVE_APP, WEB_APP } from "./types.ts";
@@ -758,5 +759,6 @@ export const RECIPES: readonly RecipeSource[] = [
   ...SAAS_RECIPES,
   ...OPERATIONS_RECIPES,
   ...RECORD_RECIPES,
+  ...QUALITY_RECIPES,
   ...PLANNED,
 ];

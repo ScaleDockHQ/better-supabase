@@ -17904,6 +17904,9 @@ export async function DriveExplorer({
                       id={item.id}
                       kind={item.kind}
                       name={item.name}
+                      locked={item.locked}
+                      downloadBlocked={item.downloadBlocked}
+                      downloadable={item.downloadable}
                     />
                   </TableCell>
                 </TableRow>
@@ -24701,6 +24704,420 @@ export function TaskImportDialog({ projectId }: { projectId: string }) {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+```
+
+## Risk register
+
+The organization's risks in a data grid with their residual band, status and next review date, the highest residual score first. It loads its data on the server through the block's client; the [risks block](https://bettersupabase.com/blocks/risks) must be installed (`npx better-supabase add risks`). Page: https://bettersupabase.com/recipes/risk-register.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button empty skeleton @reui/data-grid @reui/frame
+```
+
+```tsx title="apps/examples/nextjs/src/features/risks/components/risk-register.tsx"
+"use client";
+
+import type { CellContext, ColumnDef } from "@tanstack/react-table";
+import type { RiskStatus } from "better-supabase/blocks/risks";
+
+import { useTable } from "@tanstack/react-table";
+import { ShieldAlertIcon, TriangleAlertIcon } from "lucide-react";
+import { useExtracted, useFormatter } from "next-intl";
+import { useRouter } from "next/navigation";
+import { useTransition } from "react";
+
+import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
+
+import {
+  Alert,
+  AlertAction,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/reui/alert";
+import { Badge } from "@/components/reui/badge";
+import {
+  DataGrid,
+  DataGridContainer,
+  dataGridFeatures,
+} from "@/components/reui/data-grid/data-grid";
+import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
+import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
+import {
+  Frame,
+  FrameDescription,
+  FrameHeader,
+  FramePanel,
+  FrameTitle,
+} from "@/components/reui/frame";
+import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
+
+import type { BandTone, Loaded, RiskRow } from "../risks-queries";
+
+const TONE_VARIANT = {
+  low: "success-light",
+  medium: "warning-light",
+  high: "destructive-light",
+  critical: "destructive",
+} as const satisfies Record<BandTone, string>;
+
+type RiskCell = CellContext<DataGridFeatures, RiskRow>;
+
+function NumberCell({ row }: RiskCell) {
+  return (
+    <span className="font-mono text-xs text-muted-foreground">
+      {row.original.number}
+    </span>
+  );
+}
+
+function TitleCell({ row }: RiskCell) {
+  return <span className="font-medium">{row.original.title}</span>;
+}
+
+function BandCell({ row }: RiskCell) {
+  const t = useExtracted("risks");
+  const { band, tone, score } = row.original;
+
+  return band === null || tone === null ? (
+    <span className="text-muted-foreground">{t("Not assessed")}</span>
+  ) : (
+    <Badge variant={TONE_VARIANT[tone]}>
+      {t("{band} · {score, number}", { band, score: score ?? 0 })}
+    </Badge>
+  );
+}
+
+function StatusCell({ row }: RiskCell) {
+  const t = useExtracted("risks");
+  const status: RiskStatus = row.original.status;
+
+  switch (status) {
+    case "identified": {
+      return <Badge variant="secondary">{t("Identified")}</Badge>;
+    }
+
+    case "assessed": {
+      return <Badge variant="info-light">{t("Assessed")}</Badge>;
+    }
+
+    case "treating": {
+      return <Badge variant="warning-light">{t("Treating")}</Badge>;
+    }
+
+    case "accepted": {
+      return <Badge variant="success-light">{t("Accepted")}</Badge>;
+    }
+
+    case "closed": {
+      return <Badge variant="secondary">{t("Closed")}</Badge>;
+    }
+
+    default: {
+      const unknown: never = status;
+
+      return unknown;
+    }
+  }
+}
+
+function ReviewCell({ row }: RiskCell) {
+  const format = useFormatter();
+  const { nextReviewOn } = row.original;
+
+  return nextReviewOn === null ? (
+    <span className="text-muted-foreground">–</span>
+  ) : (
+    <span className="tabular-nums">
+      {format.dateTime(new Date(nextReviewOn), {
+        dateStyle: "medium",
+        timeZone: "UTC",
+      })}
+    </span>
+  );
+}
+
+function RiskGrid({ risks }: { risks: readonly RiskRow[] }) {
+  const t = useExtracted("risks");
+
+  const columns: ColumnDef<DataGridFeatures, RiskRow>[] = [
+    { accessorKey: "number", header: t("Number"), cell: NumberCell, size: 100 },
+    { accessorKey: "title", header: t("Risk"), cell: TitleCell, size: 260 },
+    { accessorKey: "category", header: t("Category"), size: 140 },
+    { accessorKey: "band", header: t("Residual"), cell: BandCell, size: 150 },
+    { accessorKey: "status", header: t("Status"), cell: StatusCell, size: 120 },
+    {
+      accessorKey: "nextReviewOn",
+      header: t("Next review"),
+      cell: ReviewCell,
+      size: 140,
+    },
+  ];
+
+  const table = useTable({
+    features: dataGridFeatures,
+    columns,
+    data: [...risks],
+    getRowId: (row) => row.id,
+  });
+
+  return (
+    <DataGrid
+      table={table}
+      recordCount={risks.length}
+      tableLayout={{ dense: true }}
+    >
+      <DataGridContainer>
+        <DataGridScrollArea>
+          <DataGridTable />
+        </DataGridScrollArea>
+      </DataGridContainer>
+    </DataGrid>
+  );
+}
+
+/**
+ * The organization's risk register: each risk with its residual band and the
+ * date of its next review, the highest residual score first.
+ */
+export function RiskRegister({ state }: { state: Loaded<readonly RiskRow[]> }) {
+  const t = useExtracted("risks");
+  const router = useRouter();
+  const [retrying, startRetry] = useTransition();
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  return (
+    <Frame spacing="sm" data-recipe="risk-register">
+      <FrameHeader className="gap-0.5">
+        <FrameTitle>{t("Risk register")}</FrameTitle>
+        <FrameDescription>
+          {t(
+            "Every identified risk with its residual rating after controls. A review moves the next review date ahead by the risk's interval.",
+          )}
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel>
+        {state.kind === "error" ? (
+          <Alert variant="destructive">
+            <TriangleAlertIcon />
+            <AlertTitle>{t("The risk register didn't load")}</AlertTitle>
+            <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+            <AlertAction>
+              <Button
+                size="sm"
+                variant="outline"
+                type="button"
+                disabled={retrying}
+                onClick={() => {
+                  startRetry(() => {
+                    router.refresh();
+                  });
+                }}
+              >
+                {t("Retry")}
+              </Button>
+            </AlertAction>
+          </Alert>
+        ) : state.data.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <ShieldAlertIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("No risks yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t(
+                  "Register a risk with its cause and consequence, then assess it against the organization's matrix.",
+                )}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <a
+                className="text-sm underline underline-offset-4"
+                href="https://bettersupabase.com/docs/blocks/risks"
+              >
+                {t("Read the risks guide")}
+              </a>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <RiskGrid risks={state.data} />
+        )}
+      </FramePanel>
+    </Frame>
+  );
+}
+
+export function RiskRegisterSkeleton() {
+  return (
+    <Frame spacing="sm" aria-busy="true">
+      <FrameHeader className="gap-1">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-4 w-80" />
+      </FrameHeader>
+      <FramePanel>
+        <Skeleton className="h-48" />
+      </FramePanel>
+    </Frame>
+  );
+}
+```
+
+## Risk heatmap
+
+The open risks on the default matrix, one cell per likelihood and impact with the count in the band's color. It loads its data on the server through the block's client; the [risks block](https://bettersupabase.com/blocks/risks) must be installed (`npx better-supabase add risks`). Page: https://bettersupabase.com/recipes/risk-heatmap.
+
+Web, with shadcn components:
+
+```bash
+npx shadcn add alert badge button empty skeleton table @reui/frame
+```
+
+```tsx title="apps/examples/nextjs/src/features/risks/components/risk-heatmap.tsx"
+// oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await
+async function retry() {
+  "use server";
+  refresh();
+}
+
+const TONE_VARIANT = {
+  low: "success-light",
+  medium: "warning-light",
+  high: "destructive-light",
+  critical: "destructive",
+} as const;
+
+/**
+ * Render inside `<Suspense>`: the open risks on the default matrix, one cell
+ * per likelihood and impact, colored by the cell's band. The highest likelihood
+ * is the top row.
+ */
+export async function RiskHeatmap() {
+  const [state, t] = await Promise.all([
+    getRiskHeatmap(),
+    getExtracted("risks"),
+  ]);
+
+  if (state.kind === "no-organization") {
+    return null;
+  }
+
+  if (state.kind === "error") {
+    return (
+      <Alert variant="destructive" data-recipe="risk-heatmap">
+        <TriangleAlertIcon />
+        <AlertTitle>{t("The heatmap didn't load")}</AlertTitle>
+        <AlertDescription>{t("Try again in a moment.")}</AlertDescription>
+        <AlertAction>
+          <form action={retry}>
+            <Button size="sm" variant="outline" type="submit">
+              {t("Retry")}
+            </Button>
+          </form>
+        </AlertAction>
+      </Alert>
+    );
+  }
+
+  const { matrixName, likelihoods, impacts, cells, total } = state.data;
+
+  const cellAt = new Map(
+    cells.map((cell) => [`${cell.likelihood}:${cell.impact}`, cell]),
+  );
+
+  return (
+    <Frame spacing="sm" data-recipe="risk-heatmap">
+      <FrameHeader className="gap-0.5">
+        <FrameTitle>{t("Heatmap")}</FrameTitle>
+        <FrameDescription>
+          {t(
+            "{total, plural, =0 {No open risks} one {# open risk} other {# open risks}} on the {matrix} matrix, by residual rating.",
+            { total, matrix: matrixName },
+          )}
+        </FrameDescription>
+      </FrameHeader>
+      <FramePanel>
+        {total === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <GridIcon />
+              </EmptyMedia>
+              <EmptyTitle>{t("Nothing assessed yet")}</EmptyTitle>
+              <EmptyDescription>
+                {t(
+                  "Assessed risks appear here in the cell of their residual likelihood and impact.",
+                )}
+              </EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <a
+                className="text-sm underline underline-offset-4"
+                href="https://bettersupabase.com/docs/blocks/risks#assess"
+              >
+                {t("Read how assessment works")}
+              </a>
+            </EmptyContent>
+          </Empty>
+        ) : (
+          <Table aria-label={t("Risks by likelihood and impact")}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>{t("Likelihood / impact")}</TableHead>
+                {impacts.map((impact) => (
+                  <TableHead key={impact.level} className="text-center">
+                    {impact.label}
+                  </TableHead>
+                ))}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {likelihoods.toReversed().map((likelihood) => (
+                <TableRow key={likelihood.level}>
+                  <TableHead scope="row">{likelihood.label}</TableHead>
+                  {impacts.map((impact) => {
+                    const cell = cellAt.get(
+                      `${likelihood.level}:${impact.level}`,
+                    );
+
+                    return (
+                      <TableCell key={impact.level} className="text-center">
+                        {cell ? (
+                          <Badge
+                            variant={TONE_VARIANT[cell.tone]}
+                            aria-label={t(
+                              "{band}: {count, plural, one {# risk} other {# risks}}",
+                              { band: cell.band, count: cell.count },
+                            )}
+                          >
+                            {cell.count}
+                          </Badge>
+                        ) : null}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </FramePanel>
+    </Frame>
   );
 }
 ```

@@ -164,9 +164,8 @@ test("a version bump refreshes the islands in the background", async ({
     document.documentElement.dataset["islandsLoad"] = "first";
   });
 
-  const client = new Client({
-    connectionString: process.env["SUPABASE_DB_URL"],
-  });
+  const { SUPABASE_DB_URL: connectionString } = process.env;
+  const client = new Client({ connectionString });
 
   await client.connect();
 

@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:d66d7b46148302e8a7ce280575c7a751589d135a169e376e8b575353ba1ee934
+-- @bsb-hash sha256:2bee792408695bb6c26b8f76d4556c4768c184b2a18337d53595266fcb3496be
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -371,6 +371,10 @@ as $$
     when 'relations.read' then 'relations.read'
     when 'reminders.manage' then 'reminders.manage'
     when 'reminders.read' then 'reminders.read'
+    when 'risks.assess' then 'risks.assess'
+    when 'risks.manage' then 'risks.manage'
+    when 'risks.read' then 'risks.read'
+    when 'risks.write' then 'risks.write'
     when 'saved-views.read' then 'views.read'
     when 'saved-views.share' then 'views.share'
     when 'scores.compute' then 'scores.compute'
@@ -397,6 +401,7 @@ as $$
     when 'sla.manage' then 'sla.manage'
     when 'sla.read' then 'sla.read'
     when 'sso.manage' then 'sso.manage'
+    when 'subjects.manage' then 'subjects.manage'
     when 'tags.apply' then 'tags.apply'
     when 'tags.manage' then 'tags.manage'
     when 'tags.read' then 'tags.read'

@@ -518,12 +518,13 @@ export interface BlockNameRegistry {
   };
   readonly "data-lifecycle": {
     readonly tables: {
-      readonly "exports": "id" | "subject" | "user" | "tenant" | "status" | "bucket" | "files" | "error" | "requestedBy" | "requestedAt" | "completedAt" | "expiresAt";
+      readonly "exports": "id" | "subject" | "user" | "tenant" | "status" | "bucket" | "files" | "error" | "requestedBy" | "requestedAt" | "completedAt" | "expiresAt" | "subjectType" | "subjectId" | "format";
+      readonly "contents": "export" | "parts";
       readonly "deletions": "tenant" | "requestedBy" | "requestedAt" | "purgeAfter" | "cancelledAt" | "purgedAt" | "previouslyDisabled";
       readonly "policies": "id" | "tenant" | "plan" | "kind" | "keep" | "updatedAt";
       readonly "holds": "id" | "tenant" | "kind" | "reason" | "placedBy" | "placedAt" | "releasedBy" | "releasedAt";
     };
-    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "due_organization_deletions" | "expired_data_exports" | "fail_data_export" | "forget_data_exports" | "get_data_export" | "is_held" | "list_data_exports" | "list_legal_holds" | "list_retention_policies" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy";
+    readonly functions: "anonymize_due" | "cancel_organization_deletion" | "claim_data_export" | "complete_data_export" | "data_export_object_allowed" | "data_export_rows" | "data_lifecycle_credentials" | "data_lifecycle_tables" | "due_organization_deletions" | "expired_data_exports" | "fail_data_export" | "forget_data_exports" | "get_data_export" | "is_held" | "list_data_exports" | "list_legal_holds" | "list_retention_policies" | "organization_credential_refs" | "organization_deletion" | "place_legal_hold" | "purge_organization" | "release_legal_hold" | "remove_retention_policy" | "request_data_export" | "request_organization_deletion" | "request_subject_export" | "retention_cutoff" | "retention_floor" | "retention_for" | "set_retention_policy";
     readonly actions: "export" | "delete" | "cancelDelete" | "deletePlatform";
     readonly hooks: "on_organization_purge";
     readonly entities: {};
@@ -607,17 +608,17 @@ export interface BlockNameRegistry {
   };
   readonly "drive": {
     readonly tables: {
-      readonly "nodes": "id" | "tenant" | "drive" | "parent" | "kind" | "name" | "attachment" | "path" | "rank" | "deletedAt" | "source" | "externalId" | "externalMetadata" | "legalHoldUntil" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "nodes": "id" | "tenant" | "drive" | "parent" | "kind" | "name" | "attachment" | "path" | "rank" | "deletedAt" | "source" | "externalId" | "externalMetadata" | "legalHoldUntil" | "lockedBy" | "lockedUntil" | "lockNote" | "downloadBlocked" | "previewPages" | "createdBy" | "createdAt" | "updatedAt";
       readonly "grants": "id" | "tenant" | "node" | "principalType" | "principalId" | "user" | "team" | "role" | "expiresAt" | "createdBy" | "createdAt";
-      readonly "drives": "id" | "tenant" | "name" | "kind" | "owner" | "connection" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "drives": "id" | "tenant" | "name" | "kind" | "owner" | "connection" | "downloadBlocked" | "createdBy" | "createdAt" | "updatedAt";
       readonly "driveGrants": "id" | "tenant" | "drive" | "principalType" | "principalId" | "user" | "team" | "role" | "expiresAt" | "createdBy" | "createdAt";
       readonly "connections": "id" | "tenant" | "user" | "provider" | "name" | "status" | "syncCursor" | "syncClaimedAt" | "lastSyncedAt" | "lastSyncError" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "drive_ancestors" | "drive_can" | "drive_check_parent" | "drive_clean_name" | "drive_conflict" | "drive_create_folder" | "drive_delete" | "drive_free_name" | "drive_get" | "drive_grants" | "drive_hold" | "drive_insert_node" | "drive_list" | "drive_lock_siblings" | "drive_move" | "drive_node_held" | "drive_node_json" | "drive_node_moved" | "drive_node_path" | "drive_node_readable" | "drive_node_writable" | "drive_path" | "drive_readable_ids" | "drive_release_hold" | "drive_rename" | "drive_role" | "drive_share" | "drive_shared" | "drive_subtree" | "drive_unshare";
+    readonly functions: "drive_ancestors" | "drive_can" | "drive_can_comment" | "drive_can_download" | "drive_check_parent" | "drive_clean_name" | "drive_conflict" | "drive_create_folder" | "drive_delete" | "drive_download_blocked" | "drive_free_name" | "drive_get" | "drive_grants" | "drive_hold" | "drive_insert_node" | "drive_list" | "drive_lock" | "drive_lock_siblings" | "drive_move" | "drive_node_held" | "drive_node_json" | "drive_node_moved" | "drive_node_path" | "drive_node_readable" | "drive_node_writable" | "drive_path" | "drive_readable_ids" | "drive_release_hold" | "drive_rename" | "drive_role" | "drive_set_download_blocked" | "drive_share" | "drive_share_link_allowed" | "drive_shared" | "drive_subtree" | "drive_unlock" | "drive_unshare";
     readonly actions: "read" | "create" | "manage";
     readonly hooks: "before_drive_node_create" | "after_drive_node_create" | "before_drive_node_move" | "after_drive_node_move" | "before_drive_node_rename" | "after_drive_node_rename" | "before_drive_node_share" | "after_drive_node_share";
     readonly entities: {
-      readonly "node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "deleted_at" | "source" | "external_id" | "external_metadata" | "legal_hold_until" | "created_by" | "created_at" | "updated_at";
+      readonly "node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "deleted_at" | "source" | "external_id" | "external_metadata" | "legal_hold_until" | "locked_by" | "locked_until" | "lock_note" | "download_blocked" | "preview_pages" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "node";
   };
@@ -1462,6 +1463,22 @@ export interface BlockNameRegistry {
     };
     readonly primary: "review";
   };
+  readonly "risks": {
+    readonly tables: {
+      readonly "matrices": "id" | "tenant" | "key" | "name" | "likelihoodLevels" | "impactLevels" | "bands" | "scoring" | "isDefault" | "createdAt" | "updatedAt";
+      readonly "risks": "id" | "tenant" | "number" | "sequence" | "matrix" | "title" | "description" | "category" | "cause" | "consequence" | "owner" | "status" | "treatment" | "reviewIntervalMonths" | "nextReviewOn" | "reviewedAt" | "reviewNotifiedFor" | "inherentLikelihood" | "inherentImpact" | "inherentScore" | "inherentBand" | "residualLikelihood" | "residualImpact" | "residualScore" | "residualBand" | "currentAssessment" | "closedAt" | "archivedAt" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "assessments": "id" | "tenant" | "risk" | "inherentLikelihood" | "inherentImpact" | "inherentScore" | "inherentBand" | "residualLikelihood" | "residualImpact" | "residualScore" | "residualBand" | "rationale" | "version" | "assessedBy" | "assessedAt";
+    };
+    readonly functions: "assess_risk" | "close_risk" | "create_risk" | "ensure_risk_matrix" | "get_risk" | "list_risk_matrices" | "list_risks" | "notify_due_risk_reviews" | "review_risk" | "risk_heatmap" | "save_risk_matrix" | "set_risk_treatment" | "update_risk";
+    readonly actions: "read" | "write" | "assess" | "manage";
+    readonly hooks: "before_risk_create" | "after_risk_create" | "before_risk_assess" | "after_risk_assess" | "before_risk_close" | "after_risk_close";
+    readonly entities: {
+      readonly "risk": "id" | "tenant_id" | "number" | "sequence" | "matrix_id" | "title" | "description" | "category" | "cause" | "consequence" | "owner_id" | "status" | "treatment" | "review_interval_months" | "next_review_on" | "reviewed_at" | "review_notified_for" | "inherent_likelihood" | "inherent_impact" | "inherent_score" | "inherent_band" | "residual_likelihood" | "residual_impact" | "residual_score" | "residual_band" | "current_assessment_id" | "closed_at" | "archived_at" | "created_by" | "created_at" | "updated_at";
+      readonly "risk_matrix": "id" | "tenant_id" | "key" | "name" | "likelihood_levels" | "impact_levels" | "bands" | "scoring" | "is_default" | "created_at" | "updated_at";
+      readonly "risk_assessment": "id" | "tenant_id" | "risk_id" | "inherent_likelihood" | "inherent_impact" | "inherent_score" | "inherent_band" | "residual_likelihood" | "residual_impact" | "residual_score" | "residual_band" | "rationale" | "version_id" | "assessed_by" | "assessed_at";
+    };
+    readonly primary: "risk";
+  };
   readonly "rls-guard": {
     readonly tables: {};
     readonly functions: never;
@@ -1683,9 +1700,11 @@ export interface BlockNameRegistry {
     readonly primary: never;
   };
   readonly "subjects": {
-    readonly tables: {};
-    readonly functions: "can_subject" | "can_subject_for" | "my_work" | "record_summary" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
-    readonly actions: never;
+    readonly tables: {
+      readonly "members": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "team" | "role" | "startsOn" | "endsOn" | "emergency" | "reason" | "createdBy" | "createdAt";
+    };
+    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "end_subject_member" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
     readonly primary: never;

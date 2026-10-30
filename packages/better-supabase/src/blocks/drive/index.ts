@@ -19,6 +19,7 @@ export {
   type DriveOptions,
   type DrivePage,
   type DrivePrincipal,
+  type DrivePreviews,
   type DrivePrincipalType,
   type DriveRevision,
   type DriveStoredObject,
@@ -28,6 +29,17 @@ export {
   type NewDriveFile,
   type NewDriveFolder,
 } from "./drive.ts";
+
+export {
+  createDrivePreviews,
+  type DrivePreviewJob,
+  type DrivePreviewService,
+  type DrivePreviewsOptions,
+  type PreviewInput,
+  type PreviewPage,
+  type PreviewRenderer,
+  previewRendererOf,
+} from "./preview.ts";
 
 export {
   DRIVE_ROOT,

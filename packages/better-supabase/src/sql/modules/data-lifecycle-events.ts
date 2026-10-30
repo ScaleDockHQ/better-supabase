@@ -5,7 +5,15 @@ import type { BlockSqlEvents } from "../context.ts";
 export const DATA_LIFECYCLE_EVENTS: BlockSqlEvents<DataLifecycleEvents> = {
   "data_export.requested": {
     subject: "data-exports",
-    payload: ["exportId", "subject", "organizationId", "userId", "requestedBy"],
+    payload: [
+      "exportId",
+      "subject",
+      "organizationId",
+      "userId",
+      "requestedBy",
+      "subjectType",
+      "subjectId",
+    ],
   },
   "data_export.completed": {
     subject: "data-exports",
@@ -15,6 +23,8 @@ export const DATA_LIFECYCLE_EVENTS: BlockSqlEvents<DataLifecycleEvents> = {
       "organizationId",
       "userId",
       "requestedBy",
+      "subjectType",
+      "subjectId",
       "files",
       "expiresAt",
     ],
@@ -28,6 +38,8 @@ export const DATA_LIFECYCLE_EVENTS: BlockSqlEvents<DataLifecycleEvents> = {
       "organizationId",
       "userId",
       "requestedBy",
+      "subjectType",
+      "subjectId",
       "error",
     ],
     retries: true,

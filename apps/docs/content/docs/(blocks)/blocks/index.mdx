@@ -287,6 +287,7 @@ expose the module schema itself.
 | [Contracts](/docs/blocks/contracts)                         | `better-supabase/blocks/contracts`                                               | `contracts`                                           |
 | [Compliance](/docs/blocks/compliance)                       | `better-supabase/blocks/compliance`                                              | `compliance`                                          |
 | [Incidents](/docs/blocks/incidents)                         | `better-supabase/blocks/incidents`                                               | `incidents`                                           |
+| [Risks](/docs/blocks/risks)                                 | `better-supabase/blocks/risks`                                                   | `risks`                                               |
 | [Inventory](/docs/blocks/inventory)                         | `better-supabase/blocks/inventory`                                               | `inventory`                                           |
 | [Drive](/docs/blocks/drive)                                 | `better-supabase/blocks/drive`                                                   | `drive`, `drive-files`                                |
 | [Orders](/docs/blocks/orders)                               | `better-supabase/blocks/orders`                                                  | `orders`                                              |
@@ -421,7 +422,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `share-links`        | `memberships`, `permissions`                                                                 | `outbox`, `versions`, `subjects`, `rate-limit`                                                                         |
 | `reminders`          | `memberships`, `permissions`, `queue`                                                        | `notifications`, `outbox`, `subjects`                                                                                  |
 | `imports`            | `memberships`, `permissions`, `queue`                                                        | `attachments`, `outbox`                                                                                                |
-| `subjects`           | `permissions`                                                                                | none                                                                                                                   |
+| `subjects`           | `permissions`                                                                                | `teams`, `memberships`                                                                                                 |
 | `rank`               | `permissions`, `subjects`                                                                    | `queue`                                                                                                                |
 | `saved-views`        | `memberships`, `permissions`                                                                 | `outbox`, `teams`, `collections`                                                                                       |
 | `relations`          | `memberships`, `permissions`                                                                 | `outbox`, `bulk`                                                                                                       |
@@ -500,6 +501,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `field-encryption`   | none                                                                                         | none                                                                                                                   |
 | `content`            | `memberships`, `permissions`, `subjects`                                                     | `approvals`, `versions`, `attachments`, `outbox`, `audit`                                                              |
 | `qualifications`     | `memberships`, `permissions`, `subjects`                                                     | `courses`, `employees`, `teams`, `contacts`, `assets`, `segments`, `attachments`, `notifications`, `outbox`, `audit`   |
+| `risks`              | `memberships`, `permissions`, `subjects`, `versions`                                         | `compliance`, `relations`, `numbering`, `notifications`, `outbox`, `audit`                                             |
 | `rls-guard`          | none                                                                                         | none                                                                                                                   |
 
 The other SQL modules (`updated-at`, `actor`, `rate-limit`,

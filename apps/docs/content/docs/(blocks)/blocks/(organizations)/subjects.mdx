@@ -15,17 +15,21 @@ better-supabase add subjects
 
 ## SQL functions
 
-| Function                                                      | Returns                                                                        |
-| ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| `subject_types()`                                             | The registered types                                                           |
-| `subject_title(subject_type, subject_id)`                     | The record's title                                                             |
-| `subject_url(subject_type, subject_id)`                       | The record's URL in the app                                                    |
-| `subject_titles(refs jsonb)`                                  | Titles and URLs for a batch of `{ type, id }` refs                             |
-| `can_subject(subject_type, subject_id, action)`               | Whether the caller may perform the action on the record                        |
-| `can_subject_for(member, subject_type, subject_id, action)`   | The same check for another user, for server code                               |
-| `record_summary(subject_type, subject_id, sections, seen_at)` | A record page header: title, path and a count per section, with what is new    |
-| `my_work(tenant, page_size)`                                  | The caller's open items across the installed blocks                            |
-| `subject_presence_allowed(topic)`                             | Whether the caller may join the Realtime presence topic `presence:<type>:<id>` |
+| Function                                                              | Returns                                                                        |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `subject_types()`                                                     | The registered types                                                           |
+| `subject_title(subject_type, subject_id)`                             | The record's title                                                             |
+| `subject_url(subject_type, subject_id)`                               | The record's URL in the app                                                    |
+| `subject_titles(refs jsonb)`                                          | Titles and URLs for a batch of `{ type, id }` refs                             |
+| `can_subject(subject_type, subject_id, action)`                       | Whether the caller may perform the action on the record                        |
+| `can_subject_for(member, subject_type, subject_id, action)`           | The same check for another user, for server code                               |
+| `record_summary(subject_type, subject_id, sections, seen_at)`         | A record page header: title, path and a count per section, with what is new    |
+| `my_work(tenant, page_size)`                                          | The caller's open items across the installed blocks                            |
+| `subject_presence_allowed(topic)`                                     | Whether the caller may join the Realtime presence topic `presence:<type>:<id>` |
+| `add_subject_member(subject_type, subject_id, user_id, team_id, ...)` | Puts a user or a team on the record's team                                     |
+| `end_subject_member(member_id, ends_on)`                              | Ends a record team membership                                                  |
+| `list_subject_members(subject_type, subject_id)`                      | The record's team                                                              |
+| `my_subjects(tenant, subject_type, page_size, cursor)`                | The records whose team the caller is on today                                  |
 
 The functions live in the block schema (`better_supabase` by default), and a
 type registered in `config.subjects` gets a branch in each one.
@@ -34,6 +38,27 @@ type registered in `config.subjects` gets a branch in each one.
 
 `better-supabase/blocks/subjects` reads the same functions from the client.
 The `subject-link`, `subject-chip` and `my-work` recipes render them.
+
+`members` manages the record teams of the types that declare
+`subjects.<type>.team`:
+
+```ts
+import { createSubjects } from "better-supabase/blocks/subjects";
+
+const subjects = createSubjects({ transport });
+
+await subjects.members
+  .add({ type: "patient", id: patientId }, { userId: nurseId, role: "lead" })
+  .orThrow();
+
+const { items, nextCursor } = await subjects.members
+  .mine(organizationId, { subjectType: "patient" })
+  .orThrow();
+```
+
+`end(memberId, { endsOn })` ends a membership, and `list(subject)` reads the
+record's team. [Record teams](/docs/blocks/sql#record-teams) covers the
+config, the roles and who may manage a team.
 
 The [SQL modules page](/docs/blocks/sql#subject-registry) covers the
 registry's SQL and merges, and [Record types](/docs/repository/record-types)

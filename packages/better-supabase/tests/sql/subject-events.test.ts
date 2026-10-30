@@ -108,11 +108,15 @@ const SUBJECT_EVENTS = [
   "drive.node_purged",
   "drive.node_hold_placed",
   "drive.node_hold_released",
+  "drive.node_locked",
+  "drive.node_unlocked",
+  "drive.node_download_blocked_changed",
   "drive.created",
   "drive.renamed",
   "drive.deleted",
   "drive.shared",
   "drive.unshared",
+  "drive.download_blocked_changed",
   "drive.connection_created",
   "drive.connection_removed",
   "order.placed",
@@ -179,6 +183,8 @@ const SUBJECT_EVENTS = [
   "sequence_enrollment.resumed",
   "sequence_enrollment.exited",
   "sequence_enrollment.completed",
+  "subject_member.added",
+  "subject_member.ended",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**
@@ -208,6 +214,9 @@ const OPTIONAL_SUBJECT = new Set([
   "workflow_run.cancelled",
   "work_order.created",
   "shipment.created",
+  "data_export.requested",
+  "data_export.completed",
+  "data_export.failed",
 ]);
 
 interface CatalogEntry {

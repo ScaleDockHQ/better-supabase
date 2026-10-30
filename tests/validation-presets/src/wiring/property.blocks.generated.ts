@@ -44,6 +44,7 @@ import type { ContactsEvents } from "better-supabase/blocks/contacts";
 import type { PipelinesEvents } from "better-supabase/blocks/pipelines";
 import type { RemindersEvents } from "better-supabase/blocks/reminders";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
 import { apiKeysBlock as apiKeysBlockInstance } from "better-supabase/blocks/api-keys";
@@ -456,6 +457,9 @@ export const permissions = {
     update: "settings.update",
     platform: "settings.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   tasks: {
     read: "work_items.read",
     write: "work_items.write",
@@ -476,13 +480,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "guests.manage" | "guests.read" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "guests.manage" | "guests.read" | "leases.maintain" | "leases.manage" | "leases.read" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read" | "work_items.manage" | "work_items.read" | "work_items.write";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & GuestsEvents & LeasesEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RemindersEvents & SettingsEvents & TeamsEvents & MaintenanceEvents;
+export type BlockEvents = ApiKeysEvents & AttachmentsEvents & AuditEvents & BillingEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & GuestsEvents & LeasesEvents & MessagingEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & RemindersEvents & SettingsEvents & SubjectsEvents & TeamsEvents & MaintenanceEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -602,6 +606,8 @@ export const blockEvents: Events<BlockEvents> = {
     "platform_setting.reset",
     "platform_setting.updated",
     "reminder.sent",
+    "subject_member.added",
+    "subject_member.ended",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -728,6 +734,8 @@ export const blockEventSchemas = {
   "platform_setting.reset": true,
   "platform_setting.updated": true,
   "reminder.sent": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,

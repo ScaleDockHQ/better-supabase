@@ -9,6 +9,7 @@ export {
   createDataLifecycle,
   type DataExport,
   type DataExportDownload,
+  type DataExportFormat,
   type DataExportStatus,
   type DataLifecycle,
   type DataLifecycleOptions,

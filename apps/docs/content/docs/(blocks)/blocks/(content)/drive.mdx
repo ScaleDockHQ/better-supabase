@@ -65,6 +65,8 @@ Each node has a role for the caller: the highest role granted on the node or any
 | `editor` | Create, upload, rename, move, trash and restore revisions under it |
 | `owner`  | Share and unshare, and everything an editor can do                 |
 
+Add your own roles to the ladder with `roles`, lowest first. A `commenter` between `viewer` and `editor` becomes the comment role (`commentRole`): `drive_can_comment(node)` is true from that role up, so a commenter reads and comments but doesn't change the file. A `manager` above `editor` with `shareRole: "manager"` lets people share and set download blocks without being the top role. Without a `commenter`, the comment role is the write role.
+
 The creator of a node gets the top role on it. Grants with an `expiresAt` stop applying after that time. `drive_role(node)` and `drive_can(node, role)` are SQL functions, so your own policies can use them too. The block's own read policy uses `id in (select drive_readable_ids())` instead, which returns every node `drive_can(node, read)` is true for in one call, so Postgres runs it once per statement rather than once per row; prefer it in your policies on large drives.
 
 With `roleFunctions.node` or `roleFunctions.drive`, the block calls a schema-qualified function you name with the node or drive id and the caller's user id, and uses the role it returns. The function returns one of `roles`, or null. It replaces the block's own grants at that level, while the tenant `drive.read` check still applies. Use it when your own rules already decide who may read a node or a drive, such as an AuthorizationProvider.
@@ -94,9 +96,9 @@ drive: {
 blocks: {
   drive: {
     options: {
-      roles: ["viewer", "commenter", "editor", "owner"],
+      roles: ["viewer", "commenter", "editor", "manager", "owner"],
       writeRole: "editor",
-      shareRole: "owner",
+      shareRole: "manager",
       conflict: "rename",
     },
   },
@@ -107,7 +109,9 @@ blocks: {
 | --------------- | ------------------------------- | -------------------------------------------------------------------------------------- |
 | `roles`         | `["viewer", "editor", "owner"]` | The roles, lowest first; the first one reads and the last one is the top role          |
 | `writeRole`     | `editor`, else the top role     | The role that may create, rename, move and trash                                       |
-| `shareRole`     | the top role                    | The role that may share and unshare                                                    |
+| `shareRole`     | the top role                    | The role that may share and unshare, break locks and block downloads                   |
+| `commentRole`   | `commenter`, else `writeRole`   | The role `drive_can_comment` checks                                                    |
+| `previewPrefix` | `_previews`                     | The storage folder preview pages go to, in the attachment's bucket                     |
 | `memberRole`    | none                            | A role every member of the organization has on every node                              |
 | `conflict`      | `fail`                          | What a duplicate name in a folder does: `fail`, `rename` (`plan (2).pdf`) or `replace` |
 | `subjectType`   | `drive_node`                    | The subject type of nodes in events, audit entries, attachments, versions and trash    |
@@ -165,6 +169,47 @@ trash: {
 
 `download(id)` signs a download URL for the current content through the `attachments` option, the attachments block over the same transport; `createBlocks` passes it as the `attachments` port when the set has `attachmentsBlock`. Without it, `download` fails with the hint `DRIVE_ATTACHMENTS_CLIENT`. With `requireScan` on the attachments block (the default), a file that isn't scanned clean yet can't be downloaded.
 
+## Check-out, download blocks and previews
+
+`lock(id)` checks a file out for the caller. Until the lock ends (8 hours by default, at most 30 days), nobody else may upload a revision, commit, restore a revision, rename, move, trash or delete it; trashing or deleting a folder fails while a file under it is checked out. Those calls fail with `DRIVE_LOCKED`, and the error's detail names `lockedBy` and `lockedUntil`. Locking needs the write role. `unlock(id)` ends the caller's own lock, and `unlock(id, { force: true })` lets the share role end someone else's. The service role ignores locks. Every node reports `lockedBy`, `lockedUntil` and `lockNote` while a lock applies; an expired lock reads as no lock.
+
+```ts
+await db.drive
+  .lock(fileId, {
+    until: Temporal.Now.instant().add({ hours: 2 }),
+    note: "Redlining",
+  })
+  .orThrow();
+// edit, upload a revision, commit
+await db.drive.unlock(fileId).orThrow();
+```
+
+`blockDownloads(id)` keeps the original of a node, and of everything under it, from callers below the write role; `blockDownloads(id, false)` lifts it. With `drives` on, `blockDriveDownloads(driveId)` does the same for a whole drive. Setting a block needs the share role. A blocked caller still lists and opens the node and reads its previews, but the storage policy refuses the original and `download(id)` fails with the hint `DRIVE_DOWNLOAD_BLOCKED`. Every node reports `downloadBlocked` (the flag on the node itself) and `downloadable` (whether the caller may download it). `drive_can_download(node)` is the same check in SQL.
+
+A preview is the file's pages rendered as images, stored in the attachment's bucket under `previewPrefix/<organization>/<node>/<attachment>/<page>`. Readers of the node may open them even when downloads are blocked. `previews(id)` returns `pages`, `bucket`, `prefix` and the page `paths`, and `previewUrls(id)` signs them. Uploading a new revision resets the count until the new pages are rendered.
+
+The drive doesn't render pages itself. Pass a `PreviewRenderer` (a PDF rasterizer, an office converter, an image resizer) to `createDrivePreviews` with a service-role transport and storage, then run its job or its sink:
+
+```ts
+import { createDrivePreviews } from "better-supabase/blocks/drive";
+
+const previews = createDrivePreviews({
+  transport: serviceTransport,
+  storage: serviceStorage,
+  renderer: {
+    apiVersion: 1,
+    name: "pdfium",
+    render: async (file, { maxPages }) => renderPdfPages(file, maxPages),
+  },
+  requireClean: true,
+});
+
+await outbox.relay("drive-previews", previews.sink());
+// or from a queue: queue.work("drive-previews", previews.job)
+```
+
+The sink renders the file behind every `attachment.uploaded` and `attachment.scanned` event on a drive node; `render(nodeId)` renders one file on demand, for example after `commit`. A renderer returns `undefined` for a type it doesn't handle. With `requireClean`, only files the scanner marked `clean` render; without it, `infected` and `failed` files are skipped. For images alone, the [attachments block's](/docs/blocks/attachments) `images()` transforms can serve a resized original instead of a preview, but they don't honor a download block.
+
 ## Labels and approvals
 
 With the [tags block](/docs/blocks/tags) installed, `label(id, tagId)` puts a tag on a node and `label(id, tagId, false)` takes it off; it needs write access to the node. Every node the client returns carries its `labels` (`id`, `name`, `color`), and `labeled(organizationId, tagId)` lists the nodes with a tag that the caller may read. Tags of any kind work as labels. Purging a node deletes its labels.
@@ -200,6 +245,8 @@ await drive.prune({ maxObjects: 500 }).orThrow();
 
 With share-links installed, `star(id)` and `star(id, false)` mark a node for the caller, `open(id)` records that the caller opened it, and `starred` and `recent` list them. A share link on a folder opens it and the nodes under it: `link(token)` returns the folder and its children, and `link(token, { nodeId })` returns one node under it with its stored object.
 
+Creating a link on a node needs the share role. A `view` or `download` link opens the item. Its `downloadAllowed` is false, and the stored object is left out, when the link was created with `downloadAllowed: false` or a download block covers the item; the `previews` still come back. An `upload` link names a folder, and `link(token)` refuses it with `DRIVE_LINK_ROLE_INVALID`, since it takes files and opens nothing.
+
 ## With ReUI
 
 `driveTree(nodes)` shapes the nodes you loaded for a tree view such as the [ReUI](https://reui.io) file tree on headless-tree: it returns `rootItemId`, `getItem`, `getChildren` and `isFolder`. `fileTypeCategory(mimeType, name)` and `nodeType(node)` name a file's kind (`image`, `pdf`, `spreadsheet`, `code` and others) to pick its icon.
@@ -229,11 +276,13 @@ import { driveSubject } from "better-supabase/blocks/drive";
 export default defineConfig({ records: { drive_node: driveSubject() } });
 ```
 
-The entry follows the node's grants, not only the tenant keys. Its `read` action asks `drive.read` and `drive_node_readable(node)`, and its `fields` action asks `drive_node_writable(node)`, both through `check` functions (see [Actions granted per row](/docs/blocks/sql#actions-granted-per-row)). With `readAccess: "record"`, [custom fields](/docs/blocks/custom-fields) on a node are readable only by members who can read the node, and only editors can set them. `can_subject_for` can't run the check functions for another user, so it returns false for a node's `read`.
+The entry follows the node's grants, not only the tenant keys. Its `read` action asks `drive.read` and `drive_node_readable(node)`, its `comment` action asks `drive_can_comment(node)` (the comment role), and its `fields` action asks `drive_node_writable(node)`, all through `check` functions (see [Actions granted per row](/docs/blocks/sql#actions-granted-per-row)). With `readAccess: "record"`, [custom fields](/docs/blocks/custom-fields) on a node are readable only by members who can read the node, and only editors can set them. `can_subject_for` can't run the check functions for another user, so it returns false for a node's `read`.
 
 ## Over your own tables
 
 Map `tables.nodes` and `tables.grants` to run the drive on your own tree and grant tables. A grant table can name its principal with `principalType` and `principalId` columns (users, teams and roles), or with a `user` column and an optional `team` column (users and teams). With `drives` on, map `tables.drives`, `tables.driveGrants` and `tables.connections` too; a drive grant table takes the same principal columns as a node grant table. Set `attachment` to `null` when your files don't live in attachments: the tree, grants, sharing and checks still work, and uploads stay with your code.
+
+The node columns `lockedBy`, `lockedUntil` and `lockNote` (check-out), `downloadBlocked` (download blocks) and `previewPages` (previews), and the drive column `downloadBlocked`, are optional. Map one to `null` when your table doesn't have it, and the block leaves that feature out; the block's own tables have them all.
 
 The node `kind` and `source`, the `role` of node and drive grants, the drive `kind` and the connection `provider` and `status` may be enums of yours: the block casts what it writes into them and compares roles as text.
 
@@ -289,6 +338,12 @@ drive: {
 | `DRIVE_PROVIDER_INVALID`     | The provider isn't one of `options.sources`                                                          |
 | `DRIVE_NOT_CONNECTED`        | `drive_sync_batch` names a drive that doesn't mirror a connection                                    |
 | `DRIVE_OWNER_NOT_MEMBER`     | The owner isn't an active member of the organization                                                 |
+| `DRIVE_LOCKED`               | Someone else has the file, or a file under the folder, checked out                                   |
+| `DRIVE_LOCK_INVALID`         | The lock doesn't end in the future within 30 days, or the note is over 500 characters                |
+| `DRIVE_DOWNLOAD_BLOCKED`     | `download` names a file whose downloads are blocked for the caller                                   |
+| `DRIVE_TARGET_INVALID`       | A download block names an unknown target type, or `blocked` isn't true or false                      |
+| `DRIVE_LINK_ROLE_INVALID`    | An upload link names a file, or `link` opens an upload link                                          |
+| `DRIVE_PREVIEWS_INVALID`     | `drive_set_previews` got no page count or a negative one                                             |
 | `TRASH_HELD`                 | `purge` names a batch with a subject under a legal hold                                              |
 
 A read-only support session refuses every write with `ACTOR_READ_ONLY`. In a
@@ -299,7 +354,7 @@ with the hint `DRIVE_FORBIDDEN`, and the upload stays uncommitted.
 
 ## Events and hooks
 
-The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared`, `drive.node_purged`, `drive.node_hold_placed` and `drive.node_hold_released`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared`, `drive.unshared`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing and unsharing also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
+The drive records `drive.node_created`, `drive.node_renamed`, `drive.node_moved`, `drive.node_shared`, `drive.node_unshared`, `drive.node_purged`, `drive.node_hold_placed`, `drive.node_hold_released`, `drive.node_locked`, `drive.node_unlocked` and `drive.node_download_blocked_changed`; with `drives` on it also records `drive.created`, `drive.renamed`, `drive.deleted`, `drive.shared`, `drive.unshared`, `drive.download_blocked_changed`, `drive.connection_created` and `drive.connection_removed`. The [events page](/docs/extending/events) lists their payloads. Sharing, unsharing and download blocks also write an `access` audit entry. The `before_` and `after_` SQL hooks run around `drive_node_create`, `drive_node_move`, `drive_node_rename` and `drive_node_share`, and the client takes `withBlockHooks` hooks on every method.
 
 ## Without the client
 

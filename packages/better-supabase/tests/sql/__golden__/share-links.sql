@@ -384,7 +384,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:958dbd23d18249a78ea688b5bc741d62d848c41473a418097307aa684fc1265c
+-- @bsb-hash sha256:43d5ec3156ef943e33efa0ed38fccaf3701c9c4085cebb9cf5f73d618c39ceb7
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -542,7 +542,7 @@ begin
     when 'ai-chat' then array['view']::text[]
     when 'calendar' then array['view']::text[]
     when 'booking_service' then array['view']::text[]
-    when 'drive_node' then array['view']::text[]
+    when 'drive_node' then array['view', 'download', 'upload']::text[]
     when 'form' then array['respond']::text[]
     when 'leave_feed' then array['view']::text[]
     else array[coalesce(create_share_link.role, 'view')]
@@ -554,7 +554,7 @@ begin
     when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.organization_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
     when 'calendar' then exists (select 1 from "better_supabase"."calendars" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'booking_service' then exists (select 1 from "better_supabase"."booking_services" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
-    when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
+    when 'drive_node' then "better_supabase"."drive_share_link_allowed"(create_share_link.subject_id::text, create_share_link.tenant::text, coalesce(create_share_link.role, 'view'))
     when 'form' then exists (select 1 from "better_supabase"."forms" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'leave_feed' then (create_share_link.subject_id = create_share_link.tenant::text and coalesce(better_supabase.can('tenant', create_share_link.tenant, 'leave.read'), false))
     else null

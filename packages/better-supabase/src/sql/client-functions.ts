@@ -71,7 +71,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   "custom-fields":
     "delete_field_definition list_field_definitions rank_field_definition read_field_values save_field_definition set_field_value",
   "data-lifecycle":
-    "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows due_organization_deletions expired_data_exports fail_data_export forget_data_exports get_data_export list_data_exports list_legal_holds list_retention_policies organization_credential_refs organization_deletion place_legal_hold purge_organization release_legal_hold remove_retention_policy request_data_export request_organization_deletion set_retention_policy",
+    "anonymize_due cancel_organization_deletion claim_data_export complete_data_export data_export_rows due_organization_deletions expired_data_exports fail_data_export forget_data_exports get_data_export list_data_exports list_legal_holds list_retention_policies organization_credential_refs organization_deletion place_legal_hold purge_organization release_legal_hold remove_retention_policy request_data_export request_organization_deletion request_subject_export set_retention_policy",
   deals:
     "archive_deal close_deal create_deal deal_forecast deal_health delete_deal reopen_deal set_deal_contacts set_deal_lines set_deal_members update_deals",
   dispatch:
@@ -83,7 +83,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   donations:
     "archive_donation_fund create_pledge due_pledge_installments get_gift issue_gift_receipt issue_yearly_receipt list_donation_funds list_donation_receipts list_gifts list_pledges open_gift record_gift record_gift_payment save_donation_fund update_pledge void_donation_receipt yearly_giving_summary",
   drive:
-    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_move drive_path drive_release_hold drive_rename drive_share drive_shared drive_unshare",
+    "drive_create_folder drive_delete drive_get drive_grants drive_hold drive_list drive_lock drive_move drive_path drive_release_hold drive_rename drive_set_download_blocked drive_share drive_shared drive_unlock drive_unshare",
   employees:
     "add_employee_contract create_employee employee_contracts employee_private_details offboard_employee org_chart reports_of save_employee_private_details update_employees",
   enrichment:
@@ -178,6 +178,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "delete_reminder list_my_reminders list_reminder_schedule mark_reminder_sent save_reminder",
   reviews:
     "delete_review list_reviews my_review publish_review reject_review reply_to_review review_queue review_summary submit_review",
+  risks:
+    "assess_risk close_risk create_risk get_risk list_risk_matrices list_risks notify_due_risk_reviews review_risk risk_heatmap save_risk_matrix set_risk_treatment update_risk",
   "saved-views":
     "delete_view duplicate_view list_views rank_view save_view set_default_view set_view_preference",
   scores:
@@ -209,7 +211,7 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
   streams:
     "purge_streams stream_append stream_cancel stream_close stream_open stream_read stream_status",
   subjects:
-    "can_subject_for my_work record_summary subject_titles subject_types",
+    "add_subject_member can_subject_for end_subject_member list_subject_members my_subjects my_work record_summary subject_titles subject_types",
   tags: "create_tag delete_tag list_tags rank_tag subject_tags tag untag update_tag",
   tasks:
     "archive_work_item create_work_item delete_work_item delete_work_item_checklist_item get_work_item list_work_item_checklist list_work_items save_iteration save_project save_work_item_checklist_item set_work_item_assignees update_work_items work_item_tree",

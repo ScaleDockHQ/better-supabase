@@ -52,13 +52,21 @@ export function representationActive(data: string): string {
 
 /**
  * The `represents` kind contacts adds to relations: a person represents a
- * record.
+ * record. Once a subject type declares a record team (`subjects.<type>.team`),
+ * the targets are the types that do; before that, any type.
  */
 export function representsKind(own: BlockSqlContext): RelationContribution {
+  const targets = Object.entries(own.subjects).flatMap(([type, subject]) =>
+    subject.team === undefined ? [] : [type],
+  );
+
   return {
     kind: REPRESENTS,
     inverse: "represented_by",
-    types: { source: [own.naming.rename("person")] },
+    types: {
+      source: [own.naming.rename("person")],
+      ...(targets.length === 0 ? {} : { target: targets }),
+    },
     data: representationData,
   };
 }

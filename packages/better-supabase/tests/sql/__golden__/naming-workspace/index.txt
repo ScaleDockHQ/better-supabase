@@ -40,6 +40,7 @@ custom-fields
 share-links
 reminders
 imports
+subjects
 saved-views
 relations
 bulk
@@ -107,3 +108,4 @@ lead-scoring
 posts
 content
 qualifications
+risks

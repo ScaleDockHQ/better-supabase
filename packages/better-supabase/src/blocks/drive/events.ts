@@ -13,6 +13,10 @@ export type DriveEvents = {
   readonly "drive.node_purged": DriveEventData;
   readonly "drive.node_hold_placed": DriveEventData;
   readonly "drive.node_hold_released": DriveEventData;
+  readonly "drive.node_locked": DriveEventData;
+  readonly "drive.node_unlocked": DriveEventData;
+  readonly "drive.node_download_blocked_changed": DriveEventData;
+  readonly "drive.download_blocked_changed": DriveEventData;
   readonly "drive.created": DriveEventData;
   readonly "drive.renamed": DriveEventData;
   readonly "drive.deleted": DriveEventData;
@@ -32,6 +36,10 @@ export const driveEvents: Events<DriveEvents> = defineEvents({
   "drive.node_purged": event<DriveEventData>(),
   "drive.node_hold_placed": event<DriveEventData>(),
   "drive.node_hold_released": event<DriveEventData>(),
+  "drive.node_locked": event<DriveEventData>(),
+  "drive.node_unlocked": event<DriveEventData>(),
+  "drive.node_download_blocked_changed": event<DriveEventData>(),
+  "drive.download_blocked_changed": event<DriveEventData>(),
   "drive.created": event<DriveEventData>(),
   "drive.renamed": event<DriveEventData>(),
   "drive.deleted": event<DriveEventData>(),

@@ -3,8 +3,11 @@
 import { useAction, useActionForm } from "better-supabase/react";
 import {
   BadgeCheckIcon,
+  BanIcon,
   DownloadIcon,
   EllipsisIcon,
+  LockIcon,
+  LockOpenIcon,
   PencilIcon,
   Share2Icon,
   Trash2Icon,
@@ -43,6 +46,8 @@ import {
   downloadDriveFile,
   renameDriveItem,
   requestDriveApproval,
+  setDriveCheckout,
+  setDriveDownloadsBlocked,
   trashDriveItem,
 } from "../drive-actions";
 import { GrantsEditor, useDriveSharing } from "./grants-editor";
@@ -51,10 +56,16 @@ export function DriveItemActions({
   id,
   kind,
   name,
+  locked,
+  downloadBlocked,
+  downloadable,
 }: {
   id: string;
   kind: "folder" | "file";
   name: string;
+  locked: boolean;
+  downloadBlocked: boolean;
+  downloadable: boolean;
 }) {
   const t = useExtracted("drive");
   const errorMessage = useErrorMessage();
@@ -90,6 +101,32 @@ export function DriveItemActions({
     },
   });
 
+  const checkout = useAction(setDriveCheckout, {
+    onSuccess: (node) => {
+      toast.success(
+        node.locked
+          ? t("Checked out {name}", { name })
+          : t("Checked in {name}", { name }),
+      );
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
+  const downloads = useAction(setDriveDownloadsBlocked, {
+    onSuccess: (node) => {
+      toast.success(
+        node.blocked
+          ? t("Downloads of {name} are blocked", { name })
+          : t("Downloads of {name} are allowed", { name }),
+      );
+    },
+    onError: (error) => {
+      toast.error(errorMessage(error));
+    },
+  });
+
   return (
     <>
       <DropdownMenu>
@@ -108,7 +145,7 @@ export function DriveItemActions({
         <DropdownMenuContent align="end">
           {kind === "file" ? (
             <DropdownMenuItem
-              disabled={download.pending}
+              disabled={download.pending || !downloadable}
               onClick={() => {
                 void download.run({ id });
               }}
@@ -117,6 +154,26 @@ export function DriveItemActions({
               {t("Download")}
             </DropdownMenuItem>
           ) : null}
+          {kind === "file" ? (
+            <DropdownMenuItem
+              disabled={checkout.pending}
+              onClick={() => {
+                void checkout.run({ id, locked: !locked });
+              }}
+            >
+              {locked ? <LockOpenIcon /> : <LockIcon />}
+              {locked ? t("Check in") : t("Check out")}
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem
+            disabled={downloads.pending}
+            onClick={() => {
+              void downloads.run({ id, blocked: !downloadBlocked });
+            }}
+          >
+            {downloadBlocked ? <DownloadIcon /> : <BanIcon />}
+            {downloadBlocked ? t("Allow downloads") : t("Block downloads")}
+          </DropdownMenuItem>
           {kind === "file" ? (
             <DropdownMenuItem
               disabled={approval.pending}

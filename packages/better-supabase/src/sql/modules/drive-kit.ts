@@ -1,15 +1,15 @@
-import type { DriveEvents } from "../../blocks/drive/events.ts";
-import type {
-  BlockSqlAudit,
-  BlockSqlContext,
-  BlockSqlEvents,
-  BlockSqlNames,
-} from "../context.ts";
+import type { BlockSqlAudit, BlockSqlContext } from "../context.ts";
 import type { DriveRoleHook } from "./drive-roles.ts";
 
 import { sqlString } from "../../core/template.ts";
 import { rankAfter } from "../rank-sql.ts";
-import { activeMembership, columnsObject, fail } from "../shared.ts";
+import {
+  activeMembership,
+  columnsObject,
+  fail,
+  SERVICE_CALLER,
+} from "../shared.ts";
+import { PATH_SEGMENT } from "./drive-names.ts";
 import { driveRoleFunctions } from "./drive-roles.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 import { trashTypes } from "./trash.ts";
@@ -29,255 +29,13 @@ export const READ_ONLY_GUARD =
 export const UUID_TEXT =
   "'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'";
 
-const PATH_SEGMENT = "drive-nodes";
-
-const SUBJECT = ["organizationId", "subjectType", "subjectId"] as const;
-
-const EVENTS: BlockSqlEvents<DriveEvents> = {
-  "drive.node_created": {
-    subject: PATH_SEGMENT,
-    payload: [...SUBJECT, "kind", "name", "parentId"],
-  },
-  "drive.node_renamed": {
-    subject: PATH_SEGMENT,
-    payload: [...SUBJECT, "name", "previousName"],
-  },
-  "drive.node_moved": {
-    subject: PATH_SEGMENT,
-    payload: [...SUBJECT, "parentId", "previousParentId"],
-  },
-  "drive.node_shared": {
-    subject: PATH_SEGMENT,
-    payload: [...SUBJECT, "principalType", "principalId", "role"],
-  },
-  "drive.node_unshared": {
-    subject: PATH_SEGMENT,
-    payload: [...SUBJECT, "principalType", "principalId"],
-  },
-  "drive.node_hold_placed": {
-    subject: PATH_SEGMENT,
-    payload: [...SUBJECT, "legalHoldUntil"],
-  },
-  "drive.node_hold_released": { subject: PATH_SEGMENT, payload: [...SUBJECT] },
-  "drive.created": { subject: "drives", payload: [...SUBJECT, "name"] },
-  "drive.renamed": {
-    subject: "drives",
-    payload: [...SUBJECT, "name", "previousName"],
-  },
-  "drive.deleted": { subject: "drives", payload: [...SUBJECT] },
-  "drive.shared": {
-    subject: "drives",
-    payload: [...SUBJECT, "principalType", "principalId", "role"],
-  },
-  "drive.unshared": {
-    subject: "drives",
-    payload: [...SUBJECT, "principalType", "principalId"],
-  },
-  "drive.connection_created": {
-    subject: "drive-connections",
-    payload: [...SUBJECT, "name"],
-  },
-  "drive.connection_removed": {
-    subject: "drive-connections",
-    payload: [...SUBJECT],
-  },
-};
-
-export const FILE_EVENTS: BlockSqlEvents<DriveEvents> = {
-  "drive.node_purged": {
-    subject: PATH_SEGMENT,
-    payload: [...SUBJECT, "objects"],
-  },
-};
-
-export const NAMES: BlockSqlNames = {
-  entities: { node: { table: "nodes", singular: "drive_node", primary: true } },
-  events: EVENTS,
-  hooks: [
-    "before_drive_node_create",
-    "after_drive_node_create",
-    "before_drive_node_move",
-    "after_drive_node_move",
-    "before_drive_node_rename",
-    "after_drive_node_rename",
-    "before_drive_node_share",
-    "after_drive_node_share",
-  ],
-  options: [
-    "roles",
-    "writeRole",
-    "shareRole",
-    "memberRole",
-    "subjectType",
-    "conflict",
-    "drives",
-    "driveKinds",
-    "sources",
-    "roleFunctions",
-    "readPolicy",
-    "extraColumns",
-  ],
-  tables: {
-    nodes: {
-      name: "drive_nodes",
-      app: {},
-      lifecycle: { tenant: "tenant", user: "createdBy", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        drive: "drive_id",
-        parent: "parent_id",
-        kind: "kind",
-        name: "name",
-        attachment: "attachment_id",
-        path: "path",
-        rank: "rank",
-        deletedAt: "deleted_at",
-        source: "source",
-        externalId: "external_id",
-        externalMetadata: "external_metadata",
-        legalHoldUntil: "legal_hold_until",
-        createdBy: "created_by",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-      optional: [
-        "drive",
-        "attachment",
-        "path",
-        "rank",
-        "deletedAt",
-        "source",
-        "externalId",
-        "externalMetadata",
-        "legalHoldUntil",
-        "createdBy",
-        "updatedAt",
-      ],
-      typed: ["kind", "source"],
-    },
-    grants: {
-      name: "drive_grants",
-      app: {
-        unused: (ctx) =>
-          ctx.has("grants", "principalType")
-            ? ["user", "team"]
-            : ["principalType", "principalId"],
-      },
-      lifecycle: { tenant: "tenant", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        node: "node_id",
-        principalType: "principal_type",
-        principalId: "principal_id",
-        user: "user_id",
-        team: "team_id",
-        role: "role",
-        expiresAt: "expires_at",
-        createdBy: "created_by",
-        createdAt: "created_at",
-      },
-      optional: [
-        "principalType",
-        "principalId",
-        "user",
-        "team",
-        "expiresAt",
-        "createdBy",
-      ],
-      typed: ["role"],
-    },
-    drives: {
-      name: "drive_drives",
-      app: {},
-      optionalTable: true,
-      lifecycle: { tenant: "tenant", user: "owner", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        name: "name",
-        kind: "kind",
-        owner: "owner_id",
-        connection: "connection_id",
-        createdBy: "created_by",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-      optional: ["kind", "owner", "connection", "createdBy", "updatedAt"],
-      typed: ["kind"],
-    },
-    driveGrants: {
-      name: "drive_drive_grants",
-      app: {
-        unused: (ctx) =>
-          ctx.has("driveGrants", "principalType")
-            ? ["user", "team"]
-            : ["principalType", "principalId"],
-      },
-      optionalTable: true,
-      lifecycle: { tenant: "tenant", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        drive: "drive_id",
-        principalType: "principal_type",
-        principalId: "principal_id",
-        user: "user_id",
-        team: "team_id",
-        role: "role",
-        expiresAt: "expires_at",
-        createdBy: "created_by",
-        createdAt: "created_at",
-      },
-      optional: [
-        "principalType",
-        "principalId",
-        "user",
-        "team",
-        "expiresAt",
-        "createdBy",
-      ],
-      typed: ["role"],
-    },
-    connections: {
-      name: "drive_connections",
-      app: {},
-      optionalTable: true,
-      lifecycle: { tenant: "tenant", user: "user", export: true },
-      columns: {
-        id: "id",
-        tenant: "tenant_id",
-        user: "user_id",
-        provider: "provider",
-        name: "name",
-        status: "status",
-        syncCursor: "sync_cursor",
-        syncClaimedAt: "sync_claimed_at",
-        lastSyncedAt: "last_synced_at",
-        lastSyncError: "last_sync_error",
-        createdBy: "created_by",
-        createdAt: "created_at",
-        updatedAt: "updated_at",
-      },
-      optional: [
-        "syncCursor",
-        "syncClaimedAt",
-        "lastSyncedAt",
-        "lastSyncError",
-        "createdBy",
-        "updatedAt",
-      ],
-      typed: ["provider", "status"],
-    },
-  },
-};
-
 export interface DriveRoles {
   readonly all: readonly string[];
   readonly read: string;
   readonly write: string;
   readonly share: string;
+  /** The role that may comment on a node. */
+  readonly comment: string;
   readonly top: string;
   readonly member: string | undefined;
 }
@@ -317,11 +75,17 @@ function driveRoles(ctx: BlockSqlContext): DriveRoles {
     throw new TypeError(`${where}.memberRole must be one of options.roles`);
   }
 
+  const write = pick("writeRole", all.includes("editor") ? "editor" : top);
+
   return {
     all,
     read: all[0] ?? "viewer",
-    write: pick("writeRole", all.includes("editor") ? "editor" : top),
+    write,
     share: pick("shareRole", top),
+    comment: pick(
+      "commentRole",
+      all.includes("commenter") ? "commenter" : write,
+    ),
     top,
     member,
   };
@@ -473,6 +237,15 @@ export interface DriveKit {
   readonly externalColumn: boolean;
   readonly metadataColumn: boolean;
   readonly holdColumn: boolean;
+  /** The check-out lock columns: holder, end and note. */
+  readonly lockColumns: boolean;
+  readonly downloadColumn: boolean;
+  readonly driveDownloadColumn: boolean;
+  readonly previewColumn: boolean;
+  /** `options.previewPrefix`: the folder of rendered previews in a bucket. */
+  readonly previewPrefix: string;
+  /** Whether someone other than the caller holds a live lock on the row. */
+  readonly lockedByOther: (alias: string) => string;
   readonly readOnly: (alias: string) => string;
   readonly held: (alias: string) => string;
   readonly driveHeld: (alias: string) => string;
@@ -500,6 +273,8 @@ export interface DriveKit {
   readonly canRead: (value: string) => string;
   readonly canWrite: (value: string) => string;
   readonly canShare: (value: string) => string;
+  readonly canComment: (value: string) => string;
+  readonly canDownload: (value: string) => string;
   readonly notFound: string;
   readonly forbidden: (value: string) => string;
   readonly record: (
@@ -599,6 +374,22 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const externalColumn = has("externalId");
   const metadataColumn = has("externalMetadata");
   const holdColumn = has("legalHoldUntil");
+  const lockColumns = has("lockedBy") && has("lockedUntil");
+  const downloadColumn = has("downloadBlocked");
+  const previewColumn = has("previewPages");
+  const previewPrefix = ctx.text("previewPrefix", "_previews");
+
+  if (!/^[a-z0-9_-]{1,63}$/.test(previewPrefix)) {
+    throw new TypeError(
+      "blocks.drive.options.previewPrefix must be one folder name of lowercase letters, digits, - and _",
+    );
+  }
+
+  if (has("lockNote") && !lockColumns) {
+    throw new TypeError(
+      "blocks.drive.columns.nodes.lockNote needs lockedBy and lockedUntil",
+    );
+  }
 
   if (drives && !driveColumn) {
     throw new TypeError(
@@ -682,6 +473,13 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     );
   }
 
+  const driveDownloadColumn = drives && ctx.has("drives", "downloadBlocked");
+
+  const lockedByOther = (alias: string): string =>
+    lockColumns
+      ? `(${alias}.${n("lockedUntil")} > now() and ${alias}.${n("lockedBy")} is distinct from auth.uid() and not ${SERVICE_CALLER})`
+      : "false";
+
   const D = drives ? ctx.table("drives") : undefined;
   const DG = drives ? ctx.table("driveGrants") : undefined;
   const C = drives ? ctx.table("connections") : undefined;
@@ -717,7 +515,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
       : "false";
 
   const driveJson = (drive: string): string =>
-    `jsonb_build_object('id', ${drive}.${d("id")}, 'organizationId', ${drive}.${d("tenant")}, 'name', ${drive}.${d("name")}, 'kind', ${drive}.${d("kind")}, 'ownerId', ${drive}.${d("owner")}, 'connectionId', ${drive}.${d("connection")}, 'createdBy', ${drive}.${d("createdBy")}, 'createdAt', ${drive}.${d("createdAt")}, 'updatedAt', ${drive}.${d("updatedAt")})`;
+    `jsonb_build_object('id', ${drive}.${d("id")}, 'organizationId', ${drive}.${d("tenant")}, 'name', ${drive}.${d("name")}, 'kind', ${drive}.${d("kind")}, 'ownerId', ${drive}.${d("owner")}, 'connectionId', ${drive}.${d("connection")}, 'downloadBlocked', ${driveDownloadColumn ? `${drive}.${d("downloadBlocked")}` : "false"}, 'createdBy', ${drive}.${d("createdBy")}, 'createdAt', ${drive}.${d("createdAt")}, 'updatedAt', ${drive}.${d("updatedAt")})`;
 
   const connectionJson = (connection: string): string =>
     `jsonb_build_object('id', ${connection}.${c("id")}, 'organizationId', ${connection}.${c("tenant")}, 'userId', ${connection}.${c("user")}, 'provider', ${connection}.${c("provider")}, 'name', ${connection}.${c("name")}, 'status', ${connection}.${c("status")}, 'syncCursor', ${connection}.${c("syncCursor")}, 'lastSyncedAt', ${connection}.${c("lastSyncedAt")}, 'lastSyncError', ${connection}.${c("lastSyncError")}, 'createdAt', ${connection}.${c("createdAt")}, 'updatedAt', ${connection}.${c("updatedAt")})`;
@@ -776,6 +574,12 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
 
   const canShare = (node: string): string =>
     `${fn("drive_can")}(${node}, ${sqlString(roles.share)})`;
+
+  const canComment = (node: string): string =>
+    `${fn("drive_can")}(${node}, ${sqlString(roles.comment)})`;
+
+  const canDownload = (node: string): string =>
+    `${fn("drive_can_download")}(${node})`;
 
   const notFound = fail("DRIVE_NOT_FOUND", "drive item not found", "P0002");
 
@@ -935,7 +739,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
       : `, 'attachmentId', ($1).${n("attachment")}, 'file', (select jsonb_build_object('mimeType', fa.${a("mimeType")}, 'size', fa.${a("size")}, 'status', fa.${a("status")}, 'uploadedAt', fa.${a("uploadedAt")}) from ${A} fa where fa.${a("id")} = ($1).${n("attachment")})`;
 
   const nodeJson = (file: string): string =>
-    `jsonb_build_object('id', ($1).${n("id")}, 'organizationId', ($1).${n("tenant")}, 'driveId', ${driveColumn ? `($1).${n("drive")}` : "null"}, 'parentId', ($1).${n("parent")}, 'kind', ($1).${n("kind")}, 'name', ($1).${n("name")}, 'rank', ${ranked ? `($1).${n("rank")}` : "null"}, 'source', ${sourceColumn ? `($1).${n("source")}` : "null"}, 'externalId', ${externalColumn ? `($1).${n("externalId")}` : "null"}, 'externalMetadata', ${metadataColumn ? `($1).${n("externalMetadata")}` : "null"}, 'legalHoldUntil', ${holdColumn ? `($1).${n("legalHoldUntil")}` : "null"}, 'createdBy', ${has("createdBy") ? `($1).${n("createdBy")}` : "null"}, 'createdAt', ($1).${n("createdAt")}, 'updatedAt', ${has("updatedAt") ? `($1).${n("updatedAt")}` : "null"}, 'deletedAt', ${binColumn ? `($1).${n("deletedAt")}` : "null"}${file}${
+    `jsonb_build_object('id', ($1).${n("id")}, 'organizationId', ($1).${n("tenant")}, 'driveId', ${driveColumn ? `($1).${n("drive")}` : "null"}, 'parentId', ($1).${n("parent")}, 'kind', ($1).${n("kind")}, 'name', ($1).${n("name")}, 'rank', ${ranked ? `($1).${n("rank")}` : "null"}, 'source', ${sourceColumn ? `($1).${n("source")}` : "null"}, 'externalId', ${externalColumn ? `($1).${n("externalId")}` : "null"}, 'externalMetadata', ${metadataColumn ? `($1).${n("externalMetadata")}` : "null"}, 'legalHoldUntil', ${holdColumn ? `($1).${n("legalHoldUntil")}` : "null"}, 'lockedBy', ${lockColumns ? `case when ($1).${n("lockedUntil")} > now() then ($1).${n("lockedBy")} end` : "null"}, 'lockedUntil', ${lockColumns ? `case when ($1).${n("lockedUntil")} > now() then ($1).${n("lockedUntil")} end` : "null"}, 'lockNote', ${lockColumns && has("lockNote") ? `case when ($1).${n("lockedUntil")} > now() then ($1).${n("lockNote")} end` : "null"}, 'downloadBlocked', ${downloadColumn ? `($1).${n("downloadBlocked")}` : "false"}, 'previewPages', ${previewColumn ? `($1).${n("previewPages")}` : "null"}, 'createdBy', ${has("createdBy") ? `($1).${n("createdBy")}` : "null"}, 'createdAt', ($1).${n("createdAt")}, 'updatedAt', ${has("updatedAt") ? `($1).${n("updatedAt")}` : "null"}, 'deletedAt', ${binColumn ? `($1).${n("deletedAt")}` : "null"}${file}${
       extras.length === 0
         ? ""
         : `, 'fields', ${columnsObject(
@@ -947,7 +751,7 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
   const json = (row: string): string => `${fn("drive_node_json")}(${row})`;
 
   const withRole = (row: string): string =>
-    `(${json(row)} || jsonb_build_object('role', ${fn("drive_role")}((${row}).${n("id")}), 'readOnly', ${readOnly(`(${row})`)}, 'held', ${fn("drive_node_held")}((${row}).${n("id")})))`;
+    `(${json(row)} || jsonb_build_object('role', ${fn("drive_role")}((${row}).${n("id")}), 'readOnly', ${readOnly(`(${row})`)}, 'held', ${fn("drive_node_held")}((${row}).${n("id")})${downloadColumn || driveDownloadColumn ? `, 'downloadable', ${canDownload(`(${row}).${n("id")}`)}` : ""}))`;
 
   const orderBy = (alias: string): string =>
     `(${alias}.${n("kind")} = 'folder') desc${ranked ? `, ${alias}.${n("rank")}` : ""}, lower(${alias}.${n("name")}), ${alias}.${n("id")}`;
@@ -1052,6 +856,12 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     externalColumn,
     metadataColumn,
     holdColumn,
+    lockColumns,
+    downloadColumn,
+    driveDownloadColumn,
+    previewColumn,
+    previewPrefix,
+    lockedByOther,
     readOnly,
     held,
     driveHeld,
@@ -1079,6 +889,8 @@ export function driveKit(ctx: BlockSqlContext, own: BlockSqlContext): DriveKit {
     canRead,
     canWrite,
     canShare,
+    canComment,
+    canDownload,
     notFound,
     forbidden,
     record,

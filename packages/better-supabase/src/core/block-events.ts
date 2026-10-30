@@ -121,10 +121,13 @@ export interface AttachmentEventData {
 /** `data_export.*`, written to the outbox by the data-lifecycle module. */
 export interface DataExportEventData {
   readonly exportId: string;
-  readonly subject: "user" | "organization";
+  readonly subject: "user" | "organization" | "record";
   readonly organizationId?: string;
   readonly userId?: string;
   readonly requestedBy?: string;
+  /** Subject `record`: the `config.subjects` type and id that was exported. */
+  readonly subjectType?: string;
+  readonly subjectId?: string;
   /** `data_export.completed`: the object paths and when they stop being served. */
   readonly files?: readonly string[];
   readonly expiresAt?: string;
@@ -490,6 +493,20 @@ export interface AccessRequestEventData {
   readonly reason?: string;
 }
 
+/** `subject_member.added` and `subject_member.ended`, from the subjects block. */
+export interface SubjectMemberEventData extends SubjectEventData {
+  readonly organizationId: string;
+  /** The `subject_members` row. */
+  readonly id: string;
+  /** Set for a user on the team, null for a team. */
+  readonly userId: string | null;
+  /** Set for a team on the team, null for a user. */
+  readonly teamId: string | null;
+  readonly role: string;
+  /** The last day the membership counts, `YYYY-MM-DD`, or null. */
+  readonly endsOn: string | null;
+}
+
 /** Events from the documents module. */
 export interface DocumentEventData extends SubjectEventData {
   readonly organizationId: string;
@@ -583,6 +600,20 @@ export interface DriveEventData extends SubjectEventData {
   readonly role?: string;
   /** For `drive.node_hold_placed`: when the legal hold ends. */
   readonly legalHoldUntil?: string;
+  /**
+   * For `drive.node_locked` and `drive.node_unlocked`: who holds, or held, the
+   * lock.
+   */
+  readonly lockedBy?: string;
+  /** For `drive.node_locked`: when the lock ends. */
+  readonly lockedUntil?: string;
+  /** For `drive.node_unlocked`: someone other than the holder broke it. */
+  readonly forced?: boolean;
+  /**
+   * For `drive.node_download_blocked_changed` and
+   * `drive.download_blocked_changed`.
+   */
+  readonly downloadBlocked?: boolean;
   /**
    * For `drive.node_purged`: the stored objects to delete, as `{ bucket, path
    * }`.

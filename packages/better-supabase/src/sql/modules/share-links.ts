@@ -189,6 +189,7 @@ const SUBJECT_ARGS = {
   type: "create_share_link.subject_type",
   id: "create_share_link.subject_id",
   tenant: "create_share_link.tenant",
+  role: "coalesce(create_share_link.role, 'view')",
 } as const;
 
 /**

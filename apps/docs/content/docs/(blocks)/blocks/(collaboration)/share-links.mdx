@@ -50,9 +50,9 @@ The functions other modules serve a link through (calendar feeds, booking pages,
 
 ## Download and upload links
 
-`downloadAllowed: false` makes a view-only link: `resolve` and `list` return `downloadAllowed: false`. The block serves no files itself, so the page or block that serves the subject's files checks the flag before it offers a download. It defaults to `true`.
+`downloadAllowed: false` makes a view-only link: `resolve` and `list` return `downloadAllowed: false`. The block serves no files itself, so the page or block that serves the subject's files checks the flag before it offers a download; the drive does this in `drive_link`. It defaults to `true`.
 
-The roles a link may carry depend on its subject type. A type that another block shares lists them in its contribution (`roles`, `["view"]` unless set), and `create` refuses any other role with `SHARE_LINK_ROLE_INVALID`. Public forms take `respond`. Types from `config.subjects` and `blocks["share-links"].on` take any role.
+The roles a link may carry depend on its subject type. A type that another block shares lists them in its contribution (`roles`, `["view"]` unless set), and `create` refuses any other role with `SHARE_LINK_ROLE_INVALID`. Public forms take `respond`. [Drive](/docs/blocks/drive#stars-recent-items-and-links) nodes take `view`, `download` and `upload`: creating one needs the drive's share role on the node, an `upload` link must name a folder, and the drive leaves the original out when `downloadAllowed` is false or a download block covers the node. Types from `config.subjects` and `blocks["share-links"].on` take any role.
 
 ## Errors
 

@@ -106,6 +106,7 @@ import { relationsBlock } from "./relations/manifest.ts";
 import { remindersBlock } from "./reminders/manifest.ts";
 import { reservedSlugsBlock } from "./reserved-slugs/manifest.ts";
 import { reviewsBlock } from "./reviews/manifest.ts";
+import { risksBlock } from "./risks/manifest.ts";
 import { rlsGuardBlock } from "./rls-guard/manifest.ts";
 import { savedViewsBlock } from "./saved-views/manifest.ts";
 import { scoresBlock } from "./scores/manifest.ts";
@@ -201,6 +202,7 @@ export const BLOCK_MANIFESTS: readonly AnyBlock[] = [
   postsBlock,
   contentBlock,
   qualificationsBlock,
+  risksBlock,
   driveBlock,
   employeesBlock,
   activitiesBlock,

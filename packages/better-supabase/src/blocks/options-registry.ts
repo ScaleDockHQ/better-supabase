@@ -91,6 +91,7 @@ import type { RelationsSqlOptions } from "./relations/options.ts";
 import type { RemindersSqlOptions } from "./reminders/options.ts";
 import type { ReservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
 import type { ReviewsSqlOptions } from "./reviews/options.ts";
+import type { RisksSqlOptions } from "./risks/options.ts";
 import type { SavedViewsSqlOptions } from "./saved-views/options.ts";
 import type { ScoresSqlOptions } from "./scores/options.ts";
 import type { SearchSqlOptions } from "./search/options.ts";
@@ -108,6 +109,7 @@ import type { SlaSqlOptions } from "./sla/options.ts";
 import type { SsoSqlOptions } from "./sso/options.ts";
 import type { StateMachineSqlOptions } from "./state-machine/options.ts";
 import type { StreamsSqlOptions } from "./streams/options.ts";
+import type { SubjectsSqlOptions } from "./subjects/options.ts";
 import type { TagsSqlOptions } from "./tags/options.ts";
 import type { TasksSqlOptions } from "./tasks/options.ts";
 import type { TeamsSqlOptions } from "./teams/options.ts";
@@ -220,6 +222,7 @@ import { relationsSqlOptions } from "./relations/options.ts";
 import { remindersSqlOptions } from "./reminders/options.ts";
 import { reservedSlugsSqlOptions } from "./reserved-slugs/options.ts";
 import { reviewsSqlOptions } from "./reviews/options.ts";
+import { risksSqlOptions } from "./risks/options.ts";
 import { savedViewsSqlOptions } from "./saved-views/options.ts";
 import { scoresSqlOptions } from "./scores/options.ts";
 import { searchSqlOptions } from "./search/options.ts";
@@ -237,6 +240,7 @@ import { slaSqlOptions } from "./sla/options.ts";
 import { ssoSqlOptions } from "./sso/options.ts";
 import { stateMachineSqlOptions } from "./state-machine/options.ts";
 import { streamsSqlOptions } from "./streams/options.ts";
+import { subjectsSqlOptions } from "./subjects/options.ts";
 import { tagsSqlOptions } from "./tags/options.ts";
 import { tasksSqlOptions } from "./tasks/options.ts";
 import { teamsSqlOptions } from "./teams/options.ts";
@@ -370,6 +374,7 @@ export interface BlockOptionsRegistry {
   readonly reminders: RemindersSqlOptions;
   readonly "reserved-slugs": ReservedSlugsSqlOptions;
   readonly reviews: ReviewsSqlOptions;
+  readonly risks: RisksSqlOptions;
   readonly "rls-guard": None;
   readonly "saved-views": SavedViewsSqlOptions;
   readonly scores: ScoresSqlOptions;
@@ -388,7 +393,7 @@ export interface BlockOptionsRegistry {
   readonly sso: SsoSqlOptions;
   readonly "state-machine": StateMachineSqlOptions;
   readonly streams: StreamsSqlOptions;
-  readonly subjects: None;
+  readonly subjects: SubjectsSqlOptions;
   readonly tags: TagsSqlOptions;
   readonly tasks: TasksSqlOptions;
   readonly teams: TeamsSqlOptions;
@@ -522,6 +527,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   reminders: remindersSqlOptions,
   "reserved-slugs": reservedSlugsSqlOptions,
   reviews: reviewsSqlOptions,
+  risks: risksSqlOptions,
   "rls-guard": NO_OPTIONS,
   "saved-views": savedViewsSqlOptions,
   scores: scoresSqlOptions,
@@ -540,7 +546,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   sso: ssoSqlOptions,
   "state-machine": stateMachineSqlOptions,
   streams: streamsSqlOptions,
-  subjects: NO_OPTIONS,
+  subjects: subjectsSqlOptions,
   tags: tagsSqlOptions,
   tasks: tasksSqlOptions,
   teams: teamsSqlOptions,

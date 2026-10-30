@@ -25,6 +25,7 @@ import type { QuotesEvents } from "better-supabase/blocks/quotes";
 import type { AutomationsEvents } from "better-supabase/blocks/automations";
 import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
+import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TagsEvents } from "better-supabase/blocks/tags";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
 import { permissionsBlock as permissionsBlockInstance } from "better-supabase/blocks/permissions";
@@ -450,6 +451,9 @@ export const permissions = {
     update: "settings.update",
     platform: "settings.manage",
   },
+  subjects: {
+    manage: "subjects.manage",
+  },
   tags: {
     manage: "tags.manage",
     read: "tags.read",
@@ -469,13 +473,13 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "assignment.assign" | "assignment.manage" | "assignment.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forecasts.read" | "forecasts.snapshot" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "settings.manage" | "settings.read" | "settings.update" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "assignment.assign" | "assignment.manage" | "assignment.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forecasts.read" | "forecasts.snapshot" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CustomFieldsEvents & DealsEvents & ScoresEvents & EnrollmentsEvents & SequencesEvents & ActivitiesEvents & MessagingEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & QuotesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & TagsEvents & TeamsEvents;
+export type BlockEvents = ApiKeysEvents & AuditEvents & BillingEvents & CustomFieldsEvents & DealsEvents & ScoresEvents & EnrollmentsEvents & SequencesEvents & ActivitiesEvents & MessagingEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & QuotesEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TagsEvents & TeamsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -613,6 +617,8 @@ export const blockEvents: Events<BlockEvents> = {
     "sequence_enrollment.step_completed",
     "subject.tagged",
     "subject.untagged",
+    "subject_member.added",
+    "subject_member.ended",
     "tag.created",
     "tag.deleted",
     "tag.updated",
@@ -760,6 +766,8 @@ export const blockEventSchemas = {
   "sequence_enrollment.step_completed": true,
   "subject.tagged": true,
   "subject.untagged": true,
+  "subject_member.added": true,
+  "subject_member.ended": true,
   "tag.created": true,
   "tag.deleted": true,
   "tag.updated": true,

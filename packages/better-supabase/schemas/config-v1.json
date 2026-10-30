@@ -1464,6 +1464,19 @@
             "enum": ["tenant", "record"],
             "type": "string"
           },
+          "team": {
+            "type": "object",
+            "properties": {
+              "actions": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": ["actions"],
+            "additionalProperties": false
+          },
           "search": {
             "type": "object",
             "properties": {
@@ -1685,6 +1698,7 @@
               "reminders",
               "reserved-slugs",
               "reviews",
+              "risks",
               "rls-guard",
               "saved-views",
               "scores",
@@ -1841,6 +1855,7 @@
                   "reminders",
                   "reserved-slugs",
                   "reviews",
+                  "risks",
                   "rls-guard",
                   "saved-views",
                   "scores",
@@ -2201,6 +2216,9 @@
             },
             "reviews": {
               "$ref": "#/$defs/blocks/reviews"
+            },
+            "risks": {
+              "$ref": "#/$defs/blocks/risks"
             },
             "rls-guard": {
               "$ref": "#/$defs/blocks/rls-guard"
@@ -4731,6 +4749,7 @@
               },
               "writeRole": {},
               "shareRole": {},
+              "commentRole": {},
               "memberRole": {},
               "subjectType": {
                 "type": "string",
@@ -4762,6 +4781,10 @@
               "readPolicy": {
                 "type": "boolean",
                 "default": true
+              },
+              "previewPrefix": {
+                "type": "string",
+                "default": "_previews"
               },
               "extraColumns": {
                 "type": "object",
@@ -6354,6 +6377,31 @@
           }
         }
       },
+      "risks": {
+        "$ref": "#/$defs/moduleConfig",
+        "type": "object",
+        "properties": {
+          "options": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "categories": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "defaultMatrix": {},
+              "extraColumns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
       "rls-guard": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
@@ -6704,7 +6752,9 @@
           "options": {
             "type": "object",
             "additionalProperties": false,
-            "properties": {}
+            "properties": {
+              "recordTeam": {}
+            }
           }
         }
       },

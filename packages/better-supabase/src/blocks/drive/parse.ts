@@ -15,6 +15,7 @@ import type {
   DriveLinkView,
   DriveNode,
   DriveNodeKind,
+  DrivePreviews,
   DrivePrincipalType,
   DriveRevision,
   DriveStoredObject,
@@ -84,6 +85,15 @@ export function nodeOf(value: unknown, fn: string): DriveNode {
     legalHoldUntil: optionalInstant(row["legalHoldUntil"]),
     readOnly: row["readOnly"] === true,
     held: row["held"] === true,
+    lockedBy: optionalText(row["lockedBy"]),
+    lockedUntil: optionalInstant(row["lockedUntil"]),
+    lockNote: optionalText(row["lockNote"]),
+    downloadBlocked: row["downloadBlocked"] === true,
+    downloadable:
+      typeof row["downloadable"] === "boolean"
+        ? row["downloadable"]
+        : undefined,
+    previewPages: optionalCount(row["previewPages"]),
     starredAt: optionalInstant(row["starredAt"]),
     openedAt: optionalInstant(row["openedAt"]),
     labels: Array.isArray(row["labels"])
@@ -162,6 +172,7 @@ export function driveOf(value: unknown, fn: string): DriveDrive {
     updatedAt: optionalInstant(row["updatedAt"]),
     role: optionalText(row["role"]),
     readOnly: row["readOnly"] === true,
+    downloadBlocked: row["downloadBlocked"] === true,
   };
 }
 
@@ -255,6 +266,7 @@ export function linkOf(value: unknown): DriveLinkView {
       role: textOf(link["role"]),
       nodeId: textOf(link["nodeId"]),
       expiresAt: optionalInstant(link["expiresAt"]),
+      downloadAllowed: link["downloadAllowed"] !== false,
     },
     node: nodeOf(row["node"], "drive_link"),
     children: Array.isArray(row["children"])
@@ -269,7 +281,26 @@ export function linkOf(value: unknown): DriveLinkView {
             mimeType: textOf(object["mimeType"]),
             status: textOf(object["status"]),
           },
+    previews: isRecord(row["previews"])
+      ? previewsOf(row["previews"], "drive_link")
+      : undefined,
   };
+}
+
+export function previewsOf(value: unknown, fn: string): DrivePreviews {
+  const row = recordOf(value, fn);
+
+  return {
+    attachmentId: textOf(row["attachmentId"]),
+    bucket: textOf(row["bucket"]),
+    pages: Number(row["pages"]),
+    prefix: textOf(row["prefix"]),
+    paths: Array.isArray(row["paths"]) ? row["paths"].map(textOf) : [],
+  };
+}
+
+function optionalCount(value: unknown): number | undefined {
+  return value === null || value === undefined ? undefined : Number(value);
 }
 
 export function objectsOf(value: unknown): DriveStoredObject[] {
@@ -289,6 +320,9 @@ const NODE_METHODS = [
   "move",
   "hold",
   "releaseHold",
+  "lock",
+  "unlock",
+  "blockDownloads",
   "upload",
   "uploadRevision",
   "commit",

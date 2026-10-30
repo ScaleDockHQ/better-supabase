@@ -223,6 +223,7 @@ may be your own enum or domain.
   - `better_supabase.field_values`: `id`, `tenant_id`, `value_text`, `value_number`, `value_date`, `value_bool`; typed: `type`, `subject_type`
 - `data-lifecycle`
   - `better_supabase.data_exports`: `id`, `subject`, `user_id`, `organization_id`, `status`, `bucket`, `files`, `requested_by`, `requested_at`, `completed_at`, `expires_at`; typed: `status`, `subject`
+  - `better_supabase.data_export_contents`: `export_id`, `parts`
   - `better_supabase.organization_deletions`: `organization_id`, `purge_after`, `cancelled_at`, `purged_at`, `previously_disabled`
   - `better_supabase.retention_policies`: `id`, `organization_id`, `kind`, `keep`; typed: `kind`
   - `better_supabase.legal_holds`: `id`, `organization_id`, `kind`, `reason`, `placed_at`, `released_at`; typed: `kind`
@@ -494,6 +495,10 @@ may be your own enum or domain.
 - `reviews`
   - `better_supabase.reviews`: `id`, `tenant_id`, `subject_type`, `subject_id`, `author_id`, `rating`, `body`, `status`, `verified`, `published_at`, `created_at`; typed: `status`
   - `better_supabase.review_stats`: `tenant_id`, `subject_type`, `subject_id`, `review_count`, `rating_total`
+- `risks`
+  - `better_supabase.risk_matrices`: `id`, `tenant_id`, `key`, `name`, `likelihood_levels`, `impact_levels`, `bands`, `scoring`, `is_default`, `created_at`, `updated_at`
+  - `better_supabase.risks`: `id`, `tenant_id`, `number`, `sequence`, `matrix_id`, `title`, `category`, `owner_id`, `status`, `treatment`, `review_interval_months`, `next_review_on`, `reviewed_at`, `review_notified_for`, `inherent_likelihood`, `inherent_impact`, `inherent_score`, `inherent_band`, `residual_likelihood`, `residual_impact`, `residual_score`, `residual_band`, `current_assessment_id`, `closed_at`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.risk_assessments`: `id`, `tenant_id`, `risk_id`, `inherent_likelihood`, `inherent_impact`, `inherent_score`, `inherent_band`, `residual_likelihood`, `residual_impact`, `residual_score`, `residual_band`, `assessed_by`, `assessed_at`
 - `saved-views`
   - `better_supabase.saved_views`: `id`, `tenant_id`, `list`, `scope`, `owner_id`, `team_id`, `name`, `kind`, `state`, `rank`, `is_default`, `created_at`, `updated_at`
   - `better_supabase.saved_view_preferences`: `view_id`, `user_id`, `tenant_id`, `is_default`, `hidden`, `pinned`, `updated_at`
@@ -550,6 +555,8 @@ may be your own enum or domain.
 - `streams`
   - `better_supabase.streams`: `id`, `tenant_id`, `owner_id`, `closed_at`, `cancel_requested_at`, `expires_at`
   - `better_supabase.stream_chunks`: `stream_id`, `idx`, `data`
+- `subjects`
+  - `better_supabase.subject_members`: `id`, `tenant_id`, `subject_type`, `subject_id`, `user_id`, `team_id`, `role`, `starts_on`, `ends_on`, `emergency`, `reason`, `created_by`, `created_at`
 - `tags`
   - `better_supabase.tags`: `id`, `tenant_id`, `kind`, `name`, `slug`, `color`, `description`, `created_at`, `updated_at`; typed: `kind`
   - `better_supabase.taggings`: `tenant_id`, `tag_id`, `subject_type`, `subject_id`, `created_at`; typed: `subject_type`

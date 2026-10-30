@@ -32,6 +32,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "ai.*",
     "tags.*",
     "teams.*",
+    "subjects.*",
     "custom_fields.*",
     "share_links.*",
     "reminders.*",
@@ -100,6 +101,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "posts.*",
     "content.*",
     "qualifications.*",
+    "risks.*",
   ],
   member: [
     "organization.read",
@@ -211,6 +213,7 @@ export const DEFAULT_ROLES: Readonly<Record<string, readonly string[]>> = {
     "enrichment.read",
     "forecasts.read",
     "history.read",
+    "risks.read",
   ],
   viewer: ["organization.read"],
 };
@@ -315,6 +318,7 @@ export const OPERATIONS = {
   "numbering.assign": "number_sequences.assign",
   "teams.manage": "teams.manage",
   "teams.read": "teams.read",
+  "subjects.manage": "subjects.manage",
   "permissions.listRoles": "members.read",
   "permissions.setOverride": "roles.manage",
   "tags.manage": "tags.manage",
@@ -521,6 +525,10 @@ export const OPERATIONS = {
   "forecasts.read": "forecasts.read",
   "forecasts.snapshot": "forecasts.snapshot",
   "field-history.read": "history.read",
+  "risks.read": "risks.read",
+  "risks.write": "risks.write",
+  "risks.assess": "risks.assess",
+  "risks.manage": "risks.manage",
 } as const;
 
 /** An operation name, `<module>.<action>`. */
@@ -647,6 +655,7 @@ export const MODULE_PERMISSION_SCOPES: {
   "ai-keys": { use: "tenant", manage: "tenant" },
   numbering: { assign: "tenant" },
   teams: { manage: "tenant", read: "tenant" },
+  subjects: { manage: "tenant" },
   permissions: { listRoles: "tenant", setOverride: "tenant" },
   tags: { manage: "tenant", read: "tenant", apply: "tenant" },
   catalog: { manage: "tenant", read: "tenant" },
@@ -786,6 +795,12 @@ export const MODULE_PERMISSION_SCOPES: {
   "field-history": { read: "tenant" },
   content: { read: "tenant", write: "tenant", publish: "tenant" },
   qualifications: { read: "tenant", grant: "tenant", manage: "tenant" },
+  risks: {
+    read: "tenant",
+    write: "tenant",
+    assess: "tenant",
+    manage: "tenant",
+  },
 };
 
 export function accessModel(ctx: BlockSqlContext): AccessModel {

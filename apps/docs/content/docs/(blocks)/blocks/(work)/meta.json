@@ -16,6 +16,7 @@
     "collections",
     "tasks",
     "sla",
-    "dispatch"
+    "dispatch",
+    "risks"
   ]
 }

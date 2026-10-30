@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
--- @bsb-block data-lifecycle@6 managed
--- @bsb-hash sha256:f74dedf4ae414ac34781c1f5a5db72d67615ca14030ba9f8fdf26d0047aa1863
+-- @bsb-block data-lifecycle@7 managed
+-- @bsb-hash sha256:fdb4f573fed8f00fd724f5e062454ec950739e663e6a8e076cdb26e397f46efa
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- export job as one NDJSON file per table under {id}/ in the data-exports bucket.
 create table if not exists "better_supabase"."data_exports" (
   "id" uuid primary key default gen_random_uuid(),
-  "subject" text not null check ("subject" in ('user', 'organization')),
+  "subject" text not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "workspace_id" uuid,
   "status" text not null default 'pending' check ("status" in ('pending', 'running', 'ready', 'failed')),
@@ -70,10 +70,24 @@ create table if not exists "better_supabase"."data_exports" (
   "requested_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "requested_at" timestamptz not null default now(),
   "completed_at" timestamptz,
-  "expires_at" timestamptz,
-  check (("subject" = 'user') = ("user_id" is not null)),
-  check (("subject" = 'organization') = ("workspace_id" is not null))
+  "expires_at" timestamptz
 );
+alter table "better_supabase"."data_exports" add column if not exists "subject_type" text;
+alter table "better_supabase"."data_exports" add column if not exists "subject_id" text;
+alter table "better_supabase"."data_exports" add column if not exists "format" text;
+alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_subject_check";
+alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_check";
+alter table "better_supabase"."data_exports" drop constraint if exists "data_exports_check1";
+alter table "better_supabase"."data_exports" drop constraint if exists "bsb_data_exports_subject";
+alter table "better_supabase"."data_exports" add constraint "bsb_data_exports_subject" check (case "subject"
+  when 'user' then "user_id" is not null and "workspace_id" is null and "subject_type" is null and "subject_id" is null
+  when 'organization' then "workspace_id" is not null and "user_id" is null and "subject_type" is null and "subject_id" is null
+  when 'record' then "subject_type" is not null and "subject_id" is not null and "user_id" is null
+  else false
+end);
+alter table "better_supabase"."data_exports" drop constraint if exists "bsb_data_exports_format";
+alter table "better_supabase"."data_exports" add constraint "bsb_data_exports_format" check ("format" is null or "format" in ('ndjson', 'csv'));
+create unique index if not exists "data_exports_open_record_idx" on "better_supabase"."data_exports" ("subject_type", "subject_id", "requested_by") where "status" in ('pending', 'running') and "subject" = 'record';
 create unique index if not exists data_exports_open_user_idx on "better_supabase"."data_exports" ("user_id") where "status" in ('pending', 'running') and "subject" = 'user';
 create unique index if not exists data_exports_open_tenant_idx on "better_supabase"."data_exports" ("workspace_id") where "status" in ('pending', 'running') and "subject" = 'organization';
 create index if not exists data_exports_requested_by_idx on "better_supabase"."data_exports" ("requested_by");
@@ -506,6 +520,92 @@ begin
 end;
 $$;
 
+-- A record export's rows, from request_subject_export until the export job
+-- writes them: parts maps each file name to its rows.
+create table if not exists "better_supabase"."data_export_contents" (
+  "export_id" uuid primary key references "better_supabase"."data_exports" ("id") on delete cascade,
+  "parts" jsonb not null default '{}'::jsonb
+);
+alter table "better_supabase"."data_export_contents" enable row level security;
+revoke all on "better_supabase"."data_export_contents" from public, anon, authenticated;
+grant all on "better_supabase"."data_export_contents" to service_role;
+
+-- One record's data (subject 'record'): its own row, decrypted through its
+-- table's reveal function as the caller, and every installed module's rows
+-- attached to it. Needs the export permission in the record's tenant or the
+-- record's manage action. An open export of the record by the caller is
+-- returned instead of a second one.
+create or replace function "better_supabase"."request_subject_export"(subject_type text, subject_id text, format text default 'ndjson')
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."data_exports";
+  v_tenant uuid;
+  v_record jsonb;
+  v_name text;
+  v_reveal text;
+  v_reveal_schema text;
+  v_proc text;
+  v_arg text;
+  v_sealed text[];
+  v_plain jsonb;
+  v_rows jsonb;
+  v_parts jsonb := '{}'::jsonb;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if auth.uid() is null then
+    raise exception 'Sign in to export data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+  end if;
+  if request_subject_export.format is null or request_subject_export.format not in ('ndjson', 'csv') then
+    raise exception 'format must be ndjson or csv' using errcode = '22023', hint = 'DATA_EXPORT_FORMAT';
+  end if;
+  raise exception 'No record type can be exported' using errcode = '22023', hint = 'DATA_EXPORT_SUBJECT';
+  if v_record is null or not ((v_tenant is not null and coalesce(better_supabase.can('tenant', v_tenant, 'organization.export'), false))) then
+    raise exception 'You may not export this record' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
+  end if;
+  select * into v_row from "better_supabase"."data_exports" x
+  where x."subject" = 'record' and x."subject_type" = request_subject_export.subject_type
+    and x."subject_id" = request_subject_export.subject_id and x."requested_by" = auth.uid()
+    and x."status" in ('pending', 'running');
+  if v_row."id" is not null then
+    return to_jsonb(v_row);
+  end if;
+  -- Only the owner's reveal function, so one another role created never runs
+  -- with this function's rights.
+  select pg_catalog.format('%I.%I', n.nspname, p.proname), pg_catalog.format_type(p.proargtypes[0], null),
+    array(select a.name from unnest(p.proargnames, p.proargmodes::text[]) with ordinality a(name, mode, n)
+      where a.mode = 't' order by a.n offset 1)
+  into v_proc, v_arg, v_sealed
+  from pg_catalog.pg_proc p
+  join pg_catalog.pg_namespace n on n.oid = p.pronamespace
+  where n.nspname = v_reveal_schema and p.proname = v_reveal and p.pronargs = 1
+    and p.proowner = (select r.oid from pg_catalog.pg_roles r where r.rolname = current_user)
+  limit 1;
+  -- The stored ciphertext never leaves: a caller the reveal returns no row
+  -- for gets the record without its encrypted columns.
+  if v_proc is not null then
+    execute format('select to_jsonb(r.*) from %s(array[$1]::%s) r', v_proc, v_arg) into v_plain
+    using request_subject_export.subject_id;
+    v_record := (v_record - coalesce(v_sealed, '{}'::text[])) || coalesce(v_plain, '{}'::jsonb);
+  end if;
+  v_parts := jsonb_build_object(v_name, jsonb_build_array(v_record));
+  
+  insert into "better_supabase"."data_exports" ("subject", "workspace_id", "subject_type", "subject_id", "format")
+  values ('record', v_tenant, request_subject_export.subject_type, request_subject_export.subject_id, request_subject_export.format)
+  returning * into v_row;
+  insert into "better_supabase"."data_export_contents" ("export_id", "parts") values (v_row."id", v_parts);
+  null;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."request_subject_export"(text, text, text) from public, anon;
+grant execute on function "better_supabase"."request_subject_export"(text, text, text) to authenticated, service_role;
+
 create or replace function "better_supabase"."list_data_exports"(tenant uuid default null)
 returns jsonb
 language sql
@@ -516,7 +616,7 @@ as $$
   select coalesce(jsonb_agg(to_jsonb(x.*) order by x."requested_at" desc, x."id"), '[]'::jsonb)
   from "better_supabase"."data_exports" x
   where case when list_data_exports.tenant is null
-    then x."subject" = 'user' and x."user_id" = auth.uid()
+    then (x."subject" = 'user' and x."user_id" = auth.uid()) or (x."subject" = 'record' and x."workspace_id" is null and x."requested_by" = auth.uid())
     else x."workspace_id" = list_data_exports.tenant
   end
 $$;
@@ -551,11 +651,13 @@ begin
   if v_row."id" is null then
     return null;
   end if;
-  return to_jsonb(v_row) || jsonb_build_object('tables', (
+  return to_jsonb(v_row) || jsonb_build_object('tables', case when v_row."subject"::text = 'record' then (select coalesce(jsonb_agg(k.key order by k.key), '[]'::jsonb)
+      from "better_supabase"."data_export_contents" c, jsonb_object_keys(c."parts") k(key)
+      where c."export_id" = v_row."id") else (
     select coalesce(jsonb_agg(t.name order by t.name), '[]'::jsonb)
     from "better_supabase"."data_lifecycle_tables"() t
     where t.subject = v_row."subject" and t.exported and to_regclass(t.tbl) is not null
-  ));
+  ) end);
 end;
 $$;
 
@@ -573,6 +675,7 @@ declare
   v_type text;
   v_rows jsonb;
   v_after text;
+  v_offset integer;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role runs exports' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
@@ -580,6 +683,20 @@ begin
   select * into v_row from "better_supabase"."data_exports" x where x."id" = data_export_rows.id and x."status" = 'running';
   if v_row."id" is null then
     raise exception 'No running export has this id' using errcode = 'P0002', hint = 'DATA_EXPORT_NOT_FOUND';
+  end if;
+  if v_row."subject"::text = 'record' then
+    select c."parts" -> data_export_rows.table_name into v_rows
+    from "better_supabase"."data_export_contents" c where c."export_id" = v_row."id";
+    if v_rows is null or jsonb_typeof(v_rows) <> 'array' then
+      raise exception 'The export has no table %', data_export_rows.table_name using errcode = '22023', hint = 'DATA_EXPORT_TABLE';
+    end if;
+    v_offset := coalesce(nullif(data_export_rows.after, '')::integer, 0);
+    return jsonb_build_object(
+      'rows', (select coalesce(jsonb_agg(r.value order by r.n), '[]'::jsonb)
+        from jsonb_array_elements(v_rows) with ordinality r(value, n)
+        where r.n > v_offset and r.n <= v_offset + greatest(1, least(data_export_rows.page_size, 10000))),
+      'after', case when v_offset + greatest(1, least(data_export_rows.page_size, 10000)) < jsonb_array_length(v_rows) then (v_offset + greatest(1, least(data_export_rows.page_size, 10000)))::text end
+    );
   end if;
   select * into v_table from "better_supabase"."data_lifecycle_tables"() t
   where t.subject = v_row."subject" and t.name = data_export_rows.table_name and t.exported;
@@ -622,6 +739,7 @@ begin
   if v_row."id" is null then
     raise exception 'No running export has this id' using errcode = 'P0002', hint = 'DATA_EXPORT_NOT_FOUND';
   end if;
+  delete from "better_supabase"."data_export_contents" c where c."export_id" = v_row."id";
   null;
   return to_jsonb(v_row);
 end;
@@ -939,7 +1057,7 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block-data data-lifecycle
--- @bsb-hash sha256:f5b3e1b63eb0f0eee30fc84a1ce265c8fa794402a5f303dbb3ab73aa65c4df57
+-- @bsb-hash sha256:2aaeb774923f87ce4066af2206504066d85675dc8ae1205d19bfd05e8d53c33f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -950,6 +1068,6 @@ values ('data-exports', 'data-exports', false)
 on conflict (id) do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
-values ('data-lifecycle', 6, 'managed')
+values ('data-lifecycle', 7, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

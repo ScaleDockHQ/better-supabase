@@ -107,6 +107,8 @@ export interface RelationContribution extends RelationKindOptions {
 export interface ShareLinkSubjectSql {
   readonly id: string;
   readonly tenant: string;
+  /** The link's role, `view` when the caller names none. */
+  readonly role: string;
 }
 
 /** A subject type the contributing block owns and share links can name. */

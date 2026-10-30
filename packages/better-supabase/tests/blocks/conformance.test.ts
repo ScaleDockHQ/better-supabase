@@ -146,6 +146,8 @@ const NO_FIELDS: readonly string[] = [
   "sso",
   // Triggers on the app's own record table write its history; the app's columns live on that table.
   "state-machine",
+  // Record team rows grant access to a record; the app's data lives on the record.
+  "subjects",
   // Entries are written from the outbox by the activity sink; they record app events.
   "timeline",
   // Counters and an append-only usage log written per unit; per-event data goes in `metadata`.

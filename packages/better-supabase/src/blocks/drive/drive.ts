@@ -45,6 +45,7 @@ import {
   nodeOf,
   nodesOf,
   objectsOf,
+  previewsOf,
   revisionOf,
   withFields,
 } from "./parse.ts";
@@ -150,6 +151,21 @@ export interface DriveNode<F extends object = Record<never, never>> {
   readonly readOnly: boolean;
   /** The node or something under it is under a legal hold. */
   readonly held: boolean;
+  /** The user who checked the file out, while the lock is live. */
+  readonly lockedBy: string | undefined;
+  /** When the check-out lock ends, while it is live. */
+  readonly lockedUntil: Temporal.Instant | undefined;
+  readonly lockNote: string | undefined;
+  /** Downloads are blocked on this node itself (folders above may block too). */
+  readonly downloadBlocked: boolean;
+  /**
+   * Whether the caller may download the file's original, where the call reports
+   * it. A download block on the node, a folder above or the drive keeps it back
+   * from callers below the write role.
+   */
+  readonly downloadable: boolean | undefined;
+  /** How many preview pages the renderer stored for the current content. */
+  readonly previewPages: number | undefined;
   readonly starredAt: Temporal.Instant | undefined;
   readonly openedAt: Temporal.Instant | undefined;
   /** The tags on the node, with the tags block installed. */
@@ -227,6 +243,8 @@ export interface DriveDrive {
   readonly role: string | undefined;
   /** A connected drive, which only the sync may change. */
   readonly readOnly: boolean;
+  /** Downloads are blocked for every node in the drive. */
+  readonly downloadBlocked: boolean;
 }
 
 /** A drive-level grant, inherited by every node in the drive. */
@@ -333,11 +351,19 @@ export interface DriveLinkView<F extends object = Record<never, never>> {
     readonly role: string;
     readonly nodeId: string;
     readonly expiresAt: Temporal.Instant | undefined;
+    /**
+     * Whether the link hands out the original: its `download_allowed` flag, and
+     * no download block on the item.
+     */
+    readonly downloadAllowed: boolean;
   };
   readonly node: DriveNode<F>;
   /** A folder's children; `undefined` for a file. */
   readonly children: readonly DriveNode<F>[] | undefined;
-  /** A file's object, for the server to sign a download URL with. */
+  /**
+   * A file's object, for the server to sign a download URL with; `undefined`
+   * when the link doesn't allow downloads.
+   */
   readonly object:
     | {
         readonly bucket: string;
@@ -346,6 +372,21 @@ export interface DriveLinkView<F extends object = Record<never, never>> {
         readonly status: string;
       }
     | undefined;
+  /** A file's rendered pages, which a download block leaves visible. */
+  readonly previews: DrivePreviews | undefined;
+}
+
+/**
+ * The rendered pages of a file's current content, stored in `bucket` at
+ * `<previewPrefix>/<organization>/<node>/<attachment>/<page>`.
+ */
+export interface DrivePreviews {
+  readonly attachmentId: string;
+  readonly bucket: string;
+  readonly pages: number;
+  /** The folder the pages live in: `<prefix>/<page>`, from 1. */
+  readonly prefix: string;
+  readonly paths: readonly string[];
 }
 
 export interface DriveStoredObject {
@@ -411,6 +452,33 @@ export interface Drive<F extends object = Record<never, never>> {
   /** Places a legal hold on the node and everything under it. */
   hold(id: string, until: Temporal.Instant): AsyncResult<DriveNode<F>>;
   releaseHold(id: string): AsyncResult<DriveNode<F>>;
+  /**
+   * Checks the file out: until `until` (default 8 hours, at most 30 days)
+   * nobody else may upload, commit, rename, move, trash or delete it.
+   */
+  lock(
+    id: string,
+    options?: { readonly until?: Temporal.Instant; readonly note?: string },
+  ): AsyncResult<DriveNode<F>>;
+  /** Ends the check-out; `force` lets the share role end someone else's. */
+  unlock(
+    id: string,
+    options?: { readonly force?: boolean },
+  ): AsyncResult<DriveNode<F>>;
+  /**
+   * Blocks (or allows) downloads of the node and everything under it for
+   * callers below the write role. Previews stay readable.
+   */
+  blockDownloads(id: string, blocked?: boolean): AsyncResult<DriveNode<F>>;
+  /** Blocks (or allows) downloads for every node in a drive. */
+  blockDriveDownloads(id: string, blocked?: boolean): AsyncResult<DriveDrive>;
+  /** The rendered pages of a file's current content. */
+  previews(id: string): AsyncResult<DrivePreviews>;
+  /** Signed URLs for a file's preview pages, first page first. */
+  previewUrls(
+    id: string,
+    options?: { readonly expiresIn?: number },
+  ): AsyncResult<readonly string[]>;
   /** The drives of an organization the caller can read. */
   drives(
     organizationId: string,
@@ -674,6 +742,63 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       call("drive_release_hold", { node: id }, (value) =>
         nodeOf(value, "drive_release_hold"),
       ),
+    lock: (id, lock = {}) =>
+      call(
+        "drive_lock",
+        {
+          node: id,
+          until: lock.until?.toString() ?? null,
+          note: lock.note ?? null,
+        },
+        (value) => nodeOf(value, "drive_lock"),
+      ),
+    unlock: (id, unlock = {}) =>
+      call(
+        "drive_unlock",
+        { node: id, force: unlock.force ?? false },
+        (value) => nodeOf(value, "drive_unlock"),
+      ),
+    blockDownloads: (id, blocked = true) =>
+      call(
+        "drive_set_download_blocked",
+        { target_type: "node", target_id: id, blocked },
+        (value) => nodeOf(value, "drive_set_download_blocked"),
+      ),
+    blockDriveDownloads: (id, blocked = true) =>
+      call(
+        "drive_set_download_blocked",
+        { target_type: "drive", target_id: id, blocked },
+        (value) => driveOf(value, "drive_set_download_blocked"),
+      ),
+    previews: (id) =>
+      call("drive_previews", { node: id }, (value) =>
+        previewsOf(value, "drive_previews"),
+      ),
+    previewUrls: (id, urls = {}) => {
+      if (storage === undefined) {
+        return AsyncResult.err(noStorage());
+      }
+
+      return client.previews(id).andThen(async (previews) => {
+        const signedUrls: string[] = [];
+
+        for (const path of previews.paths) {
+          const url = await stored(
+            storage
+              .from(previews.bucket)
+              .createSignedUrl(path, urls.expiresIn ?? 3600),
+          );
+
+          if (!url.ok) {
+            return url;
+          }
+
+          signedUrls.push(url.data.signedUrl);
+        }
+
+        return ok(signedUrls);
+      });
+    },
     drives: (organizationId, list = {}) =>
       call(
         "drive_list_drives",
@@ -798,19 +923,29 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
         return AsyncResult.err(noAttachments());
       }
 
-      return client
-        .get(id)
-        .andThen((node) =>
-          node.attachmentId === undefined
-            ? Promise.resolve(
-                err(
-                  dbError("invalid_request", "This item has no content", {
-                    hint: "DRIVE_NOT_A_FILE",
-                  }),
-                ),
-              )
-            : attachments.download(node.attachmentId, download),
-        );
+      return client.get(id).andThen((node) => {
+        if (node.attachmentId === undefined) {
+          return Promise.resolve(
+            err(
+              dbError("invalid_request", "This item has no content", {
+                hint: "DRIVE_NOT_A_FILE",
+              }),
+            ),
+          );
+        }
+
+        if (node.downloadable === false) {
+          return Promise.resolve(
+            err(
+              dbError("forbidden", "Downloads of this file are blocked", {
+                hint: "DRIVE_DOWNLOAD_BLOCKED",
+              }),
+            ),
+          );
+        }
+
+        return attachments.download(node.attachmentId, download);
+      });
     },
     revisions: (id) =>
       call("drive_revisions", { node: id }, (value) =>
@@ -930,8 +1065,9 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
  * The `subjects.drive_node` entry for the managed tables, so comments,
  * attachments, versions, trash and search can name drive nodes. The permission
  * keys are the tenant-wide floor; grants decide per node, through
- * `drive_node_readable` for reads and `drive_node_writable` for custom field
- * writes, and custom field values follow the node's read grants.
+ * `drive_node_readable` for reads, `drive_can_comment` for comments and
+ * `drive_node_writable` for custom field writes, and custom field values follow
+ * the node's read grants.
  */
 export function driveSubject(
   options: {
@@ -953,6 +1089,7 @@ export function driveSubject(
     permissions: {
       read: { key: "drive.read", check: `${schema}.drive_node_readable` },
       write: "drive.manage",
+      comment: { check: `${schema}.drive_can_comment` },
       fields: { check: `${schema}.drive_node_writable` },
     },
     readAccess: "record",

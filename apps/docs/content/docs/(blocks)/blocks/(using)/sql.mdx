@@ -263,6 +263,7 @@ differ from the newest `*_better_supabase_modules.sql`.
 | `contracts`          | Contracts with a registered counterparty from draft through review and signature (frozen as a version and signed with the signatures block) to active, expired or terminated. Values are bigint minor units; renewal terms schedule the owner's reminder before the notice deadline, and `run_contract_renewals` renews or expires contracts past their end date. Obligations carry due dates and owners.                                                                          |
 | `compliance`         | Compliance frameworks and controls, evidence (attachments or notes) with a validity date, recurring evidence tasks with an assignee and an overdue state, a computed control status and a rollup per framework, and policies published as versions that members acknowledge.                                                                                                                                                                                                       |
 | `incidents`          | Incidents with a severity, a status timeline, affected components and a postmortem. Component status follows the open incidents and keeps an uptime history. `public_status_page(slug)` is the one function anon may call: it returns only the public components, incidents and updates of a published page.                                                                                                                                                                       |
+| `risks`              | A risk register: risks scored on a likelihood by impact matrix before and after controls, an assessment history frozen as versions, treatments, scheduled reviews, barriers linked through relations and a heatmap per matrix cell.                                                                                                                                                                                                                                                |
 | `templates`          | Versioned templates of a type that create records, system starters kept by key and forked per organization, a default per type and language, the applications each template made, and the workflow-editor workflows each new record starts. See [Templates](/docs/blocks/templates).                                                                                                                                                                                               |
 | `pipelines`          | Tenant-editable pipelines for registered subjects: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency, and a status column set from the stage. See [Pipelines](/docs/blocks/pipelines).                                                                                                                                                                                                                |
 | `contacts`           | Companies and people an organization works with: lifecycle stages, owners, who works where with a role and a primary contact, domain and email dedupe, merges and keyset-paged search. See [Parties](/docs/blocks/contacts).                                                                                                                                                                                                                                                       |
@@ -1406,6 +1407,7 @@ export default defineConfig({
 | `search`      | none              | `title` and `body` columns for search, plus `description`, `exclude`, `from` and `watch` ([Search](/docs/blocks/search#labels-descriptions-and-archived-rows)) |
 | `rank`        | none              | The rank column and an optional group column (such as `status`) that `move` uses                                                                               |
 | `readAccess`  | `tenant`          | `record` makes `custom-fields` show a value only to members who can read the record, through the `read` entry                                                  |
+| `team`        | none              | `{ actions }`: the actions a record team grants on each row ([Record teams](#record-teams))                                                                    |
 
 A block's `on` works three ways:
 
@@ -1508,6 +1510,85 @@ share links, versions, relations and the others that take `on`) reads the
 same `read` entry: with `rows` or `owner`, the key, the provider's row grants
 and the owner column each grant the read, as in `can_subject`. An `on` entry
 that sets its own `permission` keeps that key.
+
+#### Record teams
+
+Give a record type a `team` to put people on one record: a patient's care
+team, the account team on a customer, the investigators on a case. Members of
+the record's team get the listed actions on that row, on top of what their
+tenant role grants.
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  records: {
+    patient: {
+      table: "public.patients",
+      title: "name",
+      permissions: { read: "patients.read" },
+      team: { actions: ["read", "write"] },
+    },
+    customer: {
+      table: "public.customers",
+      title: "name",
+      permissions: { read: "customers.read", write: "customers.update" },
+      team: { actions: ["read", "write"] },
+    },
+    case: {
+      table: "public.cases",
+      title: "title",
+      team: { actions: ["read"] },
+    },
+  },
+  blocks: ["memberships", "permissions", "teams", "subjects"],
+});
+```
+
+An action with a `permissions` entry stays open to holders of that key, and
+the team grants it too, so a care team reads its patients without
+`patients.read`. An action that only `team` lists, such as `write` on
+`patient`, is granted to the team alone. A type with a team needs a tenant
+column, because each membership row belongs to the record's tenant.
+
+The `subjects` block stores the members in `subject_members`. A row names a
+user or a team from the [`teams`](/docs/blocks/teams) block, a role and the
+days it counts (`starts_on` and `ends_on`, both included). A membership
+counts from `starts_on` through `ends_on`, so access stops the day after a
+membership ends, without a job to revoke it.
+
+| Function                                                                                   | What it does                                                                                     |
+| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
+| `add_subject_member(subject_type, subject_id, user_id, team_id, role, starts_on, ends_on)` | Puts a user or a team on the record, or reopens their membership in that role with the new dates |
+| `end_subject_member(member_id, ends_on)`                                                   | Ends a membership; it counts through `ends_on`, today by default                                 |
+| `list_subject_members(subject_type, subject_id)`                                           | The record's team, current and past, for a caller who can read the record                        |
+| `my_subjects(tenant, subject_type, page_size, cursor)`                                     | The records whose team the caller is on today, with their roles, title and URL, up to 200 a page |
+
+Adding and ending a membership needs `subjects.manage` in the record's tenant
+(the `admin` role has `subjects.*`), or `can_subject(..., 'manage')` on a type
+that declares a `manage` action. The service role may always call them. With an
+[authorization provider](/docs/extending/authorization-providers), list
+`subjects.manage` among its permissions or set
+`blocks.subjects.permissions.manage` to a key it has. Roles
+are `lead` and `member` unless you set
+`blocks.subjects.options.recordTeam.roles`. The functions fail with these
+hints:
+
+| Hint                       | When                                                                                                 |
+| -------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `SUBJECT_MEMBER_INVALID`   | The type has no team, both or neither of user and team are set, an unknown role, or bad dates or ids |
+| `SUBJECT_MEMBER_NOT_FOUND` | The record or the membership doesn't exist                                                           |
+| `SUBJECT_MEMBER_FORBIDDEN` | The caller may not manage the record's team                                                          |
+
+A caller reads their own membership rows, those of their teams, every row in
+a tenant where they hold `subjects.manage`, and the team of any record they
+can read. `add` and `end` emit `subject_member.added` and
+`subject_member.ended` when the outbox is installed, and the audit log
+records them under `access`.
+
+The team counts in `can_subject`, `can_subject_for` and the blocks that call
+them. Blocks that check a record's `read` entry inline (tags, attachments
+and the others that take `on`) still check only the key. The `represents`
+relation kind from `contacts` accepts only targets of a type with a team,
+when one is declared.
 
 With a registry, `gen` also emits the types in `database.types.ts`:
 

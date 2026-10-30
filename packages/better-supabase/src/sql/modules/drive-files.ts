@@ -1,5 +1,6 @@
 import type { DriveKit } from "./drive-kit.ts";
 
+import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -10,6 +11,7 @@ import {
   userGrant,
 } from "../shared.ts";
 import { labelTags, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
+import { lockGuard, subtreeLockGuard } from "./drive-locks.ts";
 import { liveShareLink } from "./share-links.ts";
 
 /**
@@ -57,6 +59,8 @@ export function driveFilesSql(kit: DriveKit): string {
     orderBy,
     touch,
     siblings,
+    canDownload,
+    previewColumn,
   } = kit;
 
   const tags = labelTags(own);
@@ -120,6 +124,99 @@ export function driveFilesSql(kit: DriveKit): string {
   ]
     .filter((statement) => statement !== "")
     .join("\n  ");
+
+  const previewPath = (path: string): string =>
+    `${path} like ${sqlString(`${kit.previewPrefix}/%`)}`;
+
+  const previewReset = previewColumn ? `, ${n("previewPages")} = null` : "";
+
+  const previewPolicy = previewColumn
+    ? `${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_previews_read"), command: "select", roles: ["authenticated"], using: `${previewPath("name")} and ${fn("drive_object_allowed")}(bucket_id, name, 'select')` }), { drop: true, target: "storage.objects" })}
+`
+    : "";
+
+  const previewFunctions =
+    previewColumn && A !== undefined
+      ? `
+-- The rendered pages of a file's current content: { attachmentId, bucket,
+-- pages, prefix, paths }, with no pages until the preview renderer has run.
+create or replace function ${fn("drive_preview_json")}(node ${T})
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select case when ($1).${n("attachment")} is null then null else jsonb_build_object(
+    'attachmentId', ($1).${n("attachment")},
+    'bucket', (select f.${a("bucket")} from ${A} f where f.${a("id")} = ($1).${n("attachment")}),
+    'pages', coalesce(($1).${n("previewPages")}, 0),
+    'prefix', ${sqlString(`${kit.previewPrefix}/`)} || ($1).${n("tenant")}::text || '/' || ($1).${n("id")}::text || '/' || ($1).${n("attachment")}::text,
+    'paths', coalesce((
+      select jsonb_agg(${sqlString(`${kit.previewPrefix}/`)} || ($1).${n("tenant")}::text || '/' || ($1).${n("id")}::text || '/' || ($1).${n("attachment")}::text || '/' || p::text order by p)
+      from generate_series(1, coalesce(($1).${n("previewPages")}, 0)) p
+    ), '[]'::jsonb)
+  ) end
+$$;
+revoke execute on function ${fn("drive_preview_json")}(${T}) from public, anon, authenticated;
+
+-- A file's previews for a reader. Previews need read access only, so a
+-- download block leaves them visible.
+create or replace function ${fn("drive_previews")}(node uuid)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node ${T}%rowtype;
+begin
+  select * into v_node from ${T} x where x.${n("id")} = drive_previews.node${live("x")};
+  if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
+    ${notFound}
+  end if;
+  if v_node.${n("kind")} <> 'file' then
+    ${fail("DRIVE_NOT_A_FILE", "a folder has no previews", "22023")}
+  end if;
+  return ${fn("drive_preview_json")}(v_node);
+end;
+$$;
+${userGrant(`${fn("drive_previews")}(uuid)`)}
+
+-- Service role: records how many pages the renderer stored for attachment
+-- under ${kit.previewPrefix}/<tenant>/<node>/<attachment>/<page>. A file whose content
+-- changed since keeps no previews, so stale pages never show.
+create or replace function ${fn("drive_set_previews")}(node uuid, attachment uuid, pages integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node ${T}%rowtype;
+begin
+  if drive_set_previews.pages is null or drive_set_previews.pages < 0 then
+    ${fail("DRIVE_PREVIEWS_INVALID", "pages must be zero or more", "22023")}
+  end if;
+  select * into v_node from ${T} x where x.${n("id")} = drive_set_previews.node for update;
+  if not found then
+    ${notFound}
+  end if;
+  if v_node.${n("attachment")} is distinct from drive_set_previews.attachment then
+    return ${fn("drive_preview_json")}(v_node);
+  end if;
+  update ${T} x set ${n("previewPages")} = drive_set_previews.pages
+  where x.${n("id")} = v_node.${n("id")}
+  returning * into v_node;
+  return ${fn("drive_preview_json")}(v_node);
+end;
+$$;
+${serviceGrant(`${fn("drive_set_previews")}(uuid, uuid, integer)`)}
+`
+      : "";
 
   const fileFunctions =
     A === undefined || attachments === undefined
@@ -190,6 +287,7 @@ begin
   if ${readOnly("v_node")} then
     ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;
+  ${lockGuard(kit, "v_node")}
   if v_node.${n("kind")} <> 'file' then
     ${fail("DRIVE_NOT_A_FILE", "a folder has no content", "22023")}
   end if;
@@ -221,6 +319,7 @@ begin
   if ${readOnly("v_node")} then
     ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;
+  ${lockGuard(kit, "v_node")}
   if not exists (
     select 1 from ${A} f where f.${a("id")} = drive_commit.attachment
       and f.${a("subjectType")} = ${typeLit} and f.${a("subjectId")} = v_node.${n("id")}::text
@@ -230,7 +329,7 @@ begin
   perform ${attachments.fn("confirm_attachment")}(drive_commit.attachment);
   select * into v_file from ${A} f where f.${a("id")} = drive_commit.attachment;
   if v_node.${n("attachment")} is distinct from v_file.${a("id")} then
-    update ${T} x set ${n("attachment")} = v_file.${a("id")}${touch}
+    update ${T} x set ${n("attachment")} = v_file.${a("id")}${previewReset}${touch}
     where x.${n("id")} = v_node.${n("id")}
     returning * into v_node;${
       versions === undefined
@@ -247,8 +346,14 @@ $$;
 ${userGrant(`${fn("drive_commit")}(uuid, uuid)`)}
 
 -- Whether the caller may run action (select, insert, update or delete) on
--- the object at path: files of a node need the node's grants. Objects of
--- other subjects pass, so the attachments policies decide.
+-- the object at path: files of a node need the node's grants, and reading an
+-- original needs drive_can_download.${
+          previewColumn
+            ? ` Previews under ${kit.previewPrefix}/ need read
+-- access, and only the service role writes them.`
+            : ""
+        } Objects of other subjects pass, so
+-- the attachments policies decide.
 create or replace function ${fn("drive_object_allowed")}(bucket text, path text, action text)
 returns boolean
 language sql
@@ -256,16 +361,24 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce((
+  select ${
+    previewColumn
+      ? `case when ${previewPath("drive_object_allowed.path")} then
+    drive_object_allowed.action = 'select'
+      and split_part(drive_object_allowed.path, '/', 3) ~ ${UUID_TEXT}
+      and ${canRead("split_part(drive_object_allowed.path, '/', 3)::uuid")}
+  else `
+      : ""
+  }coalesce((
     select case
       when f.${a("subjectType")} is distinct from ${typeLit} then true
       when f.${a("subjectId")} !~ ${UUID_TEXT} then false
-      when drive_object_allowed.action = 'select' then ${canRead(`f.${a("subjectId")}::uuid`)}
+      when drive_object_allowed.action = 'select' then ${canDownload(`f.${a("subjectId")}::uuid`)}
       else ${fn("drive_node_writable")}(f.${a("subjectId")}::uuid)
     end
     from ${A} f
     where f.${a("bucket")} = drive_object_allowed.bucket and f.${a("path")} = drive_object_allowed.path
-  ), true)
+  ), true)${previewColumn ? " end" : ""}
 $$;
 ${userGrant(`${fn("drive_object_allowed")}(text, text, text)`)}
 
@@ -291,7 +404,7 @@ ${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_read"
 ${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true)` }), { drop: true, target: A })}
 ${renderPolicy(makePolicy({ table: A, name: ctx.trigger("drive_attachments_delete"), command: "delete", roles: ["authenticated"], permissive: false, using: `${fn("drive_attachment_allowed")}(${a("subjectType")}, ${a("subjectId")}, true)` }), { drop: true, target: A })}
 ${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_read"), command: "select", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'select')` }), { drop: true, target: "storage.objects" })}
-${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_object_allowed")}(bucket_id, name, 'insert')` }), { drop: true, target: "storage.objects" })}
+${previewPolicy}${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_insert"), command: "insert", roles: ["authenticated"], permissive: false, check: `${fn("drive_object_allowed")}(bucket_id, name, 'insert')` }), { drop: true, target: "storage.objects" })}
 ${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_update"), command: "update", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'update')` }), { drop: true, target: "storage.objects" })}
 ${renderPolicy(makePolicy({ table: "storage.objects", name: ctx.trigger("drive_objects_delete"), command: "delete", roles: ["authenticated"], permissive: false, using: `${fn("drive_object_allowed")}(bucket_id, name, 'delete')` }), { drop: true, target: "storage.objects" })}
 
@@ -327,7 +440,7 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object('bucket', r.bucket, 'path', r.path)) filter (where r.uploaded_at is not null), '[]'::jsonb) from removed r
 $$;
 ${serviceGrant(`${fn("drive_prune")}(integer)`)}
-`;
+${previewFunctions}`;
 
   const revisionFunctions =
     versions === undefined || A === undefined
@@ -386,6 +499,7 @@ begin
   if ${readOnly("v_node")} then
     ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;
+  ${lockGuard(kit, "v_node")}
   select r.${v("content")} into v_content from ${versions.table("versions")} r
   where r.${v("id")} = drive_restore_revision.version
     and r.${v("subjectType")} = ${typeLit} and r.${v("subjectId")} = v_node.${n("id")}::text;
@@ -396,7 +510,7 @@ begin
   if not found then
     ${fail("DRIVE_REVISION_NOT_FOUND", "the revision's file was pruned", "P0002")}
   end if;
-  update ${T} x set ${n("attachment")} = v_file.${a("id")}${touch}
+  update ${T} x set ${n("attachment")} = v_file.${a("id")}${previewReset}${touch}
   where x.${n("id")} = v_node.${n("id")}
   returning * into v_node;
   perform ${versions.fn("version_insert")}(v_node.${n("tenant")}, ${typeLit}, v_node.${n("id")}::text,
@@ -424,7 +538,7 @@ declare
   v_batch uuid := gen_random_uuid();
   v_count integer := 0;
   v_child record;
-  v_id uuid;
+  v_id uuid;${kit.lockColumns ? `\n  v_locked ${T}%rowtype;` : ""}
 begin
   select * into v_node from ${T} x where x.${n("id")} = drive_trash.node${live("x")};
   if not found or not (${SERVICE_CALLER} or ${canRead(`v_node.${n("id")}`)}) then
@@ -439,6 +553,7 @@ begin
   if ${fn("drive_node_held")}(v_node.${n("id")}) then
     ${fail("DRIVE_HELD", "this item is under a legal hold", "42501")}
   end if;
+  ${subtreeLockGuard(kit, `v_node.${n("id")}`)}
   for v_child in
     select s.node_id, s.depth from ${fn("drive_subtree")}(v_node.${n("id")}) s
     join ${T} x on x.${n("id")} = s.node_id
@@ -636,8 +751,9 @@ ${userGrant(`${fn("drive_marked")}(${ctx.idType}, boolean, integer)`)}
       ? ""
       : `
 -- What a share link on a node opens: the node and, for a folder, its
--- children. node picks an item under the linked folder. For a file, file
--- carries the object for the server to sign a download URL with.
+-- children. node picks an item under the linked folder. For a file, object
+-- carries the original for the server to sign a download URL with, unless the
+-- link's download_allowed is false or a download block covers the file${previewColumn ? "; previews\n-- carries the rendered pages either way" : ""}. An upload link opens nothing.
 create or replace function ${fn("drive_link")}(token text, node uuid default null)
 returns jsonb
 language plpgsql
@@ -652,10 +768,11 @@ declare
   v_root text;
   v_expires timestamptz;
   v_tenant text;
+  v_download boolean;
   v_node ${T}%rowtype;
 begin
-  select l.${shareLinks.col("links", "id")}, l.${shareLinks.col("links", "role")}, l.${shareLinks.col("links", "subjectId")}, l.${shareLinks.col("links", "expiresAt")}, l.${shareLinks.col("links", "tenant")}::text
-    into v_link_id, v_role, v_root, v_expires, v_tenant
+  select l.${shareLinks.col("links", "id")}, l.${shareLinks.col("links", "role")}, l.${shareLinks.col("links", "subjectId")}, l.${shareLinks.col("links", "expiresAt")}, l.${shareLinks.col("links", "tenant")}::text, ${shareLinks.has("links", "downloadAllowed") ? `l.${shareLinks.col("links", "downloadAllowed")}` : "true"}
+    into v_link_id, v_role, v_root, v_expires, v_tenant, v_download
   from ${shareLinks.table("links")} l
   where ${liveShareLink(shareLinks, "l", "drive_link.token", typeLit)};
   if v_link_id is null or v_root !~ ${UUID_TEXT} then
@@ -666,8 +783,12 @@ begin
   if not found or not (v_root::uuid = any (${fn("drive_ancestors")}(v_node.${n("id")}))) then
     ${fail("DRIVE_LINK_NOT_FOUND", "this link does not open that item", "P0002")}
   end if;
+  if v_role = 'upload' then
+    ${fail("DRIVE_LINK_ROLE_INVALID", "an upload link takes files and opens nothing", "22023")}
+  end if;
+  v_download := coalesce(v_download, true) and not ${fn("drive_download_blocked")}(v_node.${n("id")});
   return jsonb_build_object(
-    'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires),
+    'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires, 'downloadAllowed', v_download),
     'node', ${json("v_node")},
     'children', case when v_node.${n("kind")} = 'folder' then (
       select coalesce(jsonb_agg(${json("c.r")} order by ${orderBy("(c.r)")}), '[]'::jsonb)
@@ -676,8 +797,13 @@ begin
       A === undefined
         ? ""
         : `,
-    'object', (select jsonb_build_object('bucket', f.${a("bucket")}, 'path', f.${a("path")}, 'mimeType', f.${a("mimeType")}, 'status', f.${a("status")})
-      from ${A} f where f.${a("id")} = v_node.${n("attachment")})`
+    'object', case when v_download then (select jsonb_build_object('bucket', f.${a("bucket")}, 'path', f.${a("path")}, 'mimeType', f.${a("mimeType")}, 'status', f.${a("status")})
+      from ${A} f where f.${a("id")} = v_node.${n("attachment")}) end${
+        previewColumn
+          ? `,
+    'previews', ${fn("drive_preview_json")}(v_node)`
+          : ""
+      }`
     }
   );
 end;
