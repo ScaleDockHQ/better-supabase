@@ -347,12 +347,15 @@ doesn't ship (`pgmq` for jobs, `btree_gist` for time tracking) lands in
 `@supabase/lite`, so database tests still run with `supabase test db`.
 
 To check security instead of syntax, `verifyFiles` applies the same files, reads the
-catalog and returns `Issue` values with `source: "verifier"` plus an access matrix:
+catalog and returns `Issue` values with `source: "verifier"` plus an access matrix. A file
+Postgres rejects comes first as a `sql_error` issue with `source: "sql"`, because its tables
+are missing from the catalog, and `skipped` lists the modules PGlite can't run, as in
+`validateDesign`:
 
 ```ts
 import { verifyFiles } from "better-supabase/create/lite";
 
-const { issues, matrix } = await verifyFiles(files, {
+const { issues, matrix, skipped } = await verifyFiles(files, {
   tenantScoped: ["public.projects"],
 });
 // issue codes: verify_rls_off, verify_policy_true, verify_anon_write,

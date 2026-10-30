@@ -51,6 +51,8 @@ describe("accessMatrixTests", () => {
     expect(anon?.contents).toContain("set local role anon;");
     expect(anon?.contents).toContain("plan(1)");
     expect(anon?.contents).toContain("anon select public.notes reaches no row");
+    expect(anon?.contents).toContain('select 1 from "public"."notes"');
+    expect(anon?.contents).not.toContain("count(*)");
     expect(signedIn?.contents).toContain("set local role authenticated;");
     expect(signedIn?.contents).toContain("plan(2)");
     expect(signedIn?.contents).toContain(

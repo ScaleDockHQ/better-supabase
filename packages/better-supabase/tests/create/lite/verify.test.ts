@@ -189,4 +189,37 @@ describe("verifyFiles", () => {
 
     expect(reached).toEqual([]);
   }, 60_000);
+
+  it("reads a policy to public and reports the files Postgres rejects", async () => {
+    const result = await verifyFiles([
+      {
+        path: "supabase/schemas/notes.sql",
+        module: "notes",
+        contents: `create table public.notes (id int primary key);
+alter table public.notes enable row level security;
+grant select on public.notes to authenticated;
+create policy notes_read on public.notes for select using (id > 0);`,
+      },
+      {
+        path: "supabase/schemas/broken.sql",
+        module: "broken",
+        contents: "create table public.broken (",
+      },
+    ]);
+
+    expect(
+      result.issues
+        .filter((each) => each.code === "sql_error")
+        .map((each) => each.table),
+    ).toEqual(["broken"]);
+    expect(result.skipped).toEqual([]);
+    expect(
+      result.matrix.find(
+        (each) =>
+          each.table === "public.notes" &&
+          each.role === "authenticated" &&
+          each.command === "select",
+      )?.reach,
+    ).toBe("policy");
+  }, 60_000);
 });

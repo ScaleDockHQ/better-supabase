@@ -92,7 +92,7 @@ function statementOf(command: MatrixCommand, table: string): string {
 
   switch (command) {
     case "select": {
-      return `select count(*) from ${target}`;
+      return `select 1 from ${target}`;
     }
 
     case "insert": {
