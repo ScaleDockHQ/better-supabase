@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:6bc665dce5d73b34ae006ebda8e73b6ce4a2eb32c653c3df8e89f2f8da1178bc
+-- @bsb-hash sha256:867c8bf7564952aaeca73995c3641c94aa4e0d5eb85998c4c8ca3ff8726a952c
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,6 +106,9 @@ create table if not exists "better_supabase"."projects" (
   unique ("tenant_id", "key"),
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
+alter table "better_supabase"."projects" add column if not exists "budget_amount" bigint check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column if not exists "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column if not exists "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
@@ -729,7 +732,9 @@ revoke execute on function "better_supabase"."get_work_item"(uuid) from public, 
 grant execute on function "better_supabase"."get_work_item"(uuid) to authenticated, service_role;
 
 -- Creates a project (project null) or changes the keys attrs names: key,
--- name, ownerId, status, startOn, targetOn, archived.
+-- name, ownerId, status, startOn, targetOn, archived, and the budget:
+-- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
+-- With accounting, the project is a value of the project dimension.
 create or replace function "better_supabase"."save_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -747,9 +752,10 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on")
+      insert into "better_supabase"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
       values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
-        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date)
+        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date,
+        (save_project.attrs ->> 'budgetAmount')::bigint, upper(save_project.attrs ->> 'budgetCurrency'), (save_project.attrs ->> 'budgetHours')::numeric)
       returning "id" into v_id;
     else
       update "better_supabase"."projects" x set
@@ -759,6 +765,9 @@ begin
         "status" = coalesce(save_project.attrs ->> 'status', x."status"),
         "start_on" = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x."start_on" end,
         "target_on" = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x."target_on" end,
+        "budget_amount" = case when save_project.attrs ? 'budgetAmount' then (save_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
+        "budget_currency" = case when save_project.attrs ? 'budgetCurrency' then upper(save_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
+        "budget_hours" = case when save_project.attrs ? 'budgetHours' then (save_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
         "archived_at" = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_project.tenant;
@@ -766,12 +775,19 @@ begin
         raise exception 'project not found' using errcode = 'P0002', hint = 'WORK_ITEM_PROJECT_NOT_FOUND';
       end if;
     end if;
+    if exists (
+      select 1 from "better_supabase"."projects" x
+      where x."id" = v_id and x."budget_amount" is not null and x."budget_currency" is null
+    ) then
+      raise exception 'a budget amount needs a currency' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
+    end if;
   exception when unique_violation then
     raise exception 'another project has this key' using errcode = '23505', hint = 'WORK_ITEM_PROJECT_KEY_TAKEN';
   when check_violation or not_null_violation then
     raise exception 'a project needs a key of capitals and a name, and ends after it starts' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
   end;
-  return (select to_jsonb(x) || jsonb_build_object('progress', (
+
+  return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
       from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
@@ -973,7 +989,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:0de5b0f19734aaf08d73dd91db139f3b42ba13d489f63d58fc058531aa7541b4
+-- @bsb-hash sha256:01783fdd6001a62d995996357eef304218f176bc0f03c07cd71234280ece7d1b
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1078,6 +1094,9 @@ create table if not exists "better_supabase"."projects" (
   unique ("tenant_id", "key"),
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
+alter table "better_supabase"."projects" add column if not exists "budget_amount" bigint check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column if not exists "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column if not exists "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
@@ -1873,7 +1892,9 @@ revoke execute on function "better_supabase"."list_work_item_watchers"(uuid) fro
 grant execute on function "better_supabase"."list_work_item_watchers"(uuid) to authenticated, service_role;
 
 -- Creates a project (project null) or changes the keys attrs names: key,
--- name, ownerId, status, startOn, targetOn, archived.
+-- name, ownerId, status, startOn, targetOn, archived, and the budget:
+-- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
+-- With accounting, the project is a value of the project dimension.
 create or replace function "better_supabase"."save_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -1891,9 +1912,10 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on")
+      insert into "better_supabase"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
       values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
-        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date)
+        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date,
+        (save_project.attrs ->> 'budgetAmount')::bigint, upper(save_project.attrs ->> 'budgetCurrency'), (save_project.attrs ->> 'budgetHours')::numeric)
       returning "id" into v_id;
     else
       update "better_supabase"."projects" x set
@@ -1903,6 +1925,9 @@ begin
         "status" = coalesce(save_project.attrs ->> 'status', x."status"),
         "start_on" = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x."start_on" end,
         "target_on" = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x."target_on" end,
+        "budget_amount" = case when save_project.attrs ? 'budgetAmount' then (save_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
+        "budget_currency" = case when save_project.attrs ? 'budgetCurrency' then upper(save_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
+        "budget_hours" = case when save_project.attrs ? 'budgetHours' then (save_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
         "archived_at" = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_project.tenant;
@@ -1910,12 +1935,21 @@ begin
         raise exception 'project not found' using errcode = 'P0002', hint = 'WORK_ITEM_PROJECT_NOT_FOUND';
       end if;
     end if;
+    if exists (
+      select 1 from "better_supabase"."projects" x
+      where x."id" = v_id and x."budget_amount" is not null and x."budget_currency" is null
+    ) then
+      raise exception 'a budget amount needs a currency' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
+    end if;
   exception when unique_violation then
     raise exception 'another project has this key' using errcode = '23505', hint = 'WORK_ITEM_PROJECT_KEY_TAKEN';
   when check_violation or not_null_violation then
     raise exception 'a project needs a key of capitals and a name, and ends after it starts' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
   end;
-  return (select to_jsonb(x) || jsonb_build_object('progress', (
+
+  perform "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
+  from "better_supabase"."projects" x where x."id" = v_id;
+  return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
       from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
@@ -2117,7 +2151,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:05984619574effc7831cca5fbdbcdda5527b4f0b522f961bae59b971d3aa1edb
+-- @bsb-hash sha256:7c7f2e047b3f3229e6e4d3cf8078065c759b03ec810024a7193ce908781a8d50
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2227,6 +2261,9 @@ create table if not exists "app_private"."projects" (
   unique ("tenant_id", "key"),
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
+alter table "app_private"."projects" add column if not exists "budget_amount" bigint check ("budget_amount" >= 0);
+alter table "app_private"."projects" add column if not exists "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "app_private"."projects" add column if not exists "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
 alter table "app_private"."projects" enable row level security;
 revoke all on "app_private"."projects" from public, anon, authenticated;
 grant select on "app_private"."projects" to authenticated;
@@ -2850,7 +2887,9 @@ revoke execute on function "app_private"."get_work_item"(uuid) from public, anon
 grant execute on function "app_private"."get_work_item"(uuid) to authenticated, service_role;
 
 -- Creates a project (project null) or changes the keys attrs names: key,
--- name, ownerId, status, startOn, targetOn, archived.
+-- name, ownerId, status, startOn, targetOn, archived, and the budget:
+-- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
+-- With accounting, the project is a value of the project dimension.
 create or replace function "app_private"."save_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -2868,9 +2907,10 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "app_private"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on")
+      insert into "app_private"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
       values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
-        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date)
+        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date,
+        (save_project.attrs ->> 'budgetAmount')::bigint, upper(save_project.attrs ->> 'budgetCurrency'), (save_project.attrs ->> 'budgetHours')::numeric)
       returning "id" into v_id;
     else
       update "app_private"."projects" x set
@@ -2880,6 +2920,9 @@ begin
         "status" = coalesce(save_project.attrs ->> 'status', x."status"),
         "start_on" = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x."start_on" end,
         "target_on" = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x."target_on" end,
+        "budget_amount" = case when save_project.attrs ? 'budgetAmount' then (save_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
+        "budget_currency" = case when save_project.attrs ? 'budgetCurrency' then upper(save_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
+        "budget_hours" = case when save_project.attrs ? 'budgetHours' then (save_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
         "archived_at" = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_project.tenant;
@@ -2887,12 +2930,19 @@ begin
         raise exception 'project not found' using errcode = 'P0002', hint = 'WORK_ITEM_PROJECT_NOT_FOUND';
       end if;
     end if;
+    if exists (
+      select 1 from "app_private"."projects" x
+      where x."id" = v_id and x."budget_amount" is not null and x."budget_currency" is null
+    ) then
+      raise exception 'a budget amount needs a currency' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
+    end if;
   exception when unique_violation then
     raise exception 'another project has this key' using errcode = '23505', hint = 'WORK_ITEM_PROJECT_KEY_TAKEN';
   when check_violation or not_null_violation then
     raise exception 'a project needs a key of capitals and a name, and ends after it starts' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
   end;
-  return (select to_jsonb(x) || jsonb_build_object('progress', (
+
+  return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
       from "app_private"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "app_private"."projects" x where x."id" = v_id);
@@ -3094,7 +3144,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:a67d78a57123241a1a72d422486979e6fa81e74127e7770f05462e36a9246ef3
+-- @bsb-hash sha256:0df92f6ded4c19c56d6aa66becf08c321a189b912264941286cf790e3f2a01da
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3199,6 +3249,9 @@ create table if not exists "better_supabase"."projects" (
   unique ("tenant_id", "key"),
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
+alter table "better_supabase"."projects" add column if not exists "budget_amount" bigint check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column if not exists "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column if not exists "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
@@ -3822,7 +3875,9 @@ revoke execute on function "better_supabase"."get_work_item"(uuid) from public, 
 grant execute on function "better_supabase"."get_work_item"(uuid) to authenticated, service_role;
 
 -- Creates a project (project null) or changes the keys attrs names: key,
--- name, ownerId, status, startOn, targetOn, archived.
+-- name, ownerId, status, startOn, targetOn, archived, and the budget:
+-- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
+-- With accounting, the project is a value of the project dimension.
 create or replace function "better_supabase"."save_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -3840,9 +3895,10 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on")
+      insert into "better_supabase"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
       values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
-        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date)
+        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date,
+        (save_project.attrs ->> 'budgetAmount')::bigint, upper(save_project.attrs ->> 'budgetCurrency'), (save_project.attrs ->> 'budgetHours')::numeric)
       returning "id" into v_id;
     else
       update "better_supabase"."projects" x set
@@ -3852,6 +3908,9 @@ begin
         "status" = coalesce(save_project.attrs ->> 'status', x."status"),
         "start_on" = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x."start_on" end,
         "target_on" = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x."target_on" end,
+        "budget_amount" = case when save_project.attrs ? 'budgetAmount' then (save_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
+        "budget_currency" = case when save_project.attrs ? 'budgetCurrency' then upper(save_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
+        "budget_hours" = case when save_project.attrs ? 'budgetHours' then (save_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
         "archived_at" = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_project.tenant;
@@ -3859,12 +3918,19 @@ begin
         raise exception 'project not found' using errcode = 'P0002', hint = 'WORK_ITEM_PROJECT_NOT_FOUND';
       end if;
     end if;
+    if exists (
+      select 1 from "better_supabase"."projects" x
+      where x."id" = v_id and x."budget_amount" is not null and x."budget_currency" is null
+    ) then
+      raise exception 'a budget amount needs a currency' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
+    end if;
   exception when unique_violation then
     raise exception 'another project has this key' using errcode = '23505', hint = 'WORK_ITEM_PROJECT_KEY_TAKEN';
   when check_violation or not_null_violation then
     raise exception 'a project needs a key of capitals and a name, and ends after it starts' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
   end;
-  return (select to_jsonb(x) || jsonb_build_object('progress', (
+
+  return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
       from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
@@ -4207,7 +4273,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:a5f545bbe65bdbc81a81dfa1534e75fa20a84a555453f73c4e4bbf10d1646b68
+-- @bsb-hash sha256:4440c58970782257bb524962705b44821a48bd90112a2c301026fd2d871ce711
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4326,6 +4392,9 @@ alter table "better_supabase"."projects" add column if not exists "archived_at" 
 alter table "better_supabase"."projects" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."projects" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "projects_tenant_id_key_key" on "better_supabase"."projects" ("tenant_id", "key");
+alter table "better_supabase"."projects" add column if not exists "budget_amount" bigint check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column if not exists "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column if not exists "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 grant select on "better_supabase"."projects" to authenticated;
 grant all on "better_supabase"."projects" to service_role;
@@ -4938,7 +5007,9 @@ revoke execute on function "better_supabase"."get_work_item"(uuid) from public, 
 grant execute on function "better_supabase"."get_work_item"(uuid) to authenticated, service_role;
 
 -- Creates a project (project null) or changes the keys attrs names: key,
--- name, ownerId, status, startOn, targetOn, archived.
+-- name, ownerId, status, startOn, targetOn, archived, and the budget:
+-- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
+-- With accounting, the project is a value of the project dimension.
 create or replace function "better_supabase"."save_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -4956,9 +5027,10 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on")
+      insert into "better_supabase"."projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
       values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
-        better_supabase.as_column_type(coalesce(save_project.attrs ->> 'status', 'planned'), (null::"better_supabase"."projects")."status"), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date)
+        better_supabase.as_column_type(coalesce(save_project.attrs ->> 'status', 'planned'), (null::"better_supabase"."projects")."status"), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date,
+        (save_project.attrs ->> 'budgetAmount')::bigint, upper(save_project.attrs ->> 'budgetCurrency'), (save_project.attrs ->> 'budgetHours')::numeric)
       returning "id" into v_id;
     else
       update "better_supabase"."projects" x set
@@ -4968,6 +5040,9 @@ begin
         "status" = coalesce(better_supabase.as_column_type(save_project.attrs ->> 'status', (null::"better_supabase"."projects")."status"), x."status"),
         "start_on" = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x."start_on" end,
         "target_on" = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x."target_on" end,
+        "budget_amount" = case when save_project.attrs ? 'budgetAmount' then (save_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
+        "budget_currency" = case when save_project.attrs ? 'budgetCurrency' then upper(save_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
+        "budget_hours" = case when save_project.attrs ? 'budgetHours' then (save_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
         "archived_at" = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."tenant_id" = save_project.tenant;
@@ -4975,12 +5050,19 @@ begin
         raise exception 'project not found' using errcode = 'P0002', hint = 'WORK_ITEM_PROJECT_NOT_FOUND';
       end if;
     end if;
+    if exists (
+      select 1 from "better_supabase"."projects" x
+      where x."id" = v_id and x."budget_amount" is not null and x."budget_currency" is null
+    ) then
+      raise exception 'a budget amount needs a currency' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
+    end if;
   exception when unique_violation then
     raise exception 'another project has this key' using errcode = '23505', hint = 'WORK_ITEM_PROJECT_KEY_TAKEN';
   when check_violation or not_null_violation then
     raise exception 'a project needs a key of capitals and a name, and ends after it starts' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
   end;
-  return (select to_jsonb(x) || jsonb_build_object('progress', (
+
+  return (select to_jsonb(x) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
       from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);
@@ -5182,7 +5264,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@2 managed
--- @bsb-hash sha256:1d63ff08691497268bc2e1c4861f471d040d6dfd467449467832357501d209bd
+-- @bsb-hash sha256:4872d6d880a49b39c60f201a24110f18fb1bda6f168848bd35b31ed33940fac4
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5287,6 +5369,9 @@ create table if not exists "better_supabase"."projects" (
   unique ("org_id", "key"),
   check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
+alter table "better_supabase"."projects" add column if not exists "budget_amount" bigint check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column if not exists "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column if not exists "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
@@ -5910,7 +5995,9 @@ revoke execute on function "better_supabase"."get_work_item"(uuid) from public, 
 grant execute on function "better_supabase"."get_work_item"(uuid) to authenticated, service_role;
 
 -- Creates a project (project null) or changes the keys attrs names: key,
--- name, ownerId, status, startOn, targetOn, archived.
+-- name, ownerId, status, startOn, targetOn, archived, and the budget:
+-- budgetAmount (minor units as text) with budgetCurrency, and budgetHours.
+-- With accounting, the project is a value of the project dimension.
 create or replace function "better_supabase"."save_project"(tenant uuid, project uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -5928,9 +6015,10 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."projects" ("org_id", "key", "name", "owner_user_id", "status", "start_on", "target_on")
+      insert into "better_supabase"."projects" ("org_id", "key", "name", "owner_user_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
       values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
-        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date)
+        coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date,
+        (save_project.attrs ->> 'budgetAmount')::bigint, upper(save_project.attrs ->> 'budgetCurrency'), (save_project.attrs ->> 'budgetHours')::numeric)
       returning "id" into v_id;
     else
       update "better_supabase"."projects" x set
@@ -5940,6 +6028,9 @@ begin
         "status" = coalesce(save_project.attrs ->> 'status', x."status"),
         "start_on" = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x."start_on" end,
         "target_on" = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x."target_on" end,
+        "budget_amount" = case when save_project.attrs ? 'budgetAmount' then (save_project.attrs ->> 'budgetAmount')::bigint else x."budget_amount" end,
+        "budget_currency" = case when save_project.attrs ? 'budgetCurrency' then upper(save_project.attrs ->> 'budgetCurrency') else x."budget_currency" end,
+        "budget_hours" = case when save_project.attrs ? 'budgetHours' then (save_project.attrs ->> 'budgetHours')::numeric else x."budget_hours" end,
         "archived_at" = case when save_project.attrs ? 'archived' then (case when (save_project.attrs ->> 'archived')::boolean then coalesce(x."archived_at", now()) end) else x."archived_at" end,
         "updated_at" = now()
       where x."id" = v_id and x."org_id" = save_project.tenant;
@@ -5947,12 +6038,19 @@ begin
         raise exception 'project not found' using errcode = 'P0002', hint = 'WORK_ITEM_PROJECT_NOT_FOUND';
       end if;
     end if;
+    if exists (
+      select 1 from "better_supabase"."projects" x
+      where x."id" = v_id and x."budget_amount" is not null and x."budget_currency" is null
+    ) then
+      raise exception 'a budget amount needs a currency' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
+    end if;
   exception when unique_violation then
     raise exception 'another project has this key' using errcode = '23505', hint = 'WORK_ITEM_PROJECT_KEY_TAKEN';
   when check_violation or not_null_violation then
     raise exception 'a project needs a key of capitals and a name, and ends after it starts' using errcode = '22023', hint = 'WORK_ITEM_PROJECT_INVALID';
   end;
-  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('progress', (
+
+  return (select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('budget_amount', x."budget_amount"::text) || jsonb_build_object('progress', (
       select case when count(*) = 0 then null else round(100.0 * count(*) filter (where y."state" = 'completed') / count(*) filter (where y."state" <> 'canceled')) end
       from "better_supabase"."work_items" y where y."project_id" = x."id" and y."archived_at" is null
     )) from "better_supabase"."projects" x where x."id" = v_id);

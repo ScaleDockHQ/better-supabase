@@ -8,6 +8,7 @@ import {
   assetsBinding,
   createAssets,
 } from "../../../src/blocks/assets/index.ts";
+import { money } from "../../../src/commerce/money.ts";
 
 const AT = "2026-10-22T10:00:00Z";
 
@@ -609,5 +610,203 @@ describe("assetsBinding", () => {
     expect(assetsBlock.record).toBe(assetsBinding);
     expect(assetsBinding.events).toEqual(["asset.*"]);
     expect(assetsEvents.types).toContain("asset.assigned");
+  });
+});
+
+describe("asset book values", () => {
+  const BOOKED = {
+    ...ASSET,
+    currency: "EUR",
+    acquisitionCost: "12000",
+    acquiredOn: "2026-01-15",
+    usefulLifeMonths: 12,
+    residualValue: "0",
+    depreciationMethod: "straight_line",
+    depreciationRateBps: null,
+    disposedOn: null,
+    disposalAmount: null,
+  };
+
+  const MONTH = {
+    id: "d1",
+    organizationId: "org-1",
+    assetId: "a1",
+    periodStart: "2026-01-01",
+    amount: "1000",
+    currency: "EUR",
+    entryId: "e1",
+    createdAt: AT,
+  };
+
+  it("sends the book value fields as minor units and reads them back", async () => {
+    const fake = fakeTransport({ update_asset: BOOKED });
+    const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
+
+    const asset = await assets
+      .updateAsset("a1", {
+        acquisitionCost: money(12_000n, "EUR"),
+        acquiredOn: Temporal.PlainDate.from("2026-01-15"),
+        usefulLifeMonths: 12,
+        residualValue: null,
+        depreciationMethod: "straight_line",
+      })
+      .orThrow();
+
+    expect(fake.calls[0]?.[1]).toEqual({
+      asset_id: "a1",
+      patch: {
+        acquisitionCost: "12000",
+        currency: "EUR",
+        acquiredOn: "2026-01-15",
+        usefulLifeMonths: 12,
+        residualValue: null,
+        depreciationMethod: "straight_line",
+      },
+    });
+    expect(asset).toMatchObject({
+      acquisitionCost: money(12_000n, "EUR"),
+      residualValue: money(0n, "EUR"),
+      usefulLifeMonths: 12,
+      depreciationMethod: "straight_line",
+    });
+    expect(asset.acquiredOn?.toString()).toBe("2026-01-15");
+    expect(asset.disposedOn).toBeUndefined();
+  });
+
+  it("refuses a residual value in another currency than the cost", async () => {
+    const fake = fakeTransport({});
+    const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
+
+    const result = await assets.updateAsset("a1", {
+      acquisitionCost: money(12_000n, "EUR"),
+      residualValue: money(100n, "USD"),
+    });
+
+    expect(result.ok ? undefined : result.error.hint).toBe("CURRENCY_MISMATCH");
+    expect(fake.calls).toEqual([]);
+  });
+
+  it("lists the booked months and disposes of an asset", async () => {
+    const fake = fakeTransport({
+      list_asset_depreciations: [MONTH, { ...MONTH, id: "d2", entryId: null }],
+      dispose_asset: {
+        ...BOOKED,
+        status: "retired",
+        disposedOn: "2026-05-10",
+        disposalAmount: "9000",
+        accumulatedDepreciation: "4000",
+        bookValue: "8000",
+        locationPath: [],
+        links: {},
+      },
+    });
+
+    const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
+
+    const months = await assets.depreciations("a1").orThrow();
+
+    expect(months[0]).toMatchObject({
+      id: "d1",
+      amount: money(1000n, "EUR"),
+      entryId: "e1",
+    });
+    expect(months[0]?.periodStart.toString()).toBe("2026-01-01");
+    expect(months[1]?.entryId).toBeUndefined();
+
+    const disposed = await assets
+      .dispose("a1", {
+        on: Temporal.PlainDate.from("2026-05-10"),
+        proceeds: money(9000n, "EUR"),
+      })
+      .orThrow();
+
+    expect(disposed).toMatchObject({
+      status: "retired",
+      disposalAmount: money(9000n, "EUR"),
+      accumulatedDepreciation: money(4000n, "EUR"),
+      bookValue: money(8000n, "EUR"),
+    });
+    expect(disposed.disposedOn?.toString()).toBe("2026-05-10");
+
+    await assets
+      .dispose("a1", { on: Temporal.PlainDate.from("2026-05-10") })
+      .orThrow();
+
+    expect(fake.calls.slice(1)).toEqual([
+      [
+        "dispose_asset",
+        {
+          asset_id: "a1",
+          disposed_on: "2026-05-10",
+          amount: "9000",
+          currency: "EUR",
+        },
+      ],
+      [
+        "dispose_asset",
+        {
+          asset_id: "a1",
+          disposed_on: "2026-05-10",
+          amount: "0",
+          currency: null,
+        },
+      ],
+    ]);
+  });
+
+  it("runs depreciation for one organization or all of them", async () => {
+    const fake = fakeTransport({
+      run_asset_depreciation: { until: "2026-03-31", assets: 2, months: 5 },
+    });
+
+    const assets = createAssets({ transport: fake.transport });
+
+    const run = await assets
+      .runDepreciation({
+        organizationId: "org-1",
+        until: Temporal.PlainDate.from("2026-03-31"),
+      })
+      .orThrow();
+
+    expect(run).toMatchObject({ assets: 2, months: 5 });
+    expect(run.until.toString()).toBe("2026-03-31");
+
+    await assets.runDepreciation().orThrow();
+
+    expect(fake.calls.map(([, args]) => args)).toEqual([
+      { tenant: "org-1", until: "2026-03-31" },
+      { tenant: null, until: null },
+    ]);
+  });
+
+  it("reads an asset without a currency or a method", async () => {
+    const fake = fakeTransport({
+      get_asset: {
+        ...ASSET,
+        currency: null,
+        depreciationMethod: "none",
+        acquisitionCost: null,
+        locationPath: [],
+        links: {},
+      },
+    });
+
+    const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
+
+    const asset = await assets.asset("a1").orThrow();
+
+    expect(asset.depreciationMethod).toBe("none");
+    expect(asset.acquisitionCost).toBeUndefined();
+    expect(asset.bookValue).toBeUndefined();
+  });
+
+  it("fails a month without an amount", async () => {
+    const fake = fakeTransport({
+      list_asset_depreciations: [{ ...MONTH, amount: null }],
+    });
+
+    const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
+
+    expect((await assets.depreciations("a1")).ok).toBe(false);
   });
 });

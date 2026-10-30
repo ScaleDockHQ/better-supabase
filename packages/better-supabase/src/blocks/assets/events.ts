@@ -31,6 +31,35 @@ export interface AssetEventData {
   readonly assigneeId: string | null;
 }
 
+/** `asset.depreciated`: one month of an asset's depreciation was booked. */
+export interface AssetDepreciatedEventData {
+  readonly organizationId: string;
+  /** The depreciation row. */
+  readonly id: string;
+  readonly assetId: string;
+  /** The first day of the month, `YYYY-MM-DD`. */
+  readonly periodStart: string;
+  /** Minor units, as text. */
+  readonly amount: string;
+  readonly currency: string;
+  /** The accounting entry, when accounting books it. */
+  readonly entryId: string | null;
+}
+
+/** `asset.disposed`: an asset was taken off the books. */
+export interface AssetDisposedEventData {
+  readonly organizationId: string;
+  /** The asset. */
+  readonly id: string;
+  /** `YYYY-MM-DD`. */
+  readonly disposedOn: string;
+  /** The proceeds in minor units, as text. */
+  readonly amount: string;
+  readonly currency: string | null;
+  /** The accounting entry, when accounting books it. */
+  readonly entryId: string | null;
+}
+
 /** The events of the `assets` block: type to data. */
 export type AssetsEvents = {
   readonly "asset_location.created": AssetLocationEventData;
@@ -40,6 +69,8 @@ export type AssetsEvents = {
   readonly "asset.updated": AssetEventData;
   readonly "asset.assigned": AssetEventData;
   readonly "asset.released": AssetEventData;
+  readonly "asset.depreciated": AssetDepreciatedEventData;
+  readonly "asset.disposed": AssetDisposedEventData;
 };
 
 /** The `assets` block's event types, for its manifest and `onBlockEvent`. */
@@ -51,4 +82,6 @@ export const assetsEvents: Events<AssetsEvents> = defineEvents({
   "asset.updated": event<AssetEventData>(),
   "asset.assigned": event<AssetEventData>(),
   "asset.released": event<AssetEventData>(),
+  "asset.depreciated": event<AssetDepreciatedEventData>(),
+  "asset.disposed": event<AssetDisposedEventData>(),
 });

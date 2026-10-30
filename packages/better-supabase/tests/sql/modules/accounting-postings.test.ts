@@ -159,7 +159,19 @@ describe("accounting postings", () => {
   it("refuses an unknown source and renders the tax report and budgets", () => {
     const alone = render([...BASE, "outbox", "accounting"])["accounting"] ?? "";
 
-    expect(body(alone, "accounting_post_source")).toContain("or true");
+    expect(body(alone, "accounting_post_source")).toContain(
+      "source_type not in ('asset_depreciation', 'asset_disposal')",
+    );
+    expect(
+      body(
+        render([
+          ...BASE.filter((name) => name !== "assets"),
+          "outbox",
+          "accounting",
+        ])["accounting"] ?? "",
+        "accounting_post_source",
+      ),
+    ).toContain("or true");
 
     expect(
       [

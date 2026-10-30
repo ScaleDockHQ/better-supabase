@@ -9,6 +9,7 @@ export const timeRateInputSchema: EntitySchema<TimeRateInput> =
     title: "TimeRateInput",
     fields: {
       rate: moneyField,
+      cost: { ...moneyField, optional: true },
       userId: { kind: "uuid", optional: true },
       subject: {
         kind: "json",
@@ -48,6 +49,7 @@ export const timeRateSectionInputSchema: EntitySchema<TimeRateSectionInput> =
     title: "TimeRateSectionInput",
     fields: {
       rate: moneyField,
+      cost: { ...moneyField, optional: true },
       userId: { kind: "uuid", optional: true },
       effectiveFrom: { kind: "plainDate", optional: true },
     },

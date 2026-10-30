@@ -28,7 +28,11 @@ export function accountingPostingFunctions(ctx: BlockSqlContext): string {
   const entries = ctx.table("entries");
   const lines = ctx.table("lines");
   const taxes = ctx.table("taxCodes");
+  const dimensions = ctx.table("dimensions");
+  const values = ctx.table("dimensionValues");
   const s = (column: string): string => ctx.col("settings", column);
+  const d = (column: string): string => ctx.col("dimensions", column);
+  const v = (column: string): string => ctx.col("dimensionValues", column);
   const a = (column: string): string => ctx.col("accounts", column);
   const r = (column: string): string => ctx.col("roles", column);
   const j = (column: string): string => ctx.col("journals", column);
@@ -282,6 +286,34 @@ begin
 end;
 $$;
 revoke execute on function ${fn("accounting_reverse_source")}(${idType}, text, text, date) from public, anon, authenticated;
+
+-- Keeps a dimension value in step with another block's record, such as a
+-- project, so its documents can carry it: creates the dimension when it is
+-- missing, and sets the value's name and whether it is archived.
+create or replace function ${fn("accounting_sync_dimension_value")}(tenant ${idType}, dimension_key text, dimension_name text, code text, value_name text, archived boolean default false)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_dimension uuid;
+begin
+  insert into ${dimensions} (${d("tenant")}, ${d("key")}, ${d("name")})
+  values (accounting_sync_dimension_value.tenant, accounting_sync_dimension_value.dimension_key, accounting_sync_dimension_value.dimension_name)
+  on conflict (${d("tenant")}, ${d("key")}) do nothing;
+  select y.${d("id")} into v_dimension from ${dimensions} y
+  where y.${d("tenant")} = accounting_sync_dimension_value.tenant and y.${d("key")} = accounting_sync_dimension_value.dimension_key;
+  insert into ${values} as y (${v("tenant")}, ${v("dimension")}, ${v("code")}, ${v("name")}, ${v("archivedAt")})
+  values (accounting_sync_dimension_value.tenant, v_dimension, accounting_sync_dimension_value.code, left(accounting_sync_dimension_value.value_name, 200),
+    case when accounting_sync_dimension_value.archived then now() end)
+  on conflict (${v("dimension")}, ${v("code")}) do update
+    set ${v("name")} = excluded.${v("name")},
+      ${v("archivedAt")} = case when accounting_sync_dimension_value.archived then coalesce(y.${v("archivedAt")}, now()) end;
+end;
+$$;
+revoke execute on function ${fn("accounting_sync_dimension_value")}(${idType}, text, text, text, text, boolean) from public, anon, authenticated;
 `;
 }
 

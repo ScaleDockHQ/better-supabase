@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createTasks } from "../../../src/blocks/tasks/index.ts";
+import { money } from "../../../src/commerce/money.ts";
 
 function transport(
   results: Record<string, (args: Record<string, unknown>) => unknown>,
@@ -461,5 +462,71 @@ describe("tasks block, sparse rows and options", () => {
     expect(await items.watchers("w1").orThrow()).toEqual([
       { userId: "u2", level: "all" },
     ]);
+  });
+});
+
+describe("project budgets", () => {
+  const PROJECT = {
+    id: "p1",
+    key: "APO",
+    name: "Apollo",
+    status: "active",
+    start_on: null,
+    target_on: null,
+  };
+
+  it("sends a budget as minor units and its currency, and reads it back", async () => {
+    const t = transport({
+      save_project: () => ({
+        ...PROJECT,
+        budget_amount: "50000",
+        budget_currency: "EUR",
+        budget_hours: "10.50",
+      }),
+    });
+
+    const items = createTasks({ transport: t });
+
+    const project = await items
+      .saveProject("o", {
+        key: "APO",
+        name: "Apollo",
+        budget: money(50_000n, "EUR"),
+        budgetHours: 10.5,
+      })
+      .orThrow();
+
+    expect(project).toMatchObject({
+      budget: money(50_000n, "EUR"),
+      budgetHours: 10.5,
+    });
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "o",
+      project: null,
+      attrs: {
+        key: "APO",
+        name: "Apollo",
+        budgetHours: 10.5,
+        budgetAmount: "50000",
+        budgetCurrency: "EUR",
+      },
+    });
+  });
+
+  it("clears a budget, and reads a project without one", async () => {
+    const t = transport({ save_project: () => PROJECT });
+    const items = createTasks({ transport: t });
+
+    const project = await items
+      .saveProject("o", { id: "p1", budget: null, budgetHours: null })
+      .orThrow();
+
+    expect(project.budget).toBeUndefined();
+    expect(project.budgetHours).toBeUndefined();
+    expect(t.calls[0]?.[1]).toEqual({
+      tenant: "o",
+      project: "p1",
+      attrs: { budgetHours: null, budgetAmount: null, budgetCurrency: null },
+    });
   });
 });

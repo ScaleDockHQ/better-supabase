@@ -20,6 +20,7 @@ import { subjectInTenant } from "../subject-check-sql.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { subjectsOption } from "../subjects.ts";
+import { costsProjects, projectCostsSql } from "./billable-time-costing.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import {
@@ -62,10 +63,11 @@ const NAMES: BlockSqlNames = {
         rate: "rate",
         currency: "currency",
         effectiveFrom: "effective_from",
+        cost: "cost_amount",
         createdBy: "created_by",
         createdAt: "created_at",
       },
-      optional: ["createdBy", "createdAt"],
+      optional: ["cost", "createdBy", "createdAt"],
     },
     billed: {
       name: "time_invoice_entries",
@@ -144,7 +146,13 @@ create table if not exists ${rates} (
   check ((${r("subjectType")} is null) = (${r("subjectId")} is null)),
   unique nulls not distinct (${rateKey.join(", ")})
 );${rateKeyIndex}
-create index if not exists ${index("rates", "lookup_idx")} on ${rates} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("user")}, ${r("effectiveFrom")} desc);
+${
+  ctx.has("rates", "cost")
+    ? `-- What an hour costs the organization, in the rate's currency (project costing).
+alter table ${rates} add column if not exists ${r("cost")} bigint check (${r("cost")} >= 0);
+`
+    : ""
+}create index if not exists ${index("rates", "lookup_idx")} on ${rates} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("user")}, ${r("effectiveFrom")} desc);
 ${lockModuleTable(ctx, "rates", { read: true })}
 drop policy if exists ${index("rates", "read")} on ${rates};
 ${renderPolicy(makePolicy({ table: rates, name: index("rates", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(r("tenant"), read) }), { target: rates })}
@@ -189,6 +197,7 @@ function functions(ctx: BlockSqlContext): string {
   const invoice = ctx.permission("invoice", ops.invoice);
   const zone = sqlString(weekZone(ctx));
   const createdBy = ctx.has("rates", "createdBy");
+  const cost = ctx.has("rates", "cost");
 
   // The app's table can have columns named like the entry columns joined next to them.
   const billedColumns = ctx.owns("billed")
@@ -207,7 +216,7 @@ function functions(ctx: BlockSqlContext): string {
     fail("BILLABLE_TIME_FORBIDDEN", message);
 
   const rateJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'rate', ${row}.${r("rate")}::text, 'currency', ${row}.${r("currency")}, 'effectiveFrom', ${row}.${r("effectiveFrom")}, 'createdBy', ${or("rates", row, "createdBy")}, 'createdAt', ${or("rates", row, "createdAt")})`;
+    `jsonb_build_object('id', ${row}.${r("id")}, 'organizationId', ${row}.${r("tenant")}, 'userId', ${row}.${r("user")}, 'subjectType', ${row}.${r("subjectType")}, 'subjectId', ${row}.${r("subjectId")}, 'rate', ${row}.${r("rate")}::text, 'currency', ${row}.${r("currency")}, 'effectiveFrom', ${row}.${r("effectiveFrom")}, 'cost', ${ctx.has("rates", "cost") ? `${row}.${r("cost")}::text` : "null"}, 'createdBy', ${or("rates", row, "createdBy")}, 'createdAt', ${or("rates", row, "createdAt")})`;
 
   const { rowSubject } = entrySubjects(time, subjectsOption(time, ["column"]));
   const ended = (row: string): string => entryEnded(time, row);
@@ -334,9 +343,11 @@ create trigger bsb_billable_time_release
   execute function ${fn("billable_time_release")}();
 
 -- Sets the hourly rate for a member, a record, both, or the organization
--- (neither), from effective_from (today by default). The same key and day
+-- (neither), from effective_from (today by default), with what the hour costs
+-- the organization (cost_amount, for project costing). The same key and day
 -- replaces the rate.
-create or replace function ${fn("set_time_rate")}(tenant ${ctx.idType}, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null)
+drop function if exists ${fn("set_time_rate")}(${ctx.idType}, bigint, text, uuid, text, text, date);
+create or replace function ${fn("set_time_rate")}(tenant ${ctx.idType}, rate bigint, currency text, user_id uuid default null, subject_type text default null, subject_id text default null, effective_from date default null, cost_amount bigint default null)
 returns jsonb
 language plpgsql
 security definer
@@ -355,6 +366,16 @@ begin
   if set_time_rate.currency is null or set_time_rate.currency !~ '^[A-Z]{3}$' then
     ${fail("TIME_RATE_INVALID", "currency must be a three-letter currency code", "22023")}
   end if;
+  if set_time_rate.cost_amount < 0 then
+    ${fail("TIME_RATE_INVALID", "a cost is 0 or more minor units per hour", "22023")}
+  end if;${
+    ctx.has("rates", "cost")
+      ? ""
+      : `
+  if set_time_rate.cost_amount is not null then
+    ${fail("TIME_RATE_COST_UNSUPPORTED", "this rate table has no cost column", "22023")}
+  end if;`
+  }
   if (set_time_rate.subject_type is null) <> (set_time_rate.subject_id is null) then
     ${fail("TIME_RATE_INVALID", "name both subject_type and subject_id, or neither", "22023")}
   end if;
@@ -367,16 +388,16 @@ begin
   ) then
     ${fail("TIME_RATE_MEMBER_INVALID", "the user is not a member of this organization", "22023")}
   end if;
-  insert into ${rates} (${r("tenant")}, ${r("user")}, ${r("subjectType")}, ${r("subjectId")}, ${r("rate")}, ${r("currency")}, ${r("effectiveFrom")}${createdBy ? `, ${r("createdBy")}` : ""})
+  insert into ${rates} (${r("tenant")}, ${r("user")}, ${r("subjectType")}, ${r("subjectId")}, ${r("rate")}, ${r("currency")}, ${r("effectiveFrom")}${cost ? `, ${r("cost")}` : ""}${createdBy ? `, ${r("createdBy")}` : ""})
   values (set_time_rate.tenant, set_time_rate.user_id, set_time_rate.subject_type, set_time_rate.subject_id, set_time_rate.rate, set_time_rate.currency,
-    coalesce(set_time_rate.effective_from, current_date)${createdBy ? ", auth.uid()" : ""})
+    coalesce(set_time_rate.effective_from, current_date)${cost ? ", set_time_rate.cost_amount" : ""}${createdBy ? ", auth.uid()" : ""})
   on conflict (${r("tenant")}, ${r("user")}, ${r("subjectType")}, ${r("subjectId")}, ${r("effectiveFrom")})
-  do update set ${r("rate")} = excluded.${r("rate")}, ${r("currency")} = excluded.${r("currency")}${createdBy ? `, ${r("createdBy")} = excluded.${r("createdBy")}` : ""}
+  do update set ${r("rate")} = excluded.${r("rate")}, ${r("currency")} = excluded.${r("currency")}${cost ? `, ${r("cost")} = excluded.${r("cost")}` : ""}${createdBy ? `, ${r("createdBy")} = excluded.${r("createdBy")}` : ""}
   returning * into v_row;
   return ${rateJson("v_row")};
 end;
 $$;
-${userGrant(`${fn("set_time_rate")}(${ctx.idType}, bigint, text, uuid, text, text, date)`)}
+${userGrant(`${fn("set_time_rate")}(${ctx.idType}, bigint, text, uuid, text, text, date, bigint)`)}
 
 create or replace function ${fn("delete_time_rate")}(rate_id uuid)
 returns jsonb
@@ -631,14 +652,26 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Billable time: a rate card for time entries and invoices drafted from
 -- unbilled time, in bigint minor units.
-${tables(ctx)}${functions(ctx)}${rateMerges(ctx)}`;
+${tables(ctx)}${functions(ctx)}${rateMerges(ctx)}${projectCostsSql(ctx, weekZone(ctx))}`;
 }
 
-function contract(_ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
+function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
   return [
+    ...(costsProjects(ctx)
+      ? [{ name: "project_costs", args: ["uuid"], returns: "jsonb" }]
+      : []),
     {
       name: "set_time_rate",
-      args: ["{id}", "bigint", "text", "uuid", "text", "text", "date"],
+      args: [
+        "{id}",
+        "bigint",
+        "text",
+        "uuid",
+        "text",
+        "text",
+        "date",
+        "bigint",
+      ],
       returns: "jsonb",
     },
     { name: "delete_time_rate", args: ["uuid"], returns: "jsonb" },
@@ -679,7 +712,7 @@ export const BILLABLE_TIME: BlockSqlDefinition = {
     "time-tracking",
     "invoices",
   ],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "tasks", "accounting"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,
