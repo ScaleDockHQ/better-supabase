@@ -393,6 +393,7 @@
   "registry/ui-recipes/entity-form",
   "registry/ui-recipes/feature-flag-toggles",
   "registry/ui-recipes/feature-gate",
+  "registry/ui-recipes/file-request-upload",
   "registry/ui-recipes/form-builder",
   "registry/ui-recipes/grants-editor",
   "registry/ui-recipes/hiring-board",

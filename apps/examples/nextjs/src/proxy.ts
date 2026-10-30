@@ -79,6 +79,7 @@ const protect: NonNullable<ProxyOptions["protect"]> = async (auth, request) => {
     path.startsWith("/pricing/") ||
     path.startsWith("/share/") ||
     path.startsWith("/book/") ||
+    path.startsWith("/send/") ||
     path.startsWith("/status/");
 
   if (session.kind !== "user") {
