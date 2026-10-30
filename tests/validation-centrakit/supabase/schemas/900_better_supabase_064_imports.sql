@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:78ea0f58a9c9e2e49e78d2aa8a61622a1b4ccb4bfc7013e133fcb28575831b38
+-- @bsb-hash sha256:0b8d15c8993e43ab37483f385950622b845dc64d8c3c323284d99ffe416f6b83
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,8 +79,7 @@ end $$;
 
 create schema if not exists better_supabase;
 grant usage on schema better_supabase to anon, authenticated, service_role;
--- centrakit.import_runs is the app's table: this block adds only the columns it needs.
-alter table "centrakit"."import_runs" add column if not exists "source" text;
+-- centrakit.import_runs is the app's table, and it has every column this block needs.
 alter table "centrakit"."import_runs" add column if not exists "dry_run" boolean not null default false;
 alter table "centrakit"."import_runs" add column if not exists "full" boolean not null default false;
 alter table "centrakit"."import_runs" add column if not exists "input_checksum" text;
