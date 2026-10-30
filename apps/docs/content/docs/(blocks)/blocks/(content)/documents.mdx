@@ -35,6 +35,21 @@ import { useDocuments } from "@/lib/supabase/hooks";
 const rows = useDocuments({ limit: 50 });
 ```
 
+## Which document block
+
+Six blocks store something a person could call a document. Pick the one that matches what the app does with it:
+
+| Block                                 | Use it for                                                                                         |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `documents`                           | Text several people edit at once, as Yjs updates with live presence                                |
+| [`drive`](/docs/blocks/drive)         | Files and folders people upload, share and move                                                    |
+| [`content`](/docs/blocks/content)     | Entries an editor drafts and publishes, such as pages and posts                                    |
+| [`ai-files`](/docs/blocks/ai-files)   | Files an AI chat reads or writes: attachments, generated files and the documents beside the chat   |
+| [`knowledge`](/docs/blocks/knowledge) | Text split into chunks with embeddings, so an assistant retrieves the passages that answer a query |
+| [`memory`](/docs/blocks/memory)       | What an agent remembers about a user, a team or a record between conversations                     |
+
+The blocks combine: `knowledge` ingests an AI files upload, and AI documents keep their versions in [`versions`](/docs/blocks/versions), as these documents can.
+
 ## Configure
 
 ```ts title="better-supabase.config.ts"

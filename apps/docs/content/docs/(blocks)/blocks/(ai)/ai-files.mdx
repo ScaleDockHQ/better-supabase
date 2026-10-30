@@ -6,21 +6,21 @@ description: Attachments and generated files for AI chats in a private bucket, p
 The `ai-files` block stores the files of an AI assistant: what a user
 attaches to a message, what a model generates (images, speech), the
 reference a provider's file API returned for a file, and documents the
-assistant writes beside the chat, with every version kept. Messages point
+assistant writes beside the chat, with their versions in the
+[`versions`](/docs/blocks/versions) block. Messages point
 at a file with a `supabase-storage://` URL, so a stored chat never holds a
 signed URL that expires or a file someone else owns.
 
 ```bash
-better-supabase add ai-files   # adds tenant and access as well
+better-supabase add ai-files   # adds tenant, access and versions as well
 ```
 
-| Table                  | Holds                                                                                            |
-| ---------------------- | ------------------------------------------------------------------------------------------------ |
-| `ai_files`             | One row per object: owner, tenant, chat, `media_type`, `byte_size`, `sha256`, `status`, `source` |
-| `ai_provider_files`    | A provider's file id or file URI per file, with `expires_at`                                     |
-| `ai_documents`         | Documents per owner and chat: `kind` (`text`, `code`, `sheet`, `image`), `title`, the version    |
-| `ai_document_versions` | Every version: `content` or a `storage_path`, the message that wrote it                          |
-| `ai_suggestions`       | Suggested edits on a version, and whether the owner accepted them                                |
+| Table               | Holds                                                                                            |
+| ------------------- | ------------------------------------------------------------------------------------------------ |
+| `ai_files`          | One row per object: owner, tenant, chat, `media_type`, `byte_size`, `sha256`, `status`, `source` |
+| `ai_provider_files` | A provider's file id or file URI per file, with `expires_at`                                     |
+| `ai_documents`      | Documents per owner and chat: `kind` (`text`, `code`, `sheet`, `image`), `title`, the version    |
+| `ai_suggestions`    | Suggested edits on a version, and whether the owner accepted them                                |
 
 Objects live in the private `ai-files` bucket at
 `{organization_id}/{owner_id}/{file_id}/{filename}`. The storage policies
@@ -132,10 +132,26 @@ await files.documents
 
 `update` writes a new version; with `expectedVersion` it fails with
 `conflict` (`AI_DOCUMENT_CONFLICT`) when another writer got there first.
-`rollback(id, version)` writes an old version as the newest one, so the
-history stays linear. `suggest` records an edit on the current version and
+An edit with the same content and message as the current version writes no
+version. `rollback(id, version)` writes an old version as the newest one, so
+the history stays linear. `suggest` records an edit on the current version and
 `resolve` accepts or rejects it; accepting doesn't change the document, the
 client writes the new version.
+
+### Versions
+
+A document's versions are rows of the [`versions`](/docs/blocks/versions)
+table with `subject_type` `ai_document` and the document id as
+`subject_id`. `content` holds `{ text, messageId }` and `storage_path` the
+path of an image or a large document. The versions block numbers them and
+keeps the newest `blocks.versions.options.keep` (default 50); older ones are
+deleted. Deleting a document deletes its versions.
+
+AI documents are private to their owner, an `ai_files.manage` of the tenant
+and the readers of their chat, so the versions block hides them: its
+functions refuse the `ai_document` subject type and a restrictive policy
+keeps the rows out of direct reads. Read them with `documents.get` and
+`documents.versions`.
 
 ## AI SDK
 

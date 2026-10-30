@@ -32,6 +32,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
+import { AI_DOCUMENT_SUBJECT } from "./ai-files-names.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const SUBJECT_PAYLOAD = ["organizationId", "subjectType", "subjectId"] as const;
@@ -335,6 +336,34 @@ create trigger ${trigger}
     .join("\n\n");
 }
 
+/**
+ * The versions table and its tenant index. ai-files' upgrade creates it too, so
+ * its document versions can move before the module files run.
+ */
+export function versionsTableDdl(ctx: BlockSqlContext): string {
+  const versions = ctx.table("versions");
+  const c = (column: string): string => ctx.col("versions", column);
+
+  return `create table if not exists ${versions} (
+  ${c("id")} uuid primary key default gen_random_uuid(),
+  ${c("tenant")} ${ctx.idType} not null,
+  ${c("subjectType")} text not null,
+  ${c("subjectId")} text not null,
+  ${c("number")} integer not null check (${c("number")} > 0),
+  ${c("label")} text check (length(${c("label")}) between 1 and 120),
+  ${c("content")} jsonb,
+  ${c("storagePath")} text,
+  ${c("contentHash")} text not null,
+  ${c("source")} text not null default 'manual' check (${c("source")} in ('manual', 'auto', 'restore')),
+  ${c("frozen")} boolean not null default false,
+  ${c("createdBy")} uuid,
+  ${c("createdAt")} timestamptz not null default now(),
+  unique (${c("subjectType")}, ${c("subjectId")}, ${c("number")}),
+  check (${c("content")} is not null or ${c("storagePath")} is not null)
+);
+create index if not exists ${sqlIdent(`${ctx.tableName("versions").name}_tenant_idx`)} on ${versions} (${c("tenant")});`;
+}
+
 function build(ctx: BlockSqlContext): string {
   if (ctx.mode === "custom") {
     return "";
@@ -397,27 +426,21 @@ function build(ctx: BlockSqlContext): string {
       withFields ? extras : [],
     );
 
+  // ai-files keeps the versions of its documents here; only its functions,
+  // which check the document, read or write them.
+  const own = (type: string): string =>
+    ctx.installed("ai-files")
+      ? ` and ${type} <> ${sqlString(AI_DOCUMENT_SUBJECT)}`
+      : "";
+
+  const privateDocuments = ctx.installed("ai-files")
+    ? `\n${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("versions_ai_documents"), command: "select", roles: ["authenticated"], permissive: false, using: `${c("subjectType")} <> ${sqlString(AI_DOCUMENT_SUBJECT)}` }), { drop: true, target: versions })}`
+    : "";
+
   const tables = ctx.manages
-    ? `create table if not exists ${versions} (
-  ${c("id")} uuid primary key default gen_random_uuid(),
-  ${c("tenant")} ${ctx.idType} not null,
-  ${c("subjectType")} text not null,
-  ${c("subjectId")} text not null,
-  ${c("number")} integer not null check (${c("number")} > 0),
-  ${c("label")} text check (length(${c("label")}) between 1 and 120),
-  ${c("content")} jsonb,
-  ${c("storagePath")} text,
-  ${c("contentHash")} text not null,
-  ${c("source")} text not null default 'manual' check (${c("source")} in ('manual', 'auto', 'restore')),
-  ${c("frozen")} boolean not null default false,
-  ${c("createdBy")} uuid,
-  ${c("createdAt")} timestamptz not null default now(),
-  unique (${c("subjectType")}, ${c("subjectId")}, ${c("number")}),
-  check (${c("content")} is not null or ${c("storagePath")} is not null)
-);${addExtraColumns(versions, extras)}
-create index if not exists ${sqlIdent(`${ctx.tableName("versions").name}_tenant_idx`)} on ${versions} (${c("tenant")});
+    ? `${versionsTableDdl(ctx)}${addExtraColumns(versions, extras)}
 ${lockTable(versions, { read: true })}
-${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: versions })}
+${renderPolicy(makePolicy({ table: versions, name: ctx.naming.rename("versions_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: versions })}${privateDocuments}
 `
     : "";
 
@@ -507,7 +530,7 @@ declare
   v_content jsonb := snapshot_version.content;
   v_result jsonb;
 begin
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "snapshot_version.tenant", create)} and ${readable("snapshot_version.")})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "snapshot_version.tenant", create)} and ${readable("snapshot_version.")}${own("snapshot_version.subject_type")})) then
     ${fail("VERSION_FORBIDDEN", "not allowed to snapshot this record")}
   end if;
   if v_content is null and snapshot_version.storage_path is null then
@@ -542,7 +565,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "list_versions.tenant", read)} and ${readable("list_versions.")})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "list_versions.tenant", read)} and ${readable("list_versions.")}${own("list_versions.subject_type")})) then
     ${forbidden}
   end if;
   select coalesce(jsonb_agg(${summary("v")} order by v.${c("number")} desc), '[]'::jsonb) into v_rows
@@ -574,7 +597,7 @@ begin
   if not found then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${c("tenant")}`, read)} and ${subjectReadable(ctx, subjects, { type: `v_row.${c("subjectType")}`, id: `v_row.${c("subjectId")}`, tenant: `v_row.${c("tenant")}` })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", `v_row.${c("tenant")}`, read)} and ${subjectReadable(ctx, subjects, { type: `v_row.${c("subjectType")}`, id: `v_row.${c("subjectId")}`, tenant: `v_row.${c("tenant")}` })}${own(`v_row.${c("subjectType")}`)})) then
     ${forbidden}
   end if;
   return ${summary("v_row")} || jsonb_build_object('content', v_row.${c("content")});
@@ -647,7 +670,7 @@ begin
   if v_subject_type is null then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", restore)} and ${subjectReadable(ctx, subjects, { type: "v_subject_type", id: "v_subject_id", tenant: "v_tenant" })} and ${subjectWritable(ctx, subjects, { type: "v_subject_type", tenant: "v_tenant" })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", restore)} and ${subjectReadable(ctx, subjects, { type: "v_subject_type", id: "v_subject_id", tenant: "v_tenant" })} and ${subjectWritable(ctx, subjects, { type: "v_subject_type", tenant: "v_tenant" })}${own("v_subject_type")})) then
     ${fail("VERSION_FORBIDDEN", "not allowed to restore this version")}
   end if;
   if v_content is null then
@@ -709,7 +732,7 @@ begin
   if v_subject_type is null then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", create)} and ${subjectReadable(ctx, subjects, { type: "v_subject_type", id: "v_subject_id", tenant: "v_tenant" })})) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", create)} and ${subjectReadable(ctx, subjects, { type: "v_subject_type", id: "v_subject_id", tenant: "v_tenant" })}${own("v_subject_type")})) then
     ${fail("VERSION_FORBIDDEN", "not allowed to label this version")}
   end if;
   update ${versions} set ${c("label")} = nullif(trim(label_version.label), '')
@@ -741,7 +764,7 @@ begin
   if v_subject_type is null then
     ${notFound}
   end if;
-  if not (${SERVICE_CALLER} or ${ctx.can("tenant", "v_tenant", manage)}) then
+  if not (${SERVICE_CALLER} or (${ctx.can("tenant", "v_tenant", manage)}${own("v_subject_type")})) then
     ${fail("VERSION_FORBIDDEN", "not allowed to delete versions")}
   end if;
   if v_frozen then
@@ -847,7 +870,7 @@ export const VERSIONS: BlockSqlDefinition = {
   description:
     "Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "audit", "share-links"],
+  integrates: ["outbox", "audit", "share-links", "ai-files"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 1,

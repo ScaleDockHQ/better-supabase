@@ -7,6 +7,7 @@ import {
   moduleBody,
   renderBlocks,
 } from "../../../src/sql/render.ts";
+import { upgradePlan } from "../../../src/sql/upgrade.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("ai-files", { modules })!;
@@ -25,7 +26,6 @@ describe("ai-files module", () => {
       "ai_files",
       "ai_provider_files",
       "ai_documents",
-      "ai_document_versions",
       "ai_suggestions",
     ]) {
       expect(sql).toContain(
@@ -33,8 +33,48 @@ describe("ai-files module", () => {
       );
     }
 
+    expect(sql).not.toContain(`"better_supabase"."ai_document_versions"`);
     expect(sql).toContain(
       `"path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored`,
+    );
+  });
+
+  it("keeps document versions in the versions block", () => {
+    const sql = body();
+
+    expect(sql).toContain(
+      `"better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid())`,
+    );
+    expect(sql).toContain(
+      `delete from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = old."id"::text;`,
+    );
+    expect(sql).toContain("after delete on");
+  });
+
+  it("hides AI document versions from the versions block's own reads", () => {
+    const sql = renderBlocks(["ai-files"], { modules: {} })
+      .filter((file) => file.module === "versions")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).toContain(
+      `create policy versions_ai_documents on "better_supabase"."versions" as restrictive`,
+    );
+    expect(sql).toContain(`and v_subject_type <> 'ai_document'`);
+  });
+
+  it("moves version 1 document versions onto the versions table", () => {
+    const [plan] = upgradePlan([{ module: "ai-files", version: 1 }]);
+    const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
+
+    expect(sql).toContain(
+      `create table if not exists "better_supabase"."versions" (`,
+    );
+    expect(sql).toContain(
+      `select doc."organization_id", 'ai_document', x.document_id::text, x.version`,
+    );
+    expect(sql).toContain(
+      `drop table "better_supabase"."ai_document_versions" cascade;`,
     );
   });
 
