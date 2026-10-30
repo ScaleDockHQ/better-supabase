@@ -3633,6 +3633,31 @@
               },
               "bookings": {
                 "type": "boolean"
+              },
+              "noteCategories": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": [
+                  "general",
+                  "care",
+                  "medical",
+                  "behavior",
+                  "family",
+                  "incident"
+                ]
+              },
+              "lockAfterHours": {
+                "type": "number",
+                "default": 24
+              },
+              "lockTypes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "default": ["note", "report"]
               }
             }
           }

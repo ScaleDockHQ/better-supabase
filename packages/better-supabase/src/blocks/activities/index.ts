@@ -1,6 +1,7 @@
 export {
   createActivities,
   type Engagement,
+  type EngagementAudience,
   type EngagementInput,
   type Activities,
   type ActivitiesOptions,

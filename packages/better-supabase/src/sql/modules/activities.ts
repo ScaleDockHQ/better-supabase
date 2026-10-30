@@ -8,6 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
@@ -21,6 +22,15 @@ import {
 } from "../shared.ts";
 import { subjectInTenant } from "../subject-check-sql.ts";
 import { bookingEngagementsSql, logsBookings } from "./activities-bookings.ts";
+import {
+  NOTE_COLUMNS,
+  NOTE_OPTIONS,
+  noteColumnsSql,
+  noteGuestSql,
+  noteRules,
+  notesContract,
+  notesSql,
+} from "./activities-notes.ts";
 import {
   RECORDING_TABLES,
   recordingsContract,
@@ -59,6 +69,14 @@ const EVENTS: BlockSqlEvents<ActivitiesEvents> = {
     payload: [...PAYLOAD],
     retries: true,
   },
+  "engagement.amended": {
+    subject: "engagements",
+    payload: [...PAYLOAD, "amendsId"],
+  },
+  "engagement.error_marked": {
+    subject: "engagements",
+    payload: [...PAYLOAD, "reason"],
+  },
 };
 
 const NAMES: BlockSqlNames = {
@@ -76,13 +94,19 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_engagement_log", "after_engagement_log"],
-  options: ["types", "extraColumns", "recordings", "bookings"],
+  options: ["types", "extraColumns", "recordings", "bookings", ...NOTE_OPTIONS],
   tables: {
     engagements: {
       name: "engagements",
       lifecycle: { tenant: "tenant", user: "owner", export: true },
       app: {},
-      optional: ["durationSeconds", "externalRef", "createdBy", "updatedAt"],
+      optional: [
+        "durationSeconds",
+        "externalRef",
+        "createdBy",
+        "updatedAt",
+        ...Object.keys(NOTE_COLUMNS),
+      ],
       typed: ["type"],
       columns: {
         id: "id",
@@ -99,6 +123,7 @@ const NAMES: BlockSqlNames = {
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
+        ...NOTE_COLUMNS,
       },
     },
     links: {
@@ -166,6 +191,7 @@ function build(ctx: BlockSqlContext): string {
   const extras = ctx.extraColumns("engagements", ["subjects", "overdue"]);
   const typeList = `${sqlString(`{${types(ctx).join(",")}}`)}::text[]`;
   const canSubject = ctx.of("subjects").fn("can_subject");
+  const notes = noteRules(ctx);
 
   const optional = (
     table: string,
@@ -222,6 +248,32 @@ function build(ctx: BlockSqlContext): string {
   const editable = (alias: string): string =>
     `(auth.role() = 'service_role' or ${owned("createdBy") ? `${alias}.${e("createdBy")} = auth.uid() or ` : ""}${alias}.${e("owner")} = auth.uid() or ${ctx.scope.can(`${alias}.${e("tenant")}`, manage)})`;
 
+  /**
+   * Row `p` (a prefix such as `x.`, or empty in a policy) is readable: its
+   * tenant's readers see it when one of its records is readable, or it has
+   * none, and a restricted one needs more (`noteRules`).
+   */
+  const readable = (p: string): string => {
+    const member = notes.memberRead(p);
+
+    return `${ctx.scope.check(`${p}${e("tenant")}`, read)} and (
+  not exists (select 1 from ${t("links")} lx where lx.${l("engagement")} = ${p}${e("id")})
+  or exists (select 1 from ${t("links")} lx where lx.${l("engagement")} = ${p}${e("id")} and ${canSubject}(lx.${l("subjectType")}, lx.${l("subjectId")}, 'read'))
+)${member === "true" ? "" : ` and ${member}`}`;
+  };
+
+  /**
+   * Fails with ENGAGEMENT_LOCKED when the caller may edit `id` but it is
+   * locked.
+   */
+  const refuseLocked = (id: string): string =>
+    notes.locked("x.") === "false"
+      ? ""
+      : `
+  if exists (select 1 from ${t("engagements")} x where x.${e("id")} = ${id} and ${editable("x")} and ${notes.locked("x.")}) then
+    ${fail("ENGAGEMENT_LOCKED", "the engagement is locked: add an addendum with amend_engagement instead", "55000")}
+  end if;`;
+
   const subjectsOf = (id: string): string =>
     `coalesce((select jsonb_agg(jsonb_build_object('type', sx.${l("subjectType")}, 'id', sx.${l("subjectId")}) order by ${linkOrder("sx")}) from ${t("links")} sx where sx.${l("engagement")} = ${id}), '[]'::jsonb)`;
 
@@ -268,6 +320,14 @@ function build(ctx: BlockSqlContext): string {
       ],
       ["externalRef", attrs("log_engagement", "externalRef")],
       ["createdBy", "auth.uid()"],
+      [
+        "audience",
+        `coalesce(nullif(${attrs("log_engagement", "audience")}, ''), 'team')`,
+      ],
+      ["restrictedRoles", `nullif(${notes.roles("log_engagement")}, '{}')`],
+      ["category", `nullif(${attrs("log_engagement", "category")}, '')`],
+      ["lockedAt", notes.lockAt("v_type", "now()")],
+      ["goal", `nullif(${attrs("log_engagement", "goalId")}, '')::uuid`],
     ] as const
   ).filter(([column]) => owned(column));
 
@@ -313,7 +373,7 @@ ${
 );
 create index if not exists ${ctx.naming.rename("engagements_owner_open_idx")} on ${t("engagements")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
 create index if not exists ${ctx.naming.rename("engagements_tenant_created_idx")} on ${t("engagements")} (${e("tenant")}, ${e("createdAt")} desc);
-${owned("externalRef") ? `create unique index if not exists ${ctx.naming.rename("engagements_external_ref_idx")} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;` : ""}${addExtraColumns(t("engagements"), extras)}
+${owned("externalRef") ? `create unique index if not exists ${ctx.naming.rename("engagements_external_ref_idx")} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;` : ""}${addExtraColumns(t("engagements"), extras)}${noteColumnsSql(ctx)}
 ${lockTable(t("engagements"), { read: true })}
 create table if not exists ${t("links")} (
   ${l("tenant")} ${ctx.idType} not null,
@@ -327,20 +387,33 @@ create table if not exists ${t("links")} (
           : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("links").name}_subject_key`)} on ${t("links")} (${l("engagement")}, ${l("subjectType")}, ${l("subjectId")});`
       }
 create index if not exists ${ctx.naming.rename("engagement_subjects_subject_idx")} on ${t("links")} (${l("subjectType")}, ${l("subjectId")});
-${lockTable(t("links"), { read: true })}
+${lockTable(t("links"), { read: true })}${noteGuestSql(ctx, notes)}
 -- A link is visible when its record is; an engagement when one of its
--- records is, or it has none.
-${renderPolicy(makePolicy({ table: t("links"), name: `${ctx.tableName("links").name}_read`, command: "select", roles: ["authenticated"], using: `${ctx.scope.check(l("tenant"), read)} and ${canSubject}(${l("subjectType")}, ${l("subjectId")}, 'read')` }), { drop: true, target: t("links") })}
+-- records is, or it has none. A guest of a record reads its subject notes.
+${renderPolicy(
+  makePolicy({
+    table: t("links"),
+    name: `${ctx.tableName("links").name}_read`,
+    command: "select",
+    roles: ["authenticated"],
+    using: guestOr(
+      `${ctx.scope.check(l("tenant"), read)} and ${canSubject}(${l("subjectType")}, ${l("subjectId")}, 'read')`,
+      [
+        notes.guests
+          ? `(${ctx.scope.guest(l("tenant"), l("subjectType"), l("subjectId"), "read")} and ${fn("engagement_guest_readable")}(${l("engagement")}))`
+          : "false",
+      ],
+    ),
+  }),
+  { drop: true, target: t("links") },
+)}
 ${renderPolicy(
   makePolicy({
     table: t("engagements"),
     name: `${ctx.tableName("engagements").name}_read`,
     command: "select",
     roles: ["authenticated"],
-    using: `${ctx.scope.check(e("tenant"), read)} and (
-  not exists (select 1 from ${t("links")} x where x.${l("engagement")} = ${e("id")})
-  or exists (select 1 from ${t("links")} x where x.${l("engagement")} = ${e("id")} and ${canSubject}(x.${l("subjectType")}, x.${l("subjectId")}, 'read'))
-)`,
+    using: guestOr(readable(""), [notes.guestRead("")]),
   }),
   { drop: true, target: t("engagements") },
 )}
@@ -377,7 +450,14 @@ begin
   end if;
   if v_title is null then
     ${fail("ENGAGEMENT_TITLE_REQUIRED", "a title is required", "23502")}
-  end if;
+  end if;${notes.validate("log_engagement")}${
+    owned("externalRef") && notes.locked("x.") !== "false"
+      ? `
+  if exists (select 1 from ${t("engagements")} x where x.${e("tenant")} = v_tenant and x.${e("externalRef")} = ${attrs("log_engagement", "externalRef")} and ${notes.locked("x.")}) then
+    ${fail("ENGAGEMENT_LOCKED", "the engagement is locked: add an addendum with amend_engagement instead", "55000")}
+  end if;`
+      : ""
+  }
   ${ctx.hook("before_engagement_log", [
     [ctx.idType, "log_engagement.tenant"],
     ["jsonb", "log_engagement.attrs"],
@@ -428,7 +508,7 @@ begin
   end if;
   if ${has("update_engagement", "type")} and not (${attrs("update_engagement", "type")} = any (${typeList})) then
     ${fail("ENGAGEMENT_TYPE_INVALID", "unknown engagement type", "22023")}
-  end if;
+  end if;${notes.validate("update_engagement")}${refuseLocked("v_id")}
   update ${t("engagements")} x set
     ${e("type")} = coalesce(${ctx.cast("engagements", "type", attrs("update_engagement", "type"))}, x.${e("type")}),
     ${e("title")} = coalesce(nullif(trim(${attrs("update_engagement", "title")}), ''), x.${e("title")}),
@@ -441,7 +521,7 @@ begin
       .join(",\n    ")},
     ${e("owner")} = case when ${has("update_engagement", "ownerId")} then nullif(${attrs("update_engagement", "ownerId")}, '')::uuid else x.${e("owner")} end,
     ${e("dueAt")} = case when ${has("update_engagement", "dueAt")} then (${attrs("update_engagement", "dueAt")})::timestamptz else x.${e("dueAt")} end,
-    ${e("doneAt")} = case when ${has("update_engagement", "doneAt")} then (${attrs("update_engagement", "doneAt")})::timestamptz else x.${e("doneAt")} end${set("durationSeconds", (x) => `case when ${has("update_engagement", "durationSeconds")} then (${attrs("update_engagement", "durationSeconds")})::integer else x.${x} end`, "\n    ")}${set("updatedAt", () => "now()", "\n    ")}
+    ${e("doneAt")} = case when ${has("update_engagement", "doneAt")} then (${attrs("update_engagement", "doneAt")})::timestamptz else x.${e("doneAt")} end${set("durationSeconds", (x) => `case when ${has("update_engagement", "durationSeconds")} then (${attrs("update_engagement", "durationSeconds")})::integer else x.${x} end`, "\n    ")}${set("audience", (x) => `case when ${has("update_engagement", "audience")} then coalesce(nullif(${attrs("update_engagement", "audience")}, ''), 'team') else x.${x} end`, "\n    ")}${set("restrictedRoles", (x) => `case when ${has("update_engagement", "restrictedRoles")} then nullif(${notes.roles("update_engagement")}, '{}') else x.${x} end`, "\n    ")}${set("category", (x) => `case when ${has("update_engagement", "category")} then nullif(${attrs("update_engagement", "category")}, '') else x.${x} end`, "\n    ")}${set("goal", (x) => `case when ${has("update_engagement", "goalId")} then nullif(${attrs("update_engagement", "goalId")}, '')::uuid else x.${x} end`, "\n    ")}${set("lockedAt", (x) => `case when ${has("update_engagement", "type")} then coalesce(x.${x}, ${notes.lockAt(attrs("update_engagement", "type"), `x.${e("createdAt")}`)}) else x.${x} end`, "\n    ")}${set("updatedAt", () => "now()", "\n    ")}
   where x.${e("id")} = v_id
   returning x.${e("type")}, x.${e("title")}, x.${e("owner")} into v_type, v_title, v_owner;${writeExtraColumns(t("engagements"), extras, "update_engagement.attrs -> 'fields'", `x.${e("id")} = v_id`)}
   if update_engagement.subjects is not null then
@@ -469,7 +549,7 @@ declare
   v_type text;
   v_subjects jsonb := ${subjectsOf("complete_engagement.engagement")};
   v_first jsonb := v_subjects -> 0;
-begin
+begin${refuseLocked("v_id")}
   update ${t("engagements")} x set
     ${e("doneAt")} = case when complete_engagement.done then coalesce(x.${e("doneAt")}, now()) end,
     ${e("outcome")} = coalesce(complete_engagement.outcome, x.${e("outcome")})${set("updatedAt", () => "now()", "\n    ")}
@@ -498,7 +578,7 @@ declare
   v_type text;
   v_subjects jsonb := ${subjectsOf("delete_engagement.engagement")};
   v_first jsonb := v_subjects -> 0;
-begin
+begin${refuseLocked("v_id")}
   delete from ${t("engagements")} x where x.${e("id")} = v_id and ${editable("x")}
   returning x.${e("tenant")}, x.${e("type")} into v_tenant, v_type;
   if v_tenant is null then
@@ -586,7 +666,18 @@ ${
   v_first := v_subjects -> 0;`,
       })
     : ""
-}${logsBookings(ctx, types(ctx)) ? bookingEngagementsSql(ctx) : ""}`;
+}${logsBookings(ctx, types(ctx)) ? bookingEngagementsSql(ctx) : ""}${notesSql(
+    ctx,
+    {
+      rules: notes,
+      readable: (alias) => readable(`${alias}.`),
+      editable,
+      record,
+      row,
+      subjectsOf,
+      write,
+    },
+  )}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -619,6 +710,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "jsonb",
     },
     ...(recordingsOn(ctx) ? recordingsContract() : []),
+    ...notesContract(ctx),
   ];
 }
 

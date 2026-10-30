@@ -1008,6 +1008,8 @@ export type {
   ConversationEventData,
   EmployeeEventData,
   DealEventData,
+  EngagementAmendedEventData,
+  EngagementErrorMarkedEventData,
   EngagementEventData,
   EngagementRecordingEventData,
   InvoiceEventData,

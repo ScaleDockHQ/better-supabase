@@ -23,6 +23,20 @@ const CHANGE: EntitySchemaSpec<EngagementInput>["fields"] = {
     minimum: 0,
   },
   externalRef: { kind: "string", optional: true, nullable: true },
+  audience: {
+    kind: "enum",
+    values: ["team", "subject", "restricted"],
+    optional: true,
+    nullable: true,
+  },
+  restrictedRoles: {
+    kind: "string",
+    array: true,
+    optional: true,
+    minLength: 1,
+  },
+  category: { kind: "string", optional: true, nullable: true, minLength: 1 },
+  goalId: { kind: "uuid", optional: true, nullable: true },
   fields: {
     kind: "json",
     optional: true,

@@ -62,17 +62,17 @@ export interface BlockNameRegistry {
   };
   readonly "activities": {
     readonly tables: {
-      readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt";
+      readonly "engagements": "id" | "tenant" | "type" | "title" | "body" | "outcome" | "owner" | "dueAt" | "doneAt" | "durationSeconds" | "externalRef" | "createdBy" | "createdAt" | "updatedAt" | "audience" | "restrictedRoles" | "category" | "lockedAt" | "amends" | "goal" | "markedErrorAt" | "markedErrorBy" | "markedErrorReason";
       readonly "links": "tenant" | "engagement" | "subjectType" | "subjectId" | "position";
       readonly "recordings": "id" | "tenant" | "engagement" | "file" | "filename" | "mediaType" | "status" | "language" | "durationSeconds" | "error" | "model" | "createdBy" | "createdAt" | "transcribedAt";
       readonly "segments": "recording" | "tenant" | "position" | "speaker" | "speakerUser" | "startsMs" | "endsMs" | "text" | "confidence";
       readonly "notes": "engagement" | "tenant" | "summary" | "actionItems" | "model" | "source" | "createdBy" | "createdAt" | "updatedAt";
     };
-    readonly functions: "complete_engagement" | "delete_engagement" | "engagements_of" | "log_engagement" | "next_engagement" | "open_engagements" | "update_engagement";
-    readonly actions: "read" | "write" | "manage";
+    readonly functions: "amend_engagement" | "complete_engagement" | "delete_engagement" | "engagements_of" | "log_engagement" | "mark_engagement_error" | "next_engagement" | "open_engagements" | "update_engagement";
+    readonly actions: "read" | "write" | "manage" | "readRestricted";
     readonly hooks: "before_engagement_log" | "after_engagement_log";
     readonly entities: {
-      readonly "engagement": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_user_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at";
+      readonly "engagement": "id" | "tenant_id" | "type" | "title" | "body" | "outcome" | "owner_user_id" | "due_at" | "done_at" | "duration_seconds" | "external_ref" | "created_by" | "created_at" | "updated_at" | "audience" | "restricted_roles" | "category" | "locked_at" | "amends_id" | "goal_id" | "marked_error_at" | "marked_error_by" | "marked_error_reason";
     };
     readonly primary: "engagement";
   };
@@ -1833,7 +1833,7 @@ export interface BlockNameRegistry {
     readonly tables: {
       readonly "members": "id" | "tenant" | "subjectType" | "subjectId" | "user" | "team" | "role" | "startsOn" | "endsOn" | "endsAt" | "emergency" | "reason" | "createdBy" | "createdAt";
     };
-    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "close_subject_member" | "end_subject_member" | "grant_subject_member" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
+    readonly functions: "add_subject_member" | "can_subject" | "can_subject_for" | "close_subject_member" | "end_subject_member" | "grant_subject_member" | "has_subject_role" | "is_subject_member" | "list_subject_members" | "my_subjects" | "my_work" | "record_summary" | "record_team_leads" | "record_team_tenant" | "subject_presence_allowed" | "subject_title" | "subject_titles" | "subject_types" | "subject_url";
     readonly actions: "manage";
     readonly hooks: never;
     readonly entities: {};
