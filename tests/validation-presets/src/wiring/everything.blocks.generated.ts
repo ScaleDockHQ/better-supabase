@@ -52,6 +52,7 @@ import type { PostsEvents } from "better-supabase/blocks/posts";
 import type { ContentEvents } from "better-supabase/blocks/content";
 import type { QualificationsEvents } from "better-supabase/blocks/qualifications";
 import type { RisksEvents } from "better-supabase/blocks/risks";
+import type { CasesEvents } from "better-supabase/blocks/cases";
 import type { ShiftsEvents } from "better-supabase/blocks/shifts";
 import type { ConsentsEvents } from "better-supabase/blocks/consents";
 import type { ObservationsEvents } from "better-supabase/blocks/observations";
@@ -1760,7 +1761,7 @@ export type PermissionKey = "access_requests.create" | "access_requests.emergenc
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OauthServerEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & CollectionsEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & DomainsEvents & ReviewsEvents & LeaveEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OauthServerEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & VercelMarketplaceEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SecurityEventsEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & IncomingWebhooksEvents & WebhooksEvents & TasksEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1881,6 +1882,19 @@ export const blockEvents: Events<BlockEvents> = {
     "care_plan_action.started",
     "care_plan_evaluation.created",
     "care_plan_goal.status_changed",
+    "case.cancelled",
+    "case.closed",
+    "case.created",
+    "case.effectiveness_date_reached",
+    "case.effectiveness_recorded",
+    "case.reopened",
+    "case.root_cause_recorded",
+    "case.updated",
+    "case_action.created",
+    "case_action.deleted",
+    "case_kind.archived",
+    "case_kind.created",
+    "case_kind.updated",
     "catalog.price_changed",
     "channel.created",
     "channel.updated",
@@ -2506,6 +2520,19 @@ export const blockEventSchemas = {
   "care_plan_action.started": true,
   "care_plan_evaluation.created": true,
   "care_plan_goal.status_changed": true,
+  "case.cancelled": true,
+  "case.closed": true,
+  "case.created": true,
+  "case.effectiveness_date_reached": true,
+  "case.effectiveness_recorded": true,
+  "case.reopened": true,
+  "case.root_cause_recorded": true,
+  "case.updated": true,
+  "case_action.created": true,
+  "case_action.deleted": true,
+  "case_kind.archived": true,
+  "case_kind.created": true,
+  "case_kind.updated": true,
   "catalog.price_changed": true,
   "channel.created": true,
   "channel.updated": true,
