@@ -1,6 +1,6 @@
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:6730fdee29032e0f44a1a2fc2c8e37d75ffeb07876a87ef55ba519f83be6bccf
+-- @bsb-hash sha256:b6977e074fb7c611e651df043887465afb3121941fae31c606a94b82768b4e4a
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1439,20 +1439,20 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'userId', u.user_id,
-      'shifts', u.shifts,
+      'shifts', u.assigned,
       'plannedHours', u.planned,
       'contractHours', u.contract,
       'differenceHours', u.planned - u.contract
     ) order by u.planned desc, u.user_id), '[]'::jsonb)
     from (
-      select p.user_id, p.shifts, p.planned, (select k."hours_per_week" from "better_supabase"."employee_contracts" k
+      select p.user_id, p.assigned, p.planned, (select k."hours_per_week" from "better_supabase"."employee_contracts" k
         join "better_supabase"."employees" e on e."id" = k."employee_id"
         where e."user_id" = p.user_id and k."tenant_id" = shift_hours.tenant
           and k."starts_on" <= shift_hours.week_start and (k."ends_on" is null or k."ends_on" >= shift_hours.week_start)
         order by k."starts_on" desc
         limit 1)::numeric as contract
       from (
-        select y."user_id" as user_id, count(*)::integer as shifts, round((extract(epoch from sum(x."ends_at" - make_interval(mins => x."break_minutes") - x."starts_at")) / 3600)::numeric, 2) as planned
+        select y."user_id" as user_id, count(*)::integer as assigned, round((extract(epoch from sum(x."ends_at" - make_interval(mins => x."break_minutes") - x."starts_at")) / 3600)::numeric, 2) as planned
         from "better_supabase"."shift_assignments" y
         join "better_supabase"."shifts" x on x."id" = y."shift_id"
         where y."tenant_id" = shift_hours.tenant

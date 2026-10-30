@@ -230,15 +230,15 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'userId', u.user_id,
-      'shifts', u.shifts,
+      'shifts', u.assigned,
       'plannedHours', u.planned,
       'contractHours', u.contract,
       'differenceHours', u.planned - u.contract
     ) order by u.planned desc, u.user_id), '[]'::jsonb)
     from (
-      select p.user_id, p.shifts, p.planned, ${contractHours} as contract
+      select p.user_id, p.assigned, p.planned, ${contractHours} as contract
       from (
-        select y.${a("user")} as user_id, count(*)::integer as shifts, ${hours(`sum(${worked("x")} - x.${s("startsAt")})`)} as planned
+        select y.${a("user")} as user_id, count(*)::integer as assigned, ${hours(`sum(${worked("x")} - x.${s("startsAt")})`)} as planned
         from ${assignments} y
         join ${shifts} x on x.${s("id")} = y.${a("shift")}
         where y.${a("tenant")} = shift_hours.tenant

@@ -2239,20 +2239,20 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'userId', u.user_id,
-      'shifts', u.shifts,
+      'shifts', u.assigned,
       'plannedHours', u.planned,
       'contractHours', u.contract,
       'differenceHours', u.planned - u.contract
     ) order by u.planned desc, u.user_id), '[]'::jsonb)
     from (
-      select p.user_id, p.shifts, p.planned, (select k."hours_per_week" from "better_supabase"."employee_contracts" k
+      select p.user_id, p.assigned, p.planned, (select k."hours_per_week" from "better_supabase"."employee_contracts" k
         join "better_supabase"."employees" e on e."id" = k."employee_id"
         where e."user_id" = p.user_id and k."tenant_id" = shift_hours.tenant
           and k."starts_on" <= shift_hours.week_start and (k."ends_on" is null or k."ends_on" >= shift_hours.week_start)
         order by k."starts_on" desc
         limit 1)::numeric as contract
       from (
-        select y."user_id" as user_id, count(*)::integer as shifts, round((extract(epoch from sum(x."ends_at" - make_interval(mins => x."break_minutes") - x."starts_at")) / 3600)::numeric, 2) as planned
+        select y."user_id" as user_id, count(*)::integer as assigned, round((extract(epoch from sum(x."ends_at" - make_interval(mins => x."break_minutes") - x."starts_at")) / 3600)::numeric, 2) as planned
         from "better_supabase"."shift_assignments" y
         join "better_supabase"."shifts" x on x."id" = y."shift_id"
         where y."tenant_id" = shift_hours.tenant

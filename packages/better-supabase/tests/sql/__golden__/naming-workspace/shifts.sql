@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_144_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:a6948b8d496206f652907c96600741c37d40728fe6cebe12d5bb8f69a03950b4
+-- @bsb-hash sha256:fbce43ed21a1777f4c9e0550dd03d09848016876723bafadd0f216b73fe12078
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1175,15 +1175,15 @@ begin
   return (
     select coalesce(jsonb_agg(jsonb_build_object(
       'userId', u.user_id,
-      'shifts', u.shifts,
+      'shifts', u.assigned,
       'plannedHours', u.planned,
       'contractHours', u.contract,
       'differenceHours', u.planned - u.contract
     ) order by u.planned desc, u.user_id), '[]'::jsonb)
     from (
-      select p.user_id, p.shifts, p.planned, null::numeric as contract
+      select p.user_id, p.assigned, p.planned, null::numeric as contract
       from (
-        select y."user_id" as user_id, count(*)::integer as shifts, round((extract(epoch from sum(x."ends_at" - make_interval(mins => x."break_minutes") - x."starts_at")) / 3600)::numeric, 2) as planned
+        select y."user_id" as user_id, count(*)::integer as assigned, round((extract(epoch from sum(x."ends_at" - make_interval(mins => x."break_minutes") - x."starts_at")) / 3600)::numeric, 2) as planned
         from "better_supabase"."shift_assignments" y
         join "better_supabase"."shifts" x on x."id" = y."shift_id"
         where y."tenant_id" = shift_hours.tenant
