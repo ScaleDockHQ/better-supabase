@@ -198,9 +198,9 @@ describe.skipIf(!live)("compliance", () => {
       const roster = await acks.status(record).orThrow();
       expect(roster.versionId).not.toBe(published.versionId);
       expect(roster.acknowledged).toBe(0);
-      expect(roster.pending.map((member) => member.userId)).toEqual([
-        analyst.id,
-      ]);
+      expect(roster.pending.map((member) => member.userId).toSorted()).toEqual(
+        [analyst.id, owner.id].toSorted(),
+      );
 
       const archived = await controls.archivePolicy(policy.id).orThrow();
       expect(archived.archivedAt).toBeDefined();
@@ -312,7 +312,7 @@ values ('$tenant', '$policy', '$version', '$user', '2026-01-02T03:04:05Z');`
            from compliance_up.acknowledgement_assignments`,
         ),
       ).toEqual([
-        { subject_id: policy, principal_type: "role", principal_id: "member" },
+        { subject_id: policy, principal_type: "role", principal_id: "*" },
       ]);
       expect(
         await s.rows(

@@ -28,7 +28,10 @@ export interface AcknowledgementsOptions extends BlockOptions {
 /** Who an assignment asks to acknowledge a record. */
 export type AcknowledgementPrincipalType = "user" | "team" | "role";
 
-/** A member, a team (its id) or a role (its name). */
+/**
+ * A member, a team (its id) or a role (its name). The role id `*` covers every
+ * member, whatever role they hold.
+ */
 export interface AcknowledgementPrincipal {
   readonly type: AcknowledgementPrincipalType;
   readonly id: string;

@@ -11,6 +11,7 @@ import {
   subjectReadable,
   subjectsOption,
 } from "../subjects.ts";
+import { ALL_MEMBERS } from "./acknowledgements-shared.ts";
 import { roleNameOf } from "./memberships.ts";
 import { moduleOperations, roleNames } from "./permissions-model.ts";
 
@@ -158,7 +159,7 @@ export function acknowledgementFunctions(ctx: BlockSqlContext): string {
       ))`;
 
     return `((${x}.${g("principalType")} = 'user' and ${x}.${g("principalId")} = ${m}.${mu}::text)
-      or (${x}.${g("principalType")} = 'role' and ${x}.${g("principalId")} = ${roleNameOf(members, m)})${team})`;
+      or (${x}.${g("principalType")} = 'role' and ${x}.${g("principalId")} in (${sqlString(ALL_MEMBERS)}, ${roleNameOf(members, m)}))${team})`;
   };
 
   // The tenant of a record, from its assignments, acknowledgements or versions.
@@ -242,7 +243,8 @@ export function acknowledgementFunctions(ctx: BlockSqlContext): string {
     ${fail("ACKNOWLEDGEMENT_SIGNATURE_INVALID", "the signature isn't your completed signature on this version", "22023")}
   end if;`;
 
-  const roleCheck = `assign_acknowledgement.principal_id = any (array[${roleNames(ctx).map(sqlString).join(", ") || "null"}]::text[])
+  const roleCheck = `assign_acknowledgement.principal_id = ${sqlString(ALL_MEMBERS)}
+      or assign_acknowledgement.principal_id = any (array[${roleNames(ctx).map(sqlString).join(", ") || "null"}]::text[])
       or exists (select 1 from ${memberships} m where m.${mt} = assign_acknowledgement.tenant and ${roleNameOf(members, "m")} = assign_acknowledgement.principal_id)`;
 
   const teamCheck =

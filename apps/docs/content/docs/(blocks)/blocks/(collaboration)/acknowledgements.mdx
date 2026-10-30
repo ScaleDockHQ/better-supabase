@@ -73,7 +73,8 @@ const status = await db.acknowledgements.status(policy).orThrow();
 ```
 
 `assign(organizationId, record, principal, { dueInDays })` asks a user (by
-id), a team (by id) or a role (by key). Assigning the same principal again
+id), a team (by id), a role (by key) or every member (a role with the id
+`*`). Assigning the same principal again
 updates its due date. `dueInDays` counts from the day the current version was
 published, from 1 to 365; without it the assignment has no due date.
 `unassign(assignmentId)` removes an assignment and `assignments(record)`

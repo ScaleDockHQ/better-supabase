@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block-data compliance
--- @bsb-hash sha256:04c7c4eba589fce178f65d8a508ed597aa2e6b71929d11b6cdf6c4eb5ecc6658
+-- @bsb-hash sha256:973fc3f7ad4cdacea90efb4d72e2fdafb2c522d62164005a917446e8d4518a76
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -79,6 +79,28 @@ do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."observations"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."observations" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."medication_orders"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."medication_orders" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
 do $$ begin if exists (select 1 from pg_catalog.pg_attribute where attrelid = to_regclass('"better_supabase"."care_plans"') and attname = 'subject_type' and not attisdropped) then update "better_supabase"."care_plans" set "subject_type" = 'compliance_policy' where "subject_type" = 'policy'; end if; end $$;
+
+-- Policies assigned to the member role reach every member.
+do $$
+begin
+  if to_regclass('"better_supabase"."acknowledgement_assignments"') is null then
+    return;
+  end if;
+  update "better_supabase"."acknowledgement_assignments" x
+  set "principal_id" = '*'
+  where x."subject_type" = 'compliance_policy'
+    and x."principal_type" = 'role'
+    and x."principal_id" = 'member'
+    and not exists (
+      select 1 from "better_supabase"."acknowledgement_assignments" y
+      where y."tenant_id" = x."tenant_id"
+        and y."subject_type" = x."subject_type"
+        and y."subject_id" = x."subject_id"
+        and y."principal_type" = 'role'
+        and y."principal_id" = '*'
+    );
+end;
+$$;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('compliance', 3, 'managed')

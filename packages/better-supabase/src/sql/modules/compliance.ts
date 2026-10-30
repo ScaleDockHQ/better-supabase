@@ -24,7 +24,11 @@ import {
 import { tableMoves } from "../table-renames.ts";
 import { acknowledgementTables } from "./acknowledgements.ts";
 import { complianceFunctions } from "./compliance-functions.ts";
-import { POLICY_ROLE, policyFunctions } from "./compliance-policies.ts";
+import {
+  POLICY_ROLE,
+  policyFunctions,
+  widenPolicyAssignments,
+} from "./compliance-policies.ts";
 import {
   CONTROL_RESERVED,
   evidenceAttachments,
@@ -467,7 +471,7 @@ const CONTRIBUTES: BlockContributes = {
 const TO_ACKNOWLEDGEMENTS: BlockSqlUpgrade = {
   from: 1,
   description:
-    "Policy acknowledgements move onto the acknowledgements block: each policy_acknowledgements row becomes an acknowledgement of the policy's version, every live policy that requires acknowledgement is assigned to the member role, and policy_acknowledgements, acknowledge_compliance_policy and compliance_policy_acknowledgements go.",
+    "Policy acknowledgements move onto the acknowledgements block: each policy_acknowledgements row becomes an acknowledgement of the policy's version, every live policy that requires acknowledgement is assigned to every member, and policy_acknowledgements, acknowledge_compliance_policy and compliance_policy_acknowledgements go.",
   sql: (ctx) => {
     const acknowledgements = ctx.of("acknowledgements");
 
@@ -564,5 +568,8 @@ export const COMPLIANCE: BlockSqlDefinition = {
   contract,
   build,
   contributes: CONTRIBUTES,
-  data: subjectTypeRenames,
+  data: (ctx, layout) =>
+    [subjectTypeRenames(ctx, layout), widenPolicyAssignments(ctx)]
+      .filter((part) => part !== "")
+      .join("\n\n"),
 };
