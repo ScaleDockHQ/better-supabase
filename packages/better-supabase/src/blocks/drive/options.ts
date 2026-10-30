@@ -14,14 +14,25 @@ export type DriveRoleHook =
 /** `blocks.drive.options.quota`: the usage meter uploads count against. */
 export type DriveQuota = { readonly meter: string };
 
+/** A document type with its own number format. */
+export type DriveDocumentType = {
+  readonly name: string;
+  /** A numbering template with `{n}`, such as `SOP-{n:4}`. */
+  readonly numberFormat?: string;
+};
+
 /**
  * `blocks.drive.options.control`: files saved as controlled documents get a
  * number, a type, an owner, a release workflow through approvals and periodic
  * reviews. Needs the numbering, versions, approvals and state-machine blocks.
  */
 export type DriveControl = {
-  /** The document types, such as `sop` or `policy`. */
-  readonly types: readonly string[];
+  /**
+   * The document types, such as `sop` or `policy`. A type given as `{ name,
+   * numberFormat }` numbers its documents from its own counter, for example
+   * `SOP-{n:4}`; the others share `DOC-{n:5}`.
+   */
+  readonly types: readonly (string | DriveDocumentType)[];
   /** The months between reviews when a document sets none; 12 by default. */
   readonly reviewMonths?: number;
   /** The role that makes a document obsolete; the share role by default. */

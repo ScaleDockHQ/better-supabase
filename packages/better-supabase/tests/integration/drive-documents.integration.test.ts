@@ -22,7 +22,13 @@ const layout: BlockSqlLayout = {
     },
   },
   modules: {
-    drive: { options: { control: { types: ["sop", "policy"] } } },
+    drive: {
+      options: {
+        control: {
+          types: ["sop", { name: "policy", numberFormat: "POL-{n:3}" }],
+        },
+      },
+    },
     approvals: {
       options: {
         policies: {
@@ -169,6 +175,19 @@ describe.skipIf(!live)("drive controlled documents", () => {
         ownerId: owner.id,
         effectiveOnly: false,
       });
+
+      await s.asRole(owner);
+
+      const policy = await s.value<{ node: { id: string } }>(
+        "better_supabase.drive_create_file($1, null, 'Policy.pdf', 'application/pdf', 10)",
+        [tenant],
+      );
+
+      await s.as(owner);
+      expect(
+        (await drive.saveDocument(policy.node.id, { type: "policy" }).orThrow())
+          .document?.number,
+      ).toBe("POL-001");
 
       await s.asRole(reader);
       expect(

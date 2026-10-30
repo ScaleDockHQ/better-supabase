@@ -28,13 +28,21 @@ blocks: {
 },
 ```
 
-| Option         | Default                 | What it does                                                              |
-| -------------- | ----------------------- | ------------------------------------------------------------------------- |
-| `types`        | required                | The document types, lowercase, such as `sop` or `policy`                  |
-| `reviewMonths` | `12`                    | The months between reviews of a document that sets no interval of its own |
-| `releaseRole`  | the drive's `shareRole` | The role that makes an effective document obsolete                        |
+| Option         | Default                 | What it does                                                                          |
+| -------------- | ----------------------- | ------------------------------------------------------------------------------------- |
+| `types`        | required                | The document types, lowercase, such as `sop` or `policy`, or `{ name, numberFormat }` |
+| `reviewMonths` | `12`                    | The months between reviews of a document that sets no interval of its own             |
+| `releaseRole`  | the drive's `shareRole` | The role that makes an effective document obsolete                                    |
 
-Numbers come from one `DOC-{n:5}` sequence per organization, whatever the type. The state machine is named after the drive's subject type (`drive_node`), and only files under control are in it: other files have no status.
+Numbers come from one `DOC-{n:5}` sequence per organization unless a type sets its own format. A type written as `{ name: "sop", numberFormat: "SOP-{n:4}" }` counts from its own sequence, so the first SOP is `SOP-0001` whatever the other types hold. The format needs `{n}` (or `{n:width}`) and can use `{yyyy}`, `{yy}`, `{mm}` and `{dd}`. A document keeps its number when its type changes, and changing a format later affects only new documents.
+
+```ts
+control: {
+  types: ["policy", { name: "sop", numberFormat: "SOP-{n:4}" }],
+}
+```
+
+The state machine is named after the drive's subject type (`drive_node`), and only files under control are in it: other files have no status.
 
 ## The lifecycle
 

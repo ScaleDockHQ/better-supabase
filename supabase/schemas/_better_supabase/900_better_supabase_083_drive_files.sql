@@ -1,6 +1,6 @@
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:57fc0c7e39a6aa8fae2690d2bf36e69d8cde3ddc44a5c5042a8a53a5c967bbe3
+-- @bsb-hash sha256:e0d4d73987b1d3f702dc0237b4e2718b21f64bbe2272725acb2512857a78dc27
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1147,6 +1147,8 @@ declare
   v_node "better_supabase"."drive_nodes"%rowtype;
   v_seq bigint;
   v_number text;
+  v_entity text;
+  v_format text;
 begin
   perform better_supabase.raise_actor_readonly() where not better_supabase.actor_may_write();
   select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_document_save.node and x."deleted_at" is null for update;
@@ -1176,8 +1178,16 @@ begin
   end if;
   v_number := v_node."document_number";
   if v_number is null then
-    v_seq := "better_supabase"."next_number"(v_node."tenant_id", 'drive_document', now());
-    v_number := better_supabase.format_assigned_number('DOC-{n:5}', v_seq, now());
+    case drive_document_save.document_type
+      when 'sop' then
+        v_entity := 'drive_document_sop';
+        v_format := 'SOP-{n:4}';
+      else
+        v_entity := 'drive_document';
+        v_format := 'DOC-{n:5}';
+    end case;
+    v_seq := "better_supabase"."next_number"(v_node."tenant_id", v_entity, now());
+    v_number := better_supabase.format_assigned_number(v_format, v_seq, now());
   end if;
   update "better_supabase"."drive_nodes" x set "document_number" = v_number,
     "document_type" = drive_document_save.document_type,

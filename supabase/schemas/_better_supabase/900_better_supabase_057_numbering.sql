@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:a59b32ae7240a9ca963b65a1f317371f45e7d44e6f3453e7500833144a29a6c3
+-- @bsb-hash sha256:790328fa0be768dc8f03d53a48a8d563cf55b74fcb6469939a7200ea9a732145
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -186,6 +186,7 @@ begin
   end if;
   v_period := case p_entity
     when 'drive_document' then ''
+    when 'drive_document_sop' then ''
     when 'donation_receipt' then ''
     when 'risk' then ''
     when 'case' then to_char(next_number.at at time zone 'utc', 'YYYY')
@@ -246,6 +247,7 @@ declare
 begin
   v_format := case p_entity
     when 'drive_document' then 'DOC-{n:5}'
+    when 'drive_document_sop' then 'SOP-{n:4}'
     when 'donation_receipt' then 'R-{n}'
     when 'risk' then 'RSK-{n:4}'
     when 'case' then '{yyyy}-{n:4}'
@@ -297,6 +299,7 @@ begin
   v_format := "better_supabase"."number_format"(p_tenant, p_entity);
   v_period := case p_entity
     when 'drive_document' then ''
+    when 'drive_document_sop' then ''
     when 'donation_receipt' then ''
     when 'risk' then ''
     when 'case' then to_char(p_at at time zone 'utc', 'YYYY')

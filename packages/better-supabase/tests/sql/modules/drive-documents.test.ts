@@ -82,6 +82,27 @@ describe("drive controlled documents", () => {
     expect(sqlOf(files, "acknowledgements")).toContain("effective_version_id");
   });
 
+  it("numbers a type from its own format", () => {
+    const files = render({
+      types: ["policy", { name: "sop", numberFormat: "SOP-{n:4}" }],
+    });
+
+    const functions = sqlOf(files, "drive-files");
+    const numbering = sqlOf(files, "numbering");
+
+    expect(numbering).toContain("DOC-{n:5}");
+    expect(numbering).toContain("SOP-{n:4}");
+    expect(numbering).toContain("drive_document_sop");
+    expect(functions).toContain("when 'sop' then");
+    expect(functions).toContain("'policy'");
+  });
+
+  it("rejects a number format without {n}", () => {
+    expect(() =>
+      render({ types: [{ name: "sop", numberFormat: "SOP" }] }),
+    ).toThrow(/numberFormat/u);
+  });
+
   it("validates options.control", () => {
     expect(() => render({ types: [] })).toThrow(TypeError);
     expect(() => render({ types: ["Bad Type"] })).toThrow(TypeError);
