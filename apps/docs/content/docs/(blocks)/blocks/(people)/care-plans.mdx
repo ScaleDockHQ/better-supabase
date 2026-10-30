@@ -166,8 +166,8 @@ await db.carePlans
 `reviewAction` records a review of an active action, and `reviewEvery` (a
 `Temporal.Duration`) says how often one is due. Run `dueReviews` daily with the
 service role; the block's `reviews` schedule does that at 06:00. It records
-`care_plan.review_due` when a plan's `reviewOn` has passed and
-`care_plan_action.review_due` when an action's review is overdue, once each,
+`care_plan.review_date_reached` when a plan's `reviewOn` has passed and
+`care_plan_action.review_date_reached` when an action's review is overdue, once each,
 and notifies the plan's owner. For reminders ahead of the date, point
 [reminders](/docs/blocks/reminders) at the column:
 
@@ -251,10 +251,10 @@ await db.carePlans
 ## Events
 
 `care_plan.created`, `care_plan.updated`, `care_plan.published`,
-`care_plan.archived`, `care_plan.agreed`, `care_plan.review_due`,
+`care_plan.archived`, `care_plan.agreed`, `care_plan.review_date_reached`,
 `care_plan_goal.status_changed`, `care_plan_evaluation.created`,
 `care_plan_action.started`, `care_plan_action.ended`,
-`care_plan_action.review_due` and `care_plan_action.reviewed`. The
+`care_plan_action.review_date_reached` and `care_plan_action.reviewed`. The
 [events page](/docs/extending/events) lists their payloads.
 
 The [care plan editor](/docs/registry/ui-recipes/care-plan-editor) and

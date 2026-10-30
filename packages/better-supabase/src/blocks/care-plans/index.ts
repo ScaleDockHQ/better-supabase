@@ -61,7 +61,7 @@ export { carePlansEvents } from "./events.ts";
 export type {
   CarePlanActionEndedEventData,
   CarePlanActionEventData,
-  CarePlanActionReviewDueEventData,
+  CarePlanActionReviewDateReachedEventData,
   CarePlanActionReviewedEventData,
   CarePlanAgreedEventData,
   CarePlanChildEventData,
@@ -69,6 +69,6 @@ export type {
   CarePlanEventData,
   CarePlanGoalStatusChangedEventData,
   CarePlanPublishedEventData,
-  CarePlanReviewDueEventData,
+  CarePlanReviewDateReachedEventData,
   CarePlansEvents,
 } from "./events.ts";

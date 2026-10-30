@@ -13,7 +13,6 @@ import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN } from "../rank-sql.ts";
 import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
-import { subjectRowReadable } from "../subjects.ts";
 import { carePlanFlowFunctions } from "./care-plans-flow.ts";
 import { carePlanFunctions } from "./care-plans-functions.ts";
 import {
@@ -56,7 +55,7 @@ const EVENTS: BlockSqlEvents<CarePlansEvents> = {
     subject: "care-plans",
     payload: [...PLAN, "signatureRequestId"],
   },
-  "care_plan.review_due": {
+  "care_plan.review_date_reached": {
     subject: "care-plans",
     payload: [...PLAN, "ownerId", "reviewOn"],
   },
@@ -73,7 +72,7 @@ const EVENTS: BlockSqlEvents<CarePlansEvents> = {
     subject: "care-plans",
     payload: [...action.payload, "reason"],
   },
-  "care_plan_action.review_due": {
+  "care_plan_action.review_date_reached": {
     subject: "care-plans",
     payload: [...action.payload, "ownerId", "dueAt"],
   },
@@ -270,14 +269,7 @@ function tables(ctx: BlockSqlContext): string {
 
   // A guest reads the plans that are or were in force, never a draft.
   const planRead = guestOr(
-    `${ctx.scope.check(p("tenant"), q.read)} and ${subjectRowReadable(
-      ctx,
-      plans,
-      {
-        type: ctx.colName("plans", "subjectType"),
-        id: ctx.colName("plans", "subjectId"),
-      },
-    )}`,
+    `${ctx.scope.check(p("tenant"), q.read)} and coalesce(${ctx.of("subjects").fn("can_subject")}(${plans}.${sqlIdent(ctx.colName("plans", "subjectType"))}, ${plans}.${sqlIdent(ctx.colName("plans", "subjectId"))}::text, 'read'), false)`,
     q.guestRead && guest !== "false"
       ? [`(${p("status")} <> 'draft' and ${guest})`]
       : [],

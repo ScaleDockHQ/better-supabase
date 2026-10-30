@@ -640,7 +640,7 @@ function dueReviews(ctx: BlockSqlContext, q: CarePlansSql): string {
   return `
 -- Reports each active plan whose review date has come, once per date, and
 -- each active action whose reviewEvery has lapsed since its last review,
--- once per lapse: a review_due event and, with notifications, a notification
+-- once per lapse: a review_date_reached event and, with notifications, a notification
 -- to the plan's owner. Run it daily from a job (the care-plans.reviews timer).
 create or replace function ${fn("due_care_plan_reviews")}()
 returns integer
@@ -661,8 +661,8 @@ begin
       and x.${p("reviewNotifiedFor")} is distinct from x.${p("reviewOn")}
     for update skip locked
   loop
-    ${q.record("care_plan.review_due", "v_plan", "care plan review due", `, 'ownerId', v_plan.${p("owner")}, 'reviewOn', v_plan.${p("reviewOn")}`)}
-    ${notify("care_plan.review_due", `'care_plan.review_due:' || v_plan.${p("id")}::text || ':' || v_plan.${p("reviewOn")}::text`, `jsonb_build_object('planId', v_plan.${p("id")}, 'reviewOn', v_plan.${p("reviewOn")})`)}
+    ${q.record("care_plan.review_date_reached", "v_plan", "care plan review due", `, 'ownerId', v_plan.${p("owner")}, 'reviewOn', v_plan.${p("reviewOn")}`)}
+    ${notify("care_plan.review_date_reached", `'care_plan.review_date_reached:' || v_plan.${p("id")}::text || ':' || v_plan.${p("reviewOn")}::text`, `jsonb_build_object('planId', v_plan.${p("id")}, 'reviewOn', v_plan.${p("reviewOn")})`)}
     update ${plans} x set ${p("reviewNotifiedFor")} = v_plan.${p("reviewOn")} where x.${p("id")} = v_plan.${p("id")};
     v_count := v_count + 1;
   end loop;
@@ -676,8 +676,8 @@ begin
   loop
     v_due := coalesce(v_row.${a("reviewedAt")}, v_row.${a("startedAt")}) + v_row.${a("reviewEvery")};
     select * into v_plan from ${plans} x where x.${p("id")} = v_row.${a("plan")};
-    ${q.recordChild("care_plan_action.review_due", "v_plan", actionPayload(q, `, 'ownerId', v_plan.${p("owner")}, 'dueAt', v_due`), "care plan action review due")}
-    ${notify("care_plan_action.review_due", `'care_plan_action.review_due:' || v_row.${a("id")}::text || ':' || v_due::text`, `jsonb_build_object('planId', v_plan.${p("id")}, 'actionId', v_row.${a("id")}, 'dueAt', v_due)`)}
+    ${q.recordChild("care_plan_action.review_date_reached", "v_plan", actionPayload(q, `, 'ownerId', v_plan.${p("owner")}, 'dueAt', v_due`), "care plan action review due")}
+    ${notify("care_plan_action.review_date_reached", `'care_plan_action.review_date_reached:' || v_row.${a("id")}::text || ':' || v_due::text`, `jsonb_build_object('planId', v_plan.${p("id")}, 'actionId', v_row.${a("id")}, 'dueAt', v_due)`)}
     update ${actions} w set ${a("reviewNotifiedAt")} = v_due where w.${a("id")} = v_row.${a("id")};
     v_count := v_count + 1;
   end loop;

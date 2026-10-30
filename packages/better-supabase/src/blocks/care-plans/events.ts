@@ -30,8 +30,8 @@ export interface CarePlanAgreedEventData extends CarePlanEventData {
   readonly signatureRequestId: string;
 }
 
-/** `care_plan.review_due`: the plan's review date has come. */
-export interface CarePlanReviewDueEventData extends CarePlanEventData {
+/** `care_plan.review_date_reached`: the plan's review date has come. */
+export interface CarePlanReviewDateReachedEventData extends CarePlanEventData {
   readonly ownerId: string | null;
   /** `YYYY-MM-DD`. */
   readonly reviewOn: string;
@@ -79,8 +79,11 @@ export interface CarePlanActionReviewedEventData extends CarePlanActionEventData
   readonly note: string | null;
 }
 
-/** `care_plan_action.review_due`: the action's review interval has lapsed. */
-export interface CarePlanActionReviewDueEventData extends CarePlanActionEventData {
+/**
+ * `care_plan_action.review_date_reached`: the action's review interval has
+ * lapsed.
+ */
+export interface CarePlanActionReviewDateReachedEventData extends CarePlanActionEventData {
   /** The plan's owner. */
   readonly ownerId: string | null;
   /** When the review fell due, an ISO timestamp. */
@@ -94,12 +97,12 @@ export type CarePlansEvents = {
   readonly "care_plan.published": CarePlanPublishedEventData;
   readonly "care_plan.archived": CarePlanEventData;
   readonly "care_plan.agreed": CarePlanAgreedEventData;
-  readonly "care_plan.review_due": CarePlanReviewDueEventData;
+  readonly "care_plan.review_date_reached": CarePlanReviewDateReachedEventData;
   readonly "care_plan_goal.status_changed": CarePlanGoalStatusChangedEventData;
   readonly "care_plan_evaluation.created": CarePlanEvaluationCreatedEventData;
   readonly "care_plan_action.started": CarePlanActionEventData;
   readonly "care_plan_action.ended": CarePlanActionEndedEventData;
-  readonly "care_plan_action.review_due": CarePlanActionReviewDueEventData;
+  readonly "care_plan_action.review_date_reached": CarePlanActionReviewDateReachedEventData;
   readonly "care_plan_action.reviewed": CarePlanActionReviewedEventData;
 };
 
@@ -110,11 +113,12 @@ export const carePlansEvents: Events<CarePlansEvents> = defineEvents({
   "care_plan.published": event<CarePlanPublishedEventData>(),
   "care_plan.archived": event<CarePlanEventData>(),
   "care_plan.agreed": event<CarePlanAgreedEventData>(),
-  "care_plan.review_due": event<CarePlanReviewDueEventData>(),
+  "care_plan.review_date_reached": event<CarePlanReviewDateReachedEventData>(),
   "care_plan_goal.status_changed": event<CarePlanGoalStatusChangedEventData>(),
   "care_plan_evaluation.created": event<CarePlanEvaluationCreatedEventData>(),
   "care_plan_action.started": event<CarePlanActionEventData>(),
   "care_plan_action.ended": event<CarePlanActionEndedEventData>(),
-  "care_plan_action.review_due": event<CarePlanActionReviewDueEventData>(),
+  "care_plan_action.review_date_reached":
+    event<CarePlanActionReviewDateReachedEventData>(),
   "care_plan_action.reviewed": event<CarePlanActionReviewedEventData>(),
 });

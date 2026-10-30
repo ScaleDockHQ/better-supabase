@@ -185,7 +185,7 @@ describe.skipIf(!live)("care-plans", () => {
           "care_plan.created",
           "care_plan.published",
           "care_plan.archived",
-          "care_plan.review_due",
+          "care_plan.review_date_reached",
           "care_plan_action.started",
           "care_plan_action.ended",
           "care_plan_evaluation.created",
