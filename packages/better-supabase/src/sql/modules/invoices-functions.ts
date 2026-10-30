@@ -75,9 +75,10 @@ export interface InvoiceNames {
 /**
  * Invoice columns a config opts into by naming them in
  * `blocks.invoices.columns.invoices`, so app tables made before them keep
- * working: a fixed deposit and a header discount.
+ * working: an archive mark, a fixed deposit and a header discount.
  */
 export const OPT_IN: readonly string[] = [
+  "archivedAt",
   "depositAmount",
   "discountBps",
   "discountAmount",

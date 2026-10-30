@@ -175,8 +175,19 @@ export function invoiceFromQuote(
 
   const headerDiscount = quoteDiscounts.length > 0 && quoteDiscounts.every(has);
 
+  const live = (alias: string): string =>
+    `${has("archivedAt") ? `${alias}.${i("archivedAt")} is null and ` : ""}not (${alias}.${i("total")} > 0 and ${alias}.${i("creditedTotal")} >= ${alias}.${i("total")})`;
+
   const issuedDeposits = (alias: string): string =>
-    `${originIs(alias)} and ${isDeposit(alias) === "" ? "false" : `(${isDeposit(alias)})`} and ${st(`${alias}.${i("status")}`, ["draft", "void"], true)}`;
+    `${originIs(alias)} and ${isDeposit(alias) === "" ? "false" : `(${isDeposit(alias)})`} and ${st(`${alias}.${i("status")}`, ["draft", "void"], true)} and ${live(alias)}`;
+
+  const depositInclusive = has("pricesIncludeTax")
+    ? `d.${i("pricesIncludeTax")}`
+    : "false";
+
+  const deducted = has("pricesIncludeTax")
+    ? `case when ${depositInclusive} = ${inclusive} then y.amount when ${depositInclusive} then round(y.amount * 10000.0 / (10000 + y.rate))::bigint else round(y.amount * (10000 + y.rate) / 10000.0)::bigint end`
+    : "y.amount";
 
   // With the block's totals and deposits to deduct, a header discount
   // would also take its share off the deductions, so the discount
@@ -216,7 +227,7 @@ export function invoiceFromQuote(
   if invoice_from_quote.deposit_bps is null${amountDeposits ? " and invoice_from_quote.deposit_amount is null" : ""} then
     select * into v_row from ${t("invoices")} x
     where ${originIs("x")}
-      and ${notDeposit("x")}${st(`x.${i("status")}`, ["void"], true)} and ${kd(`x.${i("kind")}`, ["invoice"])}
+      and ${notDeposit("x")}${st(`x.${i("status")}`, ["void"], true)} and ${kd(`x.${i("kind")}`, ["invoice"])} and ${live("x")}
     limit 1;
     if v_row.${i("id")} is not null then
       return ${row("v_row")};
@@ -228,7 +239,7 @@ export function invoiceFromQuote(
     from ${quotes.table("lines")} x where x.${ql("parent")} = v_quote.${q("id")} and ${countedLine(quotes, "lines", "x")};${discount}${
       deposits
         ? `
-    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', replace(${depositDescription}, '{identifier}', d.${i("identifier")}), 'quantity', 1, 'unitAmount', (-y.amount)::text,
+    select v_lines || coalesce(jsonb_agg(jsonb_build_object('description', replace(${depositDescription}, '{identifier}', d.${i("identifier")}), 'quantity', 1, 'unitAmount', (-(${deducted}))::text,
         'taxRateBps', y.rate${depositFields}) order by d.${i("identifier")}, y.rate), '[]'::jsonb)
       into v_lines
     from ${t("invoices")} d

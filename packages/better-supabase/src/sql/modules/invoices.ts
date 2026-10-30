@@ -154,6 +154,7 @@ const NAMES: BlockSqlNames = {
         discountBps: "discount_bps",
         discountAmount: "discount_amount",
         pricesIncludeTax: "prices_include_tax",
+        archivedAt: "archived_at",
         createdBy: "created_by",
         createdAt: "created_at",
         updatedAt: "updated_at",
@@ -174,6 +175,7 @@ const NAMES: BlockSqlNames = {
         "discountBps",
         "discountAmount",
         "pricesIncludeTax",
+        "archivedAt",
         "createdBy",
         "listTotal",
         "discountTotal",
@@ -257,8 +259,9 @@ ${renderPolicy(
   const column = (logical: string, definition: string): string =>
     ctx.has("invoices", logical) ? `\n  ${i(logical)} ${definition},` : "";
 
-  // The columns a config opts into (depositAmount, discountBps, discountAmount).
+  // The columns a config opts into (archivedAt, depositAmount, discountBps, discountAmount).
   const optIn: Readonly<Record<string, (name: string) => string>> = {
+    archivedAt: () => "timestamptz",
     depositAmount: (name) => `bigint check (${name} > 0)`,
     discountBps: (name) =>
       `integer not null default 0 check (${name} >= 0 and ${name} <= 10000)`,
