@@ -8,14 +8,14 @@ import { usable } from "./drive-kit.ts";
  * `blocks.drive.options.sync.prune`: what a full listing does to nodes it no
  * longer lists.
  */
-export type DrivePrune = "mark" | "delete";
+type DrivePrune = "mark" | "delete";
 
 /**
  * `options.sync.prune` of the drive in `ctx`: `delete` (the default) removes
  * unlisted nodes, `mark` keeps them and sets `missing_since` on their record in
  * the imports record map, so it needs the imports block (ADR 0147).
  */
-export function drivePrune(ctx: BlockSqlContext): DrivePrune {
+function drivePrune(ctx: BlockSqlContext): DrivePrune {
   const raw = ctx.option("sync");
   const where = "blocks.drive.options.sync";
 
