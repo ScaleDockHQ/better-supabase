@@ -439,6 +439,7 @@ export const OPERATIONS = {
   "activities.read": "activities.read",
   "activities.write": "activities.write",
   "activities.manage": "activities.manage",
+  "activities.readRestricted": "activities.read_restricted",
   "deals.read": "deals.read",
   "deals.write": "deals.write",
   "deals.manage": "deals.manage",

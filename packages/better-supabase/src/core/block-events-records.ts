@@ -29,6 +29,19 @@ export interface EngagementRecordingEventData extends EngagementEventData {
   readonly recordingId: string;
 }
 
+/**
+ * `engagement.amended`: `engagementId` is the addendum, `amendsId` the
+ * original.
+ */
+export interface EngagementAmendedEventData extends EngagementEventData {
+  readonly amendsId: string;
+}
+
+/** `engagement.marked_error`: the engagement was flagged as entered in error. */
+export interface EngagementMarkedErrorEventData extends EngagementEventData {
+  readonly reason: string;
+}
+
 /** `mail_account.connected` and `mail_account.disconnected`: a synced mailbox. */
 export interface MailAccountEventData {
   readonly organizationId: string;

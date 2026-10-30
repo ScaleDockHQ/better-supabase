@@ -7,7 +7,7 @@ description: Calls, emails, meetings, notes and tasks logged on one or more reco
 
 This block is the logged work, not the system history. The [activity feed](/docs/blocks/timeline) records what the system did (a stage change, a comment), and every engagement event carries its main record, so the feed shows both on one timeline.
 
-Reading needs `activities.read`, and logging needs `activities.write`. The author and the owner edit an engagement, and `activities.manage` edits anyone's. Admins get every permission, and members get `activities.read` and `activities.write`.
+Reading needs `activities.read`, and logging needs `activities.write`. The author and the owner edit an engagement, and `activities.manage` edits anyone's. `activities.read_restricted` reads every [restricted note](#progress-notes). Admins get every permission, and members get `activities.read` and `activities.write`.
 
 ```bash
 better-supabase add activities
@@ -126,7 +126,64 @@ The meeting's `externalRef` is `booking:<id>`, so it is one engagement per booki
 | `next(subject)`                                | The open engagement with the earliest due time, or `undefined`: a record's next step                  |
 | `open(organizationId, { ownerId, dueBefore })` | A member's open engagements, earliest due first; the caller's by default                              |
 
-Each engagement has `overdue`: open and past its due time. Reads run as the caller: an engagement is visible to members who can read one of its records, or to every reader of the organization when it is on none.
+Each engagement has `overdue`: open and past its due time. Reads run as the caller: an engagement is visible to members who can read one of its records, or to every reader of the organization when it is on none. A [progress note's audience](#progress-notes) can narrow or widen that.
+
+## Progress notes
+
+Care and case work writes progress notes (rapportages) as engagements of type `note`, or `report` when you add it to `options.types`. Each engagement takes an `audience`, a `category` and a `goalId`, locks a while after it is written, takes addenda and can be flagged as entered in error.
+
+```ts
+const note = await db.activities
+  .log(
+    organizationId,
+    {
+      type: "note",
+      title: "Evening shift",
+      body: "Calm evening, ate well.",
+      category: "care",
+      audience: "subject",
+    },
+    [{ type: "client", id: clientId }],
+  )
+  .orThrow();
+
+await db.activities
+  .amend(note.id, "Took the evening medication late.")
+  .orThrow();
+await db.activities
+  .markError(otherNote.id, "Written on the wrong client")
+  .orThrow();
+```
+
+| `audience`       | Who reads it                                                                                                                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `team` (default) | The usual rule: members with `engagements.read` who can read one of its records                                                                                                           |
+| `subject`        | The same, and [guests](/docs/blocks/guests) with a read grant on one of its records, such as a client or a family member                                                                  |
+| `restricted`     | Members who pass the usual rule and also hold one of `restrictedRoles` on a linked record's [team](/docs/blocks/sql#record-teams), hold `engagements.read_restricted`, or wrote or own it |
+
+`restrictedRoles` lists record team roles, such as `["psychologist"]`. The check uses `has_subject_role`, so team membership counts only for the roles you name. `category` is one of `options.noteCategories` (default `general`, `care`, `medical`, `behavior`, `family`, `incident`). `goalId` names a care plan goal the note reports on; it is a plain id, with no foreign key.
+
+Engagements of a `options.lockTypes` type (default `note` and `report`) get `lockedAt` when they are logged: `options.lockAfterHours` later, 24 by default, and `0` locks them at once. After that, `update`, `complete` and `remove` fail with `ENGAGEMENT_LOCKED`, and so does logging the same `externalRef` again. Changing an engagement's type to a locked type sets `lockedAt` from when it was created. Set `lockTypes: []` to lock nothing. Other types, such as tasks and calls, never lock.
+
+`amend(id, body)` adds an addendum: a new engagement with your `body`, on the same records, with the original's type, title, audience, roles, category and goal, and `amendsId` pointing at the original. Whoever can read the original and holds `engagements.write` may add one, also once it is locked. The addendum locks on the same schedule.
+
+`markError(id, reason)` flags an engagement as entered in error with `markedErrorAt`, `markedErrorBy` and `markedErrorReason`. The row stays, so the record keeps what was written, and the flag locks it. The author, the owner and `engagements.manage` may flag one, once.
+
+```ts
+export default defineConfig({
+  blocks: {
+    activities: {
+      options: {
+        types: ["note", "report", "task"],
+        noteCategories: ["care", "medical", "family"],
+        lockAfterHours: 48,
+      },
+    },
+  },
+});
+```
+
+On your own table, map any of `audience`, `restrictedRoles`, `category`, `lockedAt`, `amends`, `goal`, `markedErrorAt`, `markedErrorBy` and `markedErrorReason` to `null` in `blocks.activities.columns.engagements` to leave that part out. `restrictedRoles` needs `audience`, and `markedErrorBy` and `markedErrorReason` need `markedErrorAt`.
 
 ## Recordings and notes
 
@@ -189,6 +246,8 @@ Recordings, transcripts and notes are readable by whoever can read the engagemen
 | `engagement.logged`, `engagement.updated`, `engagement.completed`, `engagement.deleted` | `organizationId`, `engagementId`, `type`, `subjectType`, `subjectId`, `subjects` |
 | `engagement.recorded`, `engagement.transcribed`                                         | The same, and `recordingId`                                                      |
 | `engagement.summarized`                                                                 | The same as `engagement.logged`                                                  |
+| `engagement.amended`                                                                    | The same for the addendum, and `amendsId`: the original                          |
+| `engagement.marked_error`                                                               | The same, and `reason`                                                           |
 
 ## Hooks
 
@@ -207,7 +266,13 @@ The ReUI CRM Activity Timeline reads `of(subject)` and groups the rows into day 
 | `ENGAGEMENT_TITLE_REQUIRED`                                                    | the title is empty                                         |
 | `ENGAGEMENT_SUBJECTS_INVALID`                                                  | `subjects` isn't a list of `{ type, id }`                  |
 | `ENGAGEMENT_SUBJECT_FORBIDDEN`                                                 | a record is unknown, in another organization or unreadable |
-| `ENGAGEMENT_NOT_FOUND`                                                         | no engagement the caller can edit                          |
+| `ENGAGEMENT_NOT_FOUND`                                                         | no engagement the caller can edit, or read for `amend`     |
+| `ENGAGEMENT_LOCKED`                                                            | the engagement is locked or flagged in error               |
+| `ENGAGEMENT_AUDIENCE_INVALID`                                                  | not `team`, `subject` or `restricted`, or bad roles        |
+| `ENGAGEMENT_CATEGORY_INVALID`                                                  | not one of `options.noteCategories`                        |
+| `ENGAGEMENT_BODY_REQUIRED`                                                     | an addendum without a body                                 |
+| `ENGAGEMENT_REASON_REQUIRED`                                                   | `markError` without a reason                               |
+| `ENGAGEMENT_ALREADY_MARKED_ERROR`                                              | the engagement is already flagged in error                 |
 | `AI_FILE_NOT_FOUND`                                                            | no ready file of the organization the caller may attach    |
 | `ENGAGEMENT_RECORDING_EXISTS`                                                  | the file is already a recording of the engagement          |
 | `ENGAGEMENT_RECORDING_NOT_FOUND`                                               | no such recording                                          |

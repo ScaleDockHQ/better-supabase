@@ -295,6 +295,31 @@ begin
 end;
 $$;
 ${userGrant(`${fn("is_subject_member")}(text, text)`)}
+
+-- Whether the caller is on the record's team today in one of roles, for a
+-- read rule that only some roles pass. The caller only, like
+-- is_subject_member.
+create or replace function ${fn("has_subject_role")}(subject_type text, subject_id text, roles text[])
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+begin
+  if auth.uid() is null or coalesce(cardinality(has_subject_role.roles), 0) = 0 then
+    return false;
+  end if;
+  return exists (
+    select 1 from ${t} m
+    where m.${c("subjectType")} = has_subject_role.subject_type
+      and m.${c("subjectId")} = has_subject_role.subject_id
+      and m.${c("role")} = any (has_subject_role.roles)
+      and ${activeFor(ctx, "auth.uid()", "caller")}
+  );
+end;
+$$;
+${userGrant(`${fn("has_subject_role")}(text, text, text[])`)}
 `;
 }
 
@@ -748,6 +773,11 @@ export function recordTeamContract(
 
   return [
     { name: "is_subject_member", args: ["text", "text"], returns: "boolean" },
+    {
+      name: "has_subject_role",
+      args: ["text", "text", "text[]"],
+      returns: "boolean",
+    },
     {
       name: "add_subject_member",
       args: ["text", "text", "uuid", team, "text", "date", "date"],

@@ -74,6 +74,59 @@ describe("engagements block", () => {
     expect(engagement.doneAt).toBeUndefined();
   });
 
+  it("reads progress note fields, amends and marks errors", async () => {
+    const NOTE = {
+      ...ROW,
+      type: "note",
+      audience: "restricted",
+      restricted_roles: ["nurse"],
+      category: "medical",
+      locked_at: "2026-10-15T09:00:00Z",
+      amends_id: "e0",
+      goal_id: "g1",
+      marked_error_at: null,
+      marked_error_by: null,
+      marked_error_reason: null,
+    };
+
+    const t = transport({
+      amend_engagement: () => NOTE,
+      mark_engagement_error: () => ({
+        ...NOTE,
+        audience: "everyone",
+        marked_error_at: "2026-10-14T10:00:00Z",
+        marked_error_by: "u1",
+        marked_error_reason: "Wrong client",
+      }),
+    });
+
+    const engagements = createActivities({ transport: t });
+    const addendum = await engagements.amend("e0", "Also ate well").orThrow();
+
+    expect(addendum).toMatchObject({
+      audience: "restricted",
+      restrictedRoles: ["nurse"],
+      category: "medical",
+      amendsId: "e0",
+      goalId: "g1",
+    });
+    expect(addendum.lockedAt?.toString()).toBe("2026-10-15T09:00:00Z");
+    expect(addendum.markedErrorAt).toBeUndefined();
+
+    const flagged = await engagements.markError("e1", "Wrong client").orThrow();
+
+    expect(flagged).toMatchObject({
+      markedErrorBy: "u1",
+      markedErrorReason: "Wrong client",
+    });
+    expect(flagged.audience).toBeUndefined();
+    expect(flagged.markedErrorAt).toBeDefined();
+    expect(t.calls).toEqual([
+      ["amend_engagement", { engagement: "e0", body: "Also ate well" }],
+      ["mark_engagement_error", { engagement: "e1", reason: "Wrong client" }],
+    ]);
+  });
+
   it("clears with null and keeps records unless given", async () => {
     const t = transport({ update_engagement: () => ROW });
     await createActivities({ transport: t })

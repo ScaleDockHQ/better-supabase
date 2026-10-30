@@ -1,5 +1,7 @@
 import type {
+  EngagementAmendedEventData,
   EngagementEventData,
+  EngagementMarkedErrorEventData,
   EngagementRecordingEventData,
 } from "../../core/block-events.ts";
 import type { Events } from "../../core/event-map.ts";
@@ -18,6 +20,10 @@ export type ActivitiesEvents = {
   readonly "engagement.transcribed": EngagementRecordingEventData;
   /** The engagement's notes were saved. */
   readonly "engagement.summarized": EngagementEventData;
+  /** An addendum was added to an engagement. */
+  readonly "engagement.amended": EngagementAmendedEventData;
+  /** An engagement was flagged as entered in error. */
+  readonly "engagement.marked_error": EngagementMarkedErrorEventData;
 };
 
 /** The `engagements` block's event types, for its manifest and `onBlockEvent`. */
@@ -29,4 +35,6 @@ export const activitiesEvents: Events<ActivitiesEvents> = defineEvents({
   "engagement.recorded": event<EngagementRecordingEventData>(),
   "engagement.transcribed": event<EngagementRecordingEventData>(),
   "engagement.summarized": event<EngagementEventData>(),
+  "engagement.amended": event<EngagementAmendedEventData>(),
+  "engagement.marked_error": event<EngagementMarkedErrorEventData>(),
 });

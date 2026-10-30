@@ -17,6 +17,18 @@ export type ActivitiesSqlOptions = {
    * false.
    */
   readonly bookings?: boolean;
+  /**
+   * The categories a progress note can take. Default: `general`, `care`,
+   * `medical`, `behavior`, `family` and `incident`.
+   */
+  readonly noteCategories?: readonly string[];
+  /**
+   * Hours after logging that an engagement of a `lockTypes` type locks; `0`
+   * locks it at once. Default 24.
+   */
+  readonly lockAfterHours?: number;
+  /** The engagement types that lock. Default: `note` and `report`. */
+  readonly lockTypes?: readonly string[];
 };
 
 export const activitiesSqlOptions: BlockOptionsSchema<ActivitiesSqlOptions> =
@@ -25,4 +37,9 @@ export const activitiesSqlOptions: BlockOptionsSchema<ActivitiesSqlOptions> =
     extraColumns: option.extraColumns(),
     recordings: option.boolean({ default: false }),
     bookings: option.boolean(),
+    noteCategories: option.strings({
+      default: ["general", "care", "medical", "behavior", "family", "incident"],
+    }),
+    lockAfterHours: option.number({ default: 24 }),
+    lockTypes: option.strings({ default: ["note", "report"] }),
   });

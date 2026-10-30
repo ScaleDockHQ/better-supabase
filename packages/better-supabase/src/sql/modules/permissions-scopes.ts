@@ -158,7 +158,12 @@ export const MODULE_PERMISSION_SCOPES: {
   "service-accounts": { read: "tenant", manage: "tenant" },
   pipelines: { read: "tenant", manage: "tenant" },
   contacts: { read: "tenant", write: "tenant", manage: "tenant" },
-  activities: { read: "tenant", write: "tenant", manage: "tenant" },
+  activities: {
+    read: "tenant",
+    write: "tenant",
+    manage: "tenant",
+    readRestricted: "tenant",
+  },
   deals: { read: "tenant", write: "tenant", manage: "tenant" },
   tasks: { read: "tenant", write: "tenant", manage: "tenant" },
   quotes: { read: "tenant", write: "tenant", manage: "tenant" },

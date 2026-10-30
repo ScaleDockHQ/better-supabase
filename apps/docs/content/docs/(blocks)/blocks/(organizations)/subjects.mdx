@@ -32,6 +32,7 @@ better-supabase add subjects
 | `my_subjects(tenant, subject_type, page_size, cursor)`                | The records whose team the caller is on today                                  |
 | `record_subject_read(subject_type, subject_id, purpose)`              | Logs a read of a record whose type has `auditReads`                            |
 | `subject_access_log(subject_type, subject_id, since, max_rows)`       | Who read the record and when                                                   |
+| `has_subject_role(subject_type, subject_id, roles)`                   | Whether the caller is on the record's team today in one of `roles`             |
 
 The functions live in the block schema (`better_supabase` by default), and a
 type registered in `config.subjects` gets a branch in each one.

@@ -50,6 +50,23 @@ export interface EngagementSubject {
   readonly id: string;
 }
 
+/**
+ * Who reads an engagement besides its author and owner: the tenant's readers of
+ * its records (`team`), also guests with a read grant on one of them
+ * (`subject`), or only members with one of `restrictedRoles` on a record's team
+ * or `engagements.read_restricted` (`restricted`).
+ */
+export type EngagementAudience = "team" | "subject" | "restricted";
+
+const AUDIENCES: ReadonlySet<unknown> = new Set([
+  "team",
+  "subject",
+  "restricted",
+]);
+
+const isAudience = (value: unknown): value is EngagementAudience =>
+  AUDIENCES.has(value);
+
 /** A call, email, meeting, note or task logged on one or more records. */
 export interface Engagement<F extends object = Record<never, never>> {
   readonly id: string;
@@ -72,6 +89,22 @@ export interface Engagement<F extends object = Record<never, never>> {
   readonly overdue: boolean;
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
+  /** `team` unless set; absent when the table has no audience column. */
+  readonly audience?: EngagementAudience;
+  /** The record team roles that read a `restricted` engagement. */
+  readonly restrictedRoles?: readonly string[];
+  /** One of `options.noteCategories`. */
+  readonly category?: string;
+  /** When it locks: after this, only an addendum or an error flag changes it. */
+  readonly lockedAt?: Temporal.Instant;
+  /** The engagement this one is an addendum to. */
+  readonly amendsId?: string;
+  /** A care plan goal it reports on. */
+  readonly goalId?: string;
+  /** When it was flagged as entered in error, by whom and why. */
+  readonly markedErrorAt?: Temporal.Instant;
+  readonly markedErrorBy?: string;
+  readonly markedErrorReason?: string;
   /** The app's extra columns (`options.extraColumns`), by column name. */
   readonly fields: Readonly<Record<string, unknown>> & F;
 }
@@ -92,6 +125,12 @@ export interface EngagementInput<F extends object = Record<never, never>> {
   readonly durationSeconds?: number | null;
   /** Logging the same `externalRef` again updates the engagement. */
   readonly externalRef?: string | null;
+  /** `null` sets it back to `team`. */
+  readonly audience?: EngagementAudience | null;
+  /** An empty list clears the roles. */
+  readonly restrictedRoles?: readonly string[];
+  readonly category?: string | null;
+  readonly goalId?: string | null;
   /** Values for the extra columns, by column name. */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -122,6 +161,17 @@ export interface Activities<F extends object = Record<never, never>> {
     options?: { readonly done?: boolean; readonly outcome?: string },
   ): AsyncResult<Engagement<F>>;
   remove(id: string): AsyncResult<boolean>;
+  /**
+   * Adds an addendum to an engagement the caller can read: a new engagement
+   * with `body`, on the same records, with the same type, title and audience. A
+   * locked note changes this way only.
+   */
+  amend(id: string, body: string): AsyncResult<Engagement<F>>;
+  /**
+   * Flags an engagement as entered in error with a reason. The row stays and
+   * locks. The author, the owner and members with `engagements.manage` may.
+   */
+  markError(id: string, reason: string): AsyncResult<Engagement<F>>;
   /** A record's engagements, newest first (50 by default, at most 200). */
   of(
     subject: EngagementSubject,
@@ -260,6 +310,17 @@ function engagementOf(value: unknown): Engagement {
         : undefined,
     externalRef: optionalText(row["external_ref"]),
     createdBy: optionalText(row["created_by"]),
+    audience: isAudience(row["audience"]) ? row["audience"] : undefined,
+    restrictedRoles: Array.isArray(row["restricted_roles"])
+      ? row["restricted_roles"].map(textOf)
+      : undefined,
+    category: optionalText(row["category"]),
+    lockedAt: optionalInstant(row["locked_at"]),
+    amendsId: optionalText(row["amends_id"]),
+    goalId: optionalText(row["goal_id"]),
+    markedErrorAt: optionalInstant(row["marked_error_at"]),
+    markedErrorBy: optionalText(row["marked_error_by"]),
+    markedErrorReason: optionalText(row["marked_error_reason"]),
   };
 
   return {
@@ -491,6 +552,16 @@ export function createActivities<
       ).andThen(parsed),
     remove: (id) =>
       call("delete_engagement", { engagement: id }, (value) => value === true),
+    amend: (id, body) =>
+      call("amend_engagement", { engagement: id, body }, engagementOf).andThen(
+        parsed,
+      ),
+    markError: (id, reason) =>
+      call(
+        "mark_engagement_error",
+        { engagement: id, reason },
+        engagementOf,
+      ).andThen(parsed),
     of: (subject, list = {}) =>
       call(
         "engagements_of",

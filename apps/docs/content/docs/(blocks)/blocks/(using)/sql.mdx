@@ -1566,12 +1566,13 @@ also has `ends_at`, the exact time it stops counting, and `emergency` for
 [emergency access](/docs/blocks/access-requests#emergency-access); the client
 reads it as `endsAt`.
 
-| Function                                                                                   | What it does                                                                                     |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| `add_subject_member(subject_type, subject_id, user_id, team_id, role, starts_on, ends_on)` | Puts a user or a team on the record, or reopens their membership in that role with the new dates |
-| `end_subject_member(member_id, ends_on)`                                                   | Ends a membership; it counts through `ends_on`, today by default                                 |
-| `list_subject_members(subject_type, subject_id)`                                           | The record's team, current and past, for a caller who can read the record                        |
-| `my_subjects(tenant, subject_type, page_size, cursor)`                                     | The records whose team the caller is on today, with their roles, title and URL, up to 200 a page |
+| Function                                                                                   | What it does                                                                                        |
+| ------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------- |
+| `add_subject_member(subject_type, subject_id, user_id, team_id, role, starts_on, ends_on)` | Puts a user or a team on the record, or reopens their membership in that role with the new dates    |
+| `end_subject_member(member_id, ends_on)`                                                   | Ends a membership; it counts through `ends_on`, today by default                                    |
+| `list_subject_members(subject_type, subject_id)`                                           | The record's team, current and past, for a caller who can read the record                           |
+| `my_subjects(tenant, subject_type, page_size, cursor)`                                     | The records whose team the caller is on today, with their roles, title and URL, up to 200 a page    |
+| `has_subject_role(subject_type, subject_id, roles)`                                        | Whether the caller is on the record's team today in one of `roles`, for a rule only some roles pass |
 
 Adding and ending a membership needs `subjects.manage` in the record's tenant
 (the `admin` role has `subjects.*`), or `can_subject(..., 'manage')` on a type
