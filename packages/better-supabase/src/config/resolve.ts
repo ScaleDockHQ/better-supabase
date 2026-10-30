@@ -444,6 +444,9 @@ export function resolveConfig(
       ...(config.doctor?.migrationSafety === undefined
         ? {}
         : { migrationSafety: config.doctor.migrationSafety }),
+      ...(config.doctor?.baseline === undefined
+        ? {}
+        : { baseline: config.doctor.baseline }),
     },
     gen: {
       ...config.gen,

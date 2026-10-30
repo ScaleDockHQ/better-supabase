@@ -155,9 +155,17 @@ export interface DoctorConfig {
   readonly output?: string;
   /**
    * App source files doctor scans for API use (BS210). Globs relative to the
-   * root. Defaults to `['src/**\/*.{ts,tsx}']`.
+   * root. Defaults to `['src/**\/*.{ts,tsx}']`, plus
+   * `<package>/src/**\/*.{ts,tsx}` for each package when the root is a pnpm,
+   * npm, yarn or bun workspace.
    */
   readonly sources?: readonly string[];
+  /**
+   * A JSON file of accepted findings, `[{ code, target, reason }]`, relative to
+   * the root. Doctor leaves out a finding the file lists, fails on an entry no
+   * finding matches, and `doctor --update-baseline` rewrites it.
+   */
+  readonly baseline?: string;
   /**
    * How many policies a security definer helper may appear in before BS206 asks
    * for an inlinable `language sql stable` function. Defaults to 5.

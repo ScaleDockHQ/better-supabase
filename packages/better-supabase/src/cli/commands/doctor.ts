@@ -21,6 +21,11 @@ import { applyPlan, changeLines, insideRoot } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { connect } from "../db.ts";
+import {
+  applyBaseline,
+  parseBaseline,
+  updatedBaseline,
+} from "../doctor/baseline.ts";
 import { loadStackEnvCheck } from "../doctor/env.ts";
 import { formatReport, jsonReport } from "../doctor/format.ts";
 import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
@@ -125,6 +130,11 @@ const ARGS = {
     type: "boolean",
     description:
       "Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database",
+  },
+  "update-baseline": {
+    type: "boolean",
+    description:
+      "Rewrite tooling.doctor.baseline to accept this run's errors and warnings, keeping each entry's reason",
   },
 } as const;
 
@@ -234,6 +244,24 @@ async function applyFixes(
   return { left, fixed };
 }
 
+/** The baseline entries at `path`, none when the file doesn't exist yet. */
+async function readBaseline(
+  root: string,
+  path: string,
+): Promise<ReturnType<typeof parseBaseline>> {
+  const file = await readText(root, path);
+
+  if (file === undefined) {
+    return [];
+  }
+
+  try {
+    return parseBaseline(file.text, path);
+  } catch (cause) {
+    throw new CliError("invalid_input", errorText(cause));
+  }
+}
+
 export async function runDoctor(
   config: ResolvedConfig,
   args: DoctorArgs,
@@ -283,6 +311,15 @@ export async function runDoctor(
   ]);
 
   const fixGrants = args["fix-grants"] === true;
+  const baselinePath = config.doctor.baseline;
+  const updateBaseline = args["update-baseline"] === true;
+
+  if (updateBaseline && baselinePath === undefined) {
+    throw new CliError(
+      "usage",
+      "--update-baseline rewrites tooling.doctor.baseline; set it to a file such as doctor-baseline.json first.",
+    );
+  }
 
   const rules = fixGrants
     ? RULES.filter((rule) => rule.code === "BS404")
@@ -463,7 +500,7 @@ export async function runDoctor(
     await opened.close();
   }
 
-  const findings: Finding[] = ran.map((finding) => {
+  const located: Finding[] = ran.map((finding) => {
     if (finding.location || !finding.object) {
       return finding;
     }
@@ -472,6 +509,50 @@ export async function runDoctor(
 
     return location ? { ...finding, location } : finding;
   });
+
+  let findings: readonly Finding[] = located;
+
+  if (baselinePath !== undefined) {
+    const entries = await readBaseline(config.root, baselinePath);
+    const codes = new Set(rules.map((rule) => rule.code));
+
+    if (updateBaseline) {
+      const next = updatedBaseline(located, entries, codes, context);
+
+      const applied = await applyPlan(
+        {
+          root: config.root,
+          regenerate: "better-supabase doctor --update-baseline",
+          files: [
+            {
+              path: insideRoot(
+                config.root,
+                baselinePath,
+                "tooling.doctor.baseline",
+              ),
+              contents: `${JSON.stringify(next, null, 2)}\n`,
+              note: `${String(next.length)} accepted findings`,
+            },
+          ],
+        },
+        {},
+      );
+
+      return {
+        code: 0,
+        output: changeLines(applied).join("\n"),
+        data: { baseline: baselinePath, entries: next.length },
+      };
+    }
+
+    ({ findings } = applyBaseline(
+      located,
+      entries,
+      codes,
+      context,
+      baselinePath,
+    ));
+  }
 
   const out =
     args.out ??

@@ -122,4 +122,36 @@ describe("BS351", () => {
       ),
     ).toEqual([]);
   });
+
+  it("reports typed client writes to a block's table, not the block client", async () => {
+    const findings = await runRules(
+      {
+        config: resolveConfig({ blocks: ["webhooks-out"] }, "/project"),
+        snapshot: base,
+        configToml: undefined,
+        envFiles: [],
+        gitignore: "",
+        sources: [
+          {
+            path: "src/app/hooks/actions.ts",
+            text: [
+              "export async function save(db) {",
+              '  await db.webhookEndpoints.create({ url: "https://x.test" });',
+              "  await db.webhookEndpoints.list();",
+              '  await db.webhooksOut.createEndpoint({ url: "https://x.test" });',
+              '  await db.webhooksOut.delete("id");',
+              '  await db.notes.update("id", {});',
+              "}",
+            ].join("\n"),
+          },
+        ],
+      },
+      BLOCK_WRITE_RULES,
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "src/app/hooks/actions.ts:2",
+    ]);
+    expect(findings[0]?.message).toContain(".create() on");
+  });
 });

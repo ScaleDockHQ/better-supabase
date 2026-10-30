@@ -2734,6 +2734,9 @@
                 }
               },
               "additionalProperties": false
+            },
+            "baseline": {
+              "type": "string"
             }
           },
           "additionalProperties": false

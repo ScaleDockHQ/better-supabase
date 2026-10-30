@@ -856,6 +856,7 @@ const FLAT = {
       migrationSafety: v.optional(
         v.strictObject({ since: v.optional(v.string()) }),
       ),
+      baseline: v.optional(v.string()),
     }),
   ),
   env: v.optional(

@@ -35,6 +35,7 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 | `--as <uuid>`          | With `--explain`: plan as this authenticated user. Also measures the claims the custom access token hook returns for them ([BS405](#bs405))                                                                                                                        |
 | `--claims <json>`      | With `--explain`: plan with these JWT claims                                                                                                                                                                                                                       |
 | `--fix-grants`         | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
+| `--update-baseline`    | Rewrite the [baseline](#baseline) file to accept this run's errors and warnings                                                                                                                                                                                    |
 | `--fix`                | Run the SQL of the findings that carry a fix against the database, such as validating a not valid check ([BS236](#bs236)), and leave them out of the report. Asks before it writes to a database that is not local                                                 |
 
 Doctor never prints env values, only variable names and line numbers.
@@ -92,13 +93,53 @@ export default defineConfig({
 ```
 
 `tooling.doctor.sources` lists the app files that checks such as BS210 scan, as globs
-relative to the project root. The default is `['src/**/*.{ts,tsx}']`.
+relative to the project root. The default is `['src/**/*.{ts,tsx}']`; at the
+root of a pnpm or npm workspace, doctor also scans that glob in each package,
+such as `apps/web/src/**/*.{ts,tsx}`. A `sources` you set is used as it is.
 `tooling.doctor.claimsLimit` is a BS405 limit in bytes: the budget of the
 [authorization provider's](/docs/extending/authorization-providers) hook when
 it sets `tokenHook.budget`, otherwise the limit for the whole token (default
 2048).
 `tooling.doctor.policyHelperLimit` (default 5) is how many policies a security definer
 helper may appear in before [BS206](#bs206) reports it.
+
+## Baseline
+
+A baseline accepts the findings an existing project already has, so CI fails
+only on new ones. Point `tooling.doctor.baseline` at a JSON file and write it
+once:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  tooling: { doctor: { baseline: "doctor-baseline.json" } },
+});
+```
+
+```sh
+pnpm better-supabase doctor --update-baseline
+```
+
+The file lists one entry per accepted finding, keyed by its code and target
+(its title when it has none). Fill in each `reason` so a reviewer can see why
+the finding stays:
+
+```json title="doctor-baseline.json"
+[
+  {
+    "code": "BS351",
+    "target": "src/app/settings/actions.ts:12",
+    "reason": "Moves to the credentials API in the next release"
+  }
+]
+```
+
+Doctor leaves out the findings the file lists. An entry that no finding matches
+fails the run as an error with its code, so the baseline shrinks as you fix
+findings: remove the entry, or run `--update-baseline` again. It only judges an
+entry when its check ran, so a run without a database keeps the entries of the
+checks that need one, and `--only` keeps the rest. `--update-baseline` keeps
+each entry's reason, gives a new entry the reason of another entry with its
+code, and leaves out info findings.
 
 The full `doctor` block, generated from the `DoctorConfig` type:
 
@@ -1447,8 +1488,11 @@ block. Add your own policy for each command your app uses, or set
 
 **Warning: app code writes a block's table directly.** A source file matched
 by `doctor.sources` calls `.from("x").insert()`, `.update()`, `.upsert()` or
-`.delete()` with supabase-js on a table a block creates, the tables
-`blockTables(config).byBlock` lists. The write skips the block's functions,
+`.delete()` with supabase-js, or `create()`, `insert()`, `update()`, `upsert()`
+or `delete()` on the typed client's repository (`db.webhookEndpoints.create()`),
+on a table a block creates, the tables `blockTables(config).byBlock` lists. The
+block clients themselves (`db.webhooksOut`) are the API to use and are not
+reported. The write skips the block's functions,
 so its events, hooks and the checks it runs before a write don't run, and the
 block's other tables can disagree with the row. A `.from()` without
 `.schema()` counts when you have no table of that name in `public`, since a

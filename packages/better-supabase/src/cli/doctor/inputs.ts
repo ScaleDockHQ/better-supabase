@@ -6,7 +6,9 @@ import type { ResolvedConfig, SqlWorkflow } from "../../config/index.ts";
 import type { TextFile } from "../doctor/rules.ts";
 import type { SupabaseToml } from "../supabase-toml.ts";
 
+import { CONFIG_DEFAULTS } from "../../config/index.ts";
 import { byCodePoint } from "../compare.ts";
+import { detectWorkspace } from "../project/workspace.ts";
 import { schemaPaths } from "../supabase-toml.ts";
 
 export const ENV_FILES: readonly string[] = [
@@ -62,14 +64,49 @@ export async function sqlFiles(
   return [...schemas, ...(await Promise.all(migrations.map(read)))];
 }
 
+/**
+ * The `doctor.sources` globs. Left at the default in a workspace root, they
+ * also cover each package's `src`.
+ */
+export async function sourceGlobs(
+  config: ResolvedConfig,
+): Promise<readonly string[]> {
+  const { sources } = config.doctor;
+
+  if (sources !== CONFIG_DEFAULTS.doctor.sources) {
+    return sources;
+  }
+
+  const workspace = await detectWorkspace(config.root);
+
+  if (workspace === undefined) {
+    return sources;
+  }
+
+  return [
+    ...new Set([
+      ...sources,
+      ...workspace.packages
+        .filter((pkg) => pkg.dir !== "" && pkg.dir !== ".")
+        .flatMap((pkg) => sources.map((glob) => `${pkg.dir}/${glob}`)),
+    ]),
+  ];
+}
+
 /** Files matching `doctor.sources`, skipping dependencies and build output. */
 export async function sourceFiles(config: ResolvedConfig): Promise<TextFile[]> {
   const files: TextFile[] = [];
+  const seen = new Set<string>();
 
-  for await (const path of glob([...config.doctor.sources], {
+  for await (const path of glob([...(await sourceGlobs(config))], {
     cwd: config.root,
     exclude: (name) => name === "node_modules" || name === ".next",
   })) {
+    if (seen.has(path)) {
+      continue;
+    }
+
+    seen.add(path);
     files.push({
       path,
       text: await readFile(resolve(config.root, path), "utf-8"),
