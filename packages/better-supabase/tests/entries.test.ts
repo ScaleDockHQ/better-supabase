@@ -64,6 +64,7 @@ const PURE_BARRELS = [
   "blocks/contracts",
   "blocks/compliance",
   "blocks/accounting",
+  "blocks/acknowledgements",
   "blocks/incidents",
   "blocks/courses",
   "blocks/sequences",

@@ -5,6 +5,8 @@
  * call the client makes.
  */
 const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
+  acknowledgements:
+    "acknowledge acknowledgement_status acknowledgements_of assign_acknowledgement list_acknowledgement_assignments list_my_acknowledgements notify_due_acknowledgements unassign_acknowledgement",
   "access-requests":
     "end_access get_access_request list_access_requests request_access",
   accounting:

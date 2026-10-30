@@ -1080,6 +1080,11 @@
       "types": "./dist/blocks/compliance/index.d.ts",
       "default": "./dist/blocks/compliance/index.js"
     },
+    "./blocks/acknowledgements": {
+      "@better-supabase/source": "./src/blocks/acknowledgements/index.ts",
+      "types": "./dist/blocks/acknowledgements/index.d.ts",
+      "default": "./dist/blocks/acknowledgements/index.js"
+    },
     "./blocks/incidents": {
       "@better-supabase/source": "./src/blocks/incidents/index.ts",
       "types": "./dist/blocks/incidents/index.d.ts",
@@ -1943,6 +1948,10 @@
       "./blocks/compliance": {
         "types": "./dist/blocks/compliance/index.d.ts",
         "default": "./dist/blocks/compliance/index.js"
+      },
+      "./blocks/acknowledgements": {
+        "types": "./dist/blocks/acknowledgements/index.d.ts",
+        "default": "./dist/blocks/acknowledgements/index.js"
       },
       "./blocks/incidents": {
         "types": "./dist/blocks/incidents/index.d.ts",

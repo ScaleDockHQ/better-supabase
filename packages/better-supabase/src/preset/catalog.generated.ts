@@ -7395,6 +7395,76 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
+      "name": "acknowledgements",
+      "title": "Acknowledgements",
+      "category": "collaboration",
+      "requires": [
+        "memberships",
+        "permissions",
+        "versions"
+      ],
+      "integrates": [
+        "subjects",
+        "teams",
+        "signatures",
+        "notifications",
+        "outbox",
+        "audit"
+      ],
+      "manifest": "acknowledgements",
+      "scopes": [
+        "tenant"
+      ],
+      "entities": {
+        "specs": {
+          "acknowledgement": {
+            "table": "acknowledgements",
+            "singular": "acknowledgement",
+            "primary": true
+          },
+          "acknowledgement_assignment": {
+            "table": "assignments",
+            "singular": "acknowledgement_assignment"
+          }
+        },
+        "tables": {
+          "acknowledgements": {
+            "name": "acknowledgements",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "version": "version_id",
+              "user": "user_id",
+              "method": "method",
+              "signature": "signature_id",
+              "acknowledgedAt": "acknowledged_at"
+            }
+          },
+          "assignments": {
+            "name": "acknowledgement_assignments",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "subjectType": "subject_type",
+              "subjectId": "subject_id",
+              "principalType": "principal_type",
+              "principalId": "principal_id",
+              "dueInDays": "due_in_days",
+              "createdBy": "created_by",
+              "createdAt": "created_at"
+            }
+          }
+        },
+        "keys": {
+          "read": "acknowledgements.read",
+          "manage": "acknowledgements.manage",
+          "acknowledge": "acknowledgements.acknowledge"
+        }
+      }
+    },
+    {
       "name": "rls-guard",
       "title": "RLS on every new table",
       "category": "database",
@@ -13596,6 +13666,78 @@ export const PRESET_CATALOG: PresetCatalog = {
           "evidence_task.missed",
           "policy.published",
           "policy.acknowledged"
+        ]
+      }
+    },
+    {
+      "name": "acknowledgements",
+      "sql": [
+        "acknowledgements"
+      ],
+      "category": "collaboration",
+      "client": {
+        "export": "acknowledgementsBlock",
+        "subpath": "better-supabase/blocks/acknowledgements"
+      },
+      "consumes": {},
+      "provides": [],
+      "entityTypes": [
+        {
+          "name": "Acknowledgement"
+        },
+        {
+          "name": "AcknowledgementAssignment"
+        },
+        {
+          "name": "AcknowledgementAssignmentEventData"
+        },
+        {
+          "name": "AcknowledgementCreatedEventData"
+        },
+        {
+          "name": "AcknowledgementMethod"
+        },
+        {
+          "name": "AcknowledgementPrincipal"
+        },
+        {
+          "name": "AcknowledgementPrincipalType"
+        },
+        {
+          "name": "AcknowledgementRemindedEventData"
+        },
+        {
+          "name": "Acknowledgements"
+        },
+        {
+          "name": "AcknowledgementsEvents"
+        },
+        {
+          "name": "AcknowledgementsOptions"
+        },
+        {
+          "name": "AcknowledgementStatus"
+        },
+        {
+          "name": "AssignAcknowledgementOptions"
+        },
+        {
+          "name": "MyAcknowledgement"
+        },
+        {
+          "name": "MyAcknowledgementsOptions"
+        },
+        {
+          "name": "PendingAcknowledgement"
+        }
+      ],
+      "events": {
+        "type": "AcknowledgementsEvents",
+        "types": [
+          "acknowledgement_assignment.created",
+          "acknowledgement_assignment.deleted",
+          "acknowledgement.created",
+          "acknowledgement.reminded"
         ]
       }
     },

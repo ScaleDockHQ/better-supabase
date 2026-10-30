@@ -9218,6 +9218,36 @@
       "RpcClient"
     ]
   },
+  "./blocks/acknowledgements": {
+    "values": [
+      "acknowledgementsBlock",
+      "acknowledgementsEvents",
+      "createAcknowledgements",
+      "dbTransport",
+      "rpcTransport",
+      "sqlTransport"
+    ],
+    "types": [
+      "Acknowledgement",
+      "AcknowledgementAssignment",
+      "AcknowledgementAssignmentEventData",
+      "AcknowledgementCreatedEventData",
+      "AcknowledgementMethod",
+      "AcknowledgementPrincipal",
+      "AcknowledgementPrincipalType",
+      "AcknowledgementRemindedEventData",
+      "Acknowledgements",
+      "AcknowledgementsEvents",
+      "AcknowledgementsOptions",
+      "AcknowledgementStatus",
+      "AcknowledgeOptions",
+      "AssignAcknowledgementOptions",
+      "BlockTransport",
+      "MyAcknowledgement",
+      "MyAcknowledgementsOptions",
+      "PendingAcknowledgement"
+    ]
+  },
   "./blocks/incidents": {
     "values": [
       "createIncidents",

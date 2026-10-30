@@ -20,6 +20,7 @@ pre-commit:
         - "supabase/snapshot.json"
         - "packages/better-supabase/src/preset/catalog.generated.ts"
         - "packages/better-supabase/src/blocks/hint-codes.generated.ts"
+        - "packages/better-supabase/src/blocks/name-registry.generated.ts"
       run: node_modules/.bin/ultracite fix {staged_files}
       stage_fixed: true
     - name: affected

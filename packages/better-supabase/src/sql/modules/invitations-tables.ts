@@ -1,7 +1,7 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { raise as raiseWith, sha256Hex } from "../shared.ts";
-import { hasPlatformRoles } from "./permissions-model.ts";
+import { hasPlatformRoles } from "./permissions-platform.ts";
 
 export const PLATFORM_COLUMNS = {
   id: "id",

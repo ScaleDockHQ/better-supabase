@@ -1,0 +1,168 @@
+---
+title: Acknowledgements
+description: Ask users, teams or roles to confirm they read a record's current version, with a due date, a signature option, a pending list per user and reminders when it is overdue.
+---
+
+`acknowledgements` records who confirmed they read which version of a record.
+You ask a user, a team or a role to acknowledge a policy, a procedure or any
+other versioned record, each member sees what they still have to read, and a
+new version asks everyone again. Every acknowledgement keeps the version it
+was for, so the record of who read version 1 stays after version 2 ships.
+
+Assigning needs `acknowledgements.manage`, reading who acknowledged needs
+`acknowledgements.read`, and acknowledging needs
+`acknowledgements.acknowledge` plus read access to the record. Admins get all
+three and members get `acknowledgements.acknowledge`.
+
+```bash
+better-supabase add acknowledgements
+```
+
+The module needs `memberships`, `permissions` and `versions`. It asks teams
+when [teams](/docs/blocks/teams) is installed, takes a completed signature
+when [signatures](/docs/blocks/signatures) is installed, and sends reminders
+through [notifications](/docs/blocks/notifications) when that is installed. Assignments and
+acknowledgements go to the outbox and the audit log.
+
+## Records you can acknowledge
+
+List the record types under `on`. Each entry names the table that holds the
+records, and `versionColumn` names the column with the record's current
+version when the record keeps one. Without it, the current version is the
+record's latest frozen version in the `versions` block.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  acknowledgements: {
+    on: {
+      policy: {
+        table: "public.policies",
+        idType: "uuid",
+        tenant: "tenant_id",
+        versionColumn: "current_version_id",
+      },
+    },
+  },
+},
+```
+
+A block can contribute its own record type, so a block that keeps a current
+version column registers it without an `on` entry.
+
+## Assigning
+
+Server code calls the `acknowledgements` instance on `db`:
+
+```ts
+const policy = { type: "policy", id: policyId };
+
+await db.acknowledgements
+  .assign(
+    organizationId,
+    policy,
+    { type: "role", id: "member" },
+    { dueInDays: 14 },
+  )
+  .orThrow();
+
+const status = await db.acknowledgements.status(policy).orThrow();
+```
+
+`assign(organizationId, record, principal, { dueInDays })` asks a user (by
+id), a team (by id) or a role (by key). Assigning the same principal again
+updates its due date. `dueInDays` counts from the day the current version was
+published, from 1 to 365; without it the assignment has no due date.
+`unassign(assignmentId)` removes an assignment and `assignments(record)`
+lists them.
+
+`status(record)` returns the current `versionId`, how many members are
+`required` to acknowledge it, how many `acknowledged`, and the `pending`
+members with their `dueOn` and whether they are `overdue`. `of(record,
+versionId)` lists the acknowledgements of one version, the current one by
+default.
+
+## Acknowledging
+
+```ts
+const pending = await db.acknowledgements.mine(organizationId).orThrow();
+
+await db.acknowledgements
+  .acknowledge(pending[0].record, { versionId: pending[0].versionId })
+  .orThrow();
+```
+
+`mine(organizationId)` lists the records the caller is asked to acknowledge
+and hasn't yet, soonest due first, with the record's title. Pass
+`{ pendingOnly: false }` to include the ones already acknowledged.
+
+`acknowledge(record, { versionId, signatureId })` records the caller's
+acknowledgement of the current version. Pass the `versionId` the user read:
+when a newer version was published in the meantime, the call fails with
+`ACKNOWLEDGEMENT_VERSION_STALE` instead of acknowledging text the user didn't
+see. Acknowledging twice returns the first acknowledgement. With
+`signatureId`, the acknowledgement is stored with method `signature`; the
+signature must be the caller's, on a completed request for the same record
+and version.
+
+## Reminders
+
+`notifyDue()` runs as the service role. For each member whose
+acknowledgement is past its due date, it emits `acknowledgement.reminded` and
+sends a notification, once per version, and returns how many members it
+reminded. Call it from a daily job.
+
+## Errors
+
+| Hint                                   | Cause                                                                |
+| -------------------------------------- | -------------------------------------------------------------------- |
+| `ACKNOWLEDGEMENT_FORBIDDEN`            | the caller lacks the permission or can't read the record             |
+| `ACKNOWLEDGEMENT_PRINCIPAL_INVALID`    | the user, team or role isn't part of the organization                |
+| `ACKNOWLEDGEMENT_DUE_INVALID`          | `dueInDays` is outside 1 to 365                                      |
+| `ACKNOWLEDGEMENT_SUBJECT_UNSUPPORTED`  | the record type isn't listed under `on`                              |
+| `ACKNOWLEDGEMENT_ASSIGNMENT_NOT_FOUND` | no assignment the caller can see has this id                         |
+| `ACKNOWLEDGEMENT_NOT_ASSIGNED`         | nobody asked the caller to acknowledge the record                    |
+| `ACKNOWLEDGEMENT_NO_VERSION`           | the record has no published version yet                              |
+| `ACKNOWLEDGEMENT_VERSION_STALE`        | the `versionId` passed isn't the current version                     |
+| `ACKNOWLEDGEMENT_SIGNATURE_INVALID`    | the signature isn't the caller's completed signature on this version |
+
+## Events
+
+| Event                                                                      | Data                                                                                         |
+| -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `acknowledgement_assignment.created`, `acknowledgement_assignment.deleted` | `organizationId`, `subjectType`, `subjectId`, `assignmentId`, `principalType`, `principalId` |
+| `acknowledgement.created`                                                  | `organizationId`, `subjectType`, `subjectId`, `versionId`, `userId`                          |
+| `acknowledgement.reminded`                                                 | `organizationId`, `subjectType`, `subjectId`, `versionId`, `userId`, `dueOn`                 |
+
+## With ReUI
+
+There is no prebuilt acknowledgements UI. List `mine()` in a `Card` per record
+with its title and a `Badge` for the due date (`warning-light` when it is
+close, `destructive-light` when overdue), and open the record in a `Sheet`
+with an "I have read this" `Button`. On the record page, show `status()` as a
+`Progress` bar with the pending members in a `data-grid`.
+
+## Why it works this way
+
+An acknowledgement belongs to one version, not to the record, so publishing a
+new version asks everyone again without deleting the evidence of who read the
+old one. Assignments name a role or a team instead of a list of users, so a
+new member is asked as soon as they join.
+
+## Without the client
+
+`db.acknowledgements` is this client. Code that does not go through `bsb.db()`
+builds it with a transport:
+
+```ts
+import { createAcknowledgements } from "better-supabase/blocks/acknowledgements";
+
+const acknowledgements = createAcknowledgements({ transport });
+
+await acknowledgements
+  .assign(
+    organizationId,
+    { type: "policy", id: policyId },
+    { type: "role", id: "member" },
+  )
+  .orThrow();
+```

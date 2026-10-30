@@ -20,11 +20,11 @@ import {
 import { linkedPolicy } from "./approvals.ts";
 import { approverCheck, SUPPORT_SESSION_APPROVAL } from "./approver.ts";
 import { READ_ONLY_GUARD } from "./drive-kit.ts";
+import { OPERATIONS } from "./permissions-model.ts";
 import {
   hasPlatformRoles,
-  OPERATIONS,
   providerPlatformRoles,
-} from "./permissions-model.ts";
+} from "./permissions-platform.ts";
 import {
   SUPPORT_CONTRIBUTES,
   SUPPORT_REQUEST_SUBJECT,

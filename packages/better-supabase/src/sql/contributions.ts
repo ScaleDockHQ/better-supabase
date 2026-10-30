@@ -7,6 +7,7 @@ import type { BlockSqlContext } from "./context.ts";
  * installed instance whose `uses` names it, so it never names its consumers.
  */
 export interface BlockContributions {
+  readonly acknowledgements: AcknowledgementContribution;
   readonly approvals: ApprovalContribution;
   readonly bulk: BulkActionContribution;
   readonly numbering: NumberingContribution;
@@ -23,6 +24,18 @@ export type BlockContributes = {
     target: BlockSqlContext,
   ) => readonly BlockContributions[K][];
 };
+
+/**
+ * A subject type of the contributing block whose current version is a column on
+ * its row, for when the app doesn't set
+ * `blocks.acknowledgements.on.<type>.versionColumn` itself.
+ */
+export interface AcknowledgementContribution {
+  /** The subject type, after the instance's entity names. */
+  readonly subject: string;
+  /** The column that holds the current version's id (a `versions` row). */
+  readonly versionColumn: string;
+}
 
 /** SQL expressions for the approval request being decided. */
 export interface ApprovalRequestSql {

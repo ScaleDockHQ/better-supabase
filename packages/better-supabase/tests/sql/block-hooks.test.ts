@@ -107,6 +107,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_form_submission",
     "after_form_submission",
   ],
+  acknowledgements: [
+    "before_acknowledgement_assignment_create",
+    "after_acknowledgement_assignment_create",
+    "before_acknowledgement_create",
+    "after_acknowledgement_create",
+  ],
   signatures: [
     "before_signature_request",
     "after_signature_request",

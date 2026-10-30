@@ -206,6 +206,7 @@ export const MODULE_PERMISSION_SCOPES: {
     collect: "tenant",
     acknowledge: "tenant",
   },
+  acknowledgements: { read: "tenant", manage: "tenant", acknowledge: "tenant" },
   incidents: { read: "tenant", write: "tenant", manage: "tenant" },
   courses: { read: "tenant", enroll: "tenant", manage: "tenant" },
   sequences: { read: "tenant", enroll: "tenant", manage: "tenant" },

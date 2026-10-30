@@ -38,6 +38,9 @@ const NO_BLOCK_CALL: readonly string[] = [];
 
 /** Blocks with managed tables that take no `extraColumns` or `fields`. */
 const NO_FIELDS: readonly string[] = [
+  // Assignments and read receipts point at the app's record, which carries
+  // the app's data.
+  "acknowledgements",
   // Cache entries keyed by a request hash; nothing for an app to extend.
   "ai-cache",
   // Provider keys and batch jobs the block writes itself.

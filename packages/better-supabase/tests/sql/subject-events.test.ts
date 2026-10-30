@@ -185,6 +185,10 @@ const SUBJECT_EVENTS = [
   "sequence_enrollment.completed",
   "subject_member.added",
   "subject_member.ended",
+  "acknowledgement_assignment.created",
+  "acknowledgement_assignment.deleted",
+  "acknowledgement.created",
+  "acknowledgement.reminded",
 ] as const satisfies readonly SubjectEventType<AllBlockEvents>[];
 
 /**

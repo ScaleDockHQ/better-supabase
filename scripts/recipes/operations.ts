@@ -158,6 +158,19 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "acknowledgement-inbox",
+    title: "Acknowledgement inbox",
+    blocks: ["acknowledgements"],
+    kind: "component",
+    description:
+      "The records a member is asked to read, soonest due first, with the due date and a button that acknowledges the version they read.",
+    web: {
+      file: `${WEB_APP}/src/features/acknowledgements/components/acknowledgement-inbox.tsx`,
+      components: ["alert", "badge", "button", "card", "empty", "skeleton"],
+      glue: [],
+    },
+  },
+  {
     slug: "status-page",
     title: "Status page",
     blocks: ["incidents"],
