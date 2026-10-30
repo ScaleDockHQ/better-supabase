@@ -237,6 +237,48 @@ end;
 $$;
 ${userGrant(`${fn("allocate_stock")}(${ctx.idType}, uuid, uuid, numeric, text, text, text, boolean)`)}
 
+-- Takes quantity of an allocation out of stock with a movement of reason,
+-- first from what it holds, then from what's available. The caller checks
+-- permissions; fulfill_allocation and the production functions call it.
+create or replace function ${fn("take_allocation")}(allocation uuid, quantity numeric, reason text, detail jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+  v_from_held numeric;
+  v_movement uuid;
+begin
+  select x.${a("id")} as id, x.${a("tenant")} as tenant, x.${a("variant")} as variant, x.${a("location")} as location,
+    x.${a("documentType")} as document_type, x.${a("documentId")} as document_id, x.${a("quantity")} as quantity,
+    x.${a("allocated")} as allocated, x.${a("fulfilled")} as fulfilled, x.${a("status")} as status
+  into v_row from ${allocations} x where x.${a("id")} = take_allocation.allocation for update;
+  if not found then
+    ${fail("INVENTORY_ALLOCATION_NOT_FOUND", "allocation not found", "P0002")}
+  end if;
+  if v_row.status <> 'open' then
+    ${fail("INVENTORY_ALLOCATION_CLOSED", "the allocation is no longer open", "55000")}
+  end if;
+  if take_allocation.quantity is null or take_allocation.quantity <= 0
+    or take_allocation.quantity > v_row.quantity - v_row.fulfilled then
+    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be more than zero and at most what the allocation has left", "22023")}
+  end if;
+  v_from_held := least(take_allocation.quantity, v_row.allocated);
+  ${reserve("v_row.variant", "v_row.location", "-v_from_held")}
+  update ${allocations} x set ${a("allocated")} = x.${a("allocated")} - v_from_held,
+    ${a("fulfilled")} = x.${a("fulfilled")} + take_allocation.quantity,
+    ${a("status")} = case when x.${a("fulfilled")} + take_allocation.quantity >= x.${a("quantity")} then 'fulfilled' else 'open' end,
+    ${a("updatedAt")} = now()
+  where x.${a("id")} = v_row.id;
+  v_movement := ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_row.variant", location: "v_row.location", quantity: "-take_allocation.quantity", reason: "take_allocation.reason", referenceType: "v_row.document_type", referenceId: "v_row.document_id", detail: "take_allocation.detail" })};
+  return (select ${allocationJson(ctx, "x")} || jsonb_build_object('movementId', v_movement) from ${allocations} x where x.${a("id")} = v_row.id);
+end;
+$$;
+revoke execute on function ${fn("take_allocation")}(uuid, numeric, text, jsonb) from public, anon, authenticated;
+
 -- Takes quantity of an allocation out of stock as a sale, first from what it
 -- holds, then from what's available. detail picks the bin, lot or serial
 -- numbers, as for move_stock. Returns the allocation and the movement id.
@@ -249,26 +291,9 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
-  v_from_held numeric;
-  v_movement uuid;
 begin
   ${load("fulfill_allocation")}
-  if v_row.status <> 'open' then
-    ${fail("INVENTORY_ALLOCATION_CLOSED", "the allocation is no longer open", "55000")}
-  end if;
-  if fulfill_allocation.quantity is null or fulfill_allocation.quantity <= 0
-    or fulfill_allocation.quantity > v_row.quantity - v_row.fulfilled then
-    ${fail("INVENTORY_QUANTITY_INVALID", "the quantity must be more than zero and at most what the allocation has left", "22023")}
-  end if;
-  v_from_held := least(fulfill_allocation.quantity, v_row.allocated);
-  ${reserve("v_row.variant", "v_row.location", "-v_from_held")}
-  update ${allocations} x set ${a("allocated")} = x.${a("allocated")} - v_from_held,
-    ${a("fulfilled")} = x.${a("fulfilled")} + fulfill_allocation.quantity,
-    ${a("status")} = case when x.${a("fulfilled")} + fulfill_allocation.quantity >= x.${a("quantity")} then 'fulfilled' else 'open' end,
-    ${a("updatedAt")} = now()
-  where x.${a("id")} = v_row.id;
-  v_movement := ${moveStock(ctx, { tenant: "v_row.tenant", variant: "v_row.variant", location: "v_row.location", quantity: "-fulfill_allocation.quantity", reason: "'sale'", referenceType: "v_row.document_type", referenceId: "v_row.document_id", detail: "fulfill_allocation.detail" })};
-  return (select ${allocationJson(ctx, "x")} || jsonb_build_object('movementId', v_movement) from ${allocations} x where x.${a("id")} = v_row.id);
+  return ${fn("take_allocation")}(fulfill_allocation.allocation, fulfill_allocation.quantity, 'sale', fulfill_allocation.detail);
 end;
 $$;
 ${userGrant(`${fn("fulfill_allocation")}(uuid, numeric, jsonb)`)}

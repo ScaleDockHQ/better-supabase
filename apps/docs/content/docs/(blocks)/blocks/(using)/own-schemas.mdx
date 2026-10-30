@@ -415,6 +415,15 @@ may be your own enum or domain.
   - `better_supabase.mail_tracked_links`: `tenant_id`, `message_id`, `position`, `url`, `click_count`
   - `better_supabase.mail_tracking_events`: `id`, `tenant_id`, `message_id`, `kind`, `occurred_at`; typed: `kind`
   - `better_supabase.mail_thread_subjects`: `tenant_id`, `thread_id`, `subject_type`, `subject_id`; typed: `source`
+- `manufacturing`
+  - `better_supabase.boms`: `id`, `tenant_id`, `variant_id`, `version`, `status`, `quantity`, `note`, `activated_at`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.work_centers`: `id`, `tenant_id`, `name`, `asset_id`, `hours_per_day`, `cost_rate`, `currency`, `archived_at`, `created_at`, `updated_at`
+  - `better_supabase.bom_operations`: `id`, `tenant_id`, `bom_id`, `sequence`, `work_center_id`, `title`, `setup_minutes`, `run_minutes_per_unit`, `instructions_node_id`, `inspection_template`
+  - `better_supabase.bom_components`: `id`, `tenant_id`, `bom_id`, `position`, `variant_id`, `quantity`, `scrap_bps`, `operation_id`
+  - `better_supabase.production_orders`: `id`, `tenant_id`, `number`, `sequence`, `variant_id`, `bom_id`, `quantity`, `location_id`, `due_on`, `status`, `produced_quantity`, `scrap_quantity`, `output_lot_id`, `material_cost`, `labor_cost`, `currency`, `note`, `released_at`, `started_at`, `completed_at`, `canceled_at`, `created_by`, `created_at`, `updated_at`
+  - `better_supabase.production_order_operations`: `id`, `tenant_id`, `order_id`, `operation_id`, `sequence`, `work_center_id`, `title`, `planned_minutes`, `status`, `started_at`, `finished_at`, `operator_id`, `minutes`, `inspection_id`
+  - `better_supabase.production_consumptions`: `id`, `tenant_id`, `order_id`, `variant_id`, `lot_id`, `serial`, `quantity`, `cost`, `currency`, `movement_id`, `created_by`, `created_at`
+  - `better_supabase.stock_lot_links`: `tenant_id`, `parent_lot_id`, `child_lot_id`, `order_id`, `quantity`, `created_at`
 - `medications`
   - `better_supabase.medications`: `id`, `tenant_id`, `name`, `code_system`, `code`, `unit`, `high_risk`, `archived_at`
   - `better_supabase.medication_orders`: `id`, `tenant_id`, `subject_type`, `subject_id`, `medication_id`, `dose`, `dose_unit`, `route`, `schedule`, `as_needed`, `as_needed_reason`, `max_per_day`, `starts_on`, `ends_on`, `source`, `external_id`, `requires_double_check`, `status`, `stopped_reason`

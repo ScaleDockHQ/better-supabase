@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:10255fece29a48aa80df4385eac0d0fa15bfb9381e34c6d20647637e3df5bbc7
+-- @bsb-hash sha256:6a65eb5f58f074ffc6b01288992d4eb45b9a495f55c0dca9de7cfc587de39be5
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -204,7 +204,7 @@ create policy accounting_accounts_read on "better_supabase"."accounting_accounts
 
 create table if not exists "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -542,6 +542,7 @@ begin
       (setup_accounting.tenant, '1100', 'Cash', 'asset', 'cash', false),
       (setup_accounting.tenant, '1200', 'Accounts receivable', 'asset', 'receivable', true),
       (setup_accounting.tenant, '1300', 'Inventory', 'asset', 'inventory', false),
+      (setup_accounting.tenant, '1350', 'Work in progress', 'asset', 'inventory', false),
       (setup_accounting.tenant, '1400', 'Tax receivable', 'asset', 'current_asset', false),
       (setup_accounting.tenant, '1500', 'Fixed assets', 'asset', 'fixed_asset', false),
       (setup_accounting.tenant, '1510', 'Accumulated depreciation', 'asset', 'fixed_asset', false),
@@ -560,7 +561,7 @@ begin
       (setup_accounting.tenant, '6910', 'Losses on asset disposals', 'expense', 'other_expense', false);
     insert into "better_supabase"."accounting_account_roles" ("tenant_id", "role", "account_id")
     select setup_accounting.tenant, c.role, y."id"
-    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
+    from (values ('bank', '1000'), ('receivable', '1200'), ('inventory', '1300'), ('work_in_progress', '1350'), ('tax_receivable', '1400'), ('fixed_asset', '1500'), ('accumulated_depreciation', '1510'), ('suspense', '1900'), ('payable', '2000'), ('tax_payable', '2100'), ('retained_earnings', '3900'), ('revenue', '4000'), ('fx_gain', '4900'), ('disposal_gain', '4910'), ('cogs', '5000'), ('expense', '6000'), ('depreciation_expense', '6800'), ('fx_loss', '6900'), ('disposal_loss', '6910')) c (role, code)
     join "better_supabase"."accounting_accounts" y on y."tenant_id" = setup_accounting.tenant and y."code" = c.code
     on conflict ("tenant_id", "role") do nothing;
   end if;
@@ -752,7 +753,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', set_accounting_account_role.tenant, 'accounting.manage'), false)) then
     raise exception 'not allowed to manage the chart of accounts' using errcode = '42501', hint = 'ACCOUNTING_ACCOUNT_FORBIDDEN';
   end if;
-  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
+  if set_accounting_account_role.role is null or set_accounting_account_role.role not in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense') then
     raise exception 'unknown account role' using errcode = '22023', hint = 'ACCOUNTING_ACCOUNT_ROLE_INVALID';
   end if;
   if set_accounting_account_role.account_id is null then
@@ -1630,7 +1631,7 @@ declare
   v_descriptions text[] := '{}';
 begin
   if accounting_post_source.source_type is null or accounting_post_source.source_id is null
-    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift') then
+    or accounting_post_source.source_type not in ('stock_movement', 'invoice', 'invoice_payment', 'asset_depreciation', 'asset_disposal', 'lease_rent', 'lease_payment', 'expense_report', 'expense_reimbursement', 'gift', 'production_order') then
     raise exception 'no installed block books this source type' using errcode = '22023', hint = 'ACCOUNTING_SOURCE_INVALID';
   end if;
   v_doc := case accounting_post_source.source_type
@@ -1644,6 +1645,7 @@ begin
     when 'expense_report' then "better_supabase"."accounting_expense_report_lines"(accounting_post_source.source_id)
     when 'expense_reimbursement' then "better_supabase"."accounting_expense_reimbursement_lines"(accounting_post_source.source_id)
     when 'gift' then "better_supabase"."accounting_gift_lines"(accounting_post_source.source_id)
+    when 'production_order' then "better_supabase"."accounting_production_order_lines"(accounting_post_source.source_id)
   end;
   v_kind := case accounting_post_source.source_type
     when 'stock_movement' then 'general'
@@ -1656,6 +1658,7 @@ begin
     when 'expense_report' then 'purchase'
     when 'expense_reimbursement' then 'bank'
     when 'gift' then 'bank'
+    when 'production_order' then 'general'
   end;
   if v_doc is null or jsonb_typeof(v_doc -> 'lines') is distinct from 'array' then
     return null;

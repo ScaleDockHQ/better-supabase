@@ -232,6 +232,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_inspection_finding_create",
     "after_inspection_finding_create",
   ],
+  manufacturing: [
+    "before_production_order_release",
+    "after_production_order_release",
+    "before_production_order_complete",
+    "after_production_order_complete",
+  ],
   observations: [
     "before_observation_definition_save",
     "after_observation_definition_save",

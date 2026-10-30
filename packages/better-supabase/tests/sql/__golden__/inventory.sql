@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:195e11ecc0ae8fb9194f32f23b27228042b67dae338740332ce5c50f51979491
+-- @bsb-hash sha256:0265818912795e54867c27a0a617ce8373282a38211de96d9e86f82ef4996d16
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -512,7 +512,7 @@ begin
   if move_stock.quantity is null or move_stock.quantity = 0 then
     raise exception 'the quantity must not be zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
   end if;
-  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in') then
+  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in', 'consumption', 'production') then
     raise exception 'unknown stock movement reason' using errcode = '22023', hint = 'INVENTORY_REASON_INVALID';
   end if;
   if move_stock.detail is not null and jsonb_typeof(move_stock.detail) <> 'object' then
@@ -555,10 +555,10 @@ begin
   end if;
 
   if move_stock.quantity > 0 then
-    if v_tracking = 'lot' and v_lot is null and move_stock.reason = 'receipt' then
+    if v_tracking = 'lot' and v_lot is null and move_stock.reason in ('receipt', 'production') then
       raise exception 'a lot-tracked variant receives stock into a lot' using errcode = '22023', hint = 'INVENTORY_LOT_REQUIRED';
     end if;
-    if v_expiry and v_lot is not null and move_stock.reason = 'receipt'
+    if v_expiry and v_lot is not null and move_stock.reason in ('receipt', 'production')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) is null then
       raise exception 'the variant tracks expiry, so its lots need an expiry date' using errcode = '22023', hint = 'INVENTORY_EXPIRY_REQUIRED';
     end if;
@@ -589,7 +589,7 @@ begin
       "location_id" = null, "bin_id" = null, "updated_at" = now()
     where x."variant_id" = move_stock.variant and x."serial" = any (v_serials);
   elsif v_bin is not null or v_lot is not null then
-    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out')
+    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out', 'consumption')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) < current_date then
       raise exception 'the lot has expired' using errcode = '55000', hint = 'INVENTORY_LOT_EXPIRED';
     end if;
@@ -602,7 +602,7 @@ begin
       left join "better_supabase"."stock_bins" bn on bn."id" = y."bin_id"
       left join "better_supabase"."stock_lots" lo on lo."id" = y."lot_id"
       where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location and y."on_hand" > 0
-        and (move_stock.reason not in ('sale', 'transfer_out')
+        and (move_stock.reason not in ('sale', 'transfer_out', 'consumption')
           or (not coalesce(bn."hold", false) and (lo."expires_on" is null or lo."expires_on" >= current_date)))
       order by coalesce(bn."hold", false), lo."expires_on" nulls last, lo."code" nulls last, bn."code"
       for update of y
@@ -644,7 +644,7 @@ begin
 
   v_suffix := case when v_unit = 'item' and v_scale = 0 then '' else ':' || v_unit || ':' || v_scale::text end;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_counter',
-    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' end, v_unit, v_scale,
+    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' when 'consumption' then 'stock:production' when 'production' then 'stock:production' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' when 'consumption' then 'Production' when 'production' then 'Production' end, v_unit, v_scale,
     null, null, null, true, 'inventory.read', 'inventory', null), 'amount', -(move_stock.quantity * v_factor)::bigint));
 
   if v_costing = 'average' and move_stock.reason not in ('transfer_in', 'transfer_out') then
@@ -666,8 +666,8 @@ begin
     if v_value <> 0 then
       v_lines := v_lines || jsonb_build_array(
         jsonb_build_object('account', v_value_account, 'amount', v_value),
-        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' else 'stock_value:adjustments' end || ':' || v_currency,
-          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
+        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' when 'consumption' then 'stock_value:production' when 'production' then 'stock_value:production' else 'stock_value:adjustments' end || ':' || v_currency,
+          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' when 'consumption' then 'Work in progress' when 'production' then 'Work in progress' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
           'amount', -v_value));
     end if;
     update "better_supabase"."stock_items" x set "average_cost" = case when v_total + move_stock.quantity > 0
@@ -692,7 +692,7 @@ begin
   if move_stock.quantity < 0 and v_strict then
     select v_on_hand - coalesce(sum(y."on_hand"), 0) into v_unbinned from "better_supabase"."stock_buckets" y
     where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location;
-    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')) then
+    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out', 'consumption')) then
       raise exception 'not enough stock at this location' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
     end if;
   end if;
@@ -1136,6 +1136,52 @@ $$;
 revoke execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) to authenticated, service_role;
 
+-- Takes quantity of an allocation out of stock with a movement of reason,
+-- first from what it holds, then from what's available. The caller checks
+-- permissions; fulfill_allocation and the production functions call it.
+create or replace function "better_supabase"."take_allocation"(allocation uuid, quantity numeric, reason text, detail jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+  v_from_held numeric;
+  v_movement uuid;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
+    x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
+    x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
+  into v_row from "better_supabase"."stock_allocations" x where x."id" = take_allocation.allocation for update;
+  if not found then
+    raise exception 'allocation not found' using errcode = 'P0002', hint = 'INVENTORY_ALLOCATION_NOT_FOUND';
+  end if;
+  if v_row.status <> 'open' then
+    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
+  end if;
+  if take_allocation.quantity is null or take_allocation.quantity <= 0
+    or take_allocation.quantity > v_row.quantity - v_row.fulfilled then
+    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  v_from_held := least(take_allocation.quantity, v_row.allocated);
+  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
+    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
+  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
+    "fulfilled" = x."fulfilled" + take_allocation.quantity,
+    "status" = case when x."fulfilled" + take_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
+    "updated_at" = now()
+  where x."id" = v_row.id;
+  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -take_allocation.quantity, take_allocation.reason, v_row.document_type, v_row.document_id, null, take_allocation.detail);
+  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
+    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
+    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
+    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+end;
+$$;
+revoke execute on function "better_supabase"."take_allocation"(uuid, numeric, text, jsonb) from public, anon, authenticated;
+
 -- Takes quantity of an allocation out of stock as a sale, first from what it
 -- holds, then from what's available. detail picks the bin, lot or serial
 -- numbers, as for move_stock. Returns the allocation and the movement id.
@@ -1148,12 +1194,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
-  v_from_held numeric;
-  v_movement uuid;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
     x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
     x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
@@ -1164,26 +1205,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.reserve'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if v_row.status <> 'open' then
-    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
-  end if;
-  if fulfill_allocation.quantity is null or fulfill_allocation.quantity <= 0
-    or fulfill_allocation.quantity > v_row.quantity - v_row.fulfilled then
-    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
-  end if;
-  v_from_held := least(fulfill_allocation.quantity, v_row.allocated);
-  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
-    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
-  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
-    "fulfilled" = x."fulfilled" + fulfill_allocation.quantity,
-    "status" = case when x."fulfilled" + fulfill_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
-    "updated_at" = now()
-  where x."id" = v_row.id;
-  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -fulfill_allocation.quantity, 'sale', v_row.document_type, v_row.document_id, null, fulfill_allocation.detail);
-  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
-    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
-    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
-    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+  return "better_supabase"."take_allocation"(fulfill_allocation.allocation, fulfill_allocation.quantity, 'sale', fulfill_allocation.detail);
 end;
 $$;
 revoke execute on function "better_supabase"."fulfill_allocation"(uuid, numeric, jsonb) from public, anon;
@@ -2512,7 +2534,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:a5a574fcf3b224578ec5e7854e96ef440b73382681355312a27c4e5a54ca66de
+-- @bsb-hash sha256:e06d4faa39f70340b90417c53279ec7abf5a184f8c7fb26de13466b17f2788dd
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3023,7 +3045,7 @@ begin
   if move_stock.quantity is null or move_stock.quantity = 0 then
     raise exception 'the quantity must not be zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
   end if;
-  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in') then
+  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in', 'consumption', 'production') then
     raise exception 'unknown stock movement reason' using errcode = '22023', hint = 'INVENTORY_REASON_INVALID';
   end if;
   if move_stock.detail is not null and jsonb_typeof(move_stock.detail) <> 'object' then
@@ -3066,10 +3088,10 @@ begin
   end if;
 
   if move_stock.quantity > 0 then
-    if v_tracking = 'lot' and v_lot is null and move_stock.reason = 'receipt' then
+    if v_tracking = 'lot' and v_lot is null and move_stock.reason in ('receipt', 'production') then
       raise exception 'a lot-tracked variant receives stock into a lot' using errcode = '22023', hint = 'INVENTORY_LOT_REQUIRED';
     end if;
-    if v_expiry and v_lot is not null and move_stock.reason = 'receipt'
+    if v_expiry and v_lot is not null and move_stock.reason in ('receipt', 'production')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) is null then
       raise exception 'the variant tracks expiry, so its lots need an expiry date' using errcode = '22023', hint = 'INVENTORY_EXPIRY_REQUIRED';
     end if;
@@ -3100,7 +3122,7 @@ begin
       "location_id" = null, "bin_id" = null, "updated_at" = now()
     where x."variant_id" = move_stock.variant and x."serial" = any (v_serials);
   elsif v_bin is not null or v_lot is not null then
-    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out')
+    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out', 'consumption')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) < current_date then
       raise exception 'the lot has expired' using errcode = '55000', hint = 'INVENTORY_LOT_EXPIRED';
     end if;
@@ -3113,7 +3135,7 @@ begin
       left join "better_supabase"."stock_bins" bn on bn."id" = y."bin_id"
       left join "better_supabase"."stock_lots" lo on lo."id" = y."lot_id"
       where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location and y."on_hand" > 0
-        and (move_stock.reason not in ('sale', 'transfer_out')
+        and (move_stock.reason not in ('sale', 'transfer_out', 'consumption')
           or (not coalesce(bn."hold", false) and (lo."expires_on" is null or lo."expires_on" >= current_date)))
       order by coalesce(bn."hold", false), lo."expires_on" nulls last, lo."code" nulls last, bn."code"
       for update of y
@@ -3155,7 +3177,7 @@ begin
 
   v_suffix := case when v_unit = 'item' and v_scale = 0 then '' else ':' || v_unit || ':' || v_scale::text end;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_counter',
-    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' end, v_unit, v_scale,
+    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' when 'consumption' then 'stock:production' when 'production' then 'stock:production' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' when 'consumption' then 'Production' when 'production' then 'Production' end, v_unit, v_scale,
     null, null, null, true, 'inventory.read', 'inventory', null), 'amount', -(move_stock.quantity * v_factor)::bigint));
 
   if v_costing = 'average' and move_stock.reason not in ('transfer_in', 'transfer_out') then
@@ -3177,8 +3199,8 @@ begin
     if v_value <> 0 then
       v_lines := v_lines || jsonb_build_array(
         jsonb_build_object('account', v_value_account, 'amount', v_value),
-        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' else 'stock_value:adjustments' end || ':' || v_currency,
-          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
+        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' when 'consumption' then 'stock_value:production' when 'production' then 'stock_value:production' else 'stock_value:adjustments' end || ':' || v_currency,
+          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' when 'consumption' then 'Work in progress' when 'production' then 'Work in progress' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
           'amount', -v_value));
     end if;
     update "better_supabase"."stock_items" x set "average_cost" = case when v_total + move_stock.quantity > 0
@@ -3206,7 +3228,7 @@ begin
   if move_stock.quantity < 0 and v_strict then
     select v_on_hand - coalesce(sum(y."on_hand"), 0) into v_unbinned from "better_supabase"."stock_buckets" y
     where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location;
-    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')) then
+    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out', 'consumption')) then
       raise exception 'not enough stock at this location' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
     end if;
   end if;
@@ -3652,6 +3674,52 @@ $$;
 revoke execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) to authenticated, service_role;
 
+-- Takes quantity of an allocation out of stock with a movement of reason,
+-- first from what it holds, then from what's available. The caller checks
+-- permissions; fulfill_allocation and the production functions call it.
+create or replace function "better_supabase"."take_allocation"(allocation uuid, quantity numeric, reason text, detail jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+  v_from_held numeric;
+  v_movement uuid;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
+    x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
+    x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
+  into v_row from "better_supabase"."stock_allocations" x where x."id" = take_allocation.allocation for update;
+  if not found then
+    raise exception 'allocation not found' using errcode = 'P0002', hint = 'INVENTORY_ALLOCATION_NOT_FOUND';
+  end if;
+  if v_row.status <> 'open' then
+    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
+  end if;
+  if take_allocation.quantity is null or take_allocation.quantity <= 0
+    or take_allocation.quantity > v_row.quantity - v_row.fulfilled then
+    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  v_from_held := least(take_allocation.quantity, v_row.allocated);
+  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
+    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
+  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
+    "fulfilled" = x."fulfilled" + take_allocation.quantity,
+    "status" = case when x."fulfilled" + take_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
+    "updated_at" = now()
+  where x."id" = v_row.id;
+  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -take_allocation.quantity, take_allocation.reason, v_row.document_type, v_row.document_id, null, take_allocation.detail);
+  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
+    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
+    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
+    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+end;
+$$;
+revoke execute on function "better_supabase"."take_allocation"(uuid, numeric, text, jsonb) from public, anon, authenticated;
+
 -- Takes quantity of an allocation out of stock as a sale, first from what it
 -- holds, then from what's available. detail picks the bin, lot or serial
 -- numbers, as for move_stock. Returns the allocation and the movement id.
@@ -3664,12 +3732,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
-  v_from_held numeric;
-  v_movement uuid;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
     x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
     x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
@@ -3680,26 +3743,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.reserve'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if v_row.status <> 'open' then
-    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
-  end if;
-  if fulfill_allocation.quantity is null or fulfill_allocation.quantity <= 0
-    or fulfill_allocation.quantity > v_row.quantity - v_row.fulfilled then
-    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
-  end if;
-  v_from_held := least(fulfill_allocation.quantity, v_row.allocated);
-  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
-    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
-  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
-    "fulfilled" = x."fulfilled" + fulfill_allocation.quantity,
-    "status" = case when x."fulfilled" + fulfill_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
-    "updated_at" = now()
-  where x."id" = v_row.id;
-  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -fulfill_allocation.quantity, 'sale', v_row.document_type, v_row.document_id, null, fulfill_allocation.detail);
-  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
-    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
-    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
-    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+  return "better_supabase"."take_allocation"(fulfill_allocation.allocation, fulfill_allocation.quantity, 'sale', fulfill_allocation.detail);
 end;
 $$;
 revoke execute on function "better_supabase"."fulfill_allocation"(uuid, numeric, jsonb) from public, anon;
@@ -4727,7 +4771,8 @@ as $$
     'memo', 'Stock ' || (y."metadata" ->> 'reason'),
     'lines', jsonb_build_array(
       jsonb_build_object('role', 'inventory', 'debit', e."amount"::text),
-      jsonb_build_object('role', case y."metadata" ->> 'reason' when 'receipt' then 'payable' when 'sale' then 'cogs' when 'return' then 'cogs' else 'expense' end,
+      jsonb_build_object('role', case y."metadata" ->> 'reason' when 'receipt' then 'payable' when 'sale' then 'cogs' when 'return' then 'cogs'
+        when 'consumption' then 'work_in_progress' when 'production' then 'work_in_progress' else 'expense' end,
         'credit', e."amount"::text))
   )
   from "better_supabase"."ledger_transactions" y
@@ -5057,7 +5102,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:e4d5114e294af91b0f7beefca573f562c01e40daa537f2950894b5d93075710d
+-- @bsb-hash sha256:dbe9986598ea38c90c66b933fefa34730e8dcc9fd6daae6b90628a4fdf6186f5
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5573,7 +5618,7 @@ begin
   if move_stock.quantity is null or move_stock.quantity = 0 then
     raise exception 'the quantity must not be zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
   end if;
-  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in') then
+  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in', 'consumption', 'production') then
     raise exception 'unknown stock movement reason' using errcode = '22023', hint = 'INVENTORY_REASON_INVALID';
   end if;
   if move_stock.detail is not null and jsonb_typeof(move_stock.detail) <> 'object' then
@@ -5616,10 +5661,10 @@ begin
   end if;
 
   if move_stock.quantity > 0 then
-    if v_tracking = 'lot' and v_lot is null and move_stock.reason = 'receipt' then
+    if v_tracking = 'lot' and v_lot is null and move_stock.reason in ('receipt', 'production') then
       raise exception 'a lot-tracked variant receives stock into a lot' using errcode = '22023', hint = 'INVENTORY_LOT_REQUIRED';
     end if;
-    if v_expiry and v_lot is not null and move_stock.reason = 'receipt'
+    if v_expiry and v_lot is not null and move_stock.reason in ('receipt', 'production')
       and (select x."expires_on" from "app_private"."stock_lots" x where x."id" = v_lot) is null then
       raise exception 'the variant tracks expiry, so its lots need an expiry date' using errcode = '22023', hint = 'INVENTORY_EXPIRY_REQUIRED';
     end if;
@@ -5650,7 +5695,7 @@ begin
       "location_id" = null, "bin_id" = null, "updated_at" = now()
     where x."variant_id" = move_stock.variant and x."serial" = any (v_serials);
   elsif v_bin is not null or v_lot is not null then
-    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out')
+    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out', 'consumption')
       and (select x."expires_on" from "app_private"."stock_lots" x where x."id" = v_lot) < current_date then
       raise exception 'the lot has expired' using errcode = '55000', hint = 'INVENTORY_LOT_EXPIRED';
     end if;
@@ -5663,7 +5708,7 @@ begin
       left join "app_private"."stock_bins" bn on bn."id" = y."bin_id"
       left join "app_private"."stock_lots" lo on lo."id" = y."lot_id"
       where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location and y."on_hand" > 0
-        and (move_stock.reason not in ('sale', 'transfer_out')
+        and (move_stock.reason not in ('sale', 'transfer_out', 'consumption')
           or (not coalesce(bn."hold", false) and (lo."expires_on" is null or lo."expires_on" >= current_date)))
       order by coalesce(bn."hold", false), lo."expires_on" nulls last, lo."code" nulls last, bn."code"
       for update of y
@@ -5705,7 +5750,7 @@ begin
 
   v_suffix := case when v_unit = 'item' and v_scale = 0 then '' else ':' || v_unit || ':' || v_scale::text end;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_counter',
-    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' end, v_unit, v_scale,
+    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' when 'consumption' then 'stock:production' when 'production' then 'stock:production' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' when 'consumption' then 'Production' when 'production' then 'Production' end, v_unit, v_scale,
     null, null, null, true, 'inventory.read', 'inventory', null), 'amount', -(move_stock.quantity * v_factor)::bigint));
 
   if v_costing = 'average' and move_stock.reason not in ('transfer_in', 'transfer_out') then
@@ -5727,8 +5772,8 @@ begin
     if v_value <> 0 then
       v_lines := v_lines || jsonb_build_array(
         jsonb_build_object('account', v_value_account, 'amount', v_value),
-        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' else 'stock_value:adjustments' end || ':' || v_currency,
-          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
+        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' when 'consumption' then 'stock_value:production' when 'production' then 'stock_value:production' else 'stock_value:adjustments' end || ':' || v_currency,
+          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' when 'consumption' then 'Work in progress' when 'production' then 'Work in progress' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
           'amount', -v_value));
     end if;
     update "app_private"."stock_items" x set "average_cost" = case when v_total + move_stock.quantity > 0
@@ -5753,7 +5798,7 @@ begin
   if move_stock.quantity < 0 and v_strict then
     select v_on_hand - coalesce(sum(y."on_hand"), 0) into v_unbinned from "app_private"."stock_buckets" y
     where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location;
-    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')) then
+    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out', 'consumption')) then
       raise exception 'not enough stock at this location' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
     end if;
   end if;
@@ -6197,6 +6242,52 @@ $$;
 revoke execute on function "app_private"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) from public, anon;
 grant execute on function "app_private"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) to authenticated, service_role;
 
+-- Takes quantity of an allocation out of stock with a movement of reason,
+-- first from what it holds, then from what's available. The caller checks
+-- permissions; fulfill_allocation and the production functions call it.
+create or replace function "app_private"."take_allocation"(allocation uuid, quantity numeric, reason text, detail jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+  v_from_held numeric;
+  v_movement uuid;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
+    x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
+    x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
+  into v_row from "app_private"."stock_allocations" x where x."id" = take_allocation.allocation for update;
+  if not found then
+    raise exception 'allocation not found' using errcode = 'P0002', hint = 'INVENTORY_ALLOCATION_NOT_FOUND';
+  end if;
+  if v_row.status <> 'open' then
+    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
+  end if;
+  if take_allocation.quantity is null or take_allocation.quantity <= 0
+    or take_allocation.quantity > v_row.quantity - v_row.fulfilled then
+    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  v_from_held := least(take_allocation.quantity, v_row.allocated);
+  update "app_private"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
+    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
+  update "app_private"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
+    "fulfilled" = x."fulfilled" + take_allocation.quantity,
+    "status" = case when x."fulfilled" + take_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
+    "updated_at" = now()
+  where x."id" = v_row.id;
+  v_movement := "app_private"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -take_allocation.quantity, take_allocation.reason, v_row.document_type, v_row.document_id, null, take_allocation.detail);
+  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
+    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
+    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
+    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "app_private"."stock_allocations" x where x."id" = v_row.id);
+end;
+$$;
+revoke execute on function "app_private"."take_allocation"(uuid, numeric, text, jsonb) from public, anon, authenticated;
+
 -- Takes quantity of an allocation out of stock as a sale, first from what it
 -- holds, then from what's available. detail picks the bin, lot or serial
 -- numbers, as for move_stock. Returns the allocation and the movement id.
@@ -6209,12 +6300,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
-  v_from_held numeric;
-  v_movement uuid;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
     x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
     x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
@@ -6225,26 +6311,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.reserve'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if v_row.status <> 'open' then
-    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
-  end if;
-  if fulfill_allocation.quantity is null or fulfill_allocation.quantity <= 0
-    or fulfill_allocation.quantity > v_row.quantity - v_row.fulfilled then
-    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
-  end if;
-  v_from_held := least(fulfill_allocation.quantity, v_row.allocated);
-  update "app_private"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
-    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
-  update "app_private"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
-    "fulfilled" = x."fulfilled" + fulfill_allocation.quantity,
-    "status" = case when x."fulfilled" + fulfill_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
-    "updated_at" = now()
-  where x."id" = v_row.id;
-  v_movement := "app_private"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -fulfill_allocation.quantity, 'sale', v_row.document_type, v_row.document_id, null, fulfill_allocation.detail);
-  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
-    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
-    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
-    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "app_private"."stock_allocations" x where x."id" = v_row.id);
+  return "app_private"."take_allocation"(fulfill_allocation.allocation, fulfill_allocation.quantity, 'sale', fulfill_allocation.detail);
 end;
 $$;
 revoke execute on function "app_private"."fulfill_allocation"(uuid, numeric, jsonb) from public, anon;
@@ -7573,7 +7640,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:d6e6d2650c4d87bfa05c60fe58f7687d236314481b293310be3c0c3870113b3d
+-- @bsb-hash sha256:f7bdb2d166b611b3ea1b2fcd3955ecafeaf8c77e25871ad9ccae0e6c5f2d2c00
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8084,7 +8151,7 @@ begin
   if move_stock.quantity is null or move_stock.quantity = 0 then
     raise exception 'the quantity must not be zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
   end if;
-  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in') then
+  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in', 'consumption', 'production') then
     raise exception 'unknown stock movement reason' using errcode = '22023', hint = 'INVENTORY_REASON_INVALID';
   end if;
   if move_stock.detail is not null and jsonb_typeof(move_stock.detail) <> 'object' then
@@ -8127,10 +8194,10 @@ begin
   end if;
 
   if move_stock.quantity > 0 then
-    if v_tracking = 'lot' and v_lot is null and move_stock.reason = 'receipt' then
+    if v_tracking = 'lot' and v_lot is null and move_stock.reason in ('receipt', 'production') then
       raise exception 'a lot-tracked variant receives stock into a lot' using errcode = '22023', hint = 'INVENTORY_LOT_REQUIRED';
     end if;
-    if v_expiry and v_lot is not null and move_stock.reason = 'receipt'
+    if v_expiry and v_lot is not null and move_stock.reason in ('receipt', 'production')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) is null then
       raise exception 'the variant tracks expiry, so its lots need an expiry date' using errcode = '22023', hint = 'INVENTORY_EXPIRY_REQUIRED';
     end if;
@@ -8161,7 +8228,7 @@ begin
       "location_id" = null, "bin_id" = null, "updated_at" = now()
     where x."variant_id" = move_stock.variant and x."serial" = any (v_serials);
   elsif v_bin is not null or v_lot is not null then
-    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out')
+    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out', 'consumption')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) < current_date then
       raise exception 'the lot has expired' using errcode = '55000', hint = 'INVENTORY_LOT_EXPIRED';
     end if;
@@ -8174,7 +8241,7 @@ begin
       left join "better_supabase"."stock_bins" bn on bn."id" = y."bin_id"
       left join "better_supabase"."stock_lots" lo on lo."id" = y."lot_id"
       where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location and y."on_hand" > 0
-        and (move_stock.reason not in ('sale', 'transfer_out')
+        and (move_stock.reason not in ('sale', 'transfer_out', 'consumption')
           or (not coalesce(bn."hold", false) and (lo."expires_on" is null or lo."expires_on" >= current_date)))
       order by coalesce(bn."hold", false), lo."expires_on" nulls last, lo."code" nulls last, bn."code"
       for update of y
@@ -8216,7 +8283,7 @@ begin
 
   v_suffix := case when v_unit = 'item' and v_scale = 0 then '' else ':' || v_unit || ':' || v_scale::text end;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_counter',
-    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' end, v_unit, v_scale,
+    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' when 'consumption' then 'stock:production' when 'production' then 'stock:production' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' when 'consumption' then 'Production' when 'production' then 'Production' end, v_unit, v_scale,
     null, null, null, true, 'inventory.read', 'inventory', null), 'amount', -(move_stock.quantity * v_factor)::bigint));
 
   if v_costing = 'average' and move_stock.reason not in ('transfer_in', 'transfer_out') then
@@ -8238,8 +8305,8 @@ begin
     if v_value <> 0 then
       v_lines := v_lines || jsonb_build_array(
         jsonb_build_object('account', v_value_account, 'amount', v_value),
-        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' else 'stock_value:adjustments' end || ':' || v_currency,
-          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
+        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' when 'consumption' then 'stock_value:production' when 'production' then 'stock_value:production' else 'stock_value:adjustments' end || ':' || v_currency,
+          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' when 'consumption' then 'Work in progress' when 'production' then 'Work in progress' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
           'amount', -v_value));
     end if;
     update "better_supabase"."stock_items" x set "average_cost" = case when v_total + move_stock.quantity > 0
@@ -8264,7 +8331,7 @@ begin
   if move_stock.quantity < 0 and v_strict then
     select v_on_hand - coalesce(sum(y."on_hand"), 0) into v_unbinned from "better_supabase"."stock_buckets" y
     where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location;
-    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')) then
+    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out', 'consumption')) then
       raise exception 'not enough stock at this location' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
     end if;
   end if;
@@ -8708,6 +8775,52 @@ $$;
 revoke execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) to authenticated, service_role;
 
+-- Takes quantity of an allocation out of stock with a movement of reason,
+-- first from what it holds, then from what's available. The caller checks
+-- permissions; fulfill_allocation and the production functions call it.
+create or replace function "better_supabase"."take_allocation"(allocation uuid, quantity numeric, reason text, detail jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+  v_from_held numeric;
+  v_movement uuid;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
+    x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
+    x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
+  into v_row from "better_supabase"."stock_allocations" x where x."id" = take_allocation.allocation for update;
+  if not found then
+    raise exception 'allocation not found' using errcode = 'P0002', hint = 'INVENTORY_ALLOCATION_NOT_FOUND';
+  end if;
+  if v_row.status <> 'open' then
+    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
+  end if;
+  if take_allocation.quantity is null or take_allocation.quantity <= 0
+    or take_allocation.quantity > v_row.quantity - v_row.fulfilled then
+    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  v_from_held := least(take_allocation.quantity, v_row.allocated);
+  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
+    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
+  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
+    "fulfilled" = x."fulfilled" + take_allocation.quantity,
+    "status" = case when x."fulfilled" + take_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
+    "updated_at" = now()
+  where x."id" = v_row.id;
+  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -take_allocation.quantity, take_allocation.reason, v_row.document_type, v_row.document_id, null, take_allocation.detail);
+  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
+    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
+    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
+    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+end;
+$$;
+revoke execute on function "better_supabase"."take_allocation"(uuid, numeric, text, jsonb) from public, anon, authenticated;
+
 -- Takes quantity of an allocation out of stock as a sale, first from what it
 -- holds, then from what's available. detail picks the bin, lot or serial
 -- numbers, as for move_stock. Returns the allocation and the movement id.
@@ -8720,12 +8833,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
-  v_from_held numeric;
-  v_movement uuid;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
     x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
     x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
@@ -8736,26 +8844,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.reserve'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if v_row.status <> 'open' then
-    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
-  end if;
-  if fulfill_allocation.quantity is null or fulfill_allocation.quantity <= 0
-    or fulfill_allocation.quantity > v_row.quantity - v_row.fulfilled then
-    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
-  end if;
-  v_from_held := least(fulfill_allocation.quantity, v_row.allocated);
-  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
-    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
-  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
-    "fulfilled" = x."fulfilled" + fulfill_allocation.quantity,
-    "status" = case when x."fulfilled" + fulfill_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
-    "updated_at" = now()
-  where x."id" = v_row.id;
-  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -fulfill_allocation.quantity, 'sale', v_row.document_type, v_row.document_id, null, fulfill_allocation.detail);
-  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
-    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
-    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
-    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+  return "better_supabase"."take_allocation"(fulfill_allocation.allocation, fulfill_allocation.quantity, 'sale', fulfill_allocation.detail);
 end;
 $$;
 revoke execute on function "better_supabase"."fulfill_allocation"(uuid, numeric, jsonb) from public, anon;
@@ -10382,7 +10471,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:fa3342da2171355fe72b934e64b5498efbee212e97aa8a27a33acb558364e5ea
+-- @bsb-hash sha256:25edb514485199b69148321e0063945697965865c84812160939cc6858046161
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10868,7 +10957,7 @@ begin
   if move_stock.quantity is null or move_stock.quantity = 0 then
     raise exception 'the quantity must not be zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
   end if;
-  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in') then
+  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in', 'consumption', 'production') then
     raise exception 'unknown stock movement reason' using errcode = '22023', hint = 'INVENTORY_REASON_INVALID';
   end if;
   if move_stock.detail is not null and jsonb_typeof(move_stock.detail) <> 'object' then
@@ -10911,10 +11000,10 @@ begin
   end if;
 
   if move_stock.quantity > 0 then
-    if v_tracking = 'lot' and v_lot is null and move_stock.reason = 'receipt' then
+    if v_tracking = 'lot' and v_lot is null and move_stock.reason in ('receipt', 'production') then
       raise exception 'a lot-tracked variant receives stock into a lot' using errcode = '22023', hint = 'INVENTORY_LOT_REQUIRED';
     end if;
-    if v_expiry and v_lot is not null and move_stock.reason = 'receipt'
+    if v_expiry and v_lot is not null and move_stock.reason in ('receipt', 'production')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) is null then
       raise exception 'the variant tracks expiry, so its lots need an expiry date' using errcode = '22023', hint = 'INVENTORY_EXPIRY_REQUIRED';
     end if;
@@ -10945,7 +11034,7 @@ begin
       "location_id" = null, "bin_id" = null, "updated_at" = now()
     where x."variant_id" = move_stock.variant and x."serial" = any (v_serials);
   elsif v_bin is not null or v_lot is not null then
-    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out')
+    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out', 'consumption')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) < current_date then
       raise exception 'the lot has expired' using errcode = '55000', hint = 'INVENTORY_LOT_EXPIRED';
     end if;
@@ -10958,7 +11047,7 @@ begin
       left join "better_supabase"."stock_bins" bn on bn."id" = y."bin_id"
       left join "better_supabase"."stock_lots" lo on lo."id" = y."lot_id"
       where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location and y."on_hand" > 0
-        and (move_stock.reason not in ('sale', 'transfer_out')
+        and (move_stock.reason not in ('sale', 'transfer_out', 'consumption')
           or (not coalesce(bn."hold", false) and (lo."expires_on" is null or lo."expires_on" >= current_date)))
       order by coalesce(bn."hold", false), lo."expires_on" nulls last, lo."code" nulls last, bn."code"
       for update of y
@@ -11000,7 +11089,7 @@ begin
 
   v_suffix := case when v_unit = 'item' and v_scale = 0 then '' else ':' || v_unit || ':' || v_scale::text end;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_counter',
-    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' end, v_unit, v_scale,
+    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' when 'consumption' then 'stock:production' when 'production' then 'stock:production' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' when 'consumption' then 'Production' when 'production' then 'Production' end, v_unit, v_scale,
     null, null, null, true, 'inventory.read', 'inventory', null), 'amount', -(move_stock.quantity * v_factor)::bigint));
 
   if v_costing = 'average' and move_stock.reason not in ('transfer_in', 'transfer_out') then
@@ -11022,8 +11111,8 @@ begin
     if v_value <> 0 then
       v_lines := v_lines || jsonb_build_array(
         jsonb_build_object('account', v_value_account, 'amount', v_value),
-        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' else 'stock_value:adjustments' end || ':' || v_currency,
-          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
+        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' when 'consumption' then 'stock_value:production' when 'production' then 'stock_value:production' else 'stock_value:adjustments' end || ':' || v_currency,
+          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' when 'consumption' then 'Work in progress' when 'production' then 'Work in progress' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
           'amount', -v_value));
     end if;
     update "better_supabase"."stock_items" x set "average_cost" = case when v_total + move_stock.quantity > 0
@@ -11048,7 +11137,7 @@ begin
   if move_stock.quantity < 0 and v_strict then
     select v_on_hand - coalesce(sum(y."on_hand"), 0) into v_unbinned from "better_supabase"."stock_buckets" y
     where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location;
-    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')) then
+    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out', 'consumption')) then
       raise exception 'not enough stock at this location' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
     end if;
   end if;
@@ -11492,6 +11581,52 @@ $$;
 revoke execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) to authenticated, service_role;
 
+-- Takes quantity of an allocation out of stock with a movement of reason,
+-- first from what it holds, then from what's available. The caller checks
+-- permissions; fulfill_allocation and the production functions call it.
+create or replace function "better_supabase"."take_allocation"(allocation uuid, quantity numeric, reason text, detail jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+  v_from_held numeric;
+  v_movement uuid;
+begin
+  select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
+    x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
+    x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
+  into v_row from "better_supabase"."stock_allocations" x where x."id" = take_allocation.allocation for update;
+  if not found then
+    raise exception 'allocation not found' using errcode = 'P0002', hint = 'INVENTORY_ALLOCATION_NOT_FOUND';
+  end if;
+  if v_row.status <> 'open' then
+    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
+  end if;
+  if take_allocation.quantity is null or take_allocation.quantity <= 0
+    or take_allocation.quantity > v_row.quantity - v_row.fulfilled then
+    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  v_from_held := least(take_allocation.quantity, v_row.allocated);
+  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
+    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
+  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
+    "fulfilled" = x."fulfilled" + take_allocation.quantity,
+    "status" = case when x."fulfilled" + take_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
+    "updated_at" = now()
+  where x."id" = v_row.id;
+  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -take_allocation.quantity, take_allocation.reason, v_row.document_type, v_row.document_id, null, take_allocation.detail);
+  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
+    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
+    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
+    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+end;
+$$;
+revoke execute on function "better_supabase"."take_allocation"(uuid, numeric, text, jsonb) from public, anon, authenticated;
+
 -- Takes quantity of an allocation out of stock as a sale, first from what it
 -- holds, then from what's available. detail picks the bin, lot or serial
 -- numbers, as for move_stock. Returns the allocation and the movement id.
@@ -11504,12 +11639,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
-  v_from_held numeric;
-  v_movement uuid;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
     x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
     x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
@@ -11520,26 +11650,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.reserve'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if v_row.status <> 'open' then
-    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
-  end if;
-  if fulfill_allocation.quantity is null or fulfill_allocation.quantity <= 0
-    or fulfill_allocation.quantity > v_row.quantity - v_row.fulfilled then
-    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
-  end if;
-  v_from_held := least(fulfill_allocation.quantity, v_row.allocated);
-  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
-    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
-  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
-    "fulfilled" = x."fulfilled" + fulfill_allocation.quantity,
-    "status" = case when x."fulfilled" + fulfill_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
-    "updated_at" = now()
-  where x."id" = v_row.id;
-  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -fulfill_allocation.quantity, 'sale', v_row.document_type, v_row.document_id, null, fulfill_allocation.detail);
-  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
-    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
-    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
-    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+  return "better_supabase"."take_allocation"(fulfill_allocation.allocation, fulfill_allocation.quantity, 'sale', fulfill_allocation.detail);
 end;
 $$;
 revoke execute on function "better_supabase"."fulfill_allocation"(uuid, numeric, jsonb) from public, anon;
@@ -12868,7 +12979,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:9f0863f57b2f44e1515851c442749126c9aa900072c68e745e8c4314d7348c34
+-- @bsb-hash sha256:5cc0c51d80ac5780949cdf47f1bf0bedd5c5e607bf979d6b6fa57f19456ffedd
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13379,7 +13490,7 @@ begin
   if move_stock.quantity is null or move_stock.quantity = 0 then
     raise exception 'the quantity must not be zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
   end if;
-  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in') then
+  if move_stock.reason is null or move_stock.reason not in ('adjustment', 'damage', 'loss', 'count', 'expired', 'scrap', 'receipt', 'sale', 'return', 'transfer_out', 'transfer_in', 'consumption', 'production') then
     raise exception 'unknown stock movement reason' using errcode = '22023', hint = 'INVENTORY_REASON_INVALID';
   end if;
   if move_stock.detail is not null and jsonb_typeof(move_stock.detail) <> 'object' then
@@ -13422,10 +13533,10 @@ begin
   end if;
 
   if move_stock.quantity > 0 then
-    if v_tracking = 'lot' and v_lot is null and move_stock.reason = 'receipt' then
+    if v_tracking = 'lot' and v_lot is null and move_stock.reason in ('receipt', 'production') then
       raise exception 'a lot-tracked variant receives stock into a lot' using errcode = '22023', hint = 'INVENTORY_LOT_REQUIRED';
     end if;
-    if v_expiry and v_lot is not null and move_stock.reason = 'receipt'
+    if v_expiry and v_lot is not null and move_stock.reason in ('receipt', 'production')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) is null then
       raise exception 'the variant tracks expiry, so its lots need an expiry date' using errcode = '22023', hint = 'INVENTORY_EXPIRY_REQUIRED';
     end if;
@@ -13456,7 +13567,7 @@ begin
       "location_id" = null, "bin_id" = null, "updated_at" = now()
     where x."variant_id" = move_stock.variant and x."serial" = any (v_serials);
   elsif v_bin is not null or v_lot is not null then
-    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out')
+    if v_lot is not null and move_stock.reason in ('sale', 'transfer_out', 'consumption')
       and (select x."expires_on" from "better_supabase"."stock_lots" x where x."id" = v_lot) < current_date then
       raise exception 'the lot has expired' using errcode = '55000', hint = 'INVENTORY_LOT_EXPIRED';
     end if;
@@ -13469,7 +13580,7 @@ begin
       left join "better_supabase"."stock_bins" bn on bn."id" = y."bin_id"
       left join "better_supabase"."stock_lots" lo on lo."id" = y."lot_id"
       where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location and y."on_hand" > 0
-        and (move_stock.reason not in ('sale', 'transfer_out')
+        and (move_stock.reason not in ('sale', 'transfer_out', 'consumption')
           or (not coalesce(bn."hold", false) and (lo."expires_on" is null or lo."expires_on" >= current_date)))
       order by coalesce(bn."hold", false), lo."expires_on" nulls last, lo."code" nulls last, bn."code"
       for update of y
@@ -13511,7 +13622,7 @@ begin
 
   v_suffix := case when v_unit = 'item' and v_scale = 0 then '' else ':' || v_unit || ':' || v_scale::text end;
   v_lines := v_lines || jsonb_build_array(jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_counter',
-    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' end, v_unit, v_scale,
+    case move_stock.reason when 'adjustment' then 'stock:adjustments' when 'damage' then 'stock:adjustments' when 'loss' then 'stock:adjustments' when 'count' then 'stock:adjustments' when 'expired' then 'stock:adjustments' when 'scrap' then 'stock:adjustments' when 'receipt' then 'stock:suppliers' when 'sale' then 'stock:customers' when 'return' then 'stock:customers' when 'transfer_out' then 'stock:transit' when 'transfer_in' then 'stock:transit' when 'consumption' then 'stock:production' when 'production' then 'stock:production' end || v_suffix, case move_stock.reason when 'adjustment' then 'Adjustments' when 'damage' then 'Adjustments' when 'loss' then 'Adjustments' when 'count' then 'Adjustments' when 'expired' then 'Adjustments' when 'scrap' then 'Adjustments' when 'receipt' then 'Suppliers' when 'sale' then 'Customers' when 'return' then 'Customers' when 'transfer_out' then 'In transit' when 'transfer_in' then 'In transit' when 'consumption' then 'Production' when 'production' then 'Production' end, v_unit, v_scale,
     null, null, null, true, 'inventory.read', 'inventory', null), 'amount', -(move_stock.quantity * v_factor)::bigint));
 
   if v_costing = 'average' and move_stock.reason not in ('transfer_in', 'transfer_out') then
@@ -13533,8 +13644,8 @@ begin
     if v_value <> 0 then
       v_lines := v_lines || jsonb_build_array(
         jsonb_build_object('account', v_value_account, 'amount', v_value),
-        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' else 'stock_value:adjustments' end || ':' || v_currency,
-          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
+        jsonb_build_object('account', "better_supabase"."ledger_account_for"(move_stock.tenant, 'stock_value_counter', case move_stock.reason when 'receipt' then 'stock_value:suppliers' when 'sale' then 'stock_value:cogs' when 'return' then 'stock_value:cogs' when 'consumption' then 'stock_value:production' when 'production' then 'stock_value:production' else 'stock_value:adjustments' end || ':' || v_currency,
+          case move_stock.reason when 'receipt' then 'Stock purchases' when 'sale' then 'Cost of goods sold' when 'return' then 'Cost of goods sold' when 'consumption' then 'Work in progress' when 'production' then 'Work in progress' else 'Stock adjustments' end || ' ' || v_currency, v_currency, 0::smallint, null, null, null, true, 'inventory.read', 'inventory', null),
           'amount', -v_value));
     end if;
     update "better_supabase"."stock_items" x set "average_cost" = case when v_total + move_stock.quantity > 0
@@ -13559,7 +13670,7 @@ begin
   if move_stock.quantity < 0 and v_strict then
     select v_on_hand - coalesce(sum(y."on_hand"), 0) into v_unbinned from "better_supabase"."stock_buckets" y
     where y."variant_id" = move_stock.variant and y."location_id" = move_stock.location;
-    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out')) then
+    if v_on_hand < 0 or v_unbinned < 0 or (v_after < 0 and move_stock.reason in ('sale', 'transfer_out', 'consumption')) then
       raise exception 'not enough stock at this location' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
     end if;
   end if;
@@ -14003,6 +14114,52 @@ $$;
 revoke execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) from public, anon;
 grant execute on function "better_supabase"."allocate_stock"(uuid, uuid, uuid, numeric, text, text, text, boolean) to authenticated, service_role;
 
+-- Takes quantity of an allocation out of stock with a movement of reason,
+-- first from what it holds, then from what's available. The caller checks
+-- permissions; fulfill_allocation and the production functions call it.
+create or replace function "better_supabase"."take_allocation"(allocation uuid, quantity numeric, reason text, detail jsonb default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+  v_from_held numeric;
+  v_movement uuid;
+begin
+  select x."id" as id, x."org_id" as tenant, x."variant_id" as variant, x."location_id" as location,
+    x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
+    x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
+  into v_row from "better_supabase"."stock_allocations" x where x."id" = take_allocation.allocation for update;
+  if not found then
+    raise exception 'allocation not found' using errcode = 'P0002', hint = 'INVENTORY_ALLOCATION_NOT_FOUND';
+  end if;
+  if v_row.status <> 'open' then
+    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
+  end if;
+  if take_allocation.quantity is null or take_allocation.quantity <= 0
+    or take_allocation.quantity > v_row.quantity - v_row.fulfilled then
+    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  v_from_held := least(take_allocation.quantity, v_row.allocated);
+  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
+    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
+  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
+    "fulfilled" = x."fulfilled" + take_allocation.quantity,
+    "status" = case when x."fulfilled" + take_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
+    "updated_at" = now()
+  where x."id" = v_row.id;
+  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -take_allocation.quantity, take_allocation.reason, v_row.document_type, v_row.document_id, null, take_allocation.detail);
+  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
+    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
+    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
+    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+end;
+$$;
+revoke execute on function "better_supabase"."take_allocation"(uuid, numeric, text, jsonb) from public, anon, authenticated;
+
 -- Takes quantity of an allocation out of stock as a sale, first from what it
 -- holds, then from what's available. detail picks the bin, lot or serial
 -- numbers, as for move_stock. Returns the allocation and the movement id.
@@ -14015,12 +14172,7 @@ as $$
 #variable_conflict use_column
 declare
   v_row record;
-  v_from_held numeric;
-  v_movement uuid;
 begin
-  if not (better_supabase.actor_may_write()) then
-    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
-  end if;
   select x."id" as id, x."org_id" as tenant, x."variant_id" as variant, x."location_id" as location,
     x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
     x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
@@ -14031,26 +14183,7 @@ begin
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.reserve'), false)) then
     raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
   end if;
-  if v_row.status <> 'open' then
-    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
-  end if;
-  if fulfill_allocation.quantity is null or fulfill_allocation.quantity <= 0
-    or fulfill_allocation.quantity > v_row.quantity - v_row.fulfilled then
-    raise exception 'the quantity must be more than zero and at most what the allocation has left' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
-  end if;
-  v_from_held := least(fulfill_allocation.quantity, v_row.allocated);
-  update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_from_held, 0), "updated_at" = now()
-    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
-  update "better_supabase"."stock_allocations" x set "allocated" = x."allocated" - v_from_held,
-    "fulfilled" = x."fulfilled" + fulfill_allocation.quantity,
-    "status" = case when x."fulfilled" + fulfill_allocation.quantity >= x."quantity" then 'fulfilled' else 'open' end,
-    "updated_at" = now()
-  where x."id" = v_row.id;
-  v_movement := "better_supabase"."move_stock"(v_row.tenant, v_row.variant, v_row.location, -fulfill_allocation.quantity, 'sale', v_row.document_type, v_row.document_id, null, fulfill_allocation.detail);
-  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
-    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
-    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
-    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") || jsonb_build_object('movementId', v_movement) from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+  return "better_supabase"."take_allocation"(fulfill_allocation.allocation, fulfill_allocation.quantity, 'sale', fulfill_allocation.detail);
 end;
 $$;
 revoke execute on function "better_supabase"."fulfill_allocation"(uuid, numeric, jsonb) from public, anon;
