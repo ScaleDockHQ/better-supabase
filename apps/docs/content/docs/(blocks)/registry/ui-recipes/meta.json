@@ -93,6 +93,7 @@
     "---Content & files---",
     "grants-editor",
     "file-request-upload",
+    "document-register",
     "undo-toast",
     "drive-explorer",
     "version-history",
