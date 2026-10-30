@@ -401,6 +401,33 @@ describe("createInspections", () => {
 
     expect(seen).toEqual(["close"]);
   });
+
+  it("reads an inspection without extra fields or a checklist", async () => {
+    const { fields: _fields, ...bare } = BARE;
+
+    const inspections = createInspections({
+      transport: fieldsTransport({
+        get_inspection: () => ({
+          ...bare,
+          members: [],
+          findings: [],
+          checklist: null,
+          assessedControls: [],
+        }),
+      }),
+      logger: {
+        debug: () => undefined,
+        info: () => undefined,
+        warn: () => undefined,
+        error: () => undefined,
+      },
+    });
+
+    const detail = await inspections.get("i2").orThrow();
+
+    expect(detail.fields).toEqual({});
+    expect(detail.checklist).toBeUndefined();
+  });
 });
 
 describe("inspections block", () => {

@@ -109,6 +109,27 @@ describe("inspections module", () => {
     expect(sql).not.toContain('"notes" text');
   });
 
+  it("keeps the checklist columns without foreign keys over the app's forms tables", () => {
+    const sql = sqlOf({
+      ownTables: {
+        "public.forms": "app.sql",
+        "public.form_submissions": "app.sql",
+      },
+      modules: {
+        forms: {
+          tables: {
+            forms: "public.forms",
+            submissions: "public.form_submissions",
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain('"checklist_form_id" uuid');
+    expect(sql).not.toMatch(/"checklist_form_id" uuid references/);
+    expect(sql).not.toMatch(/"checklist_submission_id" uuid references/);
+  });
+
   it("refuses forms in custom mode", () => {
     expect(() => sqlOf({ modules: { forms: { mode: "custom" } } })).toThrow(
       "forms can't be in custom mode",

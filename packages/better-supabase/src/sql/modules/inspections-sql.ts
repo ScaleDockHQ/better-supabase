@@ -52,7 +52,7 @@ function keysOf(
 }
 
 /** `options.kinds`, `findingTypes` and `caseFindingTypes`, checked. */
-export function inspectionOptions(ctx: BlockSqlContext): {
+function inspectionOptions(ctx: BlockSqlContext): {
   readonly kinds: readonly string[];
   readonly findingTypes: readonly string[];
   readonly caseFindingTypes: readonly string[];
