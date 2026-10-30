@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:210a155b4197ed5b338bac5f29765a5d612a7a8a50f5b52152d0ee02c5144ec1
+-- @bsb-hash sha256:c4284dd547864b069bae5d836985dfbea10eb491611e1368c826ca43b2e9b2f2
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -307,12 +307,16 @@ $$;
 revoke execute on function "better_supabase"."create_employee"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to authenticated, service_role;
 
--- Applies a batch of { employeeId, field, value } changes, each on its own:
--- a change that fails is rejected with its reason and the others stay.
--- status takes preboarding, active or on_leave; setting it on an
--- offboarded employee rehires them. Returns { accepted: [{ employeeId,
--- field }], rejected: [{ employeeId, field, hint, reason }] }.
-create or replace function "better_supabase"."update_employees"(changes jsonb)
+-- Applies a batch of { employeeId, field, value, expectedUpdatedAt }
+-- changes, each on its own: a change that fails is rejected with its reason
+-- and the others stay. With atomic, the first failure raises and no change
+-- stays. A change with expectedUpdatedAt fails with EMPLOYEE_STALE when the
+-- employee's updated_at before the batch differs. status takes
+-- preboarding, active or on_leave; setting it on an offboarded employee
+-- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
+-- [{ employeeId, field, hint, reason }] }.
+drop function if exists "better_supabase"."update_employees"(jsonb);
+create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -330,6 +334,7 @@ declare
   v_reason text;
   v_state text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -341,9 +346,15 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_id := (v_change ->> 'employeeId')::uuid;
-      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false));
+      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false)) for update;
       if v_was."id" is null then
         raise exception 'no such employee you can edit' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+      end if;
+      if not v_seen ? v_id::text then
+        v_seen := v_seen || jsonb_build_object(v_id::text, v_was."updated_at");
+      end if;
+      if v_change ? 'expectedUpdatedAt' and (v_seen ->> v_id::text)::timestamptz is distinct from (v_change ->> 'expectedUpdatedAt')::timestamptz then
+        raise exception 'the employee changed since it was read' using errcode = '40001', hint = 'EMPLOYEE_STALE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_employee_update"(uuid, text, jsonb)');
@@ -415,6 +426,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_employees.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text, v_state = returned_sqlstate;
       if v_state = '23505' then
         v_hint := 'EMPLOYEE_USER_TAKEN';
@@ -430,12 +444,13 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_employees"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_employees"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_employees"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_employees"(jsonb, boolean) to authenticated, service_role;
 
 -- Ends an employment: the status becomes offboarded and the end date is
--- set (today by default). The employee's reports move to their manager.
--- Offboarding an offboarded employee returns them unchanged.
+-- set (today by default). With offboarding.reports "manager", the
+-- employee's reports move to their manager. Offboarding an offboarded
+-- employee returns them unchanged.
 create or replace function "better_supabase"."offboard_employee"(employee uuid, end_date date, reason text)
 returns jsonb
 language plpgsql
@@ -471,6 +486,7 @@ begin
   exception when check_violation then
     raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';
   end;
+
   for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
     update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
     where x."id" = v_report."id"
@@ -493,6 +509,61 @@ end;
 $$;
 revoke execute on function "better_supabase"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."offboard_employee"(uuid, date, text) to authenticated, service_role;
+
+-- Deletes an employee with their private details and contracts. With
+-- offboarding.reports "manager", their reports move to the employee's
+-- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
+-- while another block's rows still refer to the employee.
+create or replace function "better_supabase"."delete_employee"(employee uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."employees";
+  v_report "better_supabase"."employees";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."employees" x where x."id" = delete_employee.employee for update;
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.write'), false)) then
+    raise exception 'no such employee you can delete' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
+    update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
+    where x."id" = v_report."id"
+    returning * into v_report;
+    null;
+  end loop;
+  begin
+    delete from "better_supabase"."employees" x where x."id" = v_row."id";
+  exception when foreign_key_violation then
+    raise exception 'other records still refer to this employee' using errcode = '23503', hint = 'EMPLOYEE_IN_USE';
+  end;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."delete_employee"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_employee"(uuid) to authenticated, service_role;
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct
@@ -826,7 +897,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:245a4ac205145fae945ca24ea38c2b653279c8dc72fcc2e66a2cb6bc1c82b264
+-- @bsb-hash sha256:f180fee0b8f4999a7013cea3b41b961d904c8b84d47887987362fe14edac7a69
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1137,12 +1208,16 @@ $$;
 revoke execute on function "better_supabase"."create_employee"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to authenticated, service_role;
 
--- Applies a batch of { employeeId, field, value } changes, each on its own:
--- a change that fails is rejected with its reason and the others stay.
--- status takes preboarding, active or on_leave; setting it on an
--- offboarded employee rehires them. Returns { accepted: [{ employeeId,
--- field }], rejected: [{ employeeId, field, hint, reason }] }.
-create or replace function "better_supabase"."update_employees"(changes jsonb)
+-- Applies a batch of { employeeId, field, value, expectedUpdatedAt }
+-- changes, each on its own: a change that fails is rejected with its reason
+-- and the others stay. With atomic, the first failure raises and no change
+-- stays. A change with expectedUpdatedAt fails with EMPLOYEE_STALE when the
+-- employee's updated_at before the batch differs. status takes
+-- preboarding, active or on_leave; setting it on an offboarded employee
+-- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
+-- [{ employeeId, field, hint, reason }] }.
+drop function if exists "better_supabase"."update_employees"(jsonb);
+create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -1160,6 +1235,7 @@ declare
   v_reason text;
   v_state text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -1171,9 +1247,15 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_id := (v_change ->> 'employeeId')::uuid;
-      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false));
+      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false)) for update;
       if v_was."id" is null then
         raise exception 'no such employee you can edit' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+      end if;
+      if not v_seen ? v_id::text then
+        v_seen := v_seen || jsonb_build_object(v_id::text, v_was."updated_at");
+      end if;
+      if v_change ? 'expectedUpdatedAt' and (v_seen ->> v_id::text)::timestamptz is distinct from (v_change ->> 'expectedUpdatedAt')::timestamptz then
+        raise exception 'the employee changed since it was read' using errcode = '40001', hint = 'EMPLOYEE_STALE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_employee_update"(uuid, text, jsonb)');
@@ -1245,6 +1327,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_employees.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text, v_state = returned_sqlstate;
       if v_state = '23505' then
         v_hint := 'EMPLOYEE_USER_TAKEN';
@@ -1260,12 +1345,13 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_employees"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_employees"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_employees"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_employees"(jsonb, boolean) to authenticated, service_role;
 
 -- Ends an employment: the status becomes offboarded and the end date is
--- set (today by default). The employee's reports move to their manager.
--- Offboarding an offboarded employee returns them unchanged.
+-- set (today by default). With offboarding.reports "manager", the
+-- employee's reports move to their manager. Offboarding an offboarded
+-- employee returns them unchanged.
 create or replace function "better_supabase"."offboard_employee"(employee uuid, end_date date, reason text)
 returns jsonb
 language plpgsql
@@ -1301,6 +1387,7 @@ begin
   exception when check_violation then
     raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';
   end;
+
   for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
     update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
     where x."id" = v_report."id"
@@ -1323,6 +1410,61 @@ end;
 $$;
 revoke execute on function "better_supabase"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."offboard_employee"(uuid, date, text) to authenticated, service_role;
+
+-- Deletes an employee with their private details and contracts. With
+-- offboarding.reports "manager", their reports move to the employee's
+-- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
+-- while another block's rows still refer to the employee.
+create or replace function "better_supabase"."delete_employee"(employee uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."employees";
+  v_report "better_supabase"."employees";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."employees" x where x."id" = delete_employee.employee for update;
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.write'), false)) then
+    raise exception 'no such employee you can delete' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
+    update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
+    where x."id" = v_report."id"
+    returning * into v_report;
+    perform "better_supabase".emit_event('employee.manager_changed', jsonb_build_object('organizationId', v_report."tenant_id", 'employeeId', v_report."id", 'subjectType', 'employee', 'subjectId', v_report."id"::text, 'name', v_report."name", 'userId', v_report."user_id", 'fromManagerId', v_row."id", 'toManagerId', v_report."manager_id"), 'employees/' || v_report."id"::text, (v_report."tenant_id"::text)::text, null, 'better-supabase/employees');
+  end loop;
+  begin
+    delete from "better_supabase"."employees" x where x."id" = v_row."id";
+  exception when foreign_key_violation then
+    raise exception 'other records still refer to this employee' using errcode = '23503', hint = 'EMPLOYEE_IN_USE';
+  end;
+  perform "better_supabase".emit_event('employee.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'employeeId', v_row."id", 'subjectType', 'employee', 'subjectId', v_row."id"::text, 'name', v_row."name", 'userId', v_row."user_id"), 'employees/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/employees');
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."delete_employee"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_employee"(uuid) to authenticated, service_role;
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct
@@ -1746,7 +1888,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:9a1d8a0c19b79e68f04852511b6af7ac99a9b246a38847689ecdb464ddb69b85
+-- @bsb-hash sha256:b313701bde3f66a967256d1c33923d99b2db278c9a691f1dcede97a6b2db0fb4
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2057,12 +2199,16 @@ $$;
 revoke execute on function "app_private"."create_employee"(uuid, jsonb) from public, anon;
 grant execute on function "app_private"."create_employee"(uuid, jsonb) to authenticated, service_role;
 
--- Applies a batch of { employeeId, field, value } changes, each on its own:
--- a change that fails is rejected with its reason and the others stay.
--- status takes preboarding, active or on_leave; setting it on an
--- offboarded employee rehires them. Returns { accepted: [{ employeeId,
--- field }], rejected: [{ employeeId, field, hint, reason }] }.
-create or replace function "app_private"."update_employees"(changes jsonb)
+-- Applies a batch of { employeeId, field, value, expectedUpdatedAt }
+-- changes, each on its own: a change that fails is rejected with its reason
+-- and the others stay. With atomic, the first failure raises and no change
+-- stays. A change with expectedUpdatedAt fails with EMPLOYEE_STALE when the
+-- employee's updated_at before the batch differs. status takes
+-- preboarding, active or on_leave; setting it on an offboarded employee
+-- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
+-- [{ employeeId, field, hint, reason }] }.
+drop function if exists "app_private"."update_employees"(jsonb);
+create or replace function "app_private"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -2080,6 +2226,7 @@ declare
   v_reason text;
   v_state text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2091,9 +2238,15 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_id := (v_change ->> 'employeeId')::uuid;
-      select * into v_was from "app_private"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false));
+      select * into v_was from "app_private"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false)) for update;
       if v_was."id" is null then
         raise exception 'no such employee you can edit' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+      end if;
+      if not v_seen ? v_id::text then
+        v_seen := v_seen || jsonb_build_object(v_id::text, v_was."updated_at");
+      end if;
+      if v_change ? 'expectedUpdatedAt' and (v_seen ->> v_id::text)::timestamptz is distinct from (v_change ->> 'expectedUpdatedAt')::timestamptz then
+        raise exception 'the employee changed since it was read' using errcode = '40001', hint = 'EMPLOYEE_STALE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_employee_update"(uuid, text, jsonb)');
@@ -2165,6 +2318,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_employees.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text, v_state = returned_sqlstate;
       if v_state = '23505' then
         v_hint := 'EMPLOYEE_USER_TAKEN';
@@ -2180,12 +2336,13 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "app_private"."update_employees"(jsonb) from public, anon;
-grant execute on function "app_private"."update_employees"(jsonb) to authenticated, service_role;
+revoke execute on function "app_private"."update_employees"(jsonb, boolean) from public, anon;
+grant execute on function "app_private"."update_employees"(jsonb, boolean) to authenticated, service_role;
 
 -- Ends an employment: the status becomes offboarded and the end date is
--- set (today by default). The employee's reports move to their manager.
--- Offboarding an offboarded employee returns them unchanged.
+-- set (today by default). With offboarding.reports "manager", the
+-- employee's reports move to their manager. Offboarding an offboarded
+-- employee returns them unchanged.
 create or replace function "app_private"."offboard_employee"(employee uuid, end_date date, reason text)
 returns jsonb
 language plpgsql
@@ -2221,6 +2378,7 @@ begin
   exception when check_violation then
     raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';
   end;
+
   for v_report in select * from "app_private"."employees" x where x."manager_id" = v_row."id" loop
     update "app_private"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
     where x."id" = v_report."id"
@@ -2243,6 +2401,61 @@ end;
 $$;
 revoke execute on function "app_private"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "app_private"."offboard_employee"(uuid, date, text) to authenticated, service_role;
+
+-- Deletes an employee with their private details and contracts. With
+-- offboarding.reports "manager", their reports move to the employee's
+-- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
+-- while another block's rows still refer to the employee.
+create or replace function "app_private"."delete_employee"(employee uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "app_private"."employees";
+  v_report "app_private"."employees";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "app_private"."employees" x where x."id" = delete_employee.employee for update;
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.write'), false)) then
+    raise exception 'no such employee you can delete' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  for v_report in select * from "app_private"."employees" x where x."manager_id" = v_row."id" loop
+    update "app_private"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
+    where x."id" = v_report."id"
+    returning * into v_report;
+    null;
+  end loop;
+  begin
+    delete from "app_private"."employees" x where x."id" = v_row."id";
+  exception when foreign_key_violation then
+    raise exception 'other records still refer to this employee' using errcode = '23503', hint = 'EMPLOYEE_IN_USE';
+  end;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "app_private"."delete_employee"(uuid) from public, anon;
+grant execute on function "app_private"."delete_employee"(uuid) to authenticated, service_role;
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct
@@ -2576,7 +2789,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:f955a37bf4340c9cede98d2720afcd06c126f38781cfd105195a4eaf32d5f573
+-- @bsb-hash sha256:1915ad039a6faf9f6f7f1d640fdc6fd06323055431d902a034b0b2cb6ab81927
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2882,12 +3095,16 @@ $$;
 revoke execute on function "better_supabase"."create_employee"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to authenticated, service_role;
 
--- Applies a batch of { employeeId, field, value } changes, each on its own:
--- a change that fails is rejected with its reason and the others stay.
--- status takes preboarding, active or on_leave; setting it on an
--- offboarded employee rehires them. Returns { accepted: [{ employeeId,
--- field }], rejected: [{ employeeId, field, hint, reason }] }.
-create or replace function "better_supabase"."update_employees"(changes jsonb)
+-- Applies a batch of { employeeId, field, value, expectedUpdatedAt }
+-- changes, each on its own: a change that fails is rejected with its reason
+-- and the others stay. With atomic, the first failure raises and no change
+-- stays. A change with expectedUpdatedAt fails with EMPLOYEE_STALE when the
+-- employee's updated_at before the batch differs. status takes
+-- preboarding, active or on_leave; setting it on an offboarded employee
+-- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
+-- [{ employeeId, field, hint, reason }] }.
+drop function if exists "better_supabase"."update_employees"(jsonb);
+create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -2905,6 +3122,7 @@ declare
   v_reason text;
   v_state text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2916,9 +3134,15 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_id := (v_change ->> 'employeeId')::uuid;
-      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false));
+      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false)) for update;
       if v_was."id" is null then
         raise exception 'no such employee you can edit' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+      end if;
+      if not v_seen ? v_id::text then
+        v_seen := v_seen || jsonb_build_object(v_id::text, v_was."updated_at");
+      end if;
+      if v_change ? 'expectedUpdatedAt' and (v_seen ->> v_id::text)::timestamptz is distinct from (v_change ->> 'expectedUpdatedAt')::timestamptz then
+        raise exception 'the employee changed since it was read' using errcode = '40001', hint = 'EMPLOYEE_STALE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_employee_update"(uuid, text, jsonb)');
@@ -2990,6 +3214,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_employees.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text, v_state = returned_sqlstate;
       if v_state = '23505' then
         v_hint := 'EMPLOYEE_USER_TAKEN';
@@ -3005,12 +3232,13 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_employees"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_employees"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_employees"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_employees"(jsonb, boolean) to authenticated, service_role;
 
 -- Ends an employment: the status becomes offboarded and the end date is
--- set (today by default). The employee's reports move to their manager.
--- Offboarding an offboarded employee returns them unchanged.
+-- set (today by default). With offboarding.reports "manager", the
+-- employee's reports move to their manager. Offboarding an offboarded
+-- employee returns them unchanged.
 create or replace function "better_supabase"."offboard_employee"(employee uuid, end_date date, reason text)
 returns jsonb
 language plpgsql
@@ -3046,6 +3274,7 @@ begin
   exception when check_violation then
     raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';
   end;
+
   for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
     update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
     where x."id" = v_report."id"
@@ -3068,6 +3297,61 @@ end;
 $$;
 revoke execute on function "better_supabase"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."offboard_employee"(uuid, date, text) to authenticated, service_role;
+
+-- Deletes an employee with their private details and contracts. With
+-- offboarding.reports "manager", their reports move to the employee's
+-- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
+-- while another block's rows still refer to the employee.
+create or replace function "better_supabase"."delete_employee"(employee uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."employees";
+  v_report "better_supabase"."employees";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."employees" x where x."id" = delete_employee.employee for update;
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.write'), false)) then
+    raise exception 'no such employee you can delete' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
+    update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
+    where x."id" = v_report."id"
+    returning * into v_report;
+    null;
+  end loop;
+  begin
+    delete from "better_supabase"."employees" x where x."id" = v_row."id";
+  exception when foreign_key_violation then
+    raise exception 'other records still refer to this employee' using errcode = '23503', hint = 'EMPLOYEE_IN_USE';
+  end;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."delete_employee"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_employee"(uuid) to authenticated, service_role;
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct
@@ -3375,6 +3659,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" 
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
 
+drop function if exists "api"."update_employees"(jsonb);
+
 create or replace function "api"."actor_may_write"()
 returns boolean
 language sql
@@ -3402,14 +3688,14 @@ as $$ select "better_supabase"."create_employee"($1, $2) $$;
 revoke execute on function "api"."create_employee"(uuid, jsonb) from public, anon;
 grant execute on function "api"."create_employee"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."update_employees"(changes jsonb)
+create or replace function "api"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language sql
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."update_employees"($1) $$;
-revoke execute on function "api"."update_employees"(jsonb) from public, anon;
-grant execute on function "api"."update_employees"(jsonb) to authenticated, service_role;
+as $$ select "better_supabase"."update_employees"($1, $2) $$;
+revoke execute on function "api"."update_employees"(jsonb, boolean) from public, anon;
+grant execute on function "api"."update_employees"(jsonb, boolean) to authenticated, service_role;
 
 create or replace function "api"."offboard_employee"(employee uuid, end_date date, reason text)
 returns jsonb
@@ -3419,6 +3705,15 @@ set search_path = ''
 as $$ select "better_supabase"."offboard_employee"($1, $2, $3) $$;
 revoke execute on function "api"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "api"."offboard_employee"(uuid, date, text) to authenticated, service_role;
+
+create or replace function "api"."delete_employee"(employee uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_employee"($1) $$;
+revoke execute on function "api"."delete_employee"(uuid) from public, anon;
+grant execute on function "api"."delete_employee"(uuid) to authenticated, service_role;
 
 create or replace function "api"."org_chart"(tenant uuid, root uuid)
 returns jsonb
@@ -3504,7 +3799,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:09244dd180ff79a1f90f9984fc968516bedcf37262a21864932beaf5b4ba7a9d
+-- @bsb-hash sha256:615349164129bff35eb3fbd077d1ead3ed017802f426dc4579d3836d481a5d4d
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3815,12 +4110,16 @@ $$;
 revoke execute on function "better_supabase"."create_employee"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to authenticated, service_role;
 
--- Applies a batch of { employeeId, field, value } changes, each on its own:
--- a change that fails is rejected with its reason and the others stay.
--- status takes preboarding, active or on_leave; setting it on an
--- offboarded employee rehires them. Returns { accepted: [{ employeeId,
--- field }], rejected: [{ employeeId, field, hint, reason }] }.
-create or replace function "better_supabase"."update_employees"(changes jsonb)
+-- Applies a batch of { employeeId, field, value, expectedUpdatedAt }
+-- changes, each on its own: a change that fails is rejected with its reason
+-- and the others stay. With atomic, the first failure raises and no change
+-- stays. A change with expectedUpdatedAt fails with EMPLOYEE_STALE when the
+-- employee's updated_at before the batch differs. status takes
+-- preboarding, active or on_leave; setting it on an offboarded employee
+-- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
+-- [{ employeeId, field, hint, reason }] }.
+drop function if exists "better_supabase"."update_employees"(jsonb);
+create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -3838,6 +4137,7 @@ declare
   v_reason text;
   v_state text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -3849,9 +4149,15 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_id := (v_change ->> 'employeeId')::uuid;
-      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false));
+      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'employees.write'), false)) for update;
       if v_was."id" is null then
         raise exception 'no such employee you can edit' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+      end if;
+      if not v_seen ? v_id::text then
+        v_seen := v_seen || jsonb_build_object(v_id::text, v_was."updated_at");
+      end if;
+      if v_change ? 'expectedUpdatedAt' and (v_seen ->> v_id::text)::timestamptz is distinct from (v_change ->> 'expectedUpdatedAt')::timestamptz then
+        raise exception 'the employee changed since it was read' using errcode = '40001', hint = 'EMPLOYEE_STALE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_employee_update"(uuid, text, jsonb)');
@@ -3923,6 +4229,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_employees.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text, v_state = returned_sqlstate;
       if v_state = '23505' then
         v_hint := 'EMPLOYEE_USER_TAKEN';
@@ -3938,12 +4247,13 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_employees"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_employees"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_employees"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_employees"(jsonb, boolean) to authenticated, service_role;
 
 -- Ends an employment: the status becomes offboarded and the end date is
--- set (today by default). The employee's reports move to their manager.
--- Offboarding an offboarded employee returns them unchanged.
+-- set (today by default). With offboarding.reports "manager", the
+-- employee's reports move to their manager. Offboarding an offboarded
+-- employee returns them unchanged.
 create or replace function "better_supabase"."offboard_employee"(employee uuid, end_date date, reason text)
 returns jsonb
 language plpgsql
@@ -3979,6 +4289,7 @@ begin
   exception when check_violation then
     raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';
   end;
+
   for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
     update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
     where x."id" = v_report."id"
@@ -4001,6 +4312,61 @@ end;
 $$;
 revoke execute on function "better_supabase"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."offboard_employee"(uuid, date, text) to authenticated, service_role;
+
+-- Deletes an employee with their private details and contracts. With
+-- offboarding.reports "manager", their reports move to the employee's
+-- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
+-- while another block's rows still refer to the employee.
+create or replace function "better_supabase"."delete_employee"(employee uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."employees";
+  v_report "better_supabase"."employees";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."employees" x where x."id" = delete_employee.employee for update;
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'employees.write'), false)) then
+    raise exception 'no such employee you can delete' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
+    update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
+    where x."id" = v_report."id"
+    returning * into v_report;
+    null;
+  end loop;
+  begin
+    delete from "better_supabase"."employees" x where x."id" = v_row."id";
+  exception when foreign_key_violation then
+    raise exception 'other records still refer to this employee' using errcode = '23503', hint = 'EMPLOYEE_IN_USE';
+  end;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return to_jsonb(v_row);
+end;
+$$;
+revoke execute on function "better_supabase"."delete_employee"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_employee"(uuid) to authenticated, service_role;
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct
@@ -4340,7 +4706,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:4d8204017db071d9f7153853e35525c6fa198a0c426bb02d1fb383637ea77ae4
+-- @bsb-hash sha256:eaf636f307645018dd36f9fdb69905b206e9669dabf49ad2936ace287e3d34a0
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4646,12 +5012,16 @@ $$;
 revoke execute on function "better_supabase"."create_employee"(uuid, jsonb) from public, anon;
 grant execute on function "better_supabase"."create_employee"(uuid, jsonb) to authenticated, service_role;
 
--- Applies a batch of { employeeId, field, value } changes, each on its own:
--- a change that fails is rejected with its reason and the others stay.
--- status takes preboarding, active or on_leave; setting it on an
--- offboarded employee rehires them. Returns { accepted: [{ employeeId,
--- field }], rejected: [{ employeeId, field, hint, reason }] }.
-create or replace function "better_supabase"."update_employees"(changes jsonb)
+-- Applies a batch of { employeeId, field, value, expectedUpdatedAt }
+-- changes, each on its own: a change that fails is rejected with its reason
+-- and the others stay. With atomic, the first failure raises and no change
+-- stays. A change with expectedUpdatedAt fails with EMPLOYEE_STALE when the
+-- employee's updated_at before the batch differs. status takes
+-- preboarding, active or on_leave; setting it on an offboarded employee
+-- rehires them. Returns { accepted: [{ employeeId, field }], rejected:
+-- [{ employeeId, field, hint, reason }] }.
+drop function if exists "better_supabase"."update_employees"(jsonb);
+create or replace function "better_supabase"."update_employees"(changes jsonb, atomic boolean default false)
 returns jsonb
 language plpgsql
 security definer
@@ -4669,6 +5039,7 @@ declare
   v_reason text;
   v_state text;
   v_touched uuid[] := '{}';
+  v_seen jsonb := '{}';
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -4680,9 +5051,15 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_id := (v_change ->> 'employeeId')::uuid;
-      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'employees.write'), false));
+      select * into v_was from "better_supabase"."employees" x where x."id" = v_id and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'employees.write'), false)) for update;
       if v_was."id" is null then
         raise exception 'no such employee you can edit' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+      end if;
+      if not v_seen ? v_id::text then
+        v_seen := v_seen || jsonb_build_object(v_id::text, v_was."updated_at");
+      end if;
+      if v_change ? 'expectedUpdatedAt' and (v_seen ->> v_id::text)::timestamptz is distinct from (v_change ->> 'expectedUpdatedAt')::timestamptz then
+        raise exception 'the employee changed since it was read' using errcode = '40001', hint = 'EMPLOYEE_STALE';
       end if;
       declare
     v_hook regprocedure := to_regprocedure('"public"."before_employee_update"(uuid, text, jsonb)');
@@ -4754,6 +5131,9 @@ begin
     end if;
   end;
     exception when others then
+      if update_employees.atomic then
+        raise;
+      end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text, v_state = returned_sqlstate;
       if v_state = '23505' then
         v_hint := 'EMPLOYEE_USER_TAKEN';
@@ -4769,12 +5149,13 @@ begin
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
 $$;
-revoke execute on function "better_supabase"."update_employees"(jsonb) from public, anon;
-grant execute on function "better_supabase"."update_employees"(jsonb) to authenticated, service_role;
+revoke execute on function "better_supabase"."update_employees"(jsonb, boolean) from public, anon;
+grant execute on function "better_supabase"."update_employees"(jsonb, boolean) to authenticated, service_role;
 
 -- Ends an employment: the status becomes offboarded and the end date is
--- set (today by default). The employee's reports move to their manager.
--- Offboarding an offboarded employee returns them unchanged.
+-- set (today by default). With offboarding.reports "manager", the
+-- employee's reports move to their manager. Offboarding an offboarded
+-- employee returns them unchanged.
 create or replace function "better_supabase"."offboard_employee"(employee uuid, end_date date, reason text)
 returns jsonb
 language plpgsql
@@ -4810,6 +5191,7 @@ begin
   exception when check_violation then
     raise exception 'the end date is before the start date' using errcode = '22023', hint = 'EMPLOYEE_ATTRS_INVALID';
   end;
+
   for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
     update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
     where x."id" = v_report."id"
@@ -4832,6 +5214,61 @@ end;
 $$;
 revoke execute on function "better_supabase"."offboard_employee"(uuid, date, text) from public, anon;
 grant execute on function "better_supabase"."offboard_employee"(uuid, date, text) to authenticated, service_role;
+
+-- Deletes an employee with their private details and contracts. With
+-- offboarding.reports "manager", their reports move to the employee's
+-- manager; otherwise they are left without one. Fails with EMPLOYEE_IN_USE
+-- while another block's rows still refer to the employee.
+create or replace function "better_supabase"."delete_employee"(employee uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_row "better_supabase"."employees";
+  v_report "better_supabase"."employees";
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_row from "better_supabase"."employees" x where x."id" = delete_employee.employee for update;
+  if v_row."id" is null or not ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', v_row."org_id", 'employees.write'), false)) then
+    raise exception 'no such employee you can delete' using errcode = 'P0002', hint = 'EMPLOYEE_NOT_FOUND';
+  end if;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  for v_report in select * from "better_supabase"."employees" x where x."manager_id" = v_row."id" loop
+    update "better_supabase"."employees" x set "manager_id" = v_row."manager_id", "updated_at" = now()
+    where x."id" = v_report."id"
+    returning * into v_report;
+    null;
+  end loop;
+  begin
+    delete from "better_supabase"."employees" x where x."id" = v_row."id";
+  exception when foreign_key_violation then
+    raise exception 'other records still refer to this employee' using errcode = '23503', hint = 'EMPLOYEE_IN_USE';
+  end;
+  null;
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."after_employee_delete"(uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::uuid)', v_hook::oid::regproc)
+        using v_row."id";
+    end if;
+  end;
+  return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
+end;
+$$;
+revoke execute on function "better_supabase"."delete_employee"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_employee"(uuid) to authenticated, service_role;
 
 -- The org chart under root, or under every employee without a manager when
 -- root is null: current employees with their depth and number of direct
