@@ -127,6 +127,7 @@
     "metrics-dashboard",
     "data-export-delete",
     "control-posture",
+    "consent-register",
     "---App tables---",
     "record-grid",
     "record-form",

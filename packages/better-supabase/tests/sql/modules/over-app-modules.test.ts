@@ -38,6 +38,7 @@ const MODULES = [
   "signing-keys",
   "ai-cache",
   "content",
+  "consents",
   "channels",
   "enrichment",
   "field-history",

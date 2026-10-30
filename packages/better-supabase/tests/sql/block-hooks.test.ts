@@ -157,6 +157,12 @@ const REQUIRED: Readonly<Record<string, readonly string[]>> = {
     "before_shift_assignment_create",
     "after_shift_assignment_create",
   ],
+  consents: [
+    "before_consent_record",
+    "after_consent_record",
+    "before_consent_withdraw",
+    "after_consent_withdraw",
+  ],
   collections: [
     "before_collection_create",
     "after_collection_create",

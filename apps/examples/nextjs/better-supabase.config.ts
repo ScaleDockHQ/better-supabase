@@ -454,6 +454,8 @@ export default defineConfig({
         },
       },
     },
+    // Consent per customer and purpose, backed by a signature or a form.
+    consents: {},
     incidents: {},
     reminders: {},
     "drive-files": {},

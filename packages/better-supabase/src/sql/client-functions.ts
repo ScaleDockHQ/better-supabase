@@ -63,6 +63,8 @@ const CLIENT_FUNCTIONS: Readonly<Record<string, string>> = {
     "acknowledge_policy add_control_evidence archive_policy control_posture get_control list_control_frameworks list_controls list_evidence_tasks list_policies notify_overdue_evidence_tasks policy_acknowledgements publish_policy remove_control_evidence save_control save_control_framework save_evidence_task save_policy",
   connectors:
     "check_connector_fingerprint decide_connector_fingerprint delete_connector_server expiring_connector_grants get_connector get_connector_session list_connector_servers purge_connector_sessions record_connector_grant renew_connector_grant revoke_connector_grant save_connector_server save_connector_session",
+  consents:
+    "archive_consent_purpose consent_active expire_consents list_consent_purposes list_consents record_consent save_consent_purpose withdraw_consent",
   contacts:
     "archive_company archive_person company_people_of list_companies list_people merge_companies merge_people remove_company_person save_company save_person set_company_person",
   content:

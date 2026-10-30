@@ -171,6 +171,27 @@ export const OPERATIONS_RECIPES: readonly RecipeSource[] = [
     },
   },
   {
+    slug: "consent-register",
+    title: "Consent register",
+    blocks: ["consents"],
+    kind: "component",
+    description:
+      "The purposes an organization asks consent for, with their lawful basis, version, how long a grant lasts and whether it needs a signature.",
+    web: {
+      file: `${WEB_APP}/src/features/compliance/components/consent-register.tsx`,
+      components: [
+        "alert",
+        "badge",
+        "button",
+        "card",
+        "empty",
+        "skeleton",
+        "table",
+      ],
+      glue: [],
+    },
+  },
+  {
     slug: "status-page",
     title: "Status page",
     blocks: ["incidents"],

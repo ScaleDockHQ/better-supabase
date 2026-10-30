@@ -7,6 +7,10 @@ import {
   AcknowledgementInboxSkeleton,
 } from "@/features/acknowledgements/components/acknowledgement-inbox";
 import {
+  ConsentRegister,
+  ConsentRegisterSkeleton,
+} from "@/features/compliance/components/consent-register";
+import {
   ContractRenewals,
   ContractRenewalsSkeleton,
 } from "@/features/compliance/components/contract-renewals";
@@ -24,7 +28,7 @@ export default function CompliancePage() {
       <PageHeader
         title={t("Compliance")}
         description={t(
-          "What you are asked to read, how each framework's controls stand, the evidence that is due, and the contracts coming up for renewal.",
+          "What you are asked to read, how each framework's controls stand, the evidence that is due, the contracts coming up for renewal and what the organization asks consent for.",
         )}
       />
       <Suspense fallback={<AcknowledgementInboxSkeleton />}>
@@ -40,6 +44,11 @@ export default function CompliancePage() {
       <Suspense fallback={<ContractRenewalsSkeleton />}>
         <PermissionGate permission="contracts.read">
           <ContractRenewals />
+        </PermissionGate>
+      </Suspense>
+      <Suspense fallback={<ConsentRegisterSkeleton />}>
+        <PermissionGate permission="consents.read">
+          <ConsentRegister />
         </PermissionGate>
       </Suspense>
     </>

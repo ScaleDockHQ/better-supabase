@@ -16,6 +16,7 @@
     "identities",
     "domains",
     "compliance",
+    "consents",
     "permissions",
     "subjects",
     "grants",

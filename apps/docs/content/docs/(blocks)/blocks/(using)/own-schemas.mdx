@@ -215,6 +215,9 @@ may be your own enum or domain.
   - `better_supabase.connector_grants`: `id`, `user_id`, `server_id`, `organization_id`, `credential_ref`, `revoked_at`
   - `better_supabase.connector_sessions`: `server_id`, `user_id`, `chat_key`, `session_id`, `expires_at`
   - `better_supabase.connector_tool_fingerprints`: `server_id`, `fingerprint`, `status`; typed: `status`
+- `consents`
+  - `better_supabase.consent_purposes`: `id`, `tenant_id`, `key`, `title`, `legal_basis`, `version`, `requires_signature`, `valid_months`, `archived_at`, `created_at`; typed: `legal_basis`
+  - `better_supabase.consents`: `id`, `tenant_id`, `purpose_id`, `subject_type`, `subject_id`, `given_by`, `given_by_contact_id`, `given_by_user_id`, `status`, `granted_at`, `valid_until`, `withdrawn_at`, `created_at`; typed: `given_by`, `status`
 - `contacts`
   - `better_supabase.companies`: `id`, `tenant_id`, `name`, `domain`, `website`, `lifecycle`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`
   - `better_supabase.people`: `id`, `tenant_id`, `name`, `email`, `phone`, `title`, `lifecycle`, `owner_user_id`, `user_id`, `merged_into`, `archived_at`, `created_at`, `updated_at`; typed: `lifecycle`

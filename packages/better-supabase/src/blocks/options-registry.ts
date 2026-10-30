@@ -302,6 +302,7 @@ export interface BlockOptionsRegistry {
   readonly comments: CommentsSqlOptions;
   readonly compliance: ComplianceSqlOptions;
   readonly connectors: ConnectorsSqlOptions;
+  readonly consents: None;
   readonly contacts: ContactsSqlOptions;
   readonly contracts: ContractsSqlOptions;
   readonly courses: CoursesSqlOptions;
@@ -459,6 +460,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   comments: commentsSqlOptions,
   compliance: complianceSqlOptions,
   connectors: connectorsSqlOptions,
+  consents: NO_OPTIONS,
   contacts: contactsSqlOptions,
   contracts: contractsSqlOptions,
   courses: coursesSqlOptions,
