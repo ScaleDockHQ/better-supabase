@@ -21,6 +21,7 @@ export function driveOf(db: AppDb) {
     transport: rpcTransport(db.$client),
     storage: db.$client.storage,
     attachments: db.attachments,
+    recordAccess: db.accessRequests,
     schema: blockConfig.drive.api,
   });
 }

@@ -5,6 +5,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
+import type { AccessRequests } from "../access-requests/access-requests.ts";
 import type { ApprovalStatus } from "../approvals/approvals.ts";
 import type {
   Attachment,
@@ -14,6 +15,7 @@ import type {
 } from "../attachments/attachments.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
 import type { DriveDocument, DriveDocuments } from "./documents.ts";
+import type { DriveAccess } from "./ownership.ts";
 import type {
   DriveContribution,
   DriveFileRequest,
@@ -36,6 +38,7 @@ import {
 } from "../shared.ts";
 import { claimsUploads, claimUpload } from "../upload-claim.ts";
 import { driveDocuments } from "./documents.ts";
+import { driveAccess } from "./ownership.ts";
 import {
   KINDS,
   approvalOf,
@@ -84,6 +87,13 @@ export interface DriveOptions<
    * which downloads the files. `createBlocks` passes it.
    */
   readonly attachments?: Pick<Attachments, "download">;
+  /**
+   * The `recordAccess` port: the access-requests block, which `requestAccess`
+   * and `accessRequests` go through. `createBlocks` passes it.
+   */
+  readonly recordAccess?: Pick<AccessRequests, "requestRecord" | "records">;
+  /** `blocks.drive.options.subjectType`. Default: `drive_node`. */
+  readonly subjectType?: string;
   /**
    * The module schema, or its API schema: `defineBlocks` passes it from
    * `blocks.generated.ts`.
@@ -413,7 +423,8 @@ export interface DrivePage {
 /** `F` types the nodes' extra columns, from the `fields` schema. */
 export interface Drive<
   F extends object = Record<never, never>,
-> extends DriveDocuments<DriveNode<F>> {
+> extends DriveDocuments<DriveNode<F>>,
+    DriveAccess {
   createFolder(
     organizationId: string,
     folder: NewDriveFolder<F>,
@@ -722,6 +733,11 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
 
   const client: Drive = {
     ...driveDocuments(call, nodeOf, nodesOf),
+    ...driveAccess({
+      call,
+      recordAccess: options.recordAccess,
+      subjectType: options.subjectType,
+    }),
     createFolder: (organizationId, folder) =>
       call(
         "drive_create_folder",

@@ -40,6 +40,24 @@ export type {
 } from "./documents.ts";
 
 export type {
+  DriveAccess,
+  DriveAccessRequestInput,
+  DriveTransfer,
+} from "./ownership.ts";
+
+export {
+  driveOffboardingSink,
+  type DriveOffboardingSinkOptions,
+} from "./offboarding.ts";
+
+export {
+  type DriveLinkPolicy,
+  type DriveSharing,
+  driveSettings,
+  driveSharingSchema,
+} from "./settings.ts";
+
+export type {
   DriveContribution,
   DriveFileRequest,
   DriveRequestUpload,

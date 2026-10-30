@@ -311,6 +311,58 @@ describe("access requests client", () => {
     ]);
   });
 
+  it("lists the requests on one record", async () => {
+    const RECORD = {
+      ...PENDING,
+      target: "record",
+      role: null,
+      subjectType: "drive_node",
+      subjectId: "n1",
+      action: "read",
+      emergency: false,
+      review: null,
+    };
+
+    const fake = transport({ list_record_access_requests: () => [RECORD] });
+    const access = createAccessRequests({ transport: fake, schema: "app" });
+
+    const listed = await access.records("drive_node", "n1").orThrow();
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({ subjectId: "n1", target: "record" });
+
+    await access
+      .records("drive_node", "n1", { status: "pending", pageSize: 5 })
+      .orThrow();
+
+    expect(fake.calls).toEqual([
+      [
+        "list_record_access_requests",
+        {
+          subject_type: "drive_node",
+          subject_id: "n1",
+          status: null,
+          page_size: null,
+        },
+      ],
+      [
+        "list_record_access_requests",
+        {
+          subject_type: "drive_node",
+          subject_id: "n1",
+          status: "pending",
+          page_size: 5,
+        },
+      ],
+    ]);
+
+    const wrong = createAccessRequests({
+      transport: transport({ list_record_access_requests: () => [PENDING] }),
+      schema: "app",
+    });
+
+    expect((await wrong.records("drive_node", "n1")).ok).toBe(false);
+  });
+
   it("rejects a reply of the wrong kind or with an unknown verdict", async () => {
     const access = createAccessRequests({
       transport: transport({

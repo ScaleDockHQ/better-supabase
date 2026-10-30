@@ -10,6 +10,7 @@ import {
   rpcTransport,
   setFieldAction,
 } from "better-supabase/blocks/automations";
+import { driveOffboardingSink } from "better-supabase/blocks/drive";
 import { taskFromConversationAction } from "better-supabase/blocks/tasks";
 import { wakeOnApproval } from "better-supabase/workflow-sdk";
 import { connection } from "next/server";
@@ -28,6 +29,8 @@ const isTaskStatus = (value: unknown): value is TaskStatus =>
   TASK_STATUSES.some((status) => status === value);
 
 const TaskEventPayload = v.object({ id: v.string() });
+
+const OrganizationEvent = v.object({ organizationId: v.string() });
 
 /** A rule's `set_field` action on a task may only move its status. */
 const setTaskField: RuleFieldSetter = async (write) => {
@@ -54,8 +57,9 @@ const setTaskField: RuleFieldSetter = async (write) => {
  * events the `tasks` app table writes to the outbox, and the automations the
  * blocks ship on their own events, such as the inbox's "Open a task for each
  * new conversation". The `approvals` consumer resumes the graph runs waiting on
- * a decided request, and `driveText` stores the text of each clean drive file.
- * Call it every minute from a cron (Vercel Cron sends `Authorization: Bearer
+ * a decided request, `driveText` stores the text of each clean drive file, and
+ * `driveOffboarding` hands a removed member's drive items to the owner. Call it
+ * every minute from a cron (Vercel Cron sends `Authorization: Bearer
  * $CRON_SECRET`).
  */
 export async function GET(request: Request): Promise<Response> {
@@ -128,6 +132,21 @@ export async function GET(request: Request): Promise<Response> {
     consumers: {
       rules: sink,
       driveText: driveTextOf(admin).sink(),
+      driveOffboarding: driveOffboardingSink(admin.$blocks.drive, {
+        transferTo: async (event) => {
+          const organizationId = v.safeParse(OrganizationEvent, event.data);
+
+          if (!organizationId.success) {
+            return;
+          }
+
+          const members = await admin.$blocks.organizations
+            .members(organizationId.output.organizationId)
+            .orThrow();
+
+          return members.find((member) => member.role === "owner")?.userId;
+        },
+      }),
       approvals: async (events) => {
         for (const event of events) {
           await wakeOnApproval(event);

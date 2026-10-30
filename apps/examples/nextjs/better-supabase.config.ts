@@ -113,7 +113,8 @@ export default defineConfig({
       team: { actions: ["read", "write"] },
       search: {},
     },
-    drive_node: driveSubject(),
+    // Members ask for read access to a file or folder they cannot open.
+    drive_node: driveSubject({ accessRequests: true }),
     application: {
       table: "better_supabase.applications",
       idType: "uuid",

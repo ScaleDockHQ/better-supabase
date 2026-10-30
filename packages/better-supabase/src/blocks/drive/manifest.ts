@@ -11,13 +11,13 @@ export const driveBlock: BlockOf<
   "drive",
   typeof createDrive,
   DriveEvents,
-  { readonly attachments: "optional" }
+  { readonly attachments: "optional"; readonly recordAccess: "optional" }
 > = defineBlock({
   name: "drive",
   sql: ["drive", "drive-files"],
   options: { drive: driveSqlOptions },
   events: driveEvents,
-  consumes: { attachments: "optional" },
+  consumes: { attachments: "optional", recordAccess: "optional" },
   create: createDrive,
   category: "content",
   recipes: [
