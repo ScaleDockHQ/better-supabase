@@ -362,6 +362,7 @@ as $$
 #variable_conflict use_variable
 declare
   v_row ${enrollments};
+  v_was text;
 begin
   select * into v_row from ${enrollments} x
   where x.${e("tenant")} is not distinct from enrollment_ensure.tenant and x.${e("program")} = enrollment_ensure.program
@@ -381,9 +382,14 @@ begin
     return v_row.${e("id")};
   end if;
   if v_row.${e("steps")} is distinct from enrollment_ensure.steps${hasVersion ? ` or v_row.${e("programVersion")} is distinct from enrollment_ensure.program_version` : ""} then
+    v_was := v_row.${e("status")};
     update ${enrollments} x set ${e("steps")} = enrollment_ensure.steps${hasVersion ? `, ${e("programVersion")} = enrollment_ensure.program_version` : ""}
     where x.${e("id")} = v_row.${e("id")};
     ${recount(`v_row.${e("id")}`, "v_row")}
+    -- Removing the steps that were left can complete the enrollment.
+    if v_was <> 'completed' and v_row.${e("status")} = 'completed' then${emit("enrollment.completed", "v_row")}
+      null;
+    end if;
   end if;
   return v_row.${e("id")};
 end;

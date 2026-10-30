@@ -3,7 +3,7 @@
 -- (…00a2) reads it but can't manage it, and Globex (…0002) sees nothing. A
 -- second program assigns a step to the member and renders its due dates.
 begin;
-select plan(24);
+select plan(27);
 
 select set_config(
   'request.jwt.claims',
@@ -185,6 +185,35 @@ select is(
   better_supabase.open_enrollment_steps('00000000-0000-4000-8000-000000000001'),
   '[]'::jsonb,
   'another organization lists none of its open steps'
+);
+
+-- A resync that drops the steps left completes the enrollment and says so.
+reset role;
+select set_config('test.ensured', better_supabase.enrollment_ensure(
+  '00000000-0000-4000-8000-000000000001', 'resync-program', 1, array['a', 'b'],
+  'customer', '00000000-0000-4000-8000-00000000a009', null
+)::text, true);
+select better_supabase.enrollment_mark(current_setting('test.ensured')::uuid, 'a', true, null);
+select is(
+  (select count(*)::integer from better_supabase.outbox_events
+    where type = 'enrollment.completed' and payload ->> 'program' = 'resync-program'),
+  0,
+  'an enrollment with a step left has not completed'
+);
+select better_supabase.enrollment_ensure(
+  '00000000-0000-4000-8000-000000000001', 'resync-program', 1, array['a'],
+  'customer', '00000000-0000-4000-8000-00000000a009', null
+);
+select is(
+  (select status::text from better_supabase.enrollments where id = current_setting('test.ensured')::uuid),
+  'completed',
+  'dropping the step that was left completes the enrollment'
+);
+select is(
+  (select count(*)::integer from better_supabase.outbox_events
+    where type = 'enrollment.completed' and payload ->> 'program' = 'resync-program'),
+  1,
+  'the resync emits enrollment.completed once'
 );
 
 select * from finish();
