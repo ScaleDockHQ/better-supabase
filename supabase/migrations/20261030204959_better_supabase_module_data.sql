@@ -1156,7 +1156,7 @@ on conflict (name) do update
 
 -- better-supabase module: inbox
 -- @bsb-block-data inbox
--- @bsb-hash sha256:5c9f210e76e71fe7c20d5bb80d7f268fbcc2b130f8e297dfac172ca6b30dee2e
+-- @bsb-hash sha256:79245cdaa38a43aba6e4527e2193e8cd4381ad2088a345648c1926683d1d866c
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1167,7 +1167,7 @@ values ('inbox.conversation_to_task', 'inbox', 'inbox_conversation', 'inbox_conv
 on conflict ("key") do update set "subject_type" = excluded."subject_type", "trigger" = excluded."trigger", "name" = excluded."name", "description" = excluded."description", "actions" = excluded."actions", "enabled" = excluded."enabled", "block" = excluded."block", "updated_at" = now();
 
 insert into better_supabase.blocks (name, version, mode)
-values ('inbox', 7, 'managed')
+values ('inbox', 8, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
@@ -1844,14 +1844,14 @@ on conflict (name) do update
 
 -- better-supabase module: contacts
 -- @bsb-block-data contacts
--- @bsb-hash sha256:5dbc3fc586a52cec6086dc52f0867f1a75b8607263e3849e3de02d4b50e32b3d
+-- @bsb-hash sha256:ea2f398a8de372ad33e7c6e71272cb5815529be12dfab10287de9121a633dc5f
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('contacts', 1, 'managed')
+values ('contacts', 2, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 

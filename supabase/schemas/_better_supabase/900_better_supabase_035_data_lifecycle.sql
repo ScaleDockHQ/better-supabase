@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@7 managed
--- @bsb-hash sha256:f2dcbf955fd6ca046e5d6cf7428a8027972dbe87510e054e1a7686ebaa333b0b
+-- @bsb-hash sha256:46afca80b876d45a1c6411dc1a6b9def45fcc846ef54f4931fec19c4eed83724
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -912,7 +912,15 @@ as $$
     ('organization', 'better_supabase.inspection_programs', '"better_supabase"."inspection_programs"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.inspections', '"better_supabase"."inspections"', 'tenant_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.inspection_members', '"better_supabase"."inspection_members"', 'tenant_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.inspection_findings', '"better_supabase"."inspection_findings"', 'tenant_id', true, '{}'::text[], true)
+    ('organization', 'better_supabase.inspection_findings', '"better_supabase"."inspection_findings"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.boms', '"better_supabase"."boms"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.work_centers', '"better_supabase"."work_centers"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.bom_operations', '"better_supabase"."bom_operations"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.bom_components', '"better_supabase"."bom_components"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.production_orders', '"better_supabase"."production_orders"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.production_order_operations', '"better_supabase"."production_order_operations"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.production_consumptions', '"better_supabase"."production_consumptions"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.stock_lot_links', '"better_supabase"."stock_lot_links"', 'tenant_id', true, '{}'::text[], true)
   ) as t(subject, name, tbl, col, purge, omit, exported)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
@@ -1348,6 +1356,18 @@ begin
       from "better_supabase"."forms" s where s."id" = (request_subject_export.subject_id)::uuid;
       v_name := 'better_supabase.forms';
       v_reveal := 'forms_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'production_order' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."production_orders" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.production_orders';
+      v_reveal := 'production_orders_reveal';
+      v_reveal_schema := 'better_supabase';
+    when 'work_center' then
+      select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
+      from "better_supabase"."work_centers" s where s."id" = (request_subject_export.subject_id)::uuid;
+      v_name := 'better_supabase.work_centers';
+      v_reveal := 'work_centers_reveal';
       v_reveal_schema := 'better_supabase';
     when 'care_plan' then
       select to_jsonb(s.*), s."tenant_id" into v_record, v_tenant
