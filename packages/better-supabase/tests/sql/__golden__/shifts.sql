@@ -1,4 +1,4 @@
--- ==== alone: schema supabase/schemas/900_better_supabase_144_shifts.sql
+-- ==== alone: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
 -- @bsb-hash sha256:6185309016fbd4f872e51d246317850fbb2d68b9c83b718028da35c7a573eb97
@@ -1334,7 +1334,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== alone: data supabase/better-supabase-data/900_better_supabase_144_shifts.sql
+-- ==== alone: data supabase/better-supabase-data/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block-data shifts
 -- @bsb-hash sha256:1885529dd31ecefd0b84d5f3f56b949fcd6011a51a38cbeec6dd8c7bf0fc1545
@@ -1350,7 +1350,7 @@ values ('shifts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== with every module: schema supabase/schemas/900_better_supabase_144_shifts.sql
+-- ==== with every module: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
 -- @bsb-hash sha256:d39c11e07ebc649bf25b64314be7785e4afb1fe74592d2af20b5f64f97b9b2d6
@@ -3011,7 +3011,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== with every module: data supabase/better-supabase-data/900_better_supabase_144_shifts.sql
+-- ==== with every module: data supabase/better-supabase-data/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block-data shifts
 -- @bsb-hash sha256:1885529dd31ecefd0b84d5f3f56b949fcd6011a51a38cbeec6dd8c7bf0fc1545
@@ -3027,7 +3027,7 @@ values ('shifts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_shifts.sql
+-- ==== schema app_private: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
 -- @bsb-hash sha256:320a55fda059b7f674396674bdec2f5070affa2d175059f5b8e9cb8008f5a414
@@ -4368,7 +4368,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_144_shifts.sql
+-- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block-data shifts
 -- @bsb-hash sha256:1885529dd31ecefd0b84d5f3f56b949fcd6011a51a38cbeec6dd8c7bf0fc1545
@@ -4384,7 +4384,7 @@ values ('shifts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== api schema: schema supabase/schemas/900_better_supabase_144_shifts.sql
+-- ==== api schema: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
 -- @bsb-hash sha256:1dbcf9cbda82b9c24a10852795fc3ce22369d648c9dc9784550691a55a65ecd2
@@ -5906,7 +5906,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== api schema: data supabase/better-supabase-data/900_better_supabase_144_shifts.sql
+-- ==== api schema: data supabase/better-supabase-data/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block-data shifts
 -- @bsb-hash sha256:1885529dd31ecefd0b84d5f3f56b949fcd6011a51a38cbeec6dd8c7bf0fc1545
@@ -5922,7 +5922,7 @@ values ('shifts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== over the app's tables: schema supabase/schemas/900_better_supabase_144_shifts.sql
+-- ==== over the app's tables: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
 -- @bsb-hash sha256:7e398af0502f72440ba0bb6c9ae5deee8bf7e5e9233c60bfcb3225bfb59735ac
@@ -7228,7 +7228,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_144_shifts.sql
+-- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block-data shifts
 -- @bsb-hash sha256:1885529dd31ecefd0b84d5f3f56b949fcd6011a51a38cbeec6dd8c7bf0fc1545
@@ -7244,7 +7244,7 @@ values ('shifts', 1, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();
 
--- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_shifts.sql
+-- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
 -- @bsb-hash sha256:132589b2781136a2f8cda21f683d9e2236841a7682d1e3d1fe1c75a6ac40b085
@@ -8580,7 +8580,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_144_shifts.sql
+-- ==== tenant column renamed: data supabase/better-supabase-data/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block-data shifts
 -- @bsb-hash sha256:1885529dd31ecefd0b84d5f3f56b949fcd6011a51a38cbeec6dd8c7bf0fc1545

@@ -1,4 +1,4 @@
--- ==== schema supabase/schemas/900_better_supabase_144_shifts.sql
+-- ==== schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
 -- @bsb-hash sha256:fbce43ed21a1777f4c9e0550dd03d09848016876723bafadd0f216b73fe12078
@@ -1334,7 +1334,7 @@ alter table better_supabase.blocks enable row level security;
 revoke all on better_supabase.blocks from public, anon, authenticated;
 grant select on better_supabase.blocks to service_role;
 
--- ==== data supabase/better-supabase-data/900_better_supabase_144_shifts.sql
+-- ==== data supabase/better-supabase-data/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block-data shifts
 -- @bsb-hash sha256:1885529dd31ecefd0b84d5f3f56b949fcd6011a51a38cbeec6dd8c7bf0fc1545
