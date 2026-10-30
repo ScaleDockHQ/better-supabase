@@ -14,6 +14,13 @@ import {
 } from "../shared.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
 import { DOCUMENTS, memoryDocumentsSql } from "./memory-documents.ts";
+import {
+  capSql,
+  memoryLimits,
+  purgeSql,
+  SHARED,
+  upgradeOwners,
+} from "./memory-limits.ts";
 import { asText } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -77,7 +84,14 @@ const NAMES: BlockSqlNames = {
       primary: true,
     },
   },
-  options: ["dimensions", "type", "textSearch", "maxContent"],
+  options: [
+    "dimensions",
+    "type",
+    "textSearch",
+    "maxContent",
+    "tenant",
+    "maxItems",
+  ],
   tables: {
     memories: {
       name: "memories",
@@ -113,7 +127,6 @@ const PATH_PATTERN = "^/memories(/[A-Za-z0-9._ -]+)*$";
 const SCOPES = "'user', 'agent', 'chat', 'project', 'organization', 'record'";
 
 /** The scopes whose memory has no owner and only admins change. */
-const SHARED = "'organization', 'record'";
 
 /** A category: a lowercase slug. */
 const CATEGORY_PATTERN = "^[a-z0-9][a-z0-9_-]*$";
@@ -228,6 +241,8 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     );
   }
 
+  const limits = memoryLimits(ctx);
+
   const chat = ctx.installed("ai-chat") ? ctx.of("ai-chat") : undefined;
 
   const chatReference = chat
@@ -249,8 +264,10 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     `jsonb_build_object(${MEMORY_JSON.map((key) => `'${MEMORIES[key]}', ${memory(key) ? `${row}.${m[key]}` : key === "createdAt" ? `${row}.${m.updatedAt}` : "null"}`).join(", ")})`;
 
   // Every command names its namespace in ns: {"scope", "agent_id",
-  // "chat_id", "project_id"} and, for the service role, "owner_id". Organization memory
-  // has no owner and only admins change it.
+  // "chat_id", "project_id", "private"} and, for the service role,
+  // "owner_id". Organization and record memory has no owner and only admins
+  // change it, unless "private" gives it one. With options.tenant false a
+  // namespace with an owner may have no tenant.
   const namespace = (name: string, writes: boolean): string => `
   v_scope := coalesce(${name}.ns ->> 'scope', 'user');
   v_agent := (${name}.ns ->> 'agent_id')::uuid;
@@ -258,8 +275,9 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   v_project := (${name}.ns ->> 'project_id')::uuid;
   v_subject_type := nullif(${name}.ns ->> 'subject_type', '');
   v_subject_id := nullif(${name}.ns ->> 'subject_id', '');
-  v_owner := case when v_scope in (${SHARED}) then null when ${SERVICE_CALLER} then (${name}.ns ->> 'owner_id')::uuid else auth.uid() end;
-  if not ${SERVICE_CALLER} and (auth.uid() is null or not ${ctx.scope.can(`${name}.tenant`, read)}) then
+  v_private := coalesce((${name}.ns ->> 'private')::boolean, false);
+  v_owner := case when v_scope in (${SHARED}) and not v_private then null when ${SERVICE_CALLER} then (${name}.ns ->> 'owner_id')::uuid else auth.uid() end;
+  if not ${SERVICE_CALLER} and (auth.uid() is null or not ${limits.tenantless ? `(${name}.tenant is null or ${ctx.scope.can(`${name}.tenant`, read)})` : ctx.scope.can(`${name}.tenant`, read)}) then
     ${raise("you may not use memory here", "42501", "MEMORY_FORBIDDEN")}
   end if;
   if v_scope not in (${SCOPES})
@@ -268,12 +286,12 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
     or (v_scope = 'project') <> (v_project is not null)
     or (v_scope = 'record') <> (v_subject_id is not null)
     or (v_subject_id is not null) <> (v_subject_type is not null)${subject ? "" : "\n    or v_scope = 'record'"}
-    or (v_scope not in (${SHARED}) and v_owner is null) then
+    or (v_owner is null and (v_scope not in (${SHARED}) or v_private))${limits.tenantless ? `\n    or (${name}.tenant is null and v_owner is null)` : ""} then
     ${raise("ns % is not a memory namespace", "22023", "MEMORY_NAMESPACE", `${name}.ns`)}
   end if;${
     writes
       ? `
-  if v_scope in (${SHARED}) and not (${SERVICE_CALLER} or ${ctx.scope.can(`${name}.tenant`, manage)}) then
+  if v_owner is null and not (${SERVICE_CALLER} or ${ctx.scope.can(`${name}.tenant`, manage)}) then
     ${raise("only admins change organization and record memory", "42501", "MEMORY_FORBIDDEN")}
   end if;`
       : ""
@@ -286,10 +304,11 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   v_project uuid;
   v_subject_type text;
   v_subject_id text;
+  v_private boolean;
   v_owner uuid;`;
 
   const inNamespace = (row: string, tenant: string): string =>
-    `${row}.${m.tenant} = ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${asText(ctx, "memories", `${row}.${m.scope}`)} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.project} is not distinct from v_project${subject ? ` and ${row}.${m.subjectType} is not distinct from v_subject_type and ${row}.${m.subjectId} is not distinct from v_subject_id` : ""} and ${row}.${m.supersededBy} is null${live(row)}`;
+    `${row}.${m.tenant} ${limits.tenantless ? "is not distinct from" : "="} ${tenant} and ${row}.${m.owner} is not distinct from v_owner and ${asText(ctx, "memories", `${row}.${m.scope}`)} = v_scope and ${row}.${m.agent} is not distinct from v_agent and ${row}.${m.chat} is not distinct from v_chat and ${row}.${m.project} is not distinct from v_project${subject ? ` and ${row}.${m.subjectType} is not distinct from v_subject_type and ${row}.${m.subjectId} is not distinct from v_subject_id` : ""} and ${row}.${m.supersededBy} is null${live(row)}`;
 
   const checkPath = (path: string): string => `
   if ${path} is null or length(${path}) > 500 or ${path} !~ ${sqlString(PATH_PATTERN)} or ${path} ~ ${sqlString(DOT_SEGMENT)} then
@@ -320,7 +339,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const savedValues = saved.map(([, value]) => `, ${value}`).join("");
 
   const forgetCheck = (row: string): string =>
-    `${SERVICE_CALLER} or coalesce(${row}.${m.owner} = auth.uid(), false) or (${row}.${m.scope} in (${SHARED}) and ${ctx.scope.can(`${row}.${m.tenant}`, manage)})`;
+    `${SERVICE_CALLER} or coalesce(${row}.${m.owner} = auth.uid(), false) or (${row}.${m.owner} is null and ${ctx.scope.can(`${row}.${m.tenant}`, manage)})`;
 
   const fileNotFound = (path: string): string =>
     raise("% not found", "P0002", "MEMORY_NOT_FOUND", path);
@@ -352,29 +371,7 @@ end;
 $$;
 ${userGrant(signature("memory_restore", "uuid"))}
 
--- Removes memories deleted more than retention_days ago${memory("expiresAt") ? " and expired ones" : ""}, up to
--- batch rows, and returns how many it removed.
-create or replace function ${fn("purge_memories")}(retention_days integer default 30, batch integer default 1000)
-returns integer
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_count integer;
-begin
-  delete from ${memories} x
-  where x.${m.id} in (
-    select y.${m.id} from ${memories} y
-    where y.${m.deletedAt} < now() - make_interval(days => greatest(purge_memories.retention_days, 0))${memory("expiresAt") ? `\n      or y.${m.expiresAt} < now()` : ""}
-    limit least(greatest(purge_memories.batch, 1), 10000)
-  );
-  get diagnostics v_count = row_count;
-  return v_count;
-end;
-$$;
-${serviceGrant(signature("purge_memories", "integer, integer"))}
-`;
+${purgeSql(ctx, m)}`;
 
   return `${schemaPreamble(ctx)}
 -- Memory for AI assistants. Core memory is a small set of files under
@@ -384,7 +381,7 @@ ${serviceGrant(signature("purge_memories", "integer, integer"))}
 -- organization or a record.
 create table if not exists ${memories} (
   ${m.id} uuid primary key default gen_random_uuid(),
-  ${m.tenant} ${id} not null,
+  ${m.tenant} ${id}${limits.tenantless ? "" : " not null"},
   ${m.owner} uuid references auth.users (id) on delete cascade,
   ${m.scope} text not null default 'user' check (${m.scope} in (${SCOPES})),
   ${m.agent} uuid,
@@ -398,8 +395,8 @@ create table if not exists ${memories} (
   ${m.supersededBy} uuid references ${memories} (${m.id}) on delete set null,${line(memory("subjectType"), `${m.subjectType} text`)}${line(memory("subjectId"), `${m.subjectId} text`)}${line(memory("category"), `${m.category} text check (${m.category} ~ ${sqlString(CATEGORY_PATTERN)})`)}${line(memory("confidence"), `${m.confidence} real check (${m.confidence} between 0 and 1)`)}${line(memory("expiresAt"), `${m.expiresAt} timestamptz`)}${line(memory("deletedAt"), `${m.deletedAt} timestamptz`)}${line(memory("useCount"), `${m.useCount} integer not null default 0`)}${line(memory("lastUsedAt"), `${m.lastUsedAt} timestamptz`)}${line(memory("tsv"), `${m.tsv} tsvector generated always as (to_tsvector(${config}::regconfig, ${m.content})) stored`)}${line(memory("createdAt"), `${m.createdAt} timestamptz not null default now()`)}
   ${m.updatedAt} timestamptz not null default now(),
   check ((${m.kind} = 'core') = (${m.path} is not null)),
-  constraint ${ctx.naming.rename("memories_owner_check")} check ((${m.scope} in (${SHARED})) = (${m.owner} is null))${subject ? `,\n  constraint ${ctx.naming.rename("memories_subject_check")} check ((${m.scope} = 'record') = (${m.subjectId} is not null) and (${m.subjectId} is null) = (${m.subjectType} is null))` : ""}
-);
+  constraint ${ctx.naming.rename("memories_owner_check")} check (${m.scope} in (${SHARED}) or ${m.owner} is not null)${subject ? `,\n  constraint ${ctx.naming.rename("memories_subject_check")} check ((${m.scope} = 'record') = (${m.subjectId} is not null) and (${m.subjectId} is null) = (${m.subjectType} is null))` : ""}
+);${limits.tenantless && ctx.owns("memories") ? `\nalter table ${memories} alter column ${m.tenant} drop not null;` : ""}
 create unique index if not exists ${ctx.naming.rename("memories_path_idx")} on ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}${subjectColumns}, ${m.path}) nulls not distinct
   where ${m.path} is not null and ${m.supersededBy} is null${live("")};
 create index if not exists ${ctx.naming.rename("memories_owner_idx")} on ${memories} (${m.owner}, ${m.tenant}) where ${m.owner} is not null;
@@ -414,7 +411,7 @@ alter table ${memories} enable row level security;
 ${revokeTable(memories)}
 grant select on ${memories} to authenticated;
 grant all on ${memories} to service_role;
-${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `(${m.owner} = (select auth.uid()) or (${m.scope} in (${SHARED}) and ${ctx.scope.check(m.tenant, read)}))${live("")}` }), { drop: true, target: memories })}
+${renderPolicy(makePolicy({ table: memories, name: ctx.naming.rename("memories_read"), command: "select", roles: ["authenticated"], using: `(${m.owner} = (select auth.uid()) or (${m.owner} is null and ${ctx.scope.check(m.tenant, read)}))${live("")}` }), { drop: true, target: memories })}
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
@@ -677,7 +674,7 @@ begin${namespace("memory_save", true)}
   end if;
   insert into ${memories} (${m.tenant}, ${m.owner}, ${m.scope}, ${m.agent}, ${m.chat}, ${m.project}${subjectInsert}, ${m.kind}, ${m.content}, ${m.embedding}${savedColumns})
   values (memory_save.tenant, v_owner, ${ctx.cast("memories", "scope", "v_scope")}, v_agent, v_chat, v_project${subjectValues}, 'archival', memory_save.content, memory_save.embedding${savedValues})
-  returning * into v_row;
+  returning * into v_row;${capSql(ctx, limits, m, createdAt("y"))}
   return ${memoryJson("v_row")};
 end;
 $$;
@@ -1003,7 +1000,7 @@ export const MEMORY: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "vector-search"],
   integrates: ["ai-chat"],
   target: "schema",
-  version: 3,
+  version: 4,
   names: NAMES,
   upgrades: [
     {
@@ -1017,6 +1014,12 @@ export const MEMORY: BlockSqlDefinition = {
       description:
         "Memories gain a record scope, a category, a confidence, an expiry, soft deletes with restore and purge, and use counts. The path index covers the subject and skips deleted rows.",
       sql: upgradeRecordScope,
+    },
+    {
+      from: 3,
+      description:
+        "Organization and record memory may have an owner (ns.private), options.tenant: false lets personal memory have no tenant, options.maxItems caps archival facts, and purge_memories takes a tenant.",
+      sql: upgradeOwners,
     },
   ],
   build,

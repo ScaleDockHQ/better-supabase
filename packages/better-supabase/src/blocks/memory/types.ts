@@ -19,13 +19,15 @@ export type MemoryKind = "core" | "archival";
 
 /**
  * Whose memory a call reads or changes. The default is the caller's own memory;
- * `organization` and `record` memory are shared and only admins change them.
- * The `project` scope takes a `projectId` (an ai-chat project) and the `record`
- * scope a `subject` (any registered record); no other scope takes either. The
- * service role names the user in `ownerId`.
+ * `organization` and `record` memory are shared and only admins change them,
+ * unless `private` gives it an owner: then it is the owner's alone, and the
+ * owner reads and edits it. The `project` scope takes a `projectId` (an ai-chat
+ * project) and the `record` scope a `subject` (any registered record); no other
+ * scope takes either. The service role names the user in `ownerId`.
  */
 export interface MemoryNamespace {
   readonly scope?: MemoryScope;
+  readonly private?: boolean;
   readonly agentId?: string;
   readonly chatId?: string;
   readonly projectId?: string;
@@ -46,7 +48,7 @@ export interface MemorySaveOptions {
 
 export interface MemoryRecord {
   readonly id: string;
-  readonly organizationId: string;
+  readonly organizationId: string | null;
   readonly ownerId: string | undefined;
   readonly scope: MemoryScope;
   readonly agentId: string | undefined;
@@ -170,27 +172,27 @@ export type MemoryHooks = BlockHooks<Memory> & {
 export interface Memory {
   readonly core: {
     view(
-      organizationId: string,
+      organizationId: string | null,
       path?: string,
       ns?: MemoryNamespace,
     ): AsyncResult<MemoryView | undefined>;
     /** Creates or overwrites a file; `expectedVersion` 0 means it must be new. */
     write(
-      organizationId: string,
+      organizationId: string | null,
       path: string,
       content: string,
       ns?: MemoryNamespace,
       options?: { readonly expectedVersion?: number },
     ): AsyncResult<MemoryRecord>;
     strReplace(
-      organizationId: string,
+      organizationId: string | null,
       path: string,
       oldText: string,
       newText: string,
       ns?: MemoryNamespace,
     ): AsyncResult<MemoryRecord>;
     insert(
-      organizationId: string,
+      organizationId: string | null,
       path: string,
       line: number,
       text: string,
@@ -198,42 +200,42 @@ export interface Memory {
     ): AsyncResult<MemoryRecord>;
     /** Deletes a file or a directory. Returns how many files. */
     remove(
-      organizationId: string,
+      organizationId: string | null,
       path: string,
       ns?: MemoryNamespace,
     ): AsyncResult<number>;
     rename(
-      organizationId: string,
+      organizationId: string | null,
       oldPath: string,
       newPath: string,
       ns?: MemoryNamespace,
     ): AsyncResult<number>;
     list(
-      organizationId: string,
+      organizationId: string | null,
       ns?: MemoryNamespace,
     ): AsyncResult<readonly MemoryRecord[]>;
   };
   /** Runs a memory tool command and returns the text for the model. */
   run(
-    organizationId: string,
+    organizationId: string | null,
     command: MemoryCommand,
     ns?: MemoryNamespace,
   ): AsyncResult<string>;
   readonly archival: {
     upsert(
-      organizationId: string,
+      organizationId: string | null,
       content: string,
       ns?: MemoryNamespace,
       options?: MemorySaveOptions,
     ): AsyncResult<MemoryRecord>;
     search(
-      organizationId: string,
+      organizationId: string | null,
       query: string,
       ns?: MemoryNamespace,
       options?: { readonly k?: number; readonly signal?: AbortSignal },
     ): AsyncResult<readonly MemoryHit[]>;
     list(
-      organizationId: string,
+      organizationId: string | null,
       ns?: MemoryNamespace,
       options?: { readonly limit?: number },
     ): AsyncResult<readonly MemoryRecord[]>;
@@ -249,11 +251,13 @@ export interface Memory {
     restore(memoryId: string): AsyncResult<boolean>;
     /**
      * Removes memories deleted more than `retentionDays` ago (default 30) and
-     * expired ones, at most `batch` (service role). Returns how many.
+     * expired ones, at most `batch` (service role). `organizationId` limits it
+     * to one tenant. Returns how many.
      */
     purge(options?: {
       readonly retentionDays?: number;
       readonly batch?: number;
+      readonly organizationId?: string;
     }): AsyncResult<number>;
   };
   readonly recall: {
@@ -282,10 +286,13 @@ export interface Memory {
    * Core memory as delimited text for a system prompt, cut at `maxRender`
    * characters. Empty when there is none.
    */
-  render(organizationId: string, ns?: MemoryNamespace): AsyncResult<string>;
+  render(
+    organizationId: string | null,
+    ns?: MemoryNamespace,
+  ): AsyncResult<string>;
   /** Saves facts that aren't already remembered. Returns the new ones. */
   saveExtracted(
-    organizationId: string,
+    organizationId: string | null,
     facts: readonly string[],
     ns?: MemoryNamespace,
     options?: MemorySaveOptions,

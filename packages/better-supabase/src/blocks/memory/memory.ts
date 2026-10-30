@@ -50,6 +50,10 @@ const nsArg = (ns: MemoryNamespace = {}): Record<string, string> => {
     arg["scope"] = ns.scope;
   }
 
+  if (ns.private === true) {
+    arg["private"] = "true";
+  }
+
   if (ns.agentId !== undefined) {
     arg["agent_id"] = ns.agentId;
   }
@@ -125,7 +129,7 @@ export function createMemory(options: MemoryOptions): Memory {
       : AsyncResult.ok(undefined);
 
   const view = (
-    organizationId: string,
+    organizationId: string | null,
     path = "/memories",
     ns?: MemoryNamespace,
   ): AsyncResult<MemoryView | undefined> =>
@@ -199,7 +203,7 @@ export function createMemory(options: MemoryOptions): Memory {
   };
 
   const save = (
-    organizationId: string,
+    organizationId: string | null,
     content: string,
     ns: MemoryNamespace | undefined,
     saveOptions: MemorySaveOptions = {},
@@ -228,7 +232,7 @@ export function createMemory(options: MemoryOptions): Memory {
     );
 
   const search = (
-    organizationId: string,
+    organizationId: string | null,
     query: string,
     ns: MemoryNamespace | undefined,
     searchOptions: { readonly k?: number; readonly signal?: AbortSignal } = {},
@@ -253,7 +257,7 @@ export function createMemory(options: MemoryOptions): Memory {
     );
 
   const runCommand = (
-    organizationId: string,
+    organizationId: string | null,
     command: MemoryCommand,
     ns?: MemoryNamespace,
   ): AsyncResult<string> => {
@@ -376,6 +380,7 @@ export function createMemory(options: MemoryOptions): Memory {
           {
             retention_days: purgeOptions.retentionDays,
             batch: purgeOptions.batch,
+            tenant: purgeOptions.organizationId,
           },
           Number,
         ),

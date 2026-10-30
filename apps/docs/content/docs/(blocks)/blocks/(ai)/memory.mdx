@@ -39,7 +39,19 @@ included. Changing organization memory needs the manage permission.
 Rename the keys with `blocks.memory.permissions.read` and `.manage`.
 The `maxContent` option (100,000 characters by default) limits one memory,
 and `dimensions` and `type` set the embedding column as in
-[knowledge](/docs/blocks/knowledge).
+[knowledge](/docs/blocks/knowledge). `maxItems` keeps at most that many
+archival facts per user (or per shared namespace) in a tenant: saving one
+more forgets the oldest, as `forget` does. Core memory files don't count.
+
+`tenant: false` lets personal memory live outside every organization: pass
+`null` as the organization and the memory is the caller's alone. Organization
+memory and shared record memory still need an organization.
+
+```ts title="better-supabase.config.ts"
+blocks: {
+  memory: { options: { tenant: false, maxItems: 500 } },
+},
+```
 
 ## Server
 
@@ -75,6 +87,21 @@ Each method takes the organization and an optional namespace, such as
 `{ scope: "agent", agentId }` or `{ scope: "project", projectId }`. The service role passes `ownerId` to act for
 a user. `{ scope: "record", subject }` is memory about one record (any type in the subject registry, such
 as a deal): every member reads it, and only admins change it, as with `organization` memory.
+
+Add `private: true` to an `organization` or `record` namespace to keep a
+member's own notes there: the memory gets the caller as its owner, only that
+owner reads and changes it, and it needs no manage permission. The service
+role names the owner with `ownerId`.
+
+```ts
+await db.memory.core
+  .write(organizationId, "/memories/deal.md", "Call back on Friday.", {
+    scope: "record",
+    subject: { type: "deal", id: dealId },
+    private: true,
+  })
+  .orThrow();
+```
 
 ## Core memory
 
@@ -137,7 +164,7 @@ await memory.archival
 `forget(id)` soft deletes: the fact leaves lists and searches, and
 `restore(id)` brings it back. `purge({ retentionDays })` (service role,
 default 30 days) removes facts deleted before then and facts past their
-expiry; run it on a schedule.
+expiry; run it on a schedule. Pass `organizationId` to purge one tenant.
 
 `recall.index(message)` runs as the service role after a message is
 stored; `recall.search(organizationId, query, { excludeChat })` returns the

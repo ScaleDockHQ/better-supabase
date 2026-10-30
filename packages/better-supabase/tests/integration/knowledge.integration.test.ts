@@ -367,4 +367,70 @@ describe.skipIf(!live)("knowledge module", () => {
       await s.close();
     }
   });
+
+  it("grants a restricted collection to a team by its typed id", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "teams", "knowledge"]);
+      const owner = await s.user("owner");
+      const rep = await s.user("rep");
+      const peer = await s.user("peer");
+
+      const tenant = await s.organization(owner, {
+        member: rep,
+        member2: peer,
+      });
+
+      await s.as(owner);
+
+      const team = await s.value<string>(
+        "(better_supabase.create_team($1, 'Sales', null) ->> 'id')",
+        [tenant],
+      );
+
+      await s.value("better_supabase.add_team_member($1, $2)", [team, rep.id]);
+
+      const collection = await s.value<string>(
+        "(better_supabase.create_knowledge_collection(tenant => $1, name => 'Playbooks', visibility => 'restricted') ->> 'id')",
+        [tenant],
+      );
+
+      expect(
+        await s.value<boolean>(
+          "better_supabase.set_knowledge_collection_grant(collection_id => $1, team_id => $2::uuid)",
+          [collection, team],
+        ),
+      ).toBe(true);
+      expect(
+        await s.value<string>(
+          "(select format_type(atttypid, atttypmod) from pg_attribute where attrelid = 'better_supabase.knowledge_collection_grants'::regclass and attname = 'team_id')",
+        ),
+      ).toBe("uuid");
+      expect(
+        await s.value<string>(
+          "(select organization_id::text from better_supabase.knowledge_collection_grants where collection_id = $1)",
+          [collection],
+        ),
+      ).toBe(tenant);
+
+      await s.as(rep);
+      expect(
+        await s.value<boolean>(
+          "better_supabase.knowledge_collection_readable($1)",
+          [collection],
+        ),
+      ).toBe(true);
+
+      await s.as(peer);
+      expect(
+        await s.value<boolean>(
+          "better_supabase.knowledge_collection_readable($1)",
+          [collection],
+        ),
+      ).toBe(false);
+    } finally {
+      await s.close();
+    }
+  });
 });

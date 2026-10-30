@@ -120,7 +120,7 @@ describe("memory module", () => {
     expect(sql).toContain('"subject_type" text,');
     expect(sql).toContain('"subject_id" text,');
     expect(sql).toContain(
-      "constraint memories_owner_check check ((\"scope\" in ('organization', 'record')) = (\"owner_id\" is null))",
+      "constraint memories_owner_check check (\"scope\" in ('organization', 'record') or \"owner_id\" is not null)",
     );
     expect(sql).toContain("constraint memories_subject_check");
     expect(sql).toContain(
@@ -203,7 +203,7 @@ describe("memory module", () => {
 
   it("upgrades version 2 memories in place", () => {
     const [plan] = upgradePlan([{ module: "memory", version: 2 }]);
-    expect(plan?.to).toBe(3);
+    expect(plan?.to).toBe(4);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
     expect(sql).toContain('add column if not exists "subject_type" text');
     expect(sql).toContain(
@@ -212,5 +212,79 @@ describe("memory module", () => {
     expect(sql).toContain("memories_scope_check");
     expect(sql).toContain("add constraint memories_owner_check");
     expect(sql).toContain("c.relname = 'memories_path_idx'");
+  });
+
+  it("gives organization and record memory an owner with ns.private", () => {
+    const sql = body();
+    expect(sql).toContain(
+      "v_private := coalesce((memory_view.ns ->> 'private')::boolean, false);",
+    );
+    expect(sql).toContain(
+      "v_owner := case when v_scope in ('organization', 'record') and not v_private then null",
+    );
+    expect(sql).toContain(
+      "or (v_owner is null and (v_scope not in ('organization', 'record') or v_private))",
+    );
+    expect(sql).toContain("if v_owner is null and not (");
+    expect(sql).toMatch(
+      /\("owner_id" = \(select auth\.uid\(\)\) or \("owner_id" is null and /,
+    );
+  });
+
+  it("lets personal memory have no tenant with options.tenant false", () => {
+    const shared = body();
+    expect(shared).toContain('"organization_id" uuid not null,');
+    expect(shared).toContain('x."organization_id" = memory_view.tenant');
+
+    const sql = body({ memory: { options: { tenant: false } } });
+    expect(sql).toContain('"organization_id" uuid,');
+    expect(sql).toContain(
+      'alter table "better_supabase"."memories" alter column "organization_id" drop not null;',
+    );
+    expect(sql).toContain(
+      'x."organization_id" is not distinct from memory_view.tenant',
+    );
+    expect(sql).toContain(
+      "or (memory_view.tenant is null and v_owner is null)",
+    );
+    expect(sql).toContain("(memory_view.tenant is null or ");
+  });
+
+  it("caps archival facts with options.maxItems", () => {
+    expect(body()).not.toContain("offset ");
+
+    const sql = body({ memory: { options: { maxItems: 50 } } });
+    expect(sql).toContain("offset 50");
+    expect(sql).toContain(
+      'y."organization_id" is not distinct from memory_save.tenant and y."owner_id" is not distinct from v_owner',
+    );
+    expect(sql).toContain(
+      'update "better_supabase"."memories" x set "deleted_at" = now(), "updated_at" = now()',
+    );
+    expect(() => body({ memory: { options: { maxItems: 0 } } })).toThrow(
+      "maxItems must be a positive whole number",
+    );
+  });
+
+  it("purges one tenant's memories", () => {
+    const sql = body();
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."purge_memories"(integer, integer);',
+    );
+    expect(sql).toContain(
+      '"purge_memories"(retention_days integer default 30, batch integer default 1000, tenant uuid default null)',
+    );
+    expect(sql).toContain(
+      'purge_memories.tenant is null or y."organization_id" = purge_memories.tenant',
+    );
+  });
+
+  it("upgrades version 3 memories to owners on shared scopes", () => {
+    const [plan] = upgradePlan([{ module: "memory", version: 3 }]);
+    expect(plan?.to).toBe(4);
+    const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
+    expect(sql).toContain(
+      "add constraint memories_owner_check check (\"scope\" in ('organization', 'record') or \"owner_id\" is not null);",
+    );
   });
 });

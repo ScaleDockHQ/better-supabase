@@ -228,4 +228,36 @@ describe("knowledge module", () => {
 
     expect(sql).toContain('alter column "organization_id" drop not null');
   });
+
+  it("types team grants with the teams id type and keeps the tenant", () => {
+    const sql = rendered(["teams"]);
+
+    expect(sql).toContain('"team_id" uuid,');
+    expect(sql).toContain('tm."team_id" = x."team_id"');
+    expect(sql).toContain(
+      'drop function if exists "better_supabase"."set_knowledge_collection_grant"(uuid, uuid, text, boolean);',
+    );
+    expect(sql).toContain(
+      '"set_knowledge_collection_grant"(uuid, uuid, uuid, boolean)',
+    );
+    expect(sql).toContain(
+      'alter table "better_supabase"."knowledge_collection_grants" add column if not exists "organization_id" uuid;',
+    );
+    expect(sql).toContain('values (v_row."id", v_row."organization_id",');
+
+    const bigint = rendered(["teams"], {
+      teams: { options: { teamIdType: "bigint" } },
+    });
+
+    expect(bigint).toContain('"team_id" bigint,');
+  });
+
+  it("upgrades version 4 grants with their tenant", () => {
+    const [plan] = upgradePlan([{ module: "knowledge", version: 4 }]);
+    const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
+
+    expect(plan?.to).toBe(5);
+    expect(sql).toContain('add column if not exists "organization_id" uuid;');
+    expect(sql).toContain('set "organization_id" = c."organization_id"');
+  });
 });
