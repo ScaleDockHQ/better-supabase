@@ -136,7 +136,7 @@ begin
   if v_obs ->> 'flag' <> 'critical_high' then
     raise exception 'critical %', v_obs;
   end if;
-  if not exists (select 1 from better_supabase.notification_events e join better_supabase.notification_recipients r on r.event_id = e.id where e.type = 'observation.critical' and r.user_id = '${ADA}') then
+  if not exists (select 1 from better_supabase.notification_events e join better_supabase.notification_recipients r on r.event_id = e.id where e.type = 'observation.critical_recorded' and r.user_id = '${ADA}') then
     raise exception 'the lead got no critical alert';
   end if;
 

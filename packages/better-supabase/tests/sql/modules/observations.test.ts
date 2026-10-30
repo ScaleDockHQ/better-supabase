@@ -65,7 +65,7 @@ describe("observations module", () => {
   });
 
   it("alerts the record team's leads only with notifications installed", () => {
-    expect(sqlOf(ALL)).toContain("'observation.critical'");
+    expect(sqlOf(ALL)).toContain("'observation.critical_recorded'");
     expect(sqlOf(ALL)).toContain('"better_supabase"."notify"(');
     expect(sqlOf()).not.toContain('"better_supabase"."notify"(');
   });

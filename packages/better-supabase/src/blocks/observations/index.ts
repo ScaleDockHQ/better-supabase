@@ -57,7 +57,7 @@ export type {
   ObservationCriticalEventData,
   ObservationDefinitionSavedEventData,
   ObservationEventData,
-  ObservationMarkedErrorEventData,
+  ObservationErrorMarkedEventData,
   ObservationRecordedEventData,
   ObservationsEvents,
 } from "./events.ts";

@@ -229,14 +229,14 @@ function internals(ctx: BlockSqlContext): string {
     if jsonb_array_length(v_recipients) > 0 then
       ${ctx.notify(
         `jsonb_build_object(
-        'type', 'observation.critical',
+        'type', 'observation.critical_recorded',
         'tenant', v_row.${o("tenant")},
         'actor', null,
         'subject_type', v_row.${o("subjectType")},
         'subject_id', v_row.${o("subjectId")},
         'summary', v_def.${d("title")} || ' is ' || replace(v_row.${o("flag")}, '_', ' '),
         'recipients', v_recipients,
-        'key', 'observation.critical:' || v_row.${o("id")}::text,
+        'key', 'observation.critical_recorded:' || v_row.${o("id")}::text,
         'data', jsonb_build_object('observationId', v_row.${o("id")}, 'definitionKey', v_def.${d("key")}, 'flag', v_row.${o("flag")})
       )`,
         { indent: "      " },
@@ -420,7 +420,7 @@ begin
     ${record("observation.recorded", `, 'observedAt', v_row.${o("observedAt")}, 'flag', v_row.${o("flag")}, 'source', v_row.${o("source")}`, "'Observation recorded'", true)}
   end if;
   if v_row.${o("flag")} in ('critical_low', 'critical_high') then
-    ${record("observation.critical", `, 'observedAt', v_row.${o("observedAt")}, 'flag', v_row.${o("flag")}`, "'Critical observation'", false)}${notify}
+    ${record("observation.critical_recorded", `, 'observedAt', v_row.${o("observedAt")}, 'flag', v_row.${o("flag")}`, "'Critical observation'", false)}${notify}
   end if;
   if p_replaces is null then
     ${ctx.hook("after_observation_record", [["uuid", `v_row.${o("id")}`]])}
@@ -830,7 +830,7 @@ begin
     if not ${itemSubject("ingest_observations.tenant")} then
       ${forbidden("the record isn't in this organization")}
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from ${observations} x where x.${o("tenant")} = ingest_observations.tenant and x.${o("externalId")} = v_external) then
       v_skipped := v_skipped + 1;
       continue;
@@ -923,7 +923,7 @@ begin
   update ${observations} x set ${o("status")} = 'entered_in_error'${setReason("v_reason")}
   where x.${o("id")} = v_row.${o("id")}
   returning x.* into v_row;
-  ${correction("observation.marked_error", ", 'reason', v_reason", "Observation marked entered in error")}
+  ${correction("observation.error_marked", ", 'reason', v_reason", "Observation marked entered in error")}
   ${ctx.hook("after_observation_mark_error", [["uuid", `v_row.${o("id")}`]])}
   return ${observationJson(ctx, "v_row", "v_def")};
 end;

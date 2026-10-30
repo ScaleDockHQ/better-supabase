@@ -16801,6 +16801,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ObservationDefinitionSavedEventData"
         },
         {
+          "name": "ObservationErrorMarkedEventData"
+        },
+        {
           "name": "ObservationEventData"
         },
         {
@@ -16819,9 +16822,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ObservationListOptions"
-        },
-        {
-          "name": "ObservationMarkedErrorEventData"
         },
         {
           "name": "ObservationPoint"
@@ -17112,9 +17112,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "observation_definition.created",
           "observation_definition.updated",
           "observation.recorded",
-          "observation.critical",
+          "observation.critical_recorded",
           "observation.amended",
-          "observation.marked_error"
+          "observation.error_marked"
         ]
       }
     },

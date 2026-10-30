@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:6070d25d358cda5d8a2d816324cc3658b19633b15735288b64e2c32e3695e48a
+-- @bsb-hash sha256:fc915ddbb8f918bf255cbf9920300143afc36ff1bfb1e218358233666bbe4690
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -697,7 +697,7 @@ begin
     if not (case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(null::text = ingest_observations.tenant::text, false) else false end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from "better_supabase"."observations" x where x."tenant_id" = ingest_observations.tenant and x."external_id" = v_external) then
       v_skipped := v_skipped + 1;
       continue;
@@ -1105,7 +1105,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:a6846e1ee0aefe6b27bd2e17740fb476779365fdbfd927eb8f025aca026559dc
+-- @bsb-hash sha256:2cbe8e31e0cdbd88110bfa638140e20cf2fac5e8593e06e1e82a206845c1f8e4
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1440,7 +1440,7 @@ begin
   );
   end if;
   if v_row."flag" in ('critical_low', 'critical_high') then
-    perform "better_supabase".emit_event('observation.critical', jsonb_build_object('organizationId', v_row."tenant_id", 'observationId', v_row."id", 'definitionKey', v_def."key", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'observedAt', v_row."observed_at", 'flag', v_row."flag"), 'observations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
+    perform "better_supabase".emit_event('observation.critical_recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'observationId', v_row."id", 'definitionKey', v_def."key", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'observedAt', v_row."observed_at", 'flag', v_row."flag"), 'observations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
     select coalesce(jsonb_agg(distinct m."user_id"), '[]'::jsonb) into v_recipients
     from "better_supabase"."subject_members" m
     where m."subject_type" = v_row."subject_type"
@@ -1454,14 +1454,14 @@ begin
       v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
       perform "better_supabase"."notify"(jsonb_build_object(
-        'type', 'observation.critical',
+        'type', 'observation.critical_recorded',
         'tenant', v_row."tenant_id",
         'actor', null,
         'subject_type', v_row."subject_type",
         'subject_id', v_row."subject_id",
         'summary', v_def."title" || ' is ' || replace(v_row."flag", '_', ' '),
         'recipients', v_recipients,
-        'key', 'observation.critical:' || v_row."id"::text,
+        'key', 'observation.critical_recorded:' || v_row."id"::text,
         'data', jsonb_build_object('observationId', v_row."id", 'definitionKey', v_def."key", 'flag', v_row."flag")
       ));
       perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
@@ -1866,7 +1866,7 @@ begin
     if not (case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(null::text = ingest_observations.tenant::text, false) else false end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from "better_supabase"."observations" x where x."tenant_id" = ingest_observations.tenant and x."external_id" = v_external) then
       v_skipped := v_skipped + 1;
       continue;
@@ -2016,9 +2016,9 @@ begin
   update "better_supabase"."observations" x set "status" = 'entered_in_error', "reason" = v_reason
   where x."id" = v_row."id"
   returning x.* into v_row;
-  perform "better_supabase".emit_event('observation.marked_error', jsonb_build_object('organizationId', v_row."tenant_id", 'observationId', v_row."id", 'definitionKey', v_def."key", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'reason', v_reason), 'observations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
+  perform "better_supabase".emit_event('observation.error_marked', jsonb_build_object('organizationId', v_row."tenant_id", 'observationId', v_row."id", 'definitionKey', v_def."key", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'reason', v_reason), 'observations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
   perform better_supabase.audit_event(
-    event_type => 'observation.marked_error',
+    event_type => 'observation.error_marked',
     category => 'data',
     target_type => 'observation',
     record_id => v_row."id"::text,
@@ -2422,7 +2422,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:8c14bb6b385c9b3b10b28d74dc1632988f667b1785afa4a4dc50793be382fe90
+-- @bsb-hash sha256:d98eaf7a9102d559544ed65b2d5809852df6623d4a90a42daba43c8d4fb02e5a
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3123,7 +3123,7 @@ begin
     if not (case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(null::text = ingest_observations.tenant::text, false) else false end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from "app_private"."observations" x where x."tenant_id" = ingest_observations.tenant and x."external_id" = v_external) then
       v_skipped := v_skipped + 1;
       continue;
@@ -3531,7 +3531,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:0ea805e4d068c8d81c6da6251861df6fc84eb924f02eba463e0f961ef1150b12
+-- @bsb-hash sha256:7d89da5508ec4503c720b9e41a036233423640252a41bf480bf9b9450f04d00c
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4227,7 +4227,7 @@ begin
     if not (case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(null::text = ingest_observations.tenant::text, false) else false end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from "better_supabase"."observations" x where x."tenant_id" = ingest_observations.tenant and x."external_id" = v_external) then
       v_skipped := v_skipped + 1;
       continue;
@@ -4758,7 +4758,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:ff16cee9cbe52e68b0587d76c7be731d27add3f2d789364e3253ebba7bce4eab
+-- @bsb-hash sha256:f7ed05f79f992988711152597af0c278b0195e311b1fec83219db820ad183c0d
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5435,7 +5435,7 @@ begin
     if not (case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(null::text = ingest_observations.tenant::text, false) else false end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from "better_supabase"."observations" x where x."tenant_id" = ingest_observations.tenant and x."external_id" = v_external) then
       v_skipped := v_skipped + 1;
       continue;
@@ -5843,7 +5843,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:72794ffd6bc3c1fac92b9641257cc3282cd7ee5622d3ceef691db2000b721e63
+-- @bsb-hash sha256:9343324ee53af820bb075392eec00620b22cb83ad6bd44146bd273eb2f112482
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6539,7 +6539,7 @@ begin
     if not (case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(null::text = ingest_observations.tenant::text, false) else false end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from "better_supabase"."observations" x where x."org_id" = ingest_observations.tenant and x."external_id" = v_external) then
       v_skipped := v_skipped + 1;
       continue;

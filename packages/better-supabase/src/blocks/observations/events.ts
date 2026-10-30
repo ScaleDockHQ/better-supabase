@@ -30,7 +30,7 @@ export interface ObservationRecordedEventData extends ObservationEventData {
   readonly source: string;
 }
 
-/** `observation.critical`: a value at or past a critical bound. */
+/** `observation.critical_recorded`: a value at or past a critical bound. */
 export interface ObservationCriticalEventData extends ObservationEventData {
   /** ISO 8601. */
   readonly observedAt: string;
@@ -45,8 +45,8 @@ export interface ObservationAmendedEventData extends ObservationEventData {
   readonly reason: string;
 }
 
-/** `observation.marked_error`: an observation was entered in error. */
-export interface ObservationMarkedErrorEventData extends ObservationEventData {
+/** `observation.error_marked`: an observation was entered in error. */
+export interface ObservationErrorMarkedEventData extends ObservationEventData {
   readonly reason: string;
 }
 
@@ -55,9 +55,9 @@ export type ObservationsEvents = {
   readonly "observation_definition.created": ObservationDefinitionSavedEventData;
   readonly "observation_definition.updated": ObservationDefinitionSavedEventData;
   readonly "observation.recorded": ObservationRecordedEventData;
-  readonly "observation.critical": ObservationCriticalEventData;
+  readonly "observation.critical_recorded": ObservationCriticalEventData;
   readonly "observation.amended": ObservationAmendedEventData;
-  readonly "observation.marked_error": ObservationMarkedErrorEventData;
+  readonly "observation.error_marked": ObservationErrorMarkedEventData;
 };
 
 /** The `observations` block's event types, for its manifest and `onBlockEvent`. */
@@ -67,7 +67,7 @@ export const observationsEvents: Events<ObservationsEvents> = defineEvents({
   "observation_definition.updated":
     event<ObservationDefinitionSavedEventData>(),
   "observation.recorded": event<ObservationRecordedEventData>(),
-  "observation.critical": event<ObservationCriticalEventData>(),
+  "observation.critical_recorded": event<ObservationCriticalEventData>(),
   "observation.amended": event<ObservationAmendedEventData>(),
-  "observation.marked_error": event<ObservationMarkedErrorEventData>(),
+  "observation.error_marked": event<ObservationErrorMarkedEventData>(),
 });

@@ -155,14 +155,14 @@ describe.skipIf(!live)("observations", () => {
         await s.value<number>(
           `(select count(*)::int from better_supabase.notification_events e
             join better_supabase.notification_recipients r on r.event_id = e.id
-            where e.type = 'observation.critical' and r.user_id = $1)`,
+            where e.type = 'observation.critical_recorded' and r.user_id = $1)`,
           [lead.id],
         ),
       ).toBe(1);
       expect(
         await s.value<number>(
           `(select count(*)::int from better_supabase.outbox_events
-            where type = 'observation.critical' and payload ->> 'observationId' = $1)`,
+            where type = 'observation.critical_recorded' and payload ->> 'observationId' = $1)`,
           [critical.id],
         ),
       ).toBe(1);

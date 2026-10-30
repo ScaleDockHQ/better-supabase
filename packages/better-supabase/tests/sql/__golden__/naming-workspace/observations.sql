@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:f96fa8c32fd319e03654c2a8d2b3a8e287174b9d91d71482d891c33b438b4be4
+-- @bsb-hash sha256:b935ff127a5965d5fcc360691c634ba686f6c393ce1cf747dd441f380d26b367
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -697,7 +697,7 @@ begin
     if not (case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then coalesce(null::text = ingest_observations.tenant::text, false) else false end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from "better_supabase"."observations" x where x."tenant_id" = ingest_observations.tenant and x."external_id" = v_external) then
       v_skipped := v_skipped + 1;
       continue;

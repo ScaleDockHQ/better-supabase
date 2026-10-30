@@ -126,7 +126,7 @@ const reading = await db.observations
 
 `observedAt` defaults to now and may not be in the future. `recordMany`
 records up to 500 observations, all or none. A critical value records
-`observation.critical` and, with notifications installed, notifies each member
+`observation.critical_recorded` and, with notifications installed, notifies each member
 of the record's team with the role `lead`, except the caller.
 
 `ingest` takes readings from a device or an import with the service role.
@@ -262,9 +262,9 @@ blocks: {
 | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | `observation_definition.created`, `observation_definition.updated` | `organizationId` (null for a system one), `definitionId`, `key`, `title`                                       |
 | `observation.recorded`                                             | `organizationId`, `observationId`, `definitionKey`, `subjectType`, `subjectId`, `observedAt`, `flag`, `source` |
-| `observation.critical`                                             | the same observation fields, with `observedAt` and `flag`                                                      |
+| `observation.critical_recorded`                                    | the same observation fields, with `observedAt` and `flag`                                                      |
 | `observation.amended`                                              | the same observation fields, with `replacesId` and `reason`                                                    |
-| `observation.marked_error`                                         | the same observation fields, with `reason`                                                                     |
+| `observation.error_marked`                                         | the same observation fields, with `reason`                                                                     |
 
 ## Hooks
 

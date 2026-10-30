@@ -57,7 +57,7 @@ const EVENTS: BlockSqlEvents<ObservationsEvents> = {
     subject: "observations",
     payload: [...OBSERVATION, "observedAt", "flag", "source"],
   },
-  "observation.critical": {
+  "observation.critical_recorded": {
     subject: "observations",
     payload: [...OBSERVATION, "observedAt", "flag"],
   },
@@ -65,7 +65,7 @@ const EVENTS: BlockSqlEvents<ObservationsEvents> = {
     subject: "observations",
     payload: [...OBSERVATION, "replacesId", "reason"],
   },
-  "observation.marked_error": {
+  "observation.error_marked": {
     subject: "observations",
     payload: [...OBSERVATION, "reason"],
   },

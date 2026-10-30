@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:43f024aca9771c3db8e6f5a789393818bda0f898f7d380c279c220ea60502202
+-- @bsb-hash sha256:1d777d6bff73e5b6626ceb344eee1be650db1ec29d5964b589d94a510c22ae41
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -335,7 +335,7 @@ begin
   );
   end if;
   if v_row."flag" in ('critical_low', 'critical_high') then
-    perform "better_supabase".emit_event('observation.critical', jsonb_build_object('organizationId', v_row."tenant_id", 'observationId', v_row."id", 'definitionKey', v_def."key", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'observedAt', v_row."observed_at", 'flag', v_row."flag"), 'observations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
+    perform "better_supabase".emit_event('observation.critical_recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'observationId', v_row."id", 'definitionKey', v_def."key", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'observedAt', v_row."observed_at", 'flag', v_row."flag"), 'observations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
     select coalesce(jsonb_agg(distinct m."user_id"), '[]'::jsonb) into v_recipients
     from "better_supabase"."subject_members" m
     where m."subject_type" = v_row."subject_type"
@@ -349,14 +349,14 @@ begin
       v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
       perform "better_supabase"."notify"(jsonb_build_object(
-        'type', 'observation.critical',
+        'type', 'observation.critical_recorded',
         'tenant', v_row."tenant_id",
         'actor', null,
         'subject_type', v_row."subject_type",
         'subject_id', v_row."subject_id",
         'summary', v_def."title" || ' is ' || replace(v_row."flag", '_', ' '),
         'recipients', v_recipients,
-        'key', 'observation.critical:' || v_row."id"::text,
+        'key', 'observation.critical_recorded:' || v_row."id"::text,
         'data', jsonb_build_object('observationId', v_row."id", 'definitionKey', v_def."key", 'flag', v_row."flag")
       ));
       perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
@@ -1025,7 +1025,7 @@ begin
     end and "better_supabase"."can_subject"(v_item ->> 'subjectType', v_item ->> 'subjectId', 'read')) end) then
       raise exception 'the record isn''t in this organization' using errcode = '42501', hint = 'OBSERVATION_FORBIDDEN';
     end if;
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb:observations:' || ingest_observations.tenant::text || ':' || v_external, 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('bsb_observations_ingest:' || ingest_observations.tenant::text || ':' || v_external, 0));
     if exists (select 1 from "better_supabase"."observations" x where x."tenant_id" = ingest_observations.tenant and x."external_id" = v_external) then
       v_skipped := v_skipped + 1;
       continue;
@@ -1351,9 +1351,9 @@ begin
   update "better_supabase"."observations" x set "status" = 'entered_in_error', "reason" = v_reason
   where x."id" = v_row."id"
   returning x.* into v_row;
-  perform "better_supabase".emit_event('observation.marked_error', jsonb_build_object('organizationId', v_row."tenant_id", 'observationId', v_row."id", 'definitionKey', v_def."key", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'reason', v_reason), 'observations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
+  perform "better_supabase".emit_event('observation.error_marked', jsonb_build_object('organizationId', v_row."tenant_id", 'observationId', v_row."id", 'definitionKey', v_def."key", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'reason', v_reason), 'observations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/observations');
   perform better_supabase.audit_event(
-    event_type => 'observation.marked_error',
+    event_type => 'observation.error_marked',
     category => 'data',
     target_type => 'observation',
     record_id => v_row."id"::text,
