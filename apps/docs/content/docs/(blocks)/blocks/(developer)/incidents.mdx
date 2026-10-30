@@ -20,21 +20,23 @@ import { createIncidents } from "better-supabase/blocks/incidents";
 
 The module requires `memberships` and `access`. With
 [notifications](/docs/blocks/notifications) the commander is notified when an
-incident opens, with `outbox` it records the events, and with `audit` every
-change is audited. The choices behind the anonymous surface are in
+incident opens, with `outbox` it records the events, with `audit` every
+change is audited, and with [tasks](/docs/blocks/tasks) postmortem action
+items are tasks. The choices behind the anonymous surface are in
 [ADR 0084](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0084-anonymous-status-page.md).
 
 ## Tables
 
-| Table                      | Holds                                                                                                    |
-| -------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `status_components`        | The services a status page reports on: a name, a group, whether it is `public`, and its current `status` |
-| `status_component_history` | One row per status a component held, with its start and end, for the uptime history                      |
-| `incidents`                | The title, description, severity, status, whether it is public, the commander, and the start and end     |
-| `incident_updates`         | The timeline: each update's status, text and whether it is public                                        |
-| `incident_impacts`         | The components an incident affects and how                                                               |
-| `incident_postmortems`     | One postmortem per incident: summary, impact, root cause, resolution and action items                    |
-| `status_pages`             | One page per organization, with a slug unique across organizations                                       |
+| Table                         | Holds                                                                                                    |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `status_components`           | The services a status page reports on: a name, a group, whether it is `public`, and its current `status` |
+| `status_component_history`    | One row per status a component held, with its start and end, for the uptime history                      |
+| `incidents`                   | The title, description, severity, status, whether it is public, the commander, and the start and end     |
+| `incident_updates`            | The timeline: each update's status, text and whether it is public                                        |
+| `incident_impacts`            | The components an incident affects and how                                                               |
+| `incident_postmortems`        | One postmortem per incident: summary, impact, root cause, resolution and action items                    |
+| `incident_postmortem_actions` | With `tasks`: the tasks that are a postmortem's action items                                             |
+| `status_pages`                | One page per organization, with a slug unique across organizations                                       |
 
 Members with `incidents.read` read every table. `anon` has no privileges on
 any of them.
@@ -115,7 +117,6 @@ await incidents
   .savePostmortem(incident.id, {
     summary: "Replica lag caused failed writes.",
     rootCause: "A replica on an undersized disk",
-    actionItems: [{ title: "Alert on replica lag", ownerId }],
   })
   .orThrow();
 await incidents.publishPostmortem(incident.id).orThrow();
@@ -123,6 +124,36 @@ await incidents.publishPostmortem(incident.id).orThrow();
 
 A postmortem can be drafted at any time and is published once the incident
 is resolved, with `incidents.manage`. The status page shows only its summary.
+
+### Action items
+
+With the [tasks](/docs/blocks/tasks) block installed, each action item is a
+task, so it has an assignee, a due date and a state, and shows up in the
+assignee's task lists:
+
+```ts
+const action = await incidents
+  .addPostmortemAction(postmortem.id, {
+    title: "Alert on replica lag",
+    assigneeId: ownerId,
+    dueAt: Temporal.Now.instant().add({ hours: 72 }),
+  })
+  .orThrow();
+
+await incidents.removePostmortemAction(action.id).orThrow();
+```
+
+`addPostmortemAction` creates the task in the incident's organization and
+links it in `incident_postmortem_actions`. A postmortem's `actions` lists the
+linked tasks with their title, state, due date and close time.
+`removePostmortemAction` removes the link and keeps the task. Both need
+`incidents.write`, and deleting the task removes the link.
+
+`actionItems` (the `action_items` column) is deprecated and is removed in a
+later minor. It stays readable, and without `tasks` `savePostmortem` still
+writes it. With `tasks`, `savePostmortem` refuses it with
+`INCIDENTS_INVALID`; write action items through `addPostmortemAction`
+instead.
 
 ## Status page
 
@@ -153,34 +184,37 @@ action items and ids of organizations and members never appear.
 `supabase/tests/database/incidents.test.sql` checks that, and that a private
 incident never shows on the page.
 
-| Method                                  | Returns                                       |
-| --------------------------------------- | --------------------------------------------- |
-| `saveComponent(organizationId, input)`  | the component                                 |
-| `deleteComponent(componentId)`          | its id                                        |
-| `components(organizationId)`            | the components in order                       |
-| `open(organizationId, input)`           | the incident                                  |
-| `update(incidentId, changes)`           | the incident                                  |
-| `postUpdate(incidentId, input)`         | the update                                    |
-| `setImpacts(incidentId, impacts)`       | the incident                                  |
-| `get(incidentId)`                       | the incident with its timeline and postmortem |
-| `list(organizationId, options)`         | the incidents, newest first                   |
-| `savePostmortem(incidentId, input)`     | the postmortem                                |
-| `publishPostmortem(incidentId)`         | the published postmortem                      |
-| `saveStatusPage(organizationId, input)` | the page                                      |
-| `statusPage(organizationId)`            | the organization's page, or `undefined`       |
-| `publicStatusPage(slug, days)`          | the public page, or `undefined`               |
+| Method                                     | Returns                                       |
+| ------------------------------------------ | --------------------------------------------- |
+| `saveComponent(organizationId, input)`     | the component                                 |
+| `deleteComponent(componentId)`             | its id                                        |
+| `components(organizationId)`               | the components in order                       |
+| `open(organizationId, input)`              | the incident                                  |
+| `update(incidentId, changes)`              | the incident                                  |
+| `postUpdate(incidentId, input)`            | the update                                    |
+| `setImpacts(incidentId, impacts)`          | the incident                                  |
+| `get(incidentId)`                          | the incident with its timeline and postmortem |
+| `list(organizationId, options)`            | the incidents, newest first                   |
+| `savePostmortem(incidentId, input)`        | the postmortem                                |
+| `publishPostmortem(incidentId)`            | the published postmortem                      |
+| `addPostmortemAction(postmortemId, input)` | the action item (with `tasks`)                |
+| `removePostmortemAction(actionId)`         | the postmortem (with `tasks`)                 |
+| `saveStatusPage(organizationId, input)`    | the page                                      |
+| `statusPage(organizationId)`               | the organization's page, or `undefined`       |
+| `publicStatusPage(slug, days)`             | the public page, or `undefined`               |
 
 ## Errors
 
-| Hint                            | Cause                                                                                      |
-| ------------------------------- | ------------------------------------------------------------------------------------------ |
-| `INCIDENTS_FORBIDDEN`           | the caller lacks `incidents.read`, `.write` or `.manage`                                   |
-| `INCIDENTS_INVALID`             | a field is invalid, such as a slug that isn't 2 to 63 lowercase letters, digits and dashes |
-| `INCIDENT_NOT_FOUND`            | no incident with this id in an organization the caller reads                               |
-| `STATUS_COMPONENT_NOT_FOUND`    | no component with this id                                                                  |
-| `INCIDENT_POSTMORTEM_NOT_FOUND` | the incident has no postmortem                                                             |
-| `INCIDENT_NOT_RESOLVED`         | the postmortem of an unresolved incident can't be published                                |
-| `STATUS_PAGE_SLUG_TAKEN`        | another organization uses this slug                                                        |
+| Hint                                   | Cause                                                                                      |
+| -------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `INCIDENTS_FORBIDDEN`                  | the caller lacks `incidents.read`, `.write` or `.manage`                                   |
+| `INCIDENTS_INVALID`                    | a field is invalid, such as a slug that isn't 2 to 63 lowercase letters, digits and dashes |
+| `INCIDENT_NOT_FOUND`                   | no incident with this id in an organization the caller reads                               |
+| `STATUS_COMPONENT_NOT_FOUND`           | no component with this id                                                                  |
+| `INCIDENT_POSTMORTEM_NOT_FOUND`        | the incident has no postmortem                                                             |
+| `INCIDENT_POSTMORTEM_ACTION_NOT_FOUND` | no postmortem action item with this id                                                     |
+| `INCIDENT_NOT_RESOLVED`                | the postmortem of an unresolved incident can't be published                                |
+| `STATUS_PAGE_SLUG_TAKEN`               | another organization uses this slug                                                        |
 
 ## Events
 

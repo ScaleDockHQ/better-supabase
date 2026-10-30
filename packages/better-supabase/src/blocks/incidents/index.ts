@@ -16,6 +16,8 @@ export {
   type IncidentUpdate,
   type IncidentUpdateInput,
   type Postmortem,
+  type PostmortemAction,
+  type PostmortemActionInput,
   type PostmortemInput,
   type PostmortemStatus,
   type PublicIncident,

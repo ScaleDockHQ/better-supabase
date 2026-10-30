@@ -105,8 +105,10 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
   const updateJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${u("id")}, 'incidentId', ${row}.${u("incident")}, 'status', ${row}.${u("status")}, 'body', ${row}.${u("body")}, 'public', ${row}.${u("public")}, 'authorId', ${row}.${u("author")}, 'createdAt', ${row}.${u("createdAt")})`;
 
+  const withTasks = ctx.installed("tasks");
+
   const postmortemJson = (row: string): string =>
-    `jsonb_build_object('id', ${row}.${pm("id")}, 'incidentId', ${row}.${pm("incident")}, 'summary', ${row}.${pm("summary")}, 'impact', ${field("postmortems", row, "impact")}, 'rootCause', ${field("postmortems", row, "rootCause")}, 'resolution', ${field("postmortems", row, "resolution")}, 'actionItems', ${has("postmortems", "actionItems") ? `${row}.${pm("actionItems")}` : "'[]'::jsonb"}, 'status', ${row}.${pm("status")}, 'publishedAt', ${row}.${pm("publishedAt")}, 'authorId', ${field("postmortems", row, "author")}, 'createdAt', ${field("postmortems", row, "createdAt")}, 'updatedAt', ${field("postmortems", row, "updatedAt")})`;
+    `jsonb_build_object('id', ${row}.${pm("id")}, 'incidentId', ${row}.${pm("incident")}, 'summary', ${row}.${pm("summary")}, 'impact', ${field("postmortems", row, "impact")}, 'rootCause', ${field("postmortems", row, "rootCause")}, 'resolution', ${field("postmortems", row, "resolution")}, 'actionItems', ${has("postmortems", "actionItems") ? `${row}.${pm("actionItems")}` : "'[]'::jsonb"}, 'actions', ${withTasks ? `${fn("incident_postmortem_action_list")}(${row}.${pm("id")})` : "'[]'::jsonb"}, 'status', ${row}.${pm("status")}, 'publishedAt', ${row}.${pm("publishedAt")}, 'authorId', ${field("postmortems", row, "author")}, 'createdAt', ${field("postmortems", row, "createdAt")}, 'updatedAt', ${field("postmortems", row, "updatedAt")})`;
 
   const incidentRecord = (
     type: string,
@@ -132,7 +134,7 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
       { column: "impact", read: "->>" },
       { column: "rootCause", read: "->>" },
       { column: "resolution", read: "->>" },
-      { column: "actionItems", read: "->" },
+      ...(withTasks ? [] : [{ column: "actionItems", read: "->" }]),
     ]
       .filter(({ column }) => has("postmortems", column))
       .map(
@@ -163,7 +165,7 @@ export function incidentsFunctions(ctx: BlockSqlContext): string {
 `
     : "";
 
-  return `
+  return `${actionList(ctx)}
 -- Sets each component's status to the worst impact of the open incidents on
 -- it, and keeps the uptime history in step.
 create or replace function ${fn("incident_refresh_components")}(component_ids uuid[])
@@ -581,8 +583,8 @@ $$;
 ${userGrant(`${fn("list_incidents")}(${idType}, text, text, uuid, timestamptz, integer)`)}
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
--- resolution and actionItems ([{ title, ownerId, done }]); a key left out
--- keeps its value.
+-- resolution and, without the tasks block, actionItems
+-- ([{ title, ownerId, done }]); a key left out keeps its value.
 create or replace function ${fn("save_incident_postmortem")}(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -604,9 +606,15 @@ begin
   if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
     ${invalid("attrs must be an object")}
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_incident_postmortem.attrs -> 'actionItems') is distinct from 'array' then
+  ${
+    withTasks
+      ? `if save_incident_postmortem.attrs ? 'actionItems' then
+    ${invalid("actionItems is read-only with the tasks block: add_incident_postmortem_action writes action items")}
+  end if;`
+      : `if save_incident_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_incident_postmortem.attrs -> 'actionItems') is distinct from 'array' then
     ${invalid("actionItems must be an array")}
-  end if;
+  end if;`
+  }
   insert into ${postmortems} (${pm("tenant")}, ${pm("incident")}${insertCol("postmortems", "author")})
   values (v_row.${i("tenant")}, v_row.${i("id")}${insertVal("postmortems", "author", "auth.uid()")})
   on conflict (${pm("incident")}) do nothing;
@@ -656,5 +664,138 @@ begin
 end;
 $$;
 ${userGrant(`${fn("publish_incident_postmortem")}(uuid)`)}
+${actionFunctions(ctx, postmortemJson)}`;
+}
+
+/** The postmortem action functions, with the tasks module. */
+function actionFunctions(
+  ctx: BlockSqlContext,
+  postmortemJson: (row: string) => string,
+): string {
+  if (!ctx.installed("tasks")) {
+    return "";
+  }
+
+  const postmortems = ctx.table("postmortems");
+  const actions = ctx.table("actions");
+  const pm = (column: string): string => ctx.col("postmortems", column);
+  const a = (column: string): string => ctx.col("actions", column);
+  const fn = (name: string): string => ctx.fn(name);
+  const tasks = ctx.of("tasks");
+  const t = (column: string): string => tasks.col("items", column);
+  const write = ctx.permission("write", moduleOperations("incidents").write);
+
+  const allowed = (tenant: string, permission: string): string =>
+    `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;
+
+  return `
+-- Adds an action item to a postmortem: creates the task through the tasks
+-- block, as the caller, and links it. The caller needs to write the incident
+-- and to create tasks.
+create or replace function ${fn("add_incident_postmortem_action")}(postmortem_id uuid, title text, assignee_id uuid default null, due_at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_post ${postmortems}%rowtype;
+  v_task uuid;
+  v_id uuid;
+begin
+  select * into v_post from ${postmortems} x where x.${pm("id")} = add_incident_postmortem_action.postmortem_id;
+  if not found then
+    ${fail("INCIDENT_POSTMORTEM_NOT_FOUND", "the incident has no postmortem", "P0002")}
+  end if;
+  if not ${allowed(`v_post.${pm("tenant")}`, write)} then
+    ${fail("INCIDENTS_FORBIDDEN", "not allowed to write postmortems")}
+  end if;
+  v_task := (${tasks.fn("create_task")}(
+    v_post.${pm("tenant")},
+    jsonb_strip_nulls(jsonb_build_object('title', add_incident_postmortem_action.title, 'dueAt', add_incident_postmortem_action.due_at)),
+    case when add_incident_postmortem_action.assignee_id is null then '{}'::uuid[] else array[add_incident_postmortem_action.assignee_id] end
+  ) ->> 'id')::uuid;
+  insert into ${actions} (${a("tenant")}, ${a("postmortem")}, ${a("task")})
+  values (v_post.${pm("tenant")}, v_post.${pm("id")}, v_task)
+  returning ${a("id")} into v_id;
+  return (select ${actionJson(ctx, "x", "k")} from ${actions} x join ${tasks.table("items")} k on k.${t("id")} = x.${a("task")} where x.${a("id")} = v_id);
+end;
+$$;
+${userGrant(`${fn("add_incident_postmortem_action")}(uuid, text, uuid, timestamptz)`)}
+
+-- Unlinks an action item from its postmortem and returns the postmortem.
+-- The task stays in the tasks block.
+create or replace function ${fn("remove_incident_postmortem_action")}(action_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_action ${actions}%rowtype;
+  v_post ${postmortems}%rowtype;
+begin
+  select * into v_action from ${actions} x where x.${a("id")} = remove_incident_postmortem_action.action_id;
+  if not found then
+    ${fail("INCIDENT_POSTMORTEM_ACTION_NOT_FOUND", "postmortem action not found", "P0002")}
+  end if;
+  if not ${allowed(`v_action.${a("tenant")}`, write)} then
+    ${fail("INCIDENTS_FORBIDDEN", "not allowed to write postmortems")}
+  end if;
+  delete from ${actions} x where x.${a("id")} = v_action.${a("id")};
+  select * into v_post from ${postmortems} x where x.${pm("id")} = v_action.${a("postmortem")};
+  return ${postmortemJson("v_post")};
+end;
+$$;
+${userGrant(`${fn("remove_incident_postmortem_action")}(uuid)`)}
 `;
+}
+
+/**
+ * Lists a postmortem's action items; `get_incident` embeds it, so it renders
+ * first.
+ */
+function actionList(ctx: BlockSqlContext): string {
+  if (!ctx.installed("tasks")) {
+    return "";
+  }
+
+  const actions = ctx.table("actions");
+  const a = (column: string): string => ctx.col("actions", column);
+  const fn = (name: string): string => ctx.fn(name);
+  const tasks = ctx.of("tasks");
+  const t = (column: string): string => tasks.col("items", column);
+  const read = ctx.permission("read", moduleOperations("incidents").read);
+
+  const order = ctx.has("actions", "createdAt")
+    ? `x.${a("createdAt")}, k.${t("number")}`
+    : `k.${t("number")}`;
+
+  return `
+-- A postmortem's action items with their task's title, state and due date,
+-- for whoever reads the incident; empty for anyone else.
+create or replace function ${fn("incident_postmortem_action_list")}(postmortem_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(${actionJson(ctx, "x", "k")} order by ${order}), '[]'::jsonb)
+  from ${actions} x
+  join ${tasks.table("items")} k on k.${t("id")} = x.${a("task")}
+  where x.${a("postmortem")} = incident_postmortem_action_list.postmortem_id
+    and (${SERVICE_CALLER} or ${ctx.can("tenant", `x.${a("tenant")}`, read)})
+$$;
+${userGrant(`${fn("incident_postmortem_action_list")}(uuid)`)}
+`;
+}
+
+/** One action item with its task's title, state and due date. */
+function actionJson(ctx: BlockSqlContext, row: string, task: string): string {
+  const a = (column: string): string => ctx.col("actions", column);
+  const tasks = ctx.of("tasks");
+  const t = (column: string): string => tasks.col("items", column);
+
+  return `jsonb_build_object('id', ${row}.${a("id")}, 'postmortemId', ${row}.${a("postmortem")}, 'taskId', ${row}.${a("task")}, 'title', ${task}.${t("title")}, 'state', ${tasks.label("items", "state", `${task}.${t("state")}`)}, 'dueAt', ${task}.${t("dueAt")}, 'closedAt', ${task}.${t("closedAt")}, 'createdAt', ${ctx.has("actions", "createdAt") ? `${row}.${a("createdAt")}` : "null"})`;
 }

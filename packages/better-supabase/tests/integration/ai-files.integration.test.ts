@@ -8,6 +8,7 @@ import {
   createAiFiles,
   sqlTransport,
 } from "../../src/blocks/ai-files/index.ts";
+import { upgradePlan } from "../../src/sql/upgrade.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
@@ -330,7 +331,146 @@ describe.skipIf(!live)("ai-files module", () => {
       expect(await files.documents.remove(doc.id).orThrow()).toBe(false);
 
       await s.asRole(member);
+      expect(
+        await s.hint(
+          `select better_supabase.list_versions('${tenant}', 'ai_document', '${doc.id}')`,
+        ),
+      ).toMatch(/FORBIDDEN/);
+      expect(
+        await s.rows(
+          "select id from better_supabase.versions where subject_id = $1",
+          [doc.id],
+        ),
+      ).toEqual([]);
+
+      await s.service();
+      expect(
+        await s.rows<{ number: number; source: string }>(
+          "select number, source from better_supabase.versions where subject_type = 'ai_document' and subject_id = $1 order by number",
+          [doc.id],
+        ),
+      ).toEqual([
+        { number: 1, source: "manual" },
+        { number: 2, source: "manual" },
+        { number: 3, source: "restore" },
+      ]);
+
+      await s.asRole(member);
       expect(await files.documents.remove(doc.id).orThrow()).toBe(true);
+      await s.service();
+      expect(
+        await s.rows(
+          "select id from better_supabase.versions where subject_id = $1",
+          [doc.id],
+        ),
+      ).toEqual([]);
+    } finally {
+      await s.close();
+    }
+  });
+
+  it("moves version 1 document versions onto the versions table", async () => {
+    const s = await BlockSession.open(pool);
+
+    try {
+      await s.install(["organizations", "ai-chat", "ai-files"]);
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+      const files = createAiFiles({ transport: sqlTransport(s.sql), storage });
+
+      await s.asRole(owner);
+
+      const doc = await files.documents
+        .create(tenant, { kind: "text", title: "notes.md", content: "two" })
+        .orThrow();
+
+      await s.service();
+      await s.rows(
+        "delete from better_supabase.versions where subject_id = $1",
+        [doc.id],
+      );
+      await s.rows("drop table if exists better_supabase.ai_document_versions");
+      await s.rows(
+        `create table better_supabase.ai_document_versions (
+           document_id uuid not null references better_supabase.ai_documents (id) on delete cascade,
+           version integer not null,
+           content text,
+           storage_path text,
+           created_by_message_id text,
+           created_by uuid,
+           created_at timestamptz not null default now(),
+           primary key (document_id, version)
+         )`,
+      );
+      await s.rows(
+        `insert into better_supabase.ai_document_versions (document_id, version, content, created_by_message_id, created_by, created_at)
+         values ($1, 1, 'one', null, $2, '2026-10-01T10:00:00Z'),
+                ($1, 2, 'two', 'm2', $2, '2026-10-01T11:00:00Z')`,
+        [doc.id, owner.id],
+      );
+
+      const plans = upgradePlan([
+        ...["memberships", "permissions", "versions", "ai-chat"].map(
+          (module) => ({ module, version: 1000 }),
+        ),
+        { module: "ai-files", version: 1 },
+      ]);
+
+      expect(plans.map((plan) => plan.module)).toEqual(["ai-files"]);
+
+      for (const plan of plans) {
+        for (const step of plan.steps) {
+          await s.rows(step.sql);
+        }
+      }
+
+      expect(
+        await s.value<string | null>(
+          "to_regclass('better_supabase.ai_document_versions')::text",
+        ),
+      ).toBeNull();
+      expect(
+        await s.rows<{
+          tenant_id: string;
+          number: number;
+          content: unknown;
+          created_by: string;
+        }>(
+          "select tenant_id, number, content, created_by from better_supabase.versions where subject_type = 'ai_document' and subject_id = $1 order by number",
+          [doc.id],
+        ),
+      ).toEqual([
+        {
+          tenant_id: tenant,
+          number: 1,
+          content: { text: "one", messageId: null },
+          created_by: owner.id,
+        },
+        {
+          tenant_id: tenant,
+          number: 2,
+          content: { text: "two", messageId: "m2" },
+          created_by: owner.id,
+        },
+      ]);
+
+      await s.asRole(owner);
+      expect(
+        (await files.documents.versions(doc.id).orThrow()).map((v) => [
+          v.version,
+          v.content,
+          v.messageId,
+        ]),
+      ).toEqual([
+        [2, "two", "m2"],
+        [1, "one", undefined],
+      ]);
+      // The moved hash matches the versions block's, so an unchanged edit
+      // writes no new version.
+      await files.documents
+        .update(doc.id, { content: "two", messageId: "m2" })
+        .orThrow();
+      expect(await files.documents.versions(doc.id).orThrow()).toHaveLength(2);
     } finally {
       await s.close();
     }

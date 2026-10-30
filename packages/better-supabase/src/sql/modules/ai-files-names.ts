@@ -1,4 +1,4 @@
-import type { BlockSqlNames } from "../context.ts";
+import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 
 export const FILES = {
   id: "id",
@@ -39,15 +39,19 @@ export const DOCUMENTS = {
   updatedAt: "updated_at",
 } as const;
 
-export const VERSIONS = {
-  document: "document_id",
-  version: "version",
-  content: "content",
-  storagePath: "storage_path",
-  message: "created_by_message_id",
-  createdBy: "created_by",
-  createdAt: "created_at",
-} as const;
+/**
+ * The versions subject type of a document: its versions are rows of the
+ * versions block, with the text and the message that wrote it in content.
+ */
+const AI_DOCUMENT_SUBJECT = "ai_document";
+
+/**
+ * The subject type after `blocks.ai-files.entities`; `ctx` is the ai-files
+ * context.
+ */
+export function aiDocumentSubject(ctx: BlockSqlContext): string {
+  return ctx.naming.rename(AI_DOCUMENT_SUBJECT);
+}
 
 export const SUGGESTIONS = {
   id: "id",
@@ -95,13 +99,6 @@ export const NAMES: BlockSqlNames = {
       app: {},
       optional: ["createdAt", "updatedAt"],
       typed: ["kind"],
-    },
-    versions: {
-      name: "ai_document_versions",
-      columns: VERSIONS,
-      lifecycle: { user: "createdBy" },
-      app: {},
-      optional: ["storagePath", "message", "createdBy", "createdAt"],
     },
     suggestions: {
       name: "ai_suggestions",

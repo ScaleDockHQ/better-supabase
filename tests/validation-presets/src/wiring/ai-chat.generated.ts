@@ -23,6 +23,7 @@ import { profilesBlock } from "better-supabase/blocks/profiles";
 import { settingsBlock } from "better-supabase/blocks/settings";
 import { teamsBlock } from "better-supabase/blocks/teams";
 import { usageBlock } from "better-supabase/blocks/usage";
+import { versionsBlock } from "better-supabase/blocks/versions";
 
 import { blockConfig } from "./ai-chat.blocks.generated.ts";
 
@@ -48,6 +49,7 @@ export const blockSet = defineBlocks(blockConfig, {
   settings: settingsBlock,
   teams: teamsBlock,
   usage: usageBlock,
+  versions: versionsBlock,
 });
 
 /**

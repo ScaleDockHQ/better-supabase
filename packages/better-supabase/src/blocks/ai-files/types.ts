@@ -259,9 +259,18 @@ export interface AiFiles<F extends object = Record<never, never>> {
       document: NewAiDocument,
     ): AsyncResult<AiDocument>;
     get(documentId: string): AsyncResult<AiDocumentWithContent>;
+    /**
+     * Writes the next version through the versions block. An edit with the same
+     * content and message as the current version writes none, and the document
+     * keeps its version number.
+     */
     update(documentId: string, edit: AiDocumentEdit): AsyncResult<AiDocument>;
     /** Writes `version` as the newest version again. */
     rollback(documentId: string, version: number): AsyncResult<AiDocument>;
+    /**
+     * Newest first. The versions block keeps the newest
+     * `blocks.versions.options.keep` (default 50) of them.
+     */
     versions(documentId: string): AsyncResult<readonly AiDocumentVersion[]>;
     remove(documentId: string): AsyncResult<boolean>;
     suggest(

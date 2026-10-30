@@ -396,6 +396,7 @@ describe("createIncidents", () => {
         impact: "Errors",
         rootCause: "Replica",
         resolution: "Promoted",
+        // oxlint-disable-next-line typescript/no-deprecated -- covers the deprecated key until 0.47.
         actionItems: ["Alert"],
       })
       .orThrow();
@@ -421,6 +422,67 @@ describe("createIncidents", () => {
         },
       ],
       ["publish_incident_postmortem", { incident_id: "i1" }],
+    ]);
+  });
+
+  it("adds and removes postmortem action items as tasks", async () => {
+    const action = {
+      id: "a1",
+      postmortemId: "pm1",
+      taskId: "t1",
+      title: "Alert on replica lag",
+      state: "open",
+      dueAt: AT,
+      closedAt: null,
+      createdAt: AT,
+    };
+
+    const t = fieldsTransport({
+      add_incident_postmortem_action: () => action,
+      remove_incident_postmortem_action: () => ({
+        ...POSTMORTEM,
+        actions: [{ ...action, id: "a2", dueAt: null }],
+      }),
+    });
+
+    const incidents = createIncidents({ transport: t });
+
+    const added = await incidents
+      .addPostmortemAction("pm1", {
+        title: "Alert on replica lag",
+        assigneeId: "u1",
+        dueAt: Temporal.Instant.from(AT),
+      })
+      .orThrow();
+
+    await incidents.addPostmortemAction("pm1", { title: "Runbook" }).orThrow();
+    const after = await incidents.removePostmortemAction("a1").orThrow();
+
+    expect(added).toMatchObject({ taskId: "t1", state: "open" });
+    expect(added.dueAt?.toString()).toBe(AT);
+    expect(added).not.toHaveProperty("closedAt");
+    expect(after.actions).toHaveLength(1);
+    expect(after.actions[0]).not.toHaveProperty("dueAt");
+    expect(t.calls).toEqual([
+      [
+        "add_incident_postmortem_action",
+        {
+          postmortem_id: "pm1",
+          title: "Alert on replica lag",
+          assignee_id: "u1",
+          due_at: AT,
+        },
+      ],
+      [
+        "add_incident_postmortem_action",
+        {
+          postmortem_id: "pm1",
+          title: "Runbook",
+          assignee_id: null,
+          due_at: null,
+        },
+      ],
+      ["remove_incident_postmortem_action", { action_id: "a1" }],
     ]);
   });
 

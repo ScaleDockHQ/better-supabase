@@ -106,7 +106,6 @@ may be your own enum or domain.
   - `better_supabase.ai_files`: `id`, `organization_id`, `owner_id`, `chat_id`, `bucket`, `path`, `media_type`, `filename`, `byte_size`, `status`, `created_at`; typed: `status`, `source`
   - `better_supabase.ai_provider_files`: `file_id`, `provider`, `reference`
   - `better_supabase.ai_documents`: `id`, `organization_id`, `owner_id`, `chat_id`, `kind`, `title`, `current_version`; typed: `kind`
-  - `better_supabase.ai_document_versions`: `document_id`, `version`, `content`
   - `better_supabase.ai_suggestions`: `id`, `document_id`, `version`, `original_text`, `suggested_text`, `resolved_at`, `accepted`
 - `ai-keys`
   - `better_supabase.ai_provider_keys`: `id`, `organization_id`, `provider`, `name`, `credential_ref`
@@ -360,6 +359,7 @@ may be your own enum or domain.
   - `better_supabase.incident_updates`: `id`, `tenant_id`, `incident_id`, `status`, `body`, `public`, `author_id`, `created_at`; typed: `status`
   - `better_supabase.incident_impacts`: `tenant_id`, `incident_id`, `component_id`, `impact`; typed: `impact`
   - `better_supabase.incident_postmortems`: `id`, `tenant_id`, `incident_id`, `summary`, `status`, `published_at`; typed: `status`
+  - `better_supabase.incident_postmortem_actions`: `id`, `tenant_id`, `postmortem_id`, `task_id`
   - `better_supabase.status_pages`: `id`, `tenant_id`, `slug`, `title`, `published`
 - `inventory`
   - `better_supabase.inventory_locations`: `id`, `tenant_id`, `code`, `name`, `kind`, `active`, `created_at`, `updated_at`

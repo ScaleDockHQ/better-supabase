@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:31c40ace4b303cd7b99ca787de92f52808362becdad12d411c289d4e76cedbfd
+-- @bsb-hash sha256:6010a85adb870dc9e6fffa6a0f25c2120b73664e2f62c6983e31ddefe982de32
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -81,6 +81,10 @@ drop policy if exists versions_read on "better_supabase"."versions";
 create policy versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
+drop policy if exists versions_ai_documents on "better_supabase"."versions";
+create policy versions_ai_documents on "better_supabase"."versions" as restrictive
+  for select to authenticated
+  using ("subject_type" <> 'ai_document');
 
 -- Writes a version, numbered per subject. A version without a label whose
 -- content matches the latest is not written again; an auto snapshot within
@@ -158,7 +162,7 @@ begin
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (snapshot_version.subject_id)::uuid and s."organization_id" = snapshot_version.tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (snapshot_version.subject_id)::uuid and s."organization_id" = snapshot_version.tenant) and coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'customers.read'), false)
     else false
-  end)) then
+  end and snapshot_version.subject_type <> 'ai_document')) then
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
@@ -216,7 +220,7 @@ begin
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (list_versions.subject_id)::uuid and s."organization_id" = list_versions.tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (list_versions.subject_id)::uuid and s."organization_id" = list_versions.tenant) and coalesce(better_supabase.can('tenant', list_versions.tenant, 'customers.read'), false)
     else false
-  end)) then
+  end and list_versions.subject_type <> 'ai_document')) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
@@ -253,7 +257,7 @@ begin
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id")
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_row."subject_id")::uuid and s."organization_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'customers.read'), false)
     else false
-  end)) then
+  end and v_row."subject_type" <> 'ai_document')) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
@@ -333,7 +337,7 @@ begin
   end and case v_subject_type
     when 'customer' then coalesce(better_supabase.can('tenant', v_tenant, 'customers.write'), false)
     else true
-  end)) then
+  end and v_subject_type <> 'ai_document')) then
     raise exception 'not allowed to restore this version' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_content is null then
@@ -438,7 +442,7 @@ begin
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (v_subject_id)::uuid and s."organization_id" = v_tenant) and coalesce(better_supabase.can('tenant', v_tenant, 'customers.read'), false)
     else false
-  end)) then
+  end and v_subject_type <> 'ai_document')) then
     raise exception 'not allowed to label this version' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   update "better_supabase"."versions" set "label" = nullif(trim(label_version.label), '')
@@ -474,7 +478,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false) and v_subject_type <> 'ai_document')) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then

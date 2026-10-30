@@ -149,12 +149,38 @@ export interface Postmortem {
   readonly impact?: string;
   readonly rootCause?: string;
   readonly resolution?: string;
+  /**
+   * @deprecated With the tasks block, action items are tasks: read `actions`
+   * and write them with `addPostmortemAction`. This JSON list stays readable
+   * until 0.47 and is no longer written once tasks is installed.
+   */
   readonly actionItems: readonly unknown[];
+  /** The action items, a task each; empty without the tasks block. */
+  readonly actions: readonly PostmortemAction[];
   readonly status: PostmortemStatus;
   readonly publishedAt?: Temporal.Instant;
   readonly authorId?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
+}
+
+/** A postmortem action item: a task in the tasks block. */
+export interface PostmortemAction {
+  readonly id: string;
+  readonly postmortemId: string;
+  readonly taskId: string;
+  readonly title: string;
+  /** The task's state, as the tasks block names it. */
+  readonly state: string;
+  readonly dueAt?: Temporal.Instant;
+  readonly closedAt?: Temporal.Instant;
+  readonly createdAt?: Temporal.Instant;
+}
+
+export interface PostmortemActionInput {
+  readonly title: string;
+  readonly assigneeId?: string;
+  readonly dueAt?: Temporal.Instant;
 }
 
 /** An incident with its timeline, oldest first, and its postmortem. */
@@ -206,6 +232,10 @@ export interface PostmortemInput {
   readonly impact?: string;
   readonly rootCause?: string;
   readonly resolution?: string;
+  /**
+   * @deprecated With the tasks block, `savePostmortem` refuses this key: use
+   * `addPostmortemAction`. Removed in 0.47.
+   */
   readonly actionItems?: readonly unknown[];
 }
 
@@ -334,6 +364,19 @@ export interface Incidents<F extends object = Record<never, never>> {
   ): AsyncResult<Postmortem>;
   /** Needs `incidents.manage` and a resolved incident. */
   publishPostmortem(incidentId: string): AsyncResult<Postmortem>;
+  /**
+   * Adds an action item to a postmortem as a task, created through the tasks
+   * block. Needs `incidents.write` and the tasks block's create permission.
+   */
+  addPostmortemAction(
+    postmortemId: string,
+    input: PostmortemActionInput,
+  ): AsyncResult<PostmortemAction>;
+  /**
+   * Unlinks an action item and returns the postmortem; the task stays. Needs
+   * `incidents.write`.
+   */
+  removePostmortemAction(actionId: string): AsyncResult<Postmortem>;
   /** Needs `incidents.manage`. */
   saveStatusPage(
     organizationId: string,
@@ -450,6 +493,21 @@ function updateOf(value: unknown, fn: string): IncidentUpdate {
   };
 }
 
+function actionOf(value: unknown, fn: string): PostmortemAction {
+  const row = recordOf(value, fn);
+
+  return {
+    id: textOf(row["id"]),
+    postmortemId: textOf(row["postmortemId"]),
+    taskId: textOf(row["taskId"]),
+    title: textOf(row["title"]),
+    state: textOf(row["state"]),
+    ...optional("dueAt", optionalInstant(row["dueAt"])),
+    ...optional("closedAt", optionalInstant(row["closedAt"])),
+    ...optional("createdAt", optionalInstant(row["createdAt"])),
+  };
+}
+
 function postmortemOf(value: unknown, fn: string): Postmortem {
   const row = recordOf(value, fn);
   const items = row["actionItems"];
@@ -457,7 +515,11 @@ function postmortemOf(value: unknown, fn: string): Postmortem {
   return {
     id: textOf(row["id"]),
     incidentId: textOf(row["incidentId"]),
+    // oxlint-disable-next-line typescript/no-deprecated -- the deprecated list stays readable until 0.47.
     actionItems: Array.isArray(items) ? items : [],
+    actions: recordsOf(row["actions"] ?? [], fn).map((action) =>
+      actionOf(action, fn),
+    ),
     status: enumOrThrow(
       row["status"],
       ["draft", "published"] as const,
@@ -729,6 +791,7 @@ export function createIncidents<
             ...optional("impact", input.impact),
             ...optional("rootCause", input.rootCause),
             ...optional("resolution", input.resolution),
+            // oxlint-disable-next-line typescript/no-deprecated -- the client still sends the deprecated key until 0.47.
             ...optional("actionItems", input.actionItems),
           },
         },
@@ -739,6 +802,23 @@ export function createIncidents<
         "publish_incident_postmortem",
         { incident_id: incidentId },
         postmortem("publish_incident_postmortem"),
+      ),
+    addPostmortemAction: (postmortemId, input) =>
+      call(
+        "add_incident_postmortem_action",
+        {
+          postmortem_id: postmortemId,
+          title: input.title,
+          assignee_id: input.assigneeId ?? null,
+          due_at: input.dueAt === undefined ? null : instantArg(input.dueAt),
+        },
+        (value) => actionOf(value, "add_incident_postmortem_action"),
+      ),
+    removePostmortemAction: (actionId) =>
+      call(
+        "remove_incident_postmortem_action",
+        { action_id: actionId },
+        postmortem("remove_incident_postmortem_action"),
       ),
     saveStatusPage: (organizationId, input) =>
       call(

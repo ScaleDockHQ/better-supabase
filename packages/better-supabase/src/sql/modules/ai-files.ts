@@ -1,5 +1,5 @@
 import type { BlockSqlContext } from "../context.ts";
-import type { BlockSqlDefinition } from "../module-types.ts";
+import type { BlockSqlDefinition, BlockSqlUpgrade } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -10,21 +10,23 @@ import {
   raise,
   schemaPreamble,
   SERVICE_CALLER,
+  sha256Hex,
   serviceGrant,
   userGrant,
   writeExtraColumns,
 } from "../shared.ts";
 import { contract, FILE_KEYS } from "./ai-files-contract.ts";
 import {
+  aiDocumentSubject,
   DOCUMENTS,
   FILES,
   NAMES,
   PROVIDER_FILES,
   SUGGESTIONS,
-  VERSIONS,
 } from "./ai-files-names.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
+import { versionsTableDdl } from "./versions.ts";
 
 /** A Storage bucket id: Supabase allows 1 to 100 characters. */
 const BUCKET = /^[a-z0-9._-]{1,100}$/;
@@ -98,12 +100,14 @@ function build(ctx: BlockSqlContext): string {
   const f = columnsOf(ctx, "files", FILES);
   const pf = columnsOf(ctx, "providerFiles", PROVIDER_FILES);
   const d = columnsOf(ctx, "documents", DOCUMENTS);
-  const v = columnsOf(ctx, "versions", VERSIONS);
   const sg = columnsOf(ctx, "suggestions", SUGGESTIONS);
   const files = ctx.table("files");
   const providerFiles = ctx.table("providerFiles");
   const documents = ctx.table("documents");
-  const versions = ctx.table("versions");
+  const versionsBlock = ctx.of("versions");
+  const versions = versionsBlock.table("versions");
+  const v = (column: string): string => versionsBlock.col("versions", column);
+  const subject = sqlString(aiDocumentSubject(ctx));
   const suggestions = ctx.table("suggestions");
   const permissions = moduleOperations("ai-files");
   const upload = ctx.permission("upload", permissions.upload);
@@ -192,7 +196,22 @@ function build(ctx: BlockSqlContext): string {
     `jsonb_build_object('id', ${row}.${d.id}, 'organization_id', ${row}.${d.tenant}, 'owner_id', ${row}.${d.owner}, 'chat_id', ${row}.${d.chat}, 'kind', ${row}.${d.kind}, 'title', ${row}.${d.title}, 'current_version', ${row}.${d.version}, 'created_at', ${or("documents", row, "createdAt", "null")}, 'updated_at', ${or("documents", row, "updatedAt", "null")})`;
 
   const versionJson = (row: string): string =>
-    `jsonb_build_object('document_id', ${row}.${v.document}, 'version', ${row}.${v.version}, 'content', ${row}.${v.content}, 'storage_path', ${or("versions", row, "storagePath", "null")}, 'created_by_message_id', ${or("versions", row, "message", "null")}, 'created_by', ${or("versions", row, "createdBy", "null")}, 'created_at', ${or("versions", row, "createdAt", "null")})`;
+    `jsonb_build_object('document_id', ${row}.${v("subjectId")}::uuid, 'version', ${row}.${v("number")}, 'content', ${row}.${v("content")} ->> 'text', 'storage_path', ${row}.${v("storagePath")}, 'created_by_message_id', ${row}.${v("content")} ->> 'messageId', 'created_by', ${row}.${v("createdBy")}, 'created_at', ${row}.${v("createdAt")})`;
+
+  const ofDocument = (row: string, document: string): string =>
+    `${row}.${v("subjectType")} = ${subject} and ${row}.${v("subjectId")} = ${document}::text`;
+
+  // The next version of a document, through the versions block: numbered
+  // after the newest, skipped when nothing changed.
+  const writeVersion = (
+    document: string,
+    content: string,
+    storagePath: string,
+    message: string,
+    actor: string,
+    source: string,
+  ): string =>
+    `${versionsBlock.fn("version_insert")}(${document}.${d.tenant}, ${subject}, ${document}.${d.id}::text, jsonb_build_object('text', ${content}, 'messageId', ${message}), ${storagePath}, null, ${source}, false, ${actor})`;
 
   const suggestionJson = (row: string): string =>
     `jsonb_build_object('id', ${row}.${sg.id}, 'document_id', ${row}.${sg.document}, 'version', ${row}.${sg.version}, 'original_text', ${row}.${sg.original}, 'suggested_text', ${row}.${sg.suggested}, 'description', ${or("suggestions", row, "description", "null")}, 'created_by', ${or("suggestions", row, "createdBy", "null")}, 'created_at', ${or("suggestions", row, "createdAt", "null")}, 'resolved_at', ${row}.${sg.resolvedAt}, 'accepted', ${row}.${sg.accepted})`;
@@ -280,21 +299,6 @@ function build(ctx: BlockSqlContext): string {
     limit greatest(coalesce(batch, 100), 1)
   ) p`
     : "  select '[]'::jsonb";
-
-  const versionInsert = (
-    version: string,
-    content: string,
-    storagePath: string,
-    message: string,
-    createdBy: string,
-  ): readonly Pair[] => [
-    ["document", `v_row.${d.id}`],
-    ["version", version],
-    ["content", content],
-    ["storagePath", storagePath],
-    ["message", message],
-    ["createdBy", createdBy],
-  ];
 
   const suggestionInsert: readonly Pair[] = [
     ["document", `v_doc.${d.id}`],
@@ -387,7 +391,8 @@ ${create("providerFiles", [
 ${lockModuleTable(ctx, "providerFiles")}
 
 -- Documents an assistant writes and the user edits beside the chat (text,
--- code, sheets, images), with every version kept.
+-- code, sheets, images). Their versions live in the versions block, which
+-- keeps the newest ones by its keep option.
 ${create("documents", [
   ["id", `${d.id} uuid primary key default gen_random_uuid()`],
   ["tenant", `${d.tenant} ${id} not null`],
@@ -418,31 +423,24 @@ ${lockModuleTable(ctx, "documents", { read: true })}
 drop policy if exists ${tablePolicy("documents", ctx.naming.rename("ai_documents_read"))} on ${documents};
 ${renderPolicy(makePolicy({ table: documents, name: tablePolicy("documents", ctx.naming.rename("ai_documents_read")), command: "select", roles: ["authenticated"], using: readable("", d.owner, d.tenant, d.chat) }), { target: documents })}
 
-${create("versions", [
-  [
-    "document",
-    `${v.document} uuid not null references ${documents} (${d.id}) on delete cascade`,
-  ],
-  ["version", `${v.version} integer not null check (${v.version} >= 1)`],
-  ["content", `${v.content} text`],
-  ["storagePath", `${v.storagePath} text`],
-  ["message", `${v.message} text`],
-  [
-    "createdBy",
-    `${v.createdBy} uuid references auth.users (id) on delete set null`,
-  ],
-  ["createdAt", `${v.createdAt} timestamptz not null default now()`],
-  [null, `primary key (${v.document}, ${v.version})`],
-  [
-    null,
-    ctx.has("versions", "storagePath")
-      ? `check (${v.content} is not null or ${v.storagePath} is not null)`
-      : `check (${v.content} is not null)`,
-  ],
-])}${index("versions", "createdBy", `create index if not exists ${ctx.naming.rename("ai_document_versions_created_by_idx")} on ${versions} (${v.createdBy}) where ${v.createdBy} is not null;`)}
-${lockModuleTable(ctx, "versions", { read: true })}
-drop policy if exists ${tablePolicy("versions", ctx.naming.rename("ai_document_versions_read"))} on ${versions};
-${renderPolicy(makePolicy({ table: versions, name: tablePolicy("versions", ctx.naming.rename("ai_document_versions_read")), command: "select", roles: ["authenticated"], using: `exists (select 1 from ${documents} doc where doc.${d.id} = ${v.document})` }), { target: versions })}
+-- A document's versions live in the versions block (subject type
+-- ${aiDocumentSubject(ctx)}); they go with the document.
+create or replace function ${fn("ai_document_purge_versions")}()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  delete from ${versions} x where ${ofDocument("x", `old.${d.id}`)};
+  return old;
+end;
+$$;
+revoke execute on function ${fn("ai_document_purge_versions")}() from public, anon, authenticated;
+drop trigger if exists ${ctx.trigger("ai_document_purge_versions")} on ${documents};
+create trigger ${ctx.trigger("ai_document_purge_versions")}
+  after delete on ${documents}
+  for each row execute function ${fn("ai_document_purge_versions")}();
 
 ${create("suggestions", [
   ["id", `${sg.id} uuid primary key default gen_random_uuid()`],
@@ -744,6 +742,7 @@ as $$
 declare
   v_owner uuid := case when ${SERVICE_CALLER} then create_ai_document.owner else auth.uid() end;
   v_row ${documents}%rowtype;
+  v_version jsonb;
 begin
   if v_owner is null or not (${SERVICE_CALLER} or ${ctx.scope.can("create_ai_document.tenant", upload)}) then
     ${raise("you may not create documents here", "42501", "AI_DOCUMENT_FORBIDDEN")}
@@ -751,8 +750,10 @@ begin
   insert into ${documents} (${d.tenant}, ${d.owner}, ${d.chat}, ${d.kind}, ${d.title})
   values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, ${ctx.cast("documents", "kind", "create_ai_document.kind")}, create_ai_document.title)
   returning * into v_row;
-  insert into ${versions} (${columnList("versions", versionInsert("1", "create_ai_document.content", "create_ai_document.storage_path", "create_ai_document.message_id", "v_owner"))})
-  values (${valueList("versions", versionInsert("1", "create_ai_document.content", "create_ai_document.storage_path", "create_ai_document.message_id", "v_owner"))});
+  v_version := ${writeVersion("v_row", "create_ai_document.content", "create_ai_document.storage_path", "create_ai_document.message_id", "v_owner", "'manual'")};
+  update ${documents} x set ${d.version} = (v_version ->> 'number')::integer
+  where x.${d.id} = v_row.${d.id}
+  returning * into v_row;
   return ${documentJson("v_row")};
 end;
 $$;
@@ -775,6 +776,7 @@ set search_path = ''
 as $$
 declare
   v_row ${documents}%rowtype;
+  v_version jsonb;
 begin
   select * into v_row from ${documents} x where x.${d.id} = update_ai_document.document_id for update;
   if not found or not ${ownDocument("v_row")} then
@@ -783,13 +785,12 @@ begin
   if expected_version is not null and expected_version <> v_row.${d.version} then
     ${raise("document % is at version %", "40001", "AI_DOCUMENT_CONFLICT", "document_id", `v_row.${d.version}`)}
   end if;
-  insert into ${versions} (${columnList("versions", versionInsert(`v_row.${d.version} + 1`, "update_ai_document.content", "update_ai_document.storage_path", "update_ai_document.message_id", "auth.uid()"))})
-  values (${valueList("versions", versionInsert(`v_row.${d.version} + 1`, "update_ai_document.content", "update_ai_document.storage_path", "update_ai_document.message_id", "auth.uid()"))});
+  v_version := ${writeVersion("v_row", "update_ai_document.content", "update_ai_document.storage_path", "update_ai_document.message_id", "auth.uid()", "'manual'")};
   update ${documents} x set
     ${sets(
       "documents",
       [
-        ["version", `v_row.${d.version} + 1`],
+        ["version", "(v_version ->> 'number')::integer"],
         ["title", `coalesce(update_ai_document.title, x.${d.title})`],
         ["updatedAt", "now()"],
       ],
@@ -811,22 +812,24 @@ set search_path = ''
 as $$
 declare
   v_row ${documents}%rowtype;
-  v_old ${versions}%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+  v_version jsonb;
 begin
   select * into v_row from ${documents} x where x.${d.id} = rollback_ai_document.document_id for update;
   if not found or not ${ownDocument("v_row")} then
     ${docNotFound}
   end if;
-  select * into v_old from ${versions} x where x.${v.document} = v_row.${d.id} and x.${v.version} = rollback_ai_document.version;
+  select x.${v("content")}, x.${v("storagePath")} into v_content, v_storage_path
+  from ${versions} x where ${ofDocument("x", `v_row.${d.id}`)} and x.${v("number")} = rollback_ai_document.version;
   if not found then
     ${raise("document % has no version %", "P0002", "AI_DOCUMENT_VERSION_NOT_FOUND", "document_id", "rollback_ai_document.version")}
   end if;
-  insert into ${versions} (${columnList("versions", versionInsert(`v_row.${d.version} + 1`, `v_old.${v.content}`, `v_old.${v.storagePath}`, "null", "auth.uid()"))})
-  values (${valueList("versions", versionInsert(`v_row.${d.version} + 1`, `v_old.${v.content}`, `v_old.${v.storagePath}`, "null", "auth.uid()"))});
+  v_version := ${writeVersion("v_row", "v_content ->> 'text'", "v_storage_path", "null::text", "auth.uid()", "'restore'")};
   update ${documents} x set ${sets(
     "documents",
     [
-      ["version", `v_row.${d.version} + 1`],
+      ["version", "(v_version ->> 'number')::integer"],
       ["updatedAt", "now()"],
     ],
     ", ",
@@ -838,30 +841,50 @@ end;
 $$;
 ${userGrant(`${fn("rollback_ai_document")}(uuid, integer)`)}
 
+-- The document with its current version's content, for a reader of it.
 create or replace function ${fn("get_ai_document")}(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select ${documentJson("x")} || jsonb_build_object('content', vv.${v.content}, 'storage_path', ${or("versions", "vv", "storagePath", "null")})
-  from ${documents} x
-  join ${versions} vv on vv.${v.document} = x.${d.id} and vv.${v.version} = x.${d.version}
-  where x.${d.id} = get_ai_document.document_id
+declare
+  v_row ${documents}%rowtype;
+  v_content jsonb;
+  v_storage_path text;
+begin
+  select * into v_row from ${documents} x where x.${d.id} = get_ai_document.document_id;
+  if not found or not (${SERVICE_CALLER} or ${readable("v_row.", d.owner, d.tenant, d.chat)}) then
+    return null;
+  end if;
+  select x.${v("content")}, x.${v("storagePath")} into v_content, v_storage_path
+  from ${versions} x where ${ofDocument("x", `v_row.${d.id}`)} and x.${v("number")} = v_row.${d.version};
+  return ${documentJson("v_row")} || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
+end;
 $$;
 ${userGrant(`${fn("get_ai_document")}(uuid)`)}
 
 -- Every version of a document the caller can read, newest first.
 create or replace function ${fn("list_ai_document_versions")}(document_id uuid)
 returns jsonb
-language sql
+language plpgsql
 stable
-security invoker
+security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(${versionJson("x")} order by x.${v.version} desc), '[]'::jsonb)
-  from ${versions} x where x.${v.document} = list_ai_document_versions.document_id
+declare
+  v_row ${documents}%rowtype;
+  v_versions jsonb;
+begin
+  select * into v_row from ${documents} x where x.${d.id} = list_ai_document_versions.document_id;
+  if not found or not (${SERVICE_CALLER} or ${readable("v_row.", d.owner, d.tenant, d.chat)}) then
+    return '[]'::jsonb;
+  end if;
+  select coalesce(jsonb_agg(${versionJson("x")} order by x.${v("number")} desc), '[]'::jsonb) into v_versions
+  from ${versions} x where ${ofDocument("x", `v_row.${d.id}`)};
+  return v_versions;
+end;
 $$;
 ${userGrant(`${fn("list_ai_document_versions")}(uuid)`)}
 
@@ -930,7 +953,8 @@ end;
 $$;
 ${userGrant(`${fn("resolve_ai_suggestion")}(uuid, boolean)`)}
 
--- Deletes a document and its versions; true when the caller could.
+-- Deletes a document and, through its trigger, its versions; true when the
+-- caller could.
 create or replace function ${fn("delete_ai_document")}(document_id uuid)
 returns boolean
 language plpgsql
@@ -969,6 +993,60 @@ values (${sqlString(bucket)}, ${sqlString(bucket)}, false, ${String(maxSize)}, $
 on conflict (id) do nothing;`;
 }
 
+// The data moves before the module files run, so the step creates the
+// versions table it copies into; the schema diff adds the rest.
+const TO_VERSIONS: BlockSqlUpgrade = {
+  from: 1,
+  description:
+    "Document versions move onto the versions block: each ai_document_versions row becomes a versions row of subject type ai_document, with its text and the message that wrote it in content, and the old table is dropped.",
+  sql: (ctx) => {
+    if (ctx.mode === "custom") {
+      return "";
+    }
+
+    const block = ctx.of("versions");
+    const v = (column: string): string => block.col("versions", column);
+    const d = columnsOf(ctx, "documents", DOCUMENTS);
+    const old = `${ctx.schema}.${sqlIdent(ctx.naming.rename("ai_document_versions"))}`;
+
+    const content =
+      "jsonb_build_object('text', x.content, 'messageId', x.created_by_message_id)";
+
+    const columns = [
+      "tenant",
+      "subjectType",
+      "subjectId",
+      "number",
+      "content",
+      "storagePath",
+      "contentHash",
+      "source",
+      "frozen",
+      "createdBy",
+      "createdAt",
+    ].map(v);
+
+    return `-- The versions table, so the document versions can move before the module files run.
+${versionsTableDdl(block)}
+
+do $$
+begin
+  if to_regclass(${sqlString(old)}) is null then
+    return;
+  end if;
+  insert into ${block.table("versions")} (${columns.join(", ")})
+  select doc.${d.tenant}, ${sqlString(aiDocumentSubject(ctx))}, x.document_id::text, x.version, ${content}, x.storage_path,
+    ${sha256Hex(`coalesce(${content}::text, '') || coalesce(x.storage_path, '')`)},
+    'manual', false, x.created_by, x.created_at
+  from ${old} x
+  join ${ctx.table("documents")} doc on doc.${d.id} = x.document_id
+  on conflict (${v("subjectType")}, ${v("subjectId")}, ${v("number")}) do nothing;
+  drop table ${old} cascade;
+end;
+$$;`;
+  },
+};
+
 export const AI_FILES: BlockSqlDefinition = {
   internal: ["ai_file_object_allowed"],
   name: "ai-files",
@@ -976,11 +1054,12 @@ export const AI_FILES: BlockSqlDefinition = {
   title: "AI files",
   description:
     "Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.",
-  requires: ["memberships", "permissions"],
+  requires: ["memberships", "permissions", "versions"],
   integrates: ["ai-chat"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
+  upgrades: [TO_VERSIONS],
   names: NAMES,
   contract,
   build,

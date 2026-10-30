@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:0f522a8a284da967cf6b5ba8b4e813573ea53d4bc246cdff10b89c3f1f0460c6
+-- @bsb-hash sha256:df204e39521b0100a4c6a7292f31e7fd26c47713e046e74e6651d924a33ae3e6
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -637,7 +637,7 @@ set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) || jsonb_build_object(
     'updates', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'incidentId', y."incident_id", 'status', y."status", 'body', y."body", 'public', y."public", 'authorId', y."author_id", 'createdAt', y."created_at") order by y."created_at", y."id"), '[]'::jsonb) from "better_supabase"."incident_updates" y where y."incident_id" = x."id"),
-    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
+    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'actions', '[]'::jsonb, 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
   )
   from "better_supabase"."incidents" x
   where x."id" = get_incident.incident_id
@@ -675,8 +675,8 @@ revoke execute on function "better_supabase"."list_incidents"(uuid, text, text, 
 grant execute on function "better_supabase"."list_incidents"(uuid, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
--- resolution and actionItems ([{ title, ownerId, done }]); a key left out
--- keeps its value.
+-- resolution and, without the tasks block, actionItems
+-- ([{ title, ownerId, done }]); a key left out keeps its value.
 create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -716,7 +716,7 @@ begin
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
@@ -754,7 +754,7 @@ begin
     raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
   null;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_incident_postmortem"(uuid) from public, anon;
@@ -1103,7 +1103,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:1bf483005e19e97f945a1c1533f6988abd0160bfb52bc304c30e733287b0240a
+-- @bsb-hash sha256:4288f18cab2864bb25d4429663b70530aee2bb6c5dc17fc05ff6abad934512cf
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1192,6 +1192,14 @@ begin
     drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortems";
     drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortems";
     drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortems";
+  exception when undefined_table or invalid_schema_name then null;
+  end;
+  begin
+    drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortem_actions";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortem_actions";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortem_actions";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortem_actions";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortem_actions";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -1360,6 +1368,27 @@ create policy incident_postmortems_read on "better_supabase"."incident_postmorte
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
+-- A postmortem's action items: each one is a task, so it is assigned, due
+-- and closed in the tasks block.
+create table if not exists "better_supabase"."incident_postmortem_actions" (
+  "id" uuid primary key default gen_random_uuid(),
+  "tenant_id" uuid not null,
+  "postmortem_id" uuid not null references "better_supabase"."incident_postmortems" ("id") on delete cascade,
+  "task_id" uuid not null references "better_supabase"."work_items" ("id") on delete cascade,
+  "created_at" timestamptz not null default now(),
+  unique ("postmortem_id", "task_id")
+);
+create index if not exists "incident_postmortem_actions_task_idx" on "better_supabase"."incident_postmortem_actions" ("task_id");
+create index if not exists "incident_postmortem_actions_tenant_idx" on "better_supabase"."incident_postmortem_actions" ("tenant_id");
+alter table "better_supabase"."incident_postmortem_actions" enable row level security;
+revoke all on "better_supabase"."incident_postmortem_actions" from public, anon, authenticated;
+grant select on "better_supabase"."incident_postmortem_actions" to authenticated;
+grant all on "better_supabase"."incident_postmortem_actions" to service_role;
+drop policy if exists incident_postmortem_actions_read on "better_supabase"."incident_postmortem_actions";
+create policy incident_postmortem_actions_read on "better_supabase"."incident_postmortem_actions"
+  for select to authenticated
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
+
 -- One status page per organization. Anonymous visitors read it only through
 -- public_status_page(slug), never through these tables.
 create table if not exists "better_supabase"."status_pages" (
@@ -1380,6 +1409,24 @@ drop policy if exists status_pages_read on "better_supabase"."status_pages";
 create policy status_pages_read on "better_supabase"."status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
+
+-- A postmortem's action items with their task's title, state and due date,
+-- for whoever reads the incident; empty for anyone else.
+create or replace function "better_supabase"."incident_postmortem_action_list"(postmortem_id uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'postmortemId', x."postmortem_id", 'taskId', x."task_id", 'title', k."title", 'state', k."state", 'dueAt', k."due_at", 'closedAt', k."closed_at", 'createdAt', x."created_at") order by x."created_at", k."number"), '[]'::jsonb)
+  from "better_supabase"."incident_postmortem_actions" x
+  join "better_supabase"."work_items" k on k."id" = x."task_id"
+  where x."postmortem_id" = incident_postmortem_action_list.postmortem_id
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', x."tenant_id", 'incidents.read'), false))
+$$;
+revoke execute on function "better_supabase"."incident_postmortem_action_list"(uuid) from public, anon;
+grant execute on function "better_supabase"."incident_postmortem_action_list"(uuid) to authenticated, service_role;
 
 -- Sets each component's status to the worst impact of the open incidents on
 -- it, and keeps the uptime history in step.
@@ -1788,7 +1835,7 @@ set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) || jsonb_build_object(
     'updates', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'incidentId', y."incident_id", 'status', y."status", 'body', y."body", 'public', y."public", 'authorId', y."author_id", 'createdAt', y."created_at") order by y."created_at", y."id"), '[]'::jsonb) from "better_supabase"."incident_updates" y where y."incident_id" = x."id"),
-    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
+    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'actions', "better_supabase"."incident_postmortem_action_list"(z."id"), 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
   )
   from "better_supabase"."incidents" x
   where x."id" = get_incident.incident_id
@@ -1826,8 +1873,8 @@ revoke execute on function "better_supabase"."list_incidents"(uuid, text, text, 
 grant execute on function "better_supabase"."list_incidents"(uuid, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
--- resolution and actionItems ([{ title, ownerId, done }]); a key left out
--- keeps its value.
+-- resolution and, without the tasks block, actionItems
+-- ([{ title, ownerId, done }]); a key left out keeps its value.
 create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -1852,8 +1899,8 @@ begin
   if jsonb_typeof(save_incident_postmortem.attrs) is distinct from 'object' then
     raise exception 'attrs must be an object' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
-  if save_incident_postmortem.attrs ? 'actionItems' and jsonb_typeof(save_incident_postmortem.attrs -> 'actionItems') is distinct from 'array' then
-    raise exception 'actionItems must be an array' using errcode = '22023', hint = 'INCIDENTS_INVALID';
+  if save_incident_postmortem.attrs ? 'actionItems' then
+    raise exception 'actionItems is read-only with the tasks block: add_incident_postmortem_action writes action items' using errcode = '22023', hint = 'INCIDENTS_INVALID';
   end if;
   insert into "better_supabase"."incident_postmortems" ("tenant_id", "incident_id", "author_id")
   values (v_row."tenant_id", v_row."id", auth.uid())
@@ -1863,11 +1910,10 @@ begin
     "impact" = case when save_incident_postmortem.attrs ? 'impact' then save_incident_postmortem.attrs ->> 'impact' else x."impact" end,
     "root_cause" = case when save_incident_postmortem.attrs ? 'rootCause' then save_incident_postmortem.attrs ->> 'rootCause' else x."root_cause" end,
     "resolution" = case when save_incident_postmortem.attrs ? 'resolution' then save_incident_postmortem.attrs ->> 'resolution' else x."resolution" end,
-    "action_items" = case when save_incident_postmortem.attrs ? 'actionItems' then save_incident_postmortem.attrs -> 'actionItems' else x."action_items" end,
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', "better_supabase"."incident_postmortem_action_list"(v_post."id"), 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
@@ -1914,11 +1960,79 @@ begin
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'postmortemId', v_post."id", 'incidentId', v_row."id")
   );
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', "better_supabase"."incident_postmortem_action_list"(v_post."id"), 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_incident_postmortem"(uuid) from public, anon;
 grant execute on function "better_supabase"."publish_incident_postmortem"(uuid) to authenticated, service_role;
+
+-- Adds an action item to a postmortem: creates the task through the tasks
+-- block, as the caller, and links it. The caller needs to write the incident
+-- and to create tasks.
+create or replace function "better_supabase"."add_incident_postmortem_action"(postmortem_id uuid, title text, assignee_id uuid default null, due_at timestamptz default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_post "better_supabase"."incident_postmortems"%rowtype;
+  v_task uuid;
+  v_id uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_post from "better_supabase"."incident_postmortems" x where x."id" = add_incident_postmortem_action.postmortem_id;
+  if not found then
+    raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_post."tenant_id", 'incidents.write'), false)) then
+    raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
+  end if;
+  v_task := ("better_supabase"."create_task"(
+    v_post."tenant_id",
+    jsonb_strip_nulls(jsonb_build_object('title', add_incident_postmortem_action.title, 'dueAt', add_incident_postmortem_action.due_at)),
+    case when add_incident_postmortem_action.assignee_id is null then '{}'::uuid[] else array[add_incident_postmortem_action.assignee_id] end
+  ) ->> 'id')::uuid;
+  insert into "better_supabase"."incident_postmortem_actions" ("tenant_id", "postmortem_id", "task_id")
+  values (v_post."tenant_id", v_post."id", v_task)
+  returning "id" into v_id;
+  return (select jsonb_build_object('id', x."id", 'postmortemId', x."postmortem_id", 'taskId', x."task_id", 'title', k."title", 'state', k."state", 'dueAt', k."due_at", 'closedAt', k."closed_at", 'createdAt', x."created_at") from "better_supabase"."incident_postmortem_actions" x join "better_supabase"."work_items" k on k."id" = x."task_id" where x."id" = v_id);
+end;
+$$;
+revoke execute on function "better_supabase"."add_incident_postmortem_action"(uuid, text, uuid, timestamptz) from public, anon;
+grant execute on function "better_supabase"."add_incident_postmortem_action"(uuid, text, uuid, timestamptz) to authenticated, service_role;
+
+-- Unlinks an action item from its postmortem and returns the postmortem.
+-- The task stays in the tasks block.
+create or replace function "better_supabase"."remove_incident_postmortem_action"(action_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_action "better_supabase"."incident_postmortem_actions"%rowtype;
+  v_post "better_supabase"."incident_postmortems"%rowtype;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select * into v_action from "better_supabase"."incident_postmortem_actions" x where x."id" = remove_incident_postmortem_action.action_id;
+  if not found then
+    raise exception 'postmortem action not found' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_ACTION_NOT_FOUND';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_action."tenant_id", 'incidents.write'), false)) then
+    raise exception 'not allowed to write postmortems' using errcode = '42501', hint = 'INCIDENTS_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."incident_postmortem_actions" x where x."id" = v_action."id";
+  select * into v_post from "better_supabase"."incident_postmortems" x where x."id" = v_action."postmortem_id";
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', "better_supabase"."incident_postmortem_action_list"(v_post."id"), 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+end;
+$$;
+revoke execute on function "better_supabase"."remove_incident_postmortem_action"(uuid) from public, anon;
+grant execute on function "better_supabase"."remove_incident_postmortem_action"(uuid) to authenticated, service_role;
 
 -- Creates or changes the organization's status page. A slug another
 -- organization uses fails with STATUS_PAGE_SLUG_TAKEN.
@@ -2211,6 +2325,27 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_pos
 create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortems" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope on "better_supabase"."incident_postmortem_actions";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."incident_postmortem_actions";
+create policy bsb_tenant_scope_select on "better_supabase"."incident_postmortem_actions" as restrictive
+  for select to public
+  using (
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')))
+  );
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."incident_postmortem_actions";
+create policy bsb_tenant_scope_insert on "better_supabase"."incident_postmortem_actions" as restrictive
+  for insert to public
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."incident_postmortem_actions";
+create policy bsb_tenant_scope_update on "better_supabase"."incident_postmortem_actions" as restrictive
+  for update to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."incident_postmortem_actions";
+create policy bsb_tenant_scope_delete on "better_supabase"."incident_postmortem_actions" as restrictive
+  for delete to public
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."status_pages";
 drop policy if exists bsb_tenant_scope_select on "better_supabase"."status_pages";
 create policy bsb_tenant_scope_select on "better_supabase"."status_pages" as restrictive
@@ -2263,7 +2398,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:dc229c31a744432bf2e18b833a0c6ee9323f660f8429ac686e6deda327f47121
+-- @bsb-hash sha256:10cd744cdaa1771e80054f1074593c02a28ea06da0362aec1ded7e6165d89e32
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2904,7 +3039,7 @@ set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "app_private"."incident_impacts" im join "app_private"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) || jsonb_build_object(
     'updates', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'incidentId', y."incident_id", 'status', y."status", 'body', y."body", 'public', y."public", 'authorId', y."author_id", 'createdAt', y."created_at") order by y."created_at", y."id"), '[]'::jsonb) from "app_private"."incident_updates" y where y."incident_id" = x."id"),
-    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "app_private"."incident_postmortems" z where z."incident_id" = x."id")
+    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'actions', '[]'::jsonb, 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "app_private"."incident_postmortems" z where z."incident_id" = x."id")
   )
   from "app_private"."incidents" x
   where x."id" = get_incident.incident_id
@@ -2942,8 +3077,8 @@ revoke execute on function "app_private"."list_incidents"(uuid, text, text, uuid
 grant execute on function "app_private"."list_incidents"(uuid, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
--- resolution and actionItems ([{ title, ownerId, done }]); a key left out
--- keeps its value.
+-- resolution and, without the tasks block, actionItems
+-- ([{ title, ownerId, done }]); a key left out keeps its value.
 create or replace function "app_private"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -2983,7 +3118,7 @@ begin
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."save_incident_postmortem"(uuid, jsonb) from public, anon;
@@ -3021,7 +3156,7 @@ begin
     raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
   null;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."publish_incident_postmortem"(uuid) from public, anon;
@@ -3370,7 +3505,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:81304e0956fa7c87729d45aec604e53efbe972b74eaf39240c896384e9ed68d7
+-- @bsb-hash sha256:a00b958adf55b06b052afff4e3236707b9b1b93eb8ca7bb59811c3c10764a7f9
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4006,7 +4141,7 @@ set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) || jsonb_build_object(
     'updates', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'incidentId', y."incident_id", 'status', y."status", 'body', y."body", 'public', y."public", 'authorId', y."author_id", 'createdAt', y."created_at") order by y."created_at", y."id"), '[]'::jsonb) from "better_supabase"."incident_updates" y where y."incident_id" = x."id"),
-    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
+    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'actions', '[]'::jsonb, 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
   )
   from "better_supabase"."incidents" x
   where x."id" = get_incident.incident_id
@@ -4044,8 +4179,8 @@ revoke execute on function "better_supabase"."list_incidents"(uuid, text, text, 
 grant execute on function "better_supabase"."list_incidents"(uuid, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
--- resolution and actionItems ([{ title, ownerId, done }]); a key left out
--- keeps its value.
+-- resolution and, without the tasks block, actionItems
+-- ([{ title, ownerId, done }]); a key left out keeps its value.
 create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -4085,7 +4220,7 @@ begin
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
@@ -4123,7 +4258,7 @@ begin
     raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
   null;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_incident_postmortem"(uuid) from public, anon;
@@ -4627,7 +4762,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:1d2073bef023e98b456b83ba43ecd9c9671a275f754efe567df3b541121126e0
+-- @bsb-hash sha256:2718c4e962367f785913f92cdfdf04c7e66fffdfd48200c2fde20feb2eb08937
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5254,7 +5389,7 @@ set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) || jsonb_build_object(
     'updates', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'incidentId', y."incident_id", 'status', y."status", 'body', y."body", 'public', y."public", 'authorId', y."author_id", 'createdAt', y."created_at") order by y."created_at", y."id"), '[]'::jsonb) from "better_supabase"."incident_updates" y where y."incident_id" = x."id"),
-    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
+    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'actions', '[]'::jsonb, 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
   )
   from "better_supabase"."incidents" x
   where x."id" = get_incident.incident_id
@@ -5292,8 +5427,8 @@ revoke execute on function "better_supabase"."list_incidents"(uuid, text, text, 
 grant execute on function "better_supabase"."list_incidents"(uuid, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
--- resolution and actionItems ([{ title, ownerId, done }]); a key left out
--- keeps its value.
+-- resolution and, without the tasks block, actionItems
+-- ([{ title, ownerId, done }]); a key left out keeps its value.
 create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -5333,7 +5468,7 @@ begin
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
@@ -5371,7 +5506,7 @@ begin
     raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
   null;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_incident_postmortem"(uuid) from public, anon;
@@ -5720,7 +5855,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:d86ec948951732fbbad593052311157eeb1018eab0d02d7eed3659a0dd6559f1
+-- @bsb-hash sha256:f62afbe11290c5f0fd78f0a39e51dfc42940be9623025a3b29245687f15e1599
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6356,7 +6491,7 @@ set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'title', x."title", 'description', x."description", 'severity', x."severity", 'status', x."status", 'public', x."public", 'commanderId', x."commander_id", 'startedAt', x."started_at", 'resolvedAt', x."resolved_at", 'createdBy', x."created_by", 'createdAt', x."created_at", 'updatedAt', x."updated_at", 'impacts', (select coalesce(jsonb_agg(jsonb_build_object('componentId', im."component_id", 'name', ic."name", 'impact', im."impact") order by ic."position", ic."name"), '[]'::jsonb) from "better_supabase"."incident_impacts" im join "better_supabase"."status_components" ic on ic."id" = im."component_id" where im."incident_id" = x."id")) || jsonb_build_object(
     'updates', (select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'incidentId', y."incident_id", 'status', y."status", 'body', y."body", 'public', y."public", 'authorId', y."author_id", 'createdAt', y."created_at") order by y."created_at", y."id"), '[]'::jsonb) from "better_supabase"."incident_updates" y where y."incident_id" = x."id"),
-    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
+    'postmortem', (select jsonb_build_object('id', z."id", 'incidentId', z."incident_id", 'summary', z."summary", 'impact', z."impact", 'rootCause', z."root_cause", 'resolution', z."resolution", 'actionItems', z."action_items", 'actions', '[]'::jsonb, 'status', z."status", 'publishedAt', z."published_at", 'authorId', z."author_id", 'createdAt', z."created_at", 'updatedAt', z."updated_at") from "better_supabase"."incident_postmortems" z where z."incident_id" = x."id")
   )
   from "better_supabase"."incidents" x
   where x."id" = get_incident.incident_id
@@ -6394,8 +6529,8 @@ revoke execute on function "better_supabase"."list_incidents"(uuid, text, text, 
 grant execute on function "better_supabase"."list_incidents"(uuid, text, text, uuid, timestamptz, integer) to authenticated, service_role;
 
 -- Writes the incident's postmortem. attrs: summary, impact, rootCause,
--- resolution and actionItems ([{ title, ownerId, done }]); a key left out
--- keeps its value.
+-- resolution and, without the tasks block, actionItems
+-- ([{ title, ownerId, done }]); a key left out keeps its value.
 create or replace function "better_supabase"."save_incident_postmortem"(incident_id uuid, attrs jsonb)
 returns jsonb
 language plpgsql
@@ -6435,7 +6570,7 @@ begin
     "updated_at" = now()
     where x."incident_id" = v_row."id"
     returning * into v_post;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."save_incident_postmortem"(uuid, jsonb) from public, anon;
@@ -6473,7 +6608,7 @@ begin
     raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
   null;
-  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
+  return jsonb_build_object('id', v_post."id", 'incidentId', v_post."incident_id", 'summary', v_post."summary", 'impact', v_post."impact", 'rootCause', v_post."root_cause", 'resolution', v_post."resolution", 'actionItems', v_post."action_items", 'actions', '[]'::jsonb, 'status', v_post."status", 'publishedAt', v_post."published_at", 'authorId', v_post."author_id", 'createdAt', v_post."created_at", 'updatedAt', v_post."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_incident_postmortem"(uuid) from public, anon;

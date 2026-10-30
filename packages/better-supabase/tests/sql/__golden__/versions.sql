@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:34ae0475c4ecc9285ce017beb50282536f15202400ac6775cff1a518845e6e8d
+-- @bsb-hash sha256:c52a7ca5959ff5a7842ec563f73fc5b3a3b4243d6f5aac43af1fbfa3723fa64c
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -368,7 +368,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false))) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then
@@ -490,7 +490,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:62b726bdbb1961196eb8dd18976cd5c5f114587276f019e1e022b4397d0f18af
+-- @bsb-hash sha256:e793b6dcf687919267a660b27a41fb5777c2982b1f9f5917bc19ee09cd8106d3
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -571,6 +571,10 @@ drop policy if exists versions_read on "better_supabase"."versions";
 create policy versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
+drop policy if exists versions_ai_documents on "better_supabase"."versions";
+create policy versions_ai_documents on "better_supabase"."versions" as restrictive
+  for select to authenticated
+  using ("subject_type" <> 'ai_document');
 
 -- Writes a version, numbered per subject. A version without a label whose
 -- content matches the latest is not written again; an auto snapshot within
@@ -644,7 +648,7 @@ declare
   v_content jsonb := snapshot_version.content;
   v_result jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and true)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', snapshot_version.tenant, 'versions.create'), false) and true and snapshot_version.subject_type <> 'ai_document')) then
     raise exception 'not allowed to snapshot this record' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_content is null and snapshot_version.storage_path is null then
@@ -686,7 +690,7 @@ as $$
 declare
   v_rows jsonb;
 begin
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and true)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', list_versions.tenant, 'versions.read'), false) and true and list_versions.subject_type <> 'ai_document')) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', v."id", 'number', v."number", 'label', v."label", 'source', v."source", 'frozen', v."frozen", 'contentHash', v."content_hash", 'storagePath', v."storage_path", 'subjectType', v."subject_type", 'subjectId', v."subject_id", 'createdBy', v."created_by", 'createdAt', v."created_at") order by v."number" desc), '[]'::jsonb) into v_rows
@@ -719,7 +723,7 @@ begin
   if not found then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and true)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'versions.read'), false) and true and v_row."subject_type" <> 'ai_document')) then
     raise exception 'not allowed to read these versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   return jsonb_build_object('id', v_row."id", 'number', v_row."number", 'label', v_row."label", 'source', v_row."source", 'frozen', v_row."frozen", 'contentHash', v_row."content_hash", 'storagePath', v_row."storage_path", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at") || jsonb_build_object('content', v_row."content");
@@ -789,7 +793,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.restore'), false) and true and true)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.restore'), false) and true and true and v_subject_type <> 'ai_document')) then
     raise exception 'not allowed to restore this version' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_content is null then
@@ -864,7 +868,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.create'), false) and true)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.create'), false) and true and v_subject_type <> 'ai_document')) then
     raise exception 'not allowed to label this version' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   update "better_supabase"."versions" set "label" = nullif(trim(label_version.label), '')
@@ -900,7 +904,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false) and v_subject_type <> 'ai_document')) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then
@@ -1031,7 +1035,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:d2227bb7c9bbe03d48d3d0df3e547fea5f94fabc08332bbde034bf66ce925c05
+-- @bsb-hash sha256:cd005fa0ec79cc97e37879b8448e791705ac1f49920e8d5e212f5c2dd553acc2
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1403,7 +1407,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false))) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then
@@ -1525,7 +1529,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:a34a2ddf531e7a237e8735459f85b27da082a81b164ccfe39c8a9f986e7847da
+-- @bsb-hash sha256:b308c0489b2b1d6feb72caa933630d41f8be6e5d7ff0d33a8963387052e30f93
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1892,7 +1896,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false))) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then
@@ -2102,7 +2106,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:e722f952c43fd5f253c710fa7acb5d8c3a690d94c9e44fda7cb003be1634cf1b
+-- @bsb-hash sha256:0fd094fba2b4f507ab61b32b51d67d98c97c20a5f8db152677f854db7fbc27d4
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2465,7 +2469,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false))) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then
@@ -2587,7 +2591,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@1 managed
--- @bsb-hash sha256:7dca87e6ff6b744cbfca4ce7add33672e3c1b6eee765a6bb80283de17372dd57
+-- @bsb-hash sha256:f040fc61c724a72f4a07d52349082d0858ae82f09f736d63af77ce9f8aa1baf8
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2954,7 +2958,7 @@ begin
   if v_subject_type is null then
     raise exception 'version not found' using errcode = 'P0002', hint = 'VERSION_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (coalesce(better_supabase.can('tenant', v_tenant, 'versions.manage'), false))) then
     raise exception 'not allowed to delete versions' using errcode = '42501', hint = 'VERSION_FORBIDDEN';
   end if;
   if v_frozen then

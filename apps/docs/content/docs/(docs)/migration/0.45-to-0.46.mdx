@@ -8,12 +8,15 @@ description: What to check when upgrading from better-supabase 0.45 to 0.46, whe
 keep working until the next minor, with a warning. The release also collects
 fixes reported by an app in production. Most of them add options; four can
 need a step: the regenerated module SQL, the PowerSync streams, a new doctor
-error and an import path.
+error and an import path. AI document versions move onto the versions block,
+and with the tasks block postmortem action items become tasks.
 
 | Section                                                 | Needs code                                   |
 | ------------------------------------------------------- | -------------------------------------------- |
 | [Permission keys](#permission-keys)                     | Run `codemod 0.46`, then check `ai.*` keys   |
 | [The SQL modules](#the-sql-modules)                     | Run `upgrade` and generate a migration       |
+| [AI document versions](#ai-document-versions)           | Run `upgrade`; copy a renamed table by hand  |
+| [Postmortem action items](#postmortem-action-items)     | With `tasks`, use `addPostmortemAction`      |
 | [PowerSync streams](#powersync-streams)                 | Upload the regenerated streams               |
 | [Access token hooks (BS421)](#access-token-hooks-bs421) | When doctor reports BS421                    |
 | [The rate limiter import](#the-rate-limiter-import)     | Optional; the old import still works         |
@@ -118,6 +121,42 @@ SQL and the migration:
 npx better-supabase@latest upgrade
 npx better-supabase@latest db diff -f upgrade_0_45
 ```
+
+## AI document versions
+
+AI documents keep their versions in the [versions](/docs/blocks/versions)
+block, so `ai-files` now requires `versions`. Each version is a `versions` row
+with `subject_type = 'ai_document'`, the document id as `subject_id`, and the
+text and the message that wrote it in `content` (`{ text, messageId }`).
+`better-supabase upgrade` writes a migration that creates the versions table
+when it is missing, copies the rows of `ai_document_versions` and drops that
+table. The client is unchanged: `documents.versions(documentId)` and
+`documents.rollback(documentId, version)` return the same shapes.
+
+Three things behave differently. An edit that leaves the text unchanged writes
+no version. A document keeps its latest 50 versions, the versions block's
+retention. Document versions stay private to ai-files: `list_versions` and the
+other versions functions refuse `ai_document` for members, and RLS hides those
+rows, so only the ai-files functions read them.
+
+The `blocks["ai-files"].tables.versions` key is gone. If you renamed or adopted
+`ai_document_versions`, the generated migration doesn't find it: copy its rows
+into the versions table yourself before you drop it. `codemod 0.46` lists the
+lines that name `ai_document_versions`.
+
+## Postmortem action items
+
+With the [tasks](/docs/blocks/tasks) block installed, postmortem action items
+are tasks. `addPostmortemAction(postmortemId, { title, assigneeId, dueAt })`
+creates one and links it in the new `incident_postmortem_actions` table,
+`removePostmortemAction(actionId)` removes the link, and a postmortem's
+`actions` lists the linked tasks. With `tasks`, `savePostmortem` refuses
+`actionItems` with `INCIDENTS_INVALID`. Without `tasks` nothing changes.
+
+`actionItems` and the `action_items` column are deprecated. They stay readable
+until the next minor, which removes them. Existing items aren't copied into
+tasks: add the ones that are still open with `addPostmortemAction`.
+`codemod 0.46` lists the lines that use `actionItems`.
 
 ## PowerSync streams
 
