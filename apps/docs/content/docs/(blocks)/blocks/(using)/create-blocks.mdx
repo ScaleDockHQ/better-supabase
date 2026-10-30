@@ -367,14 +367,15 @@ hands each consumed port to the block from the one block in the set that
 provides it, never by the key you gave it, and refuses two providers of one
 port or a missing `required` one.
 
-| Port          | Provided by     | Consumed by                                                              |
-| ------------- | --------------- | ------------------------------------------------------------------------ |
-| `notifier`    | `notifications` | ai-schedules (with `notification`), reminders (with `notification`)      |
-| `files`       | `ai-files`      | knowledge                                                                |
-| `attachments` | `attachments`   | drive, which downloads files through it                                  |
-| `workflows`   | `workflows`     | workflow-editor, which writes schedule triggers' schedules through it    |
-| `mailer`      | `mail-sync`     | sequences, which sends email steps through it                            |
-| `sink`        | search, metrics | none: each one lands in `sinks`, keyed like the block (see Outbox sinks) |
+| Port           | Provided by       | Consumed by                                                              |
+| -------------- | ----------------- | ------------------------------------------------------------------------ |
+| `notifier`     | `notifications`   | ai-schedules (with `notification`), reminders (with `notification`)      |
+| `files`        | `ai-files`        | knowledge                                                                |
+| `attachments`  | `attachments`     | drive, which downloads files through it                                  |
+| `recordAccess` | `access-requests` | drive, which requests and lists access to nodes through it               |
+| `workflows`    | `workflows`       | workflow-editor, which writes schedule triggers' schedules through it    |
+| `mailer`       | `mail-sync`       | sequences, which sends email steps through it                            |
+| `sink`         | search, metrics   | none: each one lands in `sinks`, keyed like the block (see Outbox sinks) |
 
 With a `notification` type, ai-schedules sends it to the task's user in the
 task's organization, keyed by the run id, with the data

@@ -111,3 +111,33 @@ that the node columns can't express.
   left for later.
 - Acknowledgements are contributed only when the app lists `drive_node` in
   `acknowledgements.on`. Unknown register filter keys are ignored.
+
+## Amendment: access requests, ownership transfer and the sharing policy (2026-10-30)
+
+- Access requests on nodes run through the access-requests block, not a
+  drive table. `driveSubject({ accessRequests })` declares the record team
+  those requests need, and the drive contributes an access grant with two
+  functions: `drive_grant_access` adds or removes a node grant marked
+  `access_request`, and `drive_access_approvers` names the node's top-role
+  holders, who approve when the record has no team lead. Ending a request
+  removes only the marked grant, so hand-made shares survive. The client
+  names the action (`read`, `comment` or `write`) instead of a drive role,
+  since the request is about what the member may do.
+- The access-requests client reaches the drive through a new
+  `recordAccess` port, optional for the drive, so the drive never imports
+  the block. `list_record_access_requests` serves both blocks.
+- An approved request is a grant, not a team row. Adding a node's team
+  member by hand widens the node's comments and attachments but not the
+  node itself; we document this instead of reading teams in drive RLS,
+  which would put a second source of truth on every drive read.
+- `drive_transfer_ownership` moves top-role grants and, with drives on,
+  drive grants and drive owners in one call, and `driveOffboardingSink`
+  runs it from `organization.member_removed` and `employee.offboarded`. It
+  throws on failure so the outbox retries.
+- The sharing policy is one organization setting, `drive.sharing`
+  (`{ guests, links }`), read through `drive_sharing(tenant)` with defaults
+  when the settings block is absent. Guests are refused with a trigger on
+  `guest_grants`, rendered by drive-files, because the guests block writes
+  that table itself. `links: "organization"` is checked where links open
+  (`drive_link`, `drive_link_upload`); `drive_share` to members is never
+  restricted.
