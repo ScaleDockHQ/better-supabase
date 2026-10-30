@@ -49,9 +49,22 @@ Drive sync (`drive_sync_batch`) already solves a small version of this with a
   `ctx.importing()` guards stock consumption, ledger and `accounting` posting,
   notifications, workflows and webhooks. Every SQL function that writes reads
   `import_run()`.
-- **Drive sync moves onto the map** in a later PR, keeping its signature and
-  adding content hashes and a `drive.sync.prune` option with `mark` and
-  `delete` (default `delete`).
+- **Drive sync writes the map.** With the `imports` block installed,
+  `drive_sync_batch` keeps its signature and records every mirrored node in
+  `import_records` (`source = 'drive:<connection>'`, `entity = 'drive_node'`,
+  `scope = <drive id>`) with a hash of what the provider sent. A node whose
+  hash is unchanged is not written, so the function returns the number of
+  nodes written, and a full listing finds the nodes it did not reach through
+  the record's `last_run_id` (a run ID derived from the connection and the
+  `sync_run` text). `blocks.drive.options.sync.prune` is `delete` (the
+  default: unlisted nodes are deleted, and a legal hold keeps its node) or
+  `mark` (unlisted nodes stay and their record gets `missing_since`, cleared
+  when they return). Without the `imports` block drive keeps its earlier
+  behavior: every listed node is upserted and stamped with `sync_run` in its
+  metadata, and `prune: 'mark'` is refused at render time, because the mark
+  has no place to live. A drive-local copy of the record map was rejected: it
+  would duplicate `import_records` for no gain, and the `imports` block is the
+  one place that records which external key became which row.
 
 ## Alternatives considered
 

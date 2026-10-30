@@ -697,6 +697,42 @@ describe("drive module", () => {
     expect(single).toContain("drive_hold");
   });
 
+  it("syncs on the imports record map when the block is installed", () => {
+    const withImports = sqlOf(
+      ["drive", "imports"],
+      "drive",
+      withOptions({ drives: true }),
+    );
+
+    expect(withImports).toContain("'drive:' || v_connection.");
+    expect(withImports).toContain("'drive_node'");
+    expect(withImports).toContain("item.changed");
+    expect(withImports).not.toContain("'syncRun'");
+
+    const alone = sqlOf(["drive"], "drive", withOptions({ drives: true }));
+
+    expect(alone).not.toContain("import_records");
+    expect(alone).toContain("'syncRun'");
+  });
+
+  it("marks unlisted nodes only with the imports block", () => {
+    const options = { drives: true, sync: { prune: "mark" } };
+
+    const marked = sqlOf(["drive", "imports"], "drive", withOptions(options));
+
+    expect(marked).toContain("missing_since");
+    expect(() => sqlOf(["drive"], "drive", withOptions(options))).toThrow(
+      /needs the imports block/,
+    );
+    expect(() =>
+      sqlOf(
+        ["drive", "imports"],
+        "drive",
+        withOptions({ drives: true, sync: { prune: "keep" } }),
+      ),
+    ).toThrow(/'mark' or 'delete'/);
+  });
+
   it("installs neither part in custom mode", () => {
     const custom: Layout = { modules: { drive: { mode: "custom" } } };
 

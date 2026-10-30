@@ -1378,4 +1378,171 @@ describe.skipIf(!live)("drive", () => {
       await s.close();
     }
   });
+
+  describe("sync on the imports record map", () => {
+    const IMPORT_MODULES = [...MODULES, "queue", "imports"];
+
+    const layoutFor = (prune: "mark" | "delete"): BlockSqlLayout => ({
+      ...DRIVES_LAYOUT,
+      modules: {
+        ...DRIVES_LAYOUT.modules,
+        drive: {
+          schema: "drive_it",
+          options: { drives: true, sync: { prune } },
+        },
+      },
+    });
+
+    const listing = (...ids: string[]): string =>
+      JSON.stringify(
+        ids.map((id) => ({
+          externalId: id,
+          parentExternalId: id === "root" ? null : "root",
+          name: id,
+          kind: id === "root" ? "folder" : "file",
+          metadata: { size: id.length },
+        })),
+      );
+
+    const open = async (prune: "mark" | "delete") => {
+      const s = await BlockSession.open(pool);
+      await s.install(IMPORT_MODULES, layoutFor(prune));
+      const owner = await s.user("owner");
+      const tenant = await s.organization(owner);
+
+      await s.asRole(owner);
+
+      const connection = await s.value<ConnectionRow>(
+        "drive_it.drive_connect($1, 'google-drive', 'Work')",
+        [tenant],
+      );
+
+      const mirror = await s.value<DriveRow>(
+        "drive_it.drive_create_drive($1, 'Work Drive', 'shared', null, $2)",
+        [tenant, connection.id],
+      );
+
+      await s.service();
+
+      const sync = (items: string, run: string, prune = false) =>
+        s.value<number>(
+          "drive_it.drive_sync_batch($1, $2::jsonb, 'root', $3, $4)",
+          [mirror.id, items, run, prune],
+        );
+
+      const records = () =>
+        s.rows<{ external_key: string; missing: boolean }>(
+          "select external_key, missing_since is not null as missing from better_supabase.import_records where source = $1 and entity = 'drive_node' order by external_key",
+          [`drive:${connection.id}`],
+        );
+
+      const versions = async () =>
+        Object.fromEntries(
+          (
+            await s.rows<{ external_id: string; version: string }>(
+              "select external_id, ctid::text as version from drive_it.drive_nodes where drive_id = $1",
+              [mirror.id],
+            )
+          ).map((row) => [row.external_id, row.version]),
+        );
+
+      return { s, mirror, sync, records, versions };
+    };
+
+    it("writes only new and changed nodes and deletes unlisted ones", async () => {
+      const { s, mirror, sync, records, versions } = await open("delete");
+
+      try {
+        expect(await sync(listing("root", "a", "b"), "run-1")).toBe(3);
+        expect((await records()).map((row) => row.external_key)).toEqual([
+          "a",
+          "b",
+          "root",
+        ]);
+
+        const before = await versions();
+
+        expect(await sync(listing("root", "a", "b"), "run-2")).toBe(0);
+        expect(await versions()).toEqual(before);
+
+        const changed = JSON.parse(listing("root", "a", "b")) as {
+          externalId: string;
+          name: string;
+        }[];
+
+        changed[2] = { ...changed[2]!, name: "b renamed" };
+
+        expect(await sync(JSON.stringify(changed), "run-3")).toBe(1);
+
+        const after = await versions();
+
+        expect(after["b"]).not.toBe(before["b"]);
+        expect(after["a"]).toBe(before["a"]);
+        expect(
+          await s.value<string>(
+            "(select name from drive_it.drive_nodes where drive_id = $1 and external_id = 'b')",
+            [mirror.id],
+          ),
+        ).toBe("b renamed");
+
+        expect(await sync(listing("root", "a"), "run-4", true)).toBe(0);
+        expect((await records()).map((row) => row.external_key)).toEqual([
+          "a",
+          "root",
+        ]);
+        expect(
+          await s.value<number>(
+            "(select count(*)::int from drive_it.drive_nodes where drive_id = $1)",
+            [mirror.id],
+          ),
+        ).toBe(2);
+
+        await s.client.query(
+          "update drive_it.drive_nodes set legal_hold_until = now() + interval '1 day' where external_id = 'a'",
+        );
+
+        await sync(listing("root"), "run-5", true);
+
+        expect(
+          (
+            await s.rows<{ external_id: string }>(
+              "select external_id from drive_it.drive_nodes where drive_id = $1 order by external_id",
+              [mirror.id],
+            )
+          ).map((row) => row.external_id),
+        ).toEqual(["a", "root"]);
+      } finally {
+        await s.close();
+      }
+    });
+
+    it("marks unlisted nodes missing and clears the mark when they return", async () => {
+      const { s, mirror, sync, records, versions } = await open("mark");
+
+      try {
+        await sync(listing("root", "a", "b"), "run-1");
+        await sync(listing("root", "a"), "run-2", true);
+
+        expect(await records()).toEqual([
+          { external_key: "a", missing: false },
+          { external_key: "b", missing: true },
+          { external_key: "root", missing: false },
+        ]);
+        expect(
+          await s.value<number>(
+            "(select count(*)::int from drive_it.drive_nodes where drive_id = $1)",
+            [mirror.id],
+          ),
+        ).toBe(3);
+
+        const before = await versions();
+
+        expect(await sync(listing("root", "a", "b"), "run-3", true)).toBe(0);
+        expect(await versions()).toEqual(before);
+        expect((await records()).every((row) => !row.missing)).toBe(true);
+      } finally {
+        await s.close();
+      }
+    });
+  });
 });

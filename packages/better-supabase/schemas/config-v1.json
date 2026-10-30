@@ -5027,7 +5027,8 @@
                 "default": 1048576
               },
               "quota": {},
-              "control": {}
+              "control": {},
+              "sync": {}
             }
           }
         }
