@@ -294,6 +294,14 @@ const deposit = await invoices
 
 An invoice with `pricesIncludeTax: true` counts tax out of its unit amounts instead of adding it. `create` takes it, a credit note copies it, and `invoice.pricesIncludeTax` reads it. An invoices table of yours without the `prices_include_tax` column refuses it (`INVOICE_PRICING_UNSUPPORTED`).
 
+## In the books
+
+With the [accounting](/docs/blocks/accounting#postings-from-other-blocks)
+block installed, issuing an invoice or credit note books it in the sales
+journal (the receivable against revenue and tax per rate), each payment or
+refund books in the bank journal, and voiding an invoice reverses its entry,
+in the same transaction. Charges and write-offs aren't booked yet.
+
 ## Aging
 
 `aging(organizationId, currency, asOf?)` sums what is owed in one currency by days past due: not yet due, 1 to 30, 31 to 60, 61 to 90 and over 90, with the total outstanding and the number of overdue invoices.

@@ -57,6 +57,24 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { accountingBlock } from "./manifest.ts";
 
+export { taxReportFormatOf } from "./postings.ts";
+
+export type {
+  AccountingBudget,
+  AccountingBudgetInput,
+  AccountingBudgetLine,
+  AccountingBudgetLineInput,
+  AccountingBudgetStatus,
+  AccountingPostings,
+  BudgetVsActual,
+  BudgetVsActualLine,
+  TaxReport,
+  TaxReportBox,
+  TaxReportCode,
+  TaxReportFile,
+  TaxReportFormat,
+} from "./postings.ts";
+
 export {
   accountingAccountInputSchema,
   accountingEntryInputSchema,
@@ -68,6 +86,7 @@ export { accountingEvents } from "./events.ts";
 
 export type {
   AccountingEntryPostedEventData,
+  AccountingBudgetEventData,
   AccountingEntryReversedEventData,
   AccountingEvents,
   AccountingPeriodEventData,

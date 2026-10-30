@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:11c86e8435e7057a403cc776ec15700e218125eb5f24ae39f5bdb1f23332548f
+-- @bsb-hash sha256:c640b5edb804fe5dd16596c328a103c6a89325d544320a63a677c9c77d744804
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -478,6 +478,7 @@ begin
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
+        
         null;
         v_count := v_count + 1;
       end if;
@@ -528,6 +529,7 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
       jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+    
     null;
   end if;
   return jsonb_build_object('transactionId', v_tx, 'leaseId', v_row."id", 'amount', record_rent_payment.amount::text,
@@ -653,7 +655,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:b0f970307053046c2f8a3b002d154b53b4cf8a8bc8101cdea445d2cd8e63eb69
+-- @bsb-hash sha256:2c62c8a400c0ec3e6e1a95aed8db2408ca7f7c4748672ba8cd28264837b45380
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1170,6 +1172,7 @@ begin
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
+        perform "better_supabase"."accounting_post_source"('lease_rent', v_charge."id"::text);
         perform "better_supabase".emit_event('lease.charged', jsonb_build_object('organizationId', v_charge."tenant_id", 'id', v_charge."id", 'leaseId', v_charge."lease_id", 'periodStart', v_charge."period_start", 'periodEnd', v_charge."period_end", 'amount', v_charge."amount"::text, 'currency', v_charge."currency", 'transactionId', v_charge."transaction_id"), 'lease-charges/' || v_charge."id"::text, (v_charge."tenant_id")::text, null, 'better-supabase/leases');
   perform better_supabase.audit_event(
     event_type => 'lease.charged',
@@ -1229,6 +1232,7 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
       jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+    perform "better_supabase"."accounting_post_source"('lease_payment', v_tx::text);
     perform "better_supabase".emit_event('lease.paid', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'transactionId', v_tx, 'amount', record_rent_payment.amount::text, 'currency', v_row."currency"), 'leases/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leases');
   perform better_supabase.audit_event(
     event_type => 'lease.paid',
@@ -1275,6 +1279,59 @@ end;
 $$;
 revoke execute on function "better_supabase"."list_lease_charges"(uuid, integer) from public, anon;
 grant execute on function "better_supabase"."list_lease_charges"(uuid, integer) to authenticated, service_role;
+
+-- The entry of a posted rent charge for accounting: the tenant's receivable
+-- against rent revenue.
+create or replace function "better_supabase"."accounting_lease_rent_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', y."tenant_id",
+    'entryDate', y."period_start",
+    'currency', y."currency",
+    'memo', left('Rent from ' || y."period_start"::text || ': ' || coalesce(v."title", ''), 500),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'receivable', 'debit', y."amount"::text, 'partyId', v."party_id"),
+      jsonb_build_object('role', 'revenue', 'credit', y."amount"::text))
+  )
+  from "better_supabase"."lease_charges" y join "better_supabase"."lease_agreements" v on v."id" = y."lease_id"
+  where y."id"::text = source_id and y."amount" <> 0
+$$;
+revoke execute on function "better_supabase"."accounting_lease_rent_lines"(text) from public, anon, authenticated;
+
+-- The entry of a rent payment for accounting: bank against the tenant's
+-- receivable.
+create or replace function "better_supabase"."accounting_lease_payment_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', v."tenant_id",
+    'entryDate', (y."effective_at" at time zone 'UTC')::date,
+    'currency', v."currency",
+    'reference', y."metadata" ->> 'reference',
+    'memo', left('Rent payment: ' || coalesce(v."title", ''), 500),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'bank', 'debit', p.amount::text),
+      jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', v."party_id"))
+  )
+  from "better_supabase"."ledger_transactions" y
+  join "better_supabase"."lease_agreements" v on v."id"::text = y."reference_id"
+  cross join lateral (
+    select sum(e."amount") as amount from "better_supabase"."ledger_entries" e
+    where e."transaction_id" = y."id" and e."amount" > 0
+  ) p
+  where y."id"::text = source_id and y."reference_type" = 'leases' and y."kind" = 'lease.payment'
+    and p.amount <> 0
+$$;
+revoke execute on function "better_supabase"."accounting_lease_payment_lines"(text) from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
@@ -1364,7 +1421,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:601e4200e98f83bddd8ed23c377f722a55feb6dbc27f98b1602f0ff3b5315d54
+-- @bsb-hash sha256:9df97c672db32351db695050ce8ed8f67e5aa927daaba7797895f585a0dcf9d4
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1846,6 +1903,7 @@ begin
         insert into "app_private"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
+        
         null;
         v_count := v_count + 1;
       end if;
@@ -1896,6 +1954,7 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
       jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+    
     null;
   end if;
   return jsonb_build_object('transactionId', v_tx, 'leaseId', v_row."id", 'amount', record_rent_payment.amount::text,
@@ -2021,7 +2080,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:e0a2ad59db68b866addb4edbcc06b20e6668c3c8dfb9b2a92f4f245e31ad05f9
+-- @bsb-hash sha256:9ae3923d49ef60d2d25b1617a857afd436c8ed6006286aada7189d995f4d482e
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2498,6 +2557,7 @@ begin
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
+        
         null;
         v_count := v_count + 1;
       end if;
@@ -2548,6 +2608,7 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
       jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+    
     null;
   end if;
   return jsonb_build_object('transactionId', v_tx, 'leaseId', v_row."id", 'amount', record_rent_payment.amount::text,
@@ -2778,7 +2839,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:8a66267d9249a5c9a96402949c6bd0da4f89cda5abc94eee46a2390d054e1322
+-- @bsb-hash sha256:4955f8989336a356cabdde686b0c7448f64eadc98ce4327b43ae81d2863ed8b5
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3261,6 +3322,7 @@ begin
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
+        
         null;
         v_count := v_count + 1;
       end if;
@@ -3311,6 +3373,7 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
       jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+    
     null;
   end if;
   return jsonb_build_object('transactionId', v_tx, 'leaseId', v_row."id", 'amount', record_rent_payment.amount::text,
@@ -3436,7 +3499,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:2f3e322fa9d894971568a68d0d10623887fcb2a64c7063fd5f5dc960f7d00103
+-- @bsb-hash sha256:b7609298e2dae5ee6b3d655d1d30496ef87bc414c2047cc8320666dc89371f77
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3913,6 +3976,7 @@ begin
         insert into "better_supabase"."lease_charges" ("org_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."org_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
+        
         null;
         v_count := v_count + 1;
       end if;
@@ -3963,6 +4027,7 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
       jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+    
     null;
   end if;
   return jsonb_build_object('transactionId', v_tx, 'leaseId', v_row."id", 'amount', record_rent_payment.amount::text,

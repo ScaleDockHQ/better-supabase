@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:f3e4d06dbca8698ae221234a1d3d38197ae415bb64a7486b77eb6b3dff93665a
+-- @bsb-hash sha256:b81a01c40981361f498453f0125222635a2659ae3dac5051b6cbf60d3111fd70
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -632,6 +632,7 @@ begin
       null;
     end if;
   end if;
+  
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_invoice_issue"(uuid)');
   begin
@@ -758,6 +759,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
@@ -895,6 +897,7 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -1025,6 +1028,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -1319,7 +1323,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:f32d95978e5b4adf975e7532c3c3f400d846dcaf30421b4226d52e5289eca661
+-- @bsb-hash sha256:fc48f4309f9a0ec66f4a46a15ffda67d608db2f1809906d4e1fcf9e7649d9479
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1957,6 +1961,7 @@ begin
       perform "better_supabase".emit_event('invoice.paid', jsonb_build_object('organizationId', v_original."tenant_id", 'invoiceId', v_original."id", 'subjectType', 'invoice', 'subjectId', v_original."id"::text, 'identifier', v_original."identifier", 'total', v_original."total"::text), 'invoices/' || v_original."id"::text, (v_original."tenant_id"::text)::text, null, 'better-supabase/invoices');
     end if;
   end if;
+  perform "better_supabase"."accounting_post_source"('invoice', v_row."id"::text);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_invoice_issue"(uuid)');
   begin
@@ -2083,6 +2088,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  perform "better_supabase"."accounting_post_source"('invoice_payment', v_payment::text);
   perform set_config('better_supabase.transition_reason', '', true);
   perform "better_supabase".emit_event('invoice.payment_recorded', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   if v_row."status" = 'paid' and v_was <> 'paid' then
@@ -2220,6 +2226,7 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice', v_row."id"::text);
   perform set_config('better_supabase.transition_reason', '', true);
   perform "better_supabase".emit_event('invoice.voided', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'reason', v_row."void_reason"), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
@@ -2370,6 +2377,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'invoice_payment', reverse_invoice_payment.payment::text);
   perform set_config('better_supabase.transition_reason', '', true);
   perform "better_supabase".emit_event('invoice.payment_reversed', jsonb_build_object('organizationId', v_row."tenant_id", 'invoiceId', v_row."id", 'subjectType', 'invoice', 'subjectId', v_row."id"::text, 'identifier', v_row."identifier", 'paymentId', reverse_invoice_payment.payment, 'reversalId', v_reversal, 'amount', v_amount::text, 'balance', (v_row."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = v_row."id"), 0) - v_row."credited_total" - v_row."paid_total")::text, 'reason', nullif(trim(reverse_invoice_payment.reason), '')), 'invoices/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/invoices');
   perform better_supabase.audit_event(
@@ -2675,6 +2683,87 @@ $$;
 revoke execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint, text) from public, anon;
 grant execute on function "better_supabase"."invoice_from_quote"(uuid, integer, bigint, text) to authenticated, service_role;
 
+-- The entry of an issued invoice or credit note for accounting: the receivable
+-- against revenue and tax per rate, mirrored for a credit note.
+create or replace function "better_supabase"."accounting_invoice_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  with inv as (
+    select x."id" as id, x."tenant_id" as tenant, x."issued_on" as issued_on, x."currency" as currency,
+      x."identifier" as identifier, x."title" as title, x."subtotal" as subtotal, x."tax_total" as tax_total,
+      x."total" as total, x."company_id"::text as party, x."prices_include_tax" as inclusive,
+      case when x."kind" = 'credit_note' then -1 else 1 end as sign
+    from "better_supabase"."invoices" x
+    where x."id"::text = source_id and x."status" not in ('draft', 'void')
+  ),
+  groups as (
+    select l."tax_rate_bps" as rate, l."tax_code" as code, sum(round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) as net,
+      sum((round(l."quantity" * l."unit_amount") - round(round(l."quantity" * l."unit_amount") * l."discount_bps" / 10000.0)) * l."tax_rate_bps" / case when inv.inclusive then 10000.0 + l."tax_rate_bps" else 10000.0 end) as tax
+    from "better_supabase"."invoice_lines" l cross join inv
+    where l."parent_id" = inv.id and true
+    group by 1, 2
+  ),
+  shares as (
+    select g.rate, g.code,
+      case when sum(g.net) over () = 0
+        then case when row_number() over w = count(*) over () then inv.subtotal else 0 end
+        else round(inv.subtotal * sum(g.net) over w / sum(g.net) over ()) - round(inv.subtotal * (sum(g.net) over w - g.net) / sum(g.net) over ())
+      end as net,
+      case when sum(g.tax) over () = 0
+        then case when row_number() over w = count(*) over () then inv.tax_total else 0 end
+        else round(inv.tax_total * sum(g.tax) over w / sum(g.tax) over ()) - round(inv.tax_total * (sum(g.tax) over w - g.tax) / sum(g.tax) over ())
+      end as tax
+    from groups g cross join inv
+    window w as (order by g.rate, g.code nulls first rows between unbounded preceding and current row)
+  )
+  select jsonb_build_object(
+    'organizationId', inv.tenant,
+    'entryDate', inv.issued_on,
+    'currency', inv.currency,
+    'reference', inv.identifier,
+    'memo', inv.title,
+    'lines', jsonb_build_array(jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'debit', (inv.sign * inv.total)::text, 'partyId', inv.party)))
+      || coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('role', 'revenue', 'credit', (inv.sign * s.net)::text, 'taxCode', s.code, 'taxRateBps', s.rate, 'partyId', inv.party))) from shares s where s.net <> 0), '[]'::jsonb)
+      || coalesce((select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('role', 'tax_payable', 'credit', (inv.sign * s.tax)::text, 'taxCode', s.code, 'taxRateBps', s.rate, 'partyId', inv.party))) from shares s where s.tax <> 0), '[]'::jsonb)
+  )
+  from inv
+$$;
+revoke execute on function "better_supabase"."accounting_invoice_lines"(text) from public, anon, authenticated;
+
+-- The entry of an invoice payment for accounting: bank against the receivable,
+-- the other way round for a refund.
+create or replace function "better_supabase"."accounting_invoice_payment_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', inv."tenant_id",
+    'entryDate', (y."effective_at" at time zone 'UTC')::date,
+    'currency', inv."currency",
+    'reference', coalesce(y."metadata" ->> 'reference', inv."identifier"),
+    'memo', 'Payment of ' || coalesce(inv."identifier", inv."title"),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'bank', 'debit', p.amount::text),
+      jsonb_strip_nulls(jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', inv."company_id"::text)))
+  )
+  from "better_supabase"."ledger_transactions" y
+  join "better_supabase"."invoices" inv on inv."id"::text = y."metadata" ->> 'invoiceId'
+  cross join lateral (
+    select sum(e."amount") as amount from "better_supabase"."ledger_entries" e
+    join "better_supabase"."ledger_accounts" a on a."id" = e."account_id"
+    where e."transaction_id" = y."id" and a."code" = 'invoices:cash:' || inv."currency"
+  ) p
+  where y."id"::text = source_id and y."reference_type" = 'invoices' and p.amount <> 0
+$$;
+revoke execute on function "better_supabase"."accounting_invoice_payment_lines"(text) from public, anon, authenticated;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2784,7 +2873,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:9233a66f982c45f4e19e70b67c6bbcd0712dca20bbbd9aa25e88c5c8da4c73f5
+-- @bsb-hash sha256:6e41de536eb07bbe2f913ec8e166cefd3c231c0225246cc8290319ba71a4b2f8
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3420,6 +3509,7 @@ begin
       null;
     end if;
   end if;
+  
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_invoice_issue"(uuid)');
   begin
@@ -3546,6 +3636,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
@@ -3683,6 +3774,7 @@ begin
   update "app_private"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -3813,6 +3905,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "app_private"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -4107,7 +4200,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:b3cb46cc26c0ef81a50d3c62d82a069bb84ae9cef76df5c0fa934b83f00a13cb
+-- @bsb-hash sha256:448a336e3c93d0f56dd0c61fd050a6b92ac6d565d6bd1cccf01108393002aab9
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4738,6 +4831,7 @@ begin
       null;
     end if;
   end if;
+  
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_invoice_issue"(uuid)');
   begin
@@ -4864,6 +4958,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
@@ -5001,6 +5096,7 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -5131,6 +5227,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -5587,7 +5684,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:c618a3771df02568bcca9655fad2e0e6f6d507f2bfc9b9f46dc5c843dc8dbb26
+-- @bsb-hash sha256:d7cc2663abba4547730a3d6ace16c9e72dccc9a22cc9cd103b61727d4d69234b
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6225,6 +6322,7 @@ begin
       null;
     end if;
   end if;
+  
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_invoice_issue"(uuid)');
   begin
@@ -6351,6 +6449,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
@@ -6488,6 +6587,7 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -6618,6 +6718,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return to_jsonb(v_row) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -6912,7 +7013,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@2 managed
--- @bsb-hash sha256:1303ce5e77a72165deb5d6487e4f2039503b1191e45ba930a4d0127236353310
+-- @bsb-hash sha256:186de8281b71fa5810d1d9fc2bdfbc6999b10f756323f250253fc41c82137e6a
 -- Invoices an organization sends its own customers: drafts with lines, a gapless number on issue, payments, credit notes, void and write-off, overdue and aging per currency, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7543,6 +7644,7 @@ begin
       null;
     end if;
   end if;
+  
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_invoice_issue"(uuid)');
   begin
@@ -7669,6 +7771,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   if v_row."status" = 'paid' and v_was <> 'paid' then
@@ -7806,6 +7909,7 @@ begin
   update "better_supabase"."invoices" x set "status" = 'void', "voided_at" = now(),
     "void_reason" = nullif(trim(void_invoice.reason), ''), "updated_at" = now()
   where x."id" = v_row."id" returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(
@@ -7936,6 +8040,7 @@ begin
     "paid_at" = case when (x."total" + coalesce((select sum(y."amount") from "better_supabase"."invoice_charges" y where y."invoice_id" = x."id"), 0) - x."credited_total" - x."paid_total") <= 0 then coalesce(x."paid_at", now()) end
   where x."id" = v_row."id" and x."status" in ('issued', 'partially_paid', 'paid')
   returning * into v_row;
+  
   perform set_config('better_supabase.transition_reason', '', true);
   null;
   return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id")) || jsonb_build_object('number', v_row."number"::text, 'paid_total', v_row."paid_total"::text, 'credited_total', v_row."credited_total"::text, 'list_total', v_row."list_total"::text, 'discount_total', v_row."discount_total"::text, 'subtotal', v_row."subtotal"::text, 'tax_total', v_row."tax_total"::text, 'total', v_row."total"::text) || jsonb_build_object(

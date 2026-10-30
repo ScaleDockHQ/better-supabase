@@ -46,6 +46,8 @@ export interface Books {
   readonly totalAssets: MoneyJson;
   readonly liabilitiesAndEquity: MoneyJson;
   readonly netIncome: MoneyJson;
+  /** Sales tax less purchase tax this year: owed when positive. */
+  readonly netTax: MoneyJson;
   readonly balanced: boolean;
 }
 
@@ -77,10 +79,11 @@ async function loadBooks(): Promise<Books | "not-set-up" | null> {
       ? yearStart.subtract({ years: 1 })
       : yearStart;
 
-  const [trial, sheet, pnl] = await Promise.all([
+  const [trial, sheet, pnl, tax] = await Promise.all([
     accounting.trialBalance(tenant, { until: today }).orThrow(),
     accounting.balanceSheet(tenant, { asOf: today }).orThrow(),
     accounting.profitAndLoss(tenant, { since, until: today }).orThrow(),
+    accounting.taxReport(tenant, since, today).orThrow(),
   ]);
 
   const json = (amount: bigint): MoneyJson =>
@@ -103,11 +106,12 @@ async function loadBooks(): Promise<Books | "not-set-up" | null> {
     totalAssets: json(sheet.totalAssets),
     liabilitiesAndEquity: json(sheet.totalLiabilities + sheet.totalEquity),
     netIncome: json(pnl.netIncome),
+    netTax: json(tax.netTax),
     balanced: sheet.balanced,
   };
 }
 
-/** The trial balance, balance sheet totals and this year's net income. */
+/** The trial balance, balance sheet totals and this year's net income and tax. */
 export function getBooks(): Promise<Loaded<Books | "not-set-up">> {
   return settle(loadBooks);
 }

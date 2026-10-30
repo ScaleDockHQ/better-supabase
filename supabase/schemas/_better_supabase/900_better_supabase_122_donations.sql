@@ -1,6 +1,6 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:d923418175d0f30454a3633098fd81a5737edb99d5502fe6692ecffefa09ad79
+-- @bsb-hash sha256:0b9dca9b146e6a97952b1b0f0f715f3af4c987204e65d48c466ace571dd604eb
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -357,6 +357,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    perform "better_supabase"."accounting_post_source"('gift', v_row."id"::text);
     perform "better_supabase".emit_event('donation.received', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'status', v_row."status"), 'donations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/donations');
   perform better_supabase.audit_event(
     event_type => 'donation.received',
@@ -397,6 +398,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'gift', v_row."id"::text);
     perform "better_supabase".emit_event('donation.refunded', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'status', v_row."status"), 'donations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/donations');
   perform better_supabase.audit_event(
     event_type => 'donation.refunded',
@@ -1193,6 +1195,28 @@ end;
 $$;
 revoke execute on function "better_supabase"."donations_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."donations_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
+
+-- The entry of a posted gift for accounting: bank against donation revenue.
+create or replace function "better_supabase"."accounting_gift_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', v."tenant_id",
+    'entryDate', v."received_on",
+    'currency', v."currency",
+    'memo', 'Gift',
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'bank', 'debit', v."amount"::text),
+      jsonb_build_object('role', 'revenue', 'credit', v."amount"::text, 'partyId', v."donor_id"))
+  )
+  from "better_supabase"."donations" v
+  where v."id"::text = source_id and v."status" = 'posted' and v."amount" <> 0
+$$;
+revoke execute on function "better_supabase"."accounting_gift_lines"(text) from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

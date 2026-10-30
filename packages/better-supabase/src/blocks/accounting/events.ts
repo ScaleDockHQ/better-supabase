@@ -62,6 +62,15 @@ export interface FiscalYearClosedEventData {
   readonly closingEntryId: string | null;
 }
 
+/** `accounting_budget.created` and `accounting_budget.updated`. */
+export interface AccountingBudgetEventData {
+  readonly organizationId: string;
+  readonly id: string;
+  readonly name: string;
+  readonly fiscalYear: number;
+  readonly status: "draft" | "approved" | "archived";
+}
+
 /** The events of the `accounting` block: type to data. */
 export type AccountingEvents = {
   readonly "accounting_entry.posted": AccountingEntryPostedEventData;
@@ -69,6 +78,8 @@ export type AccountingEvents = {
   readonly "accounting_period.closed": AccountingPeriodEventData;
   readonly "accounting_period.reopened": AccountingPeriodReopenedEventData;
   readonly "fiscal_year.closed": FiscalYearClosedEventData;
+  readonly "accounting_budget.created": AccountingBudgetEventData;
+  readonly "accounting_budget.updated": AccountingBudgetEventData;
 };
 
 /** The `accounting` block's event types, for its manifest and `onBlockEvent`. */
@@ -78,4 +89,6 @@ export const accountingEvents: Events<AccountingEvents> = defineEvents({
   "accounting_period.closed": event<AccountingPeriodEventData>(),
   "accounting_period.reopened": event<AccountingPeriodReopenedEventData>(),
   "fiscal_year.closed": event<FiscalYearClosedEventData>(),
+  "accounting_budget.created": event<AccountingBudgetEventData>(),
+  "accounting_budget.updated": event<AccountingBudgetEventData>(),
 });

@@ -197,6 +197,14 @@ own it. Approval posts on the ledger like a final approval; rejection sets
 the report and submit it again. The reports table takes optional
 `rejectedAt`, `decidedBy` and `decisionNote` columns. The service role decides for a user with `decidedBy` (`decided_by` in SQL), which is kept in the `decidedBy` column instead of an empty value; a member passing someone else, or `decidedBy` naming the owner, fails with the forbidden error. `decideExpense` takes `decidedBy` the same way.
 
+## In the books
+
+With the [accounting](/docs/blocks/accounting#postings-from-other-blocks)
+block installed, an approved report books in the purchase journal (the
+`expense` role against payable to the member) and its reimbursement in the
+bank journal, in the same transaction. Expenses without a report book
+nothing.
+
 ## Expenses without reports
 
 Map `tables.reports` and `tables.lines` to `null` and each expense is one row of `tables.expenses` instead: the block's own table, or yours. It needs neither the approvals block nor the ledger, and the app decides each expense, unless [approvals decide it](#approvals-for-expenses-without-reports). Without the ledger, the ledger's subjects (`ledger_account`) aren't registered either, so comments, messaging and search don't reach for its tables.

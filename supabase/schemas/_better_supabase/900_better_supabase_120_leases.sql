@@ -1,6 +1,6 @@
 -- better-supabase module: leases
 -- @bsb-block leases@2 managed
--- @bsb-hash sha256:405f14c0e88a832a82d5800bda9e05011e581d2e90cef4727c0415e224792b04
+-- @bsb-hash sha256:30a7beee38626aae5e695369e9a0e66becd256054c807dd0efaf2b4579ebbec6
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -561,6 +561,7 @@ begin
         insert into "better_supabase"."lease_charges" ("tenant_id", "lease_id", "period_start", "period_end", "amount", "currency", "transaction_id")
         values (v_row."tenant_id", v_row."id", v_start, v_end, v_row."rent", v_row."currency", v_tx)
         returning * into v_charge;
+        perform "better_supabase"."accounting_post_source"('lease_rent', v_charge."id"::text);
         perform "better_supabase".emit_event('lease.charged', jsonb_build_object('organizationId', v_charge."tenant_id", 'id', v_charge."id", 'leaseId', v_charge."lease_id", 'periodStart', v_charge."period_start", 'periodEnd', v_charge."period_end", 'amount', v_charge."amount"::text, 'currency', v_charge."currency", 'transactionId', v_charge."transaction_id"), 'lease-charges/' || v_charge."id"::text, (v_charge."tenant_id")::text, null, 'better-supabase/leases');
   perform better_supabase.audit_event(
     event_type => 'lease.charged',
@@ -620,6 +621,7 @@ begin
       v_row."currency"::text, 0::smallint, null, null, null, true, 'leases.read', 'leases', null), 'amount', record_rent_payment.amount)),
       'leases', v_row."id"::text, 'Rent payment', v_key, record_rent_payment.paid_at,
       jsonb_strip_nulls(jsonb_build_object('leaseId', v_row."id", 'reference', nullif(trim(record_rent_payment.reference), ''))));
+    perform "better_supabase"."accounting_post_source"('lease_payment', v_tx::text);
     perform "better_supabase".emit_event('lease.paid', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'transactionId', v_tx, 'amount', record_rent_payment.amount::text, 'currency', v_row."currency"), 'leases/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/leases');
   perform better_supabase.audit_event(
     event_type => 'lease.paid',
@@ -687,6 +689,59 @@ end;
 $$;
 revoke execute on function "better_supabase"."leases_subject_merge"(text, text, text) from public, anon, authenticated;
 comment on function "better_supabase"."leases_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
+
+-- The entry of a posted rent charge for accounting: the tenant's receivable
+-- against rent revenue.
+create or replace function "better_supabase"."accounting_lease_rent_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', y."tenant_id",
+    'entryDate', y."period_start",
+    'currency', y."currency",
+    'memo', left('Rent from ' || y."period_start"::text || ': ' || coalesce(v."title", ''), 500),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'receivable', 'debit', y."amount"::text, 'partyId', v."party_id"),
+      jsonb_build_object('role', 'revenue', 'credit', y."amount"::text))
+  )
+  from "better_supabase"."lease_charges" y join "better_supabase"."lease_agreements" v on v."id" = y."lease_id"
+  where y."id"::text = source_id and y."amount" <> 0
+$$;
+revoke execute on function "better_supabase"."accounting_lease_rent_lines"(text) from public, anon, authenticated;
+
+-- The entry of a rent payment for accounting: bank against the tenant's
+-- receivable.
+create or replace function "better_supabase"."accounting_lease_payment_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', v."tenant_id",
+    'entryDate', (y."effective_at" at time zone 'UTC')::date,
+    'currency', v."currency",
+    'reference', y."metadata" ->> 'reference',
+    'memo', left('Rent payment: ' || coalesce(v."title", ''), 500),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'bank', 'debit', p.amount::text),
+      jsonb_build_object('role', 'receivable', 'credit', p.amount::text, 'partyId', v."party_id"))
+  )
+  from "better_supabase"."ledger_transactions" y
+  join "better_supabase"."lease_agreements" v on v."id"::text = y."reference_id"
+  cross join lateral (
+    select sum(e."amount") as amount from "better_supabase"."ledger_entries" e
+    where e."transaction_id" = y."id" and e."amount" > 0
+  ) p
+  where y."id"::text = source_id and y."reference_type" = 'leases' and y."kind" = 'lease.payment'
+    and p.amount <> 0
+$$;
+revoke execute on function "better_supabase"."accounting_lease_payment_lines"(text) from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

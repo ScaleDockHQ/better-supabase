@@ -2500,7 +2500,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "assets"
+        "assets",
+        "accounting"
       ],
       "manifest": "inventory",
       "scopes": [
@@ -3714,7 +3715,8 @@ export const PRESET_CATALOG: PresetCatalog = {
         "notifications",
         "numbering",
         "quotes",
-        "relations"
+        "relations",
+        "accounting"
       ],
       "manifest": "invoices",
       "scopes": [
@@ -5008,7 +5010,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "outbox",
-        "audit"
+        "audit",
+        "accounting"
       ],
       "manifest": "leases",
       "scopes": [
@@ -5080,6 +5083,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "audit",
         "attachments",
         "employees",
+        "accounting",
         "approvals"
       ],
       "manifest": "expenses",
@@ -5196,6 +5200,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "outbox",
         "audit",
+        "accounting",
         "numbering"
       ],
       "manifest": "donations",
@@ -7299,6 +7304,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           "accounting_tax_code": {
             "table": "taxCodes",
             "singular": "accounting_tax_code"
+          },
+          "accounting_budget": {
+            "table": "budgets",
+            "singular": "accounting_budget"
           }
         },
         "tables": {
@@ -7394,6 +7403,19 @@ export const PRESET_CATALOG: PresetCatalog = {
               "account": "account_id",
               "reportBoxes": "report_boxes",
               "archivedAt": "archived_at",
+              "createdAt": "created_at",
+              "updatedAt": "updated_at"
+            }
+          },
+          "budgets": {
+            "name": "accounting_budgets",
+            "columns": {
+              "id": "id",
+              "tenant": "tenant_id",
+              "name": "name",
+              "fiscalYear": "fiscal_year",
+              "status": "status",
+              "createdBy": "created_by",
               "createdAt": "created_at",
               "updatedAt": "updated_at"
             }
@@ -7657,6 +7679,24 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "AccountingAccountInput"
+        },
+        {
+          "name": "AccountingBudget"
+        },
+        {
+          "name": "AccountingBudgetEventData"
+        },
+        {
+          "name": "AccountingBudgetInput"
+        },
+        {
+          "name": "AccountingBudgetLine"
+        },
+        {
+          "name": "AccountingBudgetLineInput"
+        },
+        {
+          "name": "AccountingBudgetStatus"
         },
         {
           "name": "AccountingDimension"
@@ -8091,7 +8131,9 @@ export const PRESET_CATALOG: PresetCatalog = {
           "accounting_entry.reversed",
           "accounting_period.closed",
           "accounting_period.reopened",
-          "fiscal_year.closed"
+          "fiscal_year.closed",
+          "accounting_budget.created",
+          "accounting_budget.updated"
         ]
       }
     },

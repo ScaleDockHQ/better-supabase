@@ -1,6 +1,7 @@
 import type { ExtraColumn, BlockSqlContext } from "../context.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { bookSource, unbookSource } from "../accounting-sources-sql.ts";
 import { asColumnType } from "../column-type.ts";
 import {
   lineColumn,
@@ -769,6 +770,7 @@ begin
       ${record("invoice.paid", "v_original", `, 'total', v_original.${i("total")}::text`)}
     end if;
   end if;
+  ${bookSource(ctx, "invoice", `v_row.${i("id")}`)}
   ${ctx.hook("after_invoice_issue", [["uuid", `v_row.${i("id")}`]])}
   return ${row("v_row")};
 end;
@@ -829,6 +831,7 @@ begin
   v_was := v_row.${i("status")};
   ${transitionReasonSql("record_invoice_payment.reason")}
   v_payment := ${ledger.post("v_row", "record_invoice_payment.amount", "coalesce(record_invoice_payment.paid_at, now())", "record_invoice_payment.method", "v_reference", "nullif(trim(record_invoice_payment.note), '')")};${settle("v_row", afterWriteOff)}
+  ${bookSource(ctx, "invoice_payment", "v_payment")}
   ${transitionReasonSql()}
   ${record("invoice.payment_recorded", "v_row", `, 'paymentId', v_payment, 'amount', record_invoice_payment.amount::text, 'balance', ${balance("v_row")}::text`)}
   if ${st(`v_row.${i("status")}`, ["paid"])} and ${st("v_was", ["paid"], true)} then
@@ -966,6 +969,7 @@ begin
   update ${t("invoices")} x set ${i("status")} = ${ctx.value("invoices", "status", "void")}, ${i("voidedAt")} = now(),
     ${has("voidReason") ? `${i("voidReason")} = nullif(trim(void_invoice.reason), ''), ` : ""}${i("updatedAt")} = now()
   where x.${i("id")} = v_row.${i("id")} returning * into v_row;
+  ${unbookSource(ctx, "invoice", `v_row.${i("tenant")}`, `v_row.${i("id")}`)}
   ${transitionReasonSql()}
   ${record("invoice.voided", "v_row", `, 'reason', ${has("voidReason") ? `v_row.${i("voidReason")}` : "nullif(trim(void_invoice.reason), '')"}`, true)}
   return ${row("v_row")};
@@ -1034,6 +1038,7 @@ begin
   v_amount := ${ledger.paidTotal("v_row")};
   v_reversal := ${ledger.reverse("v_row", "reverse_invoice_payment.payment", "nullif(trim(reverse_invoice_payment.reason), '')")};
   v_amount := v_amount - ${ledger.paidTotal("v_row")};${settle("v_row")}
+  ${unbookSource(ctx, "invoice_payment", `v_row.${i("tenant")}`, "reverse_invoice_payment.payment")}
   ${transitionReasonSql()}
   ${record("invoice.payment_reversed", "v_row", `, 'paymentId', reverse_invoice_payment.payment, 'reversalId', v_reversal, 'amount', v_amount::text, 'balance', ${balance("v_row")}::text, 'reason', nullif(trim(reverse_invoice_payment.reason), '')`, true)}
   return ${row("v_row")};

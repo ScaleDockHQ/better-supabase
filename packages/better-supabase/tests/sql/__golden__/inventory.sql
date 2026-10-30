@@ -2512,7 +2512,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@3 managed
--- @bsb-hash sha256:57871ae24317943f80d0396a833ff45908dea335215eb6879abc297ca0f2be20
+-- @bsb-hash sha256:a5a574fcf3b224578ec5e7854e96ef440b73382681355312a27c4e5a54ca66de
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers and purchase orders with partial receiving.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3191,6 +3191,9 @@ begin
     move_stock.reference_type, move_stock.reference_id, move_stock.note, null, null,
     jsonb_strip_nulls(jsonb_build_object('variantId', move_stock.variant, 'locationId', move_stock.location, 'reason', move_stock.reason,
       'quantity', move_stock.quantity::text, 'unit', nullif(v_unit, 'item'))));
+  if v_value <> 0 then
+    perform "better_supabase"."accounting_post_source"('stock_movement', v_id::text);
+  end if;
   if v_serials is not null then
     update "better_supabase"."stock_serials" x set "movement_id" = v_id
     where x."variant_id" = move_stock.variant and x."serial" = any (v_serials);
@@ -4706,6 +4709,34 @@ end;
 $$;
 revoke execute on function "better_supabase"."cancel_purchase_order"(uuid) from public, anon;
 grant execute on function "better_supabase"."cancel_purchase_order"(uuid) to authenticated, service_role;
+
+-- The entry of a stock movement's value for accounting: inventory against the
+-- supplier, cost of goods sold or expense.
+create or replace function "better_supabase"."accounting_stock_movement_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', y."tenant_id",
+    'entryDate', (y."effective_at" at time zone 'UTC')::date,
+    'currency', a."unit",
+    'reference', y."reference_id",
+    'memo', 'Stock ' || (y."metadata" ->> 'reason'),
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'inventory', 'debit', e."amount"::text),
+      jsonb_build_object('role', case y."metadata" ->> 'reason' when 'receipt' then 'payable' when 'sale' then 'cogs' when 'return' then 'cogs' else 'expense' end,
+        'credit', e."amount"::text))
+  )
+  from "better_supabase"."ledger_transactions" y
+  join "better_supabase"."ledger_entries" e on e."transaction_id" = y."id"
+  join "better_supabase"."ledger_accounts" a on a."id" = e."account_id" and a."kind" = 'stock_value'
+  where y."id"::text = source_id and e."amount" <> 0
+  limit 1
+$$;
+revoke execute on function "better_supabase"."accounting_stock_movement_lines"(text) from public, anon, authenticated;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each

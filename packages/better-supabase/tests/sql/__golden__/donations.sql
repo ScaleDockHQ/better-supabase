@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:dd17815795c8a7c215bfe0b69f56083487c114fb80230c1bf67a0dffbd9efa56
+-- @bsb-hash sha256:3b4bfa06fbc9c51e9fb27eda662959cb35e5d18f4abd1af199b9ac0483ef62bb
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -358,6 +358,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   elsif donation_settle.status = 'failed' and v_row."status" = 'pending' then
     update "better_supabase"."donations" x set "status" = 'failed', "updated_at" = now()
@@ -380,6 +381,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'periodStart', v_row."period_start", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'receivedOn', v_row."received_on", 'method', v_row."method", 'status', v_row."status", 'provider', v_row."provider", 'paymentReference', v_row."payment_reference", 'transactionId', v_row."transaction_id", 'refundTransactionId', v_row."refund_transaction_id", 'receiptId', v_row."receipt_id", 'note', v_row."note", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
@@ -1095,7 +1097,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:caa59695bc1e1902f01c394b79617e1d3ba53e8bce316869e4cd1beb5f3d2cf9
+-- @bsb-hash sha256:f02e349ae1f82025663e2f8494bd71efdb76d3239745117d8c792aad485602fa
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1452,6 +1454,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    perform "better_supabase"."accounting_post_source"('gift', v_row."id"::text);
     perform "better_supabase".emit_event('donation.received', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'status', v_row."status"), 'donations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/donations');
   perform better_supabase.audit_event(
     event_type => 'donation.received',
@@ -1492,6 +1495,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    perform "better_supabase"."accounting_reverse_source"(v_row."tenant_id", 'gift', v_row."id"::text);
     perform "better_supabase".emit_event('donation.refunded', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'status', v_row."status"), 'donations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/donations');
   perform better_supabase.audit_event(
     event_type => 'donation.refunded',
@@ -2134,6 +2138,28 @@ $$;
 revoke execute on function "better_supabase"."yearly_giving_summary"(uuid, text, text, integer) from public, anon;
 grant execute on function "better_supabase"."yearly_giving_summary"(uuid, text, text, integer) to authenticated, service_role;
 
+-- The entry of a posted gift for accounting: bank against donation revenue.
+create or replace function "better_supabase"."accounting_gift_lines"(source_id text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'organizationId', v."tenant_id",
+    'entryDate', v."received_on",
+    'currency', v."currency",
+    'memo', 'Gift',
+    'lines', jsonb_build_array(
+      jsonb_build_object('role', 'bank', 'debit', v."amount"::text),
+      jsonb_build_object('role', 'revenue', 'credit', v."amount"::text, 'partyId', v."donor_id"))
+  )
+  from "better_supabase"."donations" v
+  where v."id"::text = source_id and v."status" = 'posted' and v."amount" <> 0
+$$;
+revoke execute on function "better_supabase"."accounting_gift_lines"(text) from public, anon, authenticated;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -2264,7 +2290,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:cc2fbb126e856420c80cb0701afdb00246dad02b400fffa5aea8e7f09d9151fa
+-- @bsb-hash sha256:daf38b599ea3ca6615786131e9d9b7d1e9c664cba0fd2be4d41b1be43e8e6d2e
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2626,6 +2652,7 @@ begin
     update "app_private"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   elsif donation_settle.status = 'failed' and v_row."status" = 'pending' then
     update "app_private"."donations" x set "status" = 'failed', "updated_at" = now()
@@ -2648,6 +2675,7 @@ begin
     update "app_private"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'periodStart', v_row."period_start", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'receivedOn', v_row."received_on", 'method', v_row."method", 'status', v_row."status", 'provider', v_row."provider", 'paymentReference', v_row."payment_reference", 'transactionId', v_row."transaction_id", 'refundTransactionId', v_row."refund_transaction_id", 'receiptId', v_row."receipt_id", 'note', v_row."note", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
@@ -3363,7 +3391,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:2374e099e738721a5e6db2255e76568397522cc76e378e5db15df45fe67a3618
+-- @bsb-hash sha256:b39768a5386343351c99e3b42783d1b964fec21d2cfa8eb26c7262574045fa30
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3720,6 +3748,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   elsif donation_settle.status = 'failed' and v_row."status" = 'pending' then
     update "better_supabase"."donations" x set "status" = 'failed', "updated_at" = now()
@@ -3742,6 +3771,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'periodStart', v_row."period_start", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'receivedOn', v_row."received_on", 'method', v_row."method", 'status', v_row."status", 'provider', v_row."provider", 'paymentReference', v_row."payment_reference", 'transactionId', v_row."transaction_id", 'refundTransactionId', v_row."refund_transaction_id", 'receiptId', v_row."receipt_id", 'note', v_row."note", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
@@ -4635,7 +4665,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:eddb0ee8867552dbd0453d111ccb842fc9dc02d17d5b25e808e3cc63f44c0549
+-- @bsb-hash sha256:4579393109c4406b0b1c98ccb0b3f2df48cf9ba4ad6b83431f81e2a5c0b1abd5
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4993,6 +5023,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   elsif donation_settle.status = 'failed' and v_row."status" = 'pending' then
     update "better_supabase"."donations" x set "status" = 'failed', "updated_at" = now()
@@ -5015,6 +5046,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'periodStart', v_row."period_start", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'receivedOn', v_row."received_on", 'method', v_row."method", 'status', v_row."status", 'provider', v_row."provider", 'paymentReference', v_row."payment_reference", 'transactionId', v_row."transaction_id", 'refundTransactionId', v_row."refund_transaction_id", 'receiptId', v_row."receipt_id", 'note', v_row."note", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
@@ -5730,7 +5762,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:f19416894fea09e3fe205755a900ce2e22f4e679b4e66337d3630b58ca3fe21f
+-- @bsb-hash sha256:417fd26c895a22857e6ebb2df4ae59d9a257f4cb251e80ac8f872bb99817b726
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6087,6 +6119,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'posted', "transaction_id" = v_tx, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   elsif donation_settle.status = 'failed' and v_row."status" = 'pending' then
     update "better_supabase"."donations" x set "status" = 'failed', "updated_at" = now()
@@ -6109,6 +6142,7 @@ begin
     update "better_supabase"."donations" x set "status" = 'refunded', "refund_transaction_id" = v_tx, "receipt_id" = null, "updated_at" = now()
       where x."id" = v_row."id"
       returning * into v_row;
+    
     null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'donorType', v_row."donor_type", 'donorId', v_row."donor_id", 'fundId', v_row."fund_id", 'pledgeId', v_row."pledge_id", 'periodStart', v_row."period_start", 'amount', v_row."amount"::text, 'currency', v_row."currency", 'receivedOn', v_row."received_on", 'method', v_row."method", 'status', v_row."status", 'provider', v_row."provider", 'paymentReference', v_row."payment_reference", 'transactionId', v_row."transaction_id", 'refundTransactionId', v_row."refund_transaction_id", 'receiptId', v_row."receipt_id", 'note', v_row."note", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");

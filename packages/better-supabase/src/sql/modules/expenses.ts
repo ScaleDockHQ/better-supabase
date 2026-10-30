@@ -9,8 +9,13 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import {
+  accountingContributions,
+  accountingSourcesSql,
+} from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { expenseAccountingSources } from "./expenses-accounting.ts";
 import {
   EXPENSE_REPORT_RESERVED,
   EXPENSE_REPORT_SUBJECT,
@@ -344,7 +349,7 @@ function build(ctx: BlockSqlContext): string {
 -- Expenses: reports of lines in categories, spend policies checked on
 -- submit, approval through the approvals block, and the approved total and
 -- its reimbursement posted on the ledger.
-${tables(ctx)}${expensesFunctions(ctx)}`;
+${tables(ctx)}${expensesFunctions(ctx)}${accountingSourcesSql(ctx, expenseAccountingSources(ctx))}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -411,6 +416,8 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 const CONTRIBUTES: BlockContributes = {
+  accounting: (own) =>
+    accountingContributions(own, expenseAccountingSources(own)),
   approvals: (own) =>
     standaloneApprovals(own)
       ? [
@@ -458,7 +465,7 @@ export const EXPENSES: BlockSqlDefinition = {
       ? REQUIRES.filter((name) => name !== "approvals")
       : [...REQUIRES];
   },
-  integrates: ["outbox", "audit", "attachments", "employees"],
+  integrates: ["outbox", "audit", "attachments", "employees", "accounting"],
   target: "schema",
   modes: ["managed", "custom"],
   names: NAMES,

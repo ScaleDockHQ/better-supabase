@@ -24,6 +24,12 @@ export type AccountingSqlOptions = {
   readonly fiscalYearStartMonth?: number;
   /** The account subtypes `save_accounting_account` accepts. */
   readonly subtypes?: readonly string[];
+  /**
+   * Whether the entries other blocks book (invoices, expenses, stock, rent,
+   * gifts) post at once (default `true`), or wait as drafts for an accountant
+   * to post.
+   */
+  readonly autoPost?: boolean;
 };
 
 export const accountingSqlOptions: BlockOptionsSchema<AccountingSqlOptions> =
@@ -33,4 +39,5 @@ export const accountingSqlOptions: BlockOptionsSchema<AccountingSqlOptions> =
     functionalCurrency: option.string({ default: "EUR" }),
     fiscalYearStartMonth: option.number({ default: 1 }),
     subtypes: option.strings(),
+    autoPost: option.boolean({ default: true }),
   });

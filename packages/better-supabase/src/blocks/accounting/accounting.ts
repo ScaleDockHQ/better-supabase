@@ -10,6 +10,7 @@ import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type { AccountingPostings } from "./postings.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -35,6 +36,7 @@ import {
   taxCodeOf,
   trialBalanceOf,
 } from "./decode.ts";
+import { accountingPostings } from "./postings.ts";
 
 export interface AccountingOptions<
   S extends StandardSchemaV1 | undefined = undefined,
@@ -81,6 +83,7 @@ export type AccountRole =
   | "fixed_asset"
   | "accumulated_depreciation"
   | "depreciation_expense"
+  | "expense"
   | "suspense";
 
 export type JournalType = "sales" | "purchase" | "bank" | "cash" | "general";
@@ -427,7 +430,9 @@ export interface FiscalYearClose {
   readonly closingEntryId?: string;
 }
 
-export interface Accounting<F extends object = Record<never, never>> {
+export interface Accounting<
+  F extends object = Record<never, never>,
+> extends AccountingPostings {
   /**
    * Sets the functional currency and fiscal year start, and with the `generic`
    * chart adds its accounts, roles and journals. Needs `accounting.manage`.
@@ -591,6 +596,7 @@ export function createAccounting<
   const period = (fn: string) => (value: unknown) => periodOf(value, fn);
 
   const client: Accounting<F> = {
+    ...accountingPostings(call),
     setup: (organizationId, input = {}) =>
       call(
         "setup_accounting",

@@ -8,11 +8,16 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { accountingBudgets } from "./accounting-budgets.ts";
 import {
   accountingCloseFunctions,
   accountingReportFunctions,
 } from "./accounting-close.ts";
 import { accountingEntryFunctions } from "./accounting-entries.ts";
+import {
+  accountingPostingFunctions,
+  accountingTaxReport,
+} from "./accounting-postings.ts";
 import { accountingSetupFunctions } from "./accounting-setup.ts";
 import { accountingConfig, ENTRY_RESERVED } from "./accounting-shared.ts";
 import { accountingTables } from "./accounting-tables.ts";
@@ -71,6 +76,14 @@ const EVENTS: BlockSqlEvents<AccountingEvents> = {
     subject: "fiscal-years",
     payload: ["organizationId", "fiscalYear", "closingEntryId"],
   },
+  "accounting_budget.created": {
+    subject: "accounting-budgets",
+    payload: ["organizationId", "id", "name", "fiscalYear", "status"],
+  },
+  "accounting_budget.updated": {
+    subject: "accounting-budgets",
+    payload: ["organizationId", "id", "name", "fiscalYear", "status"],
+  },
 };
 
 const tenantTable = { tenant: "tenant", export: true } as const;
@@ -94,6 +107,7 @@ const NAMES: BlockSqlNames = {
       singular: "accounting_dimension",
     },
     accounting_tax_code: { table: "taxCodes", singular: "accounting_tax_code" },
+    accounting_budget: { table: "budgets", singular: "accounting_budget" },
   },
   events: EVENTS,
   hooks: [
@@ -108,6 +122,7 @@ const NAMES: BlockSqlNames = {
     "functionalCurrency",
     "fiscalYearStartMonth",
     "subtypes",
+    "autoPost",
   ],
   tables: {
     settings: {
@@ -289,6 +304,35 @@ const NAMES: BlockSqlNames = {
         updatedAt: "updated_at",
       },
     },
+    budgets: {
+      name: "accounting_budgets",
+      app: {},
+      lifecycle: tenantTable,
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        name: "name",
+        fiscalYear: "fiscal_year",
+        status: "status",
+        createdBy: "created_by",
+        createdAt: "created_at",
+        updatedAt: "updated_at",
+      },
+    },
+    budgetLines: {
+      name: "accounting_budget_lines",
+      app: {},
+      lifecycle: tenantTable,
+      columns: {
+        id: "id",
+        tenant: "tenant_id",
+        budget: "budget_id",
+        account: "account_id",
+        periodNumber: "period_number",
+        dimensions: "dimensions",
+        amount: "amount",
+      },
+    },
   },
 };
 
@@ -303,8 +347,9 @@ function build(ctx: BlockSqlContext): string {
 -- Accounting: a chart of accounts with roles, journals, fiscal periods, and
 -- balanced journal entries in minor units of the organization's functional
 -- currency, with dimensions, exchange rates, tax codes, reports and the
--- period and year-end close.
-${accountingTables(ctx)}${accountingSetupFunctions(ctx)}${accountingEntryFunctions(ctx)}${accountingCloseFunctions(ctx)}${accountingReportFunctions(ctx)}`;
+-- period and year-end close, the documents other blocks book, tax reports
+-- and budgets.
+${accountingTables(ctx)}${accountingSetupFunctions(ctx)}${accountingEntryFunctions(ctx)}${accountingPostingFunctions(ctx)}${accountingCloseFunctions(ctx)}${accountingReportFunctions(ctx)}${accountingTaxReport(ctx)}${accountingBudgets(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -466,6 +511,32 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "date", "date"],
       returns: "jsonb",
     },
+    {
+      name: "post_accounting_source",
+      args: ["text", "text"],
+      returns: "jsonb",
+    },
+    {
+      name: "accounting_tax_report",
+      args: ["{id}", "date", "date"],
+      returns: "jsonb",
+    },
+    {
+      name: "save_accounting_budget",
+      args: ["{id}", "text", "integer", "text", "jsonb", "uuid"],
+      returns: "jsonb",
+    },
+    { name: "get_accounting_budget", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "list_accounting_budgets",
+      args: ["{id}", "integer"],
+      returns: "jsonb",
+    },
+    {
+      name: "accounting_budget_vs_actual",
+      args: ["uuid", "integer"],
+      returns: "jsonb",
+    },
   ];
 }
 
@@ -474,7 +545,7 @@ export const ACCOUNTING: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Accounting",
   description:
-    "Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, and the period and year-end close.",
+    "Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.",
   requires: ["memberships", "permissions"],
   integrates: ["outbox", "audit", "data-lifecycle"],
   target: "schema",

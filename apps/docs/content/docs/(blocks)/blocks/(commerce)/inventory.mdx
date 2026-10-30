@@ -259,6 +259,14 @@ await inventory.stockValuation(variantId).orThrow();
 // { costing: "average", averageCost: "200.000000", onHand: 10.5, value: money(2100n, "EUR"), ... }
 ```
 
+### In the books
+
+With the [accounting](/docs/blocks/accounting#postings-from-other-blocks)
+block installed, a movement of an item with average cost books its value in
+the general journal: a receipt against payable, a sale or return against
+cost of goods sold, and an adjustment against expense. Transfers and items
+without costing book nothing.
+
 ## Allocations
 
 An allocation holds stock for a document line, such as an order or a work

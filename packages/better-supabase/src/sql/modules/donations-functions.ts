@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { bookSource, unbookSource } from "../accounting-sources-sql.ts";
 import { assignNumberSql } from "../numbering-sql.ts";
 import {
   extraFieldsArg,
@@ -328,6 +329,7 @@ begin
     update ${donations} x set ${d("status")} = 'posted', ${d("transaction")} = v_tx, ${d("updatedAt")} = now()
       where x.${d("id")} = v_row.${d("id")}
       returning * into v_row;
+    ${bookSource(ctx, "gift", `v_row.${d("id")}`)}
     ${giftRecord("donation.received", "received a gift")}
   elsif donation_settle.status = 'failed' and v_row.${d("status")} = 'pending' then
     update ${donations} x set ${d("status")} = 'failed', ${d("updatedAt")} = now()
@@ -346,6 +348,7 @@ begin
     update ${donations} x set ${d("status")} = 'refunded', ${set("donations", "refundTransaction", "v_tx")}${d("receipt")} = null, ${d("updatedAt")} = now()
       where x.${d("id")} = v_row.${d("id")}
       returning * into v_row;
+    ${unbookSource(ctx, "gift", `v_row.${d("tenant")}`, `v_row.${d("id")}`)}
     ${giftRecord("donation.refunded", "refunded a gift")}
   end if;
   return ${giftJson("v_row")};

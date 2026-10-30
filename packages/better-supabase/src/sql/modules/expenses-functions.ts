@@ -1,6 +1,7 @@
 import type { BlockSqlContext, ExtraColumn } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { bookSource } from "../accounting-sources-sql.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -736,6 +737,7 @@ begin
   update ${reports} x set ${r("approvedAt")} = now()${alsoSet("reports", "approvalTransaction", "v_tx")}, ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
     returning * into v_row;${loadApproval}
+  ${bookSource(ctx, "expense_report", `v_row.${r("id")}`)}
   ${reportRecord("expense_report.approved", "approved an expense report", ", 'transactionId', v_tx", "billing")}
 end;
 $$;
@@ -769,6 +771,7 @@ begin${loadReport("reimburse_expense_report.report_id", true)}
   update ${reports} x set ${r("reimbursedAt")} = coalesce(reimburse_expense_report.paid_at, now())${alsoSet("reports", "reimbursement", "v_tx")}, ${r("updatedAt")} = now()
     where x.${r("id")} = v_row.${r("id")}
     returning * into v_row;
+  ${bookSource(ctx, "expense_reimbursement", `v_row.${r("id")}`)}
   ${reportRecord("expense_report.reimbursed", "reimbursed an expense report", ", 'transactionId', v_tx", "billing")}
   return ${reportJson("v_row", "v_approval")};
 end;

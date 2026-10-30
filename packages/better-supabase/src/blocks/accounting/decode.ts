@@ -37,7 +37,7 @@ import {
   textOf,
 } from "../shared.ts";
 
-const ACCOUNT_TYPES: readonly AccountType[] = [
+export const ACCOUNT_TYPES: readonly AccountType[] = [
   "asset",
   "liability",
   "equity",
@@ -60,6 +60,7 @@ const ACCOUNT_ROLES: readonly AccountRole[] = [
   "fixed_asset",
   "accumulated_depreciation",
   "depreciation_expense",
+  "expense",
   "suspense",
 ];
 
@@ -79,9 +80,9 @@ const ENTRY_STATUSES: readonly AccountingEntryStatus[] = [
   "reversed",
 ];
 
-const TAX_KINDS: readonly TaxCodeKind[] = ["sales", "purchase"];
+export const TAX_KINDS: readonly TaxCodeKind[] = ["sales", "purchase"];
 
-function optional<K extends string, V>(
+export function optional<K extends string, V>(
   key: K,
   value: V | undefined,
 ): { readonly [P in K]?: V } {
@@ -96,10 +97,10 @@ const optionalDate = (value: unknown): Temporal.PlainDate | undefined =>
     ? temporal().PlainDate.from(value)
     : undefined;
 
-const dateOf = (value: unknown): Temporal.PlainDate =>
+export const dateOf = (value: unknown): Temporal.PlainDate =>
   temporal().PlainDate.from(textOf(value));
 
-const numberOf = (value: unknown): number =>
+export const numberOf = (value: unknown): number =>
   typeof value === "number" ? value : Number(value ?? 0);
 
 const optionalNumber = (value: unknown): number | undefined =>
@@ -111,7 +112,7 @@ export const decimalOf = (value: unknown): string =>
 const optionalDecimal = (value: unknown): string | undefined =>
   value === null || value === undefined ? undefined : decimalOf(value);
 
-const textRecord = (value: unknown): Readonly<Record<string, string>> =>
+export const textRecord = (value: unknown): Readonly<Record<string, string>> =>
   isRecord(value)
     ? Object.fromEntries(
         Object.entries(value).flatMap(([key, item]) =>

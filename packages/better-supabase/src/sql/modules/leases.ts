@@ -8,10 +8,15 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import {
+  accountingContributions,
+  accountingSourcesSql,
+} from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { leaseAccountingSources } from "./leases-accounting.ts";
 import { LEASE_RESERVED, leasesFunctions } from "./leases-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -240,7 +245,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Leases: units (assets) let to parties, rent posted on the ledger once per
 -- period, and deposits held through ledger holds.
-${tables(ctx)}${leasesFunctions(ctx)}${partyMerges(ctx)}`;
+${tables(ctx)}${leasesFunctions(ctx)}${partyMerges(ctx)}${accountingSourcesSql(ctx, leaseAccountingSources(ctx))}`;
 }
 
 /**
@@ -316,7 +321,7 @@ export const LEASES: BlockSqlDefinition = {
   description:
     "Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.",
   requires: ["memberships", "permissions", "subjects", "assets", "ledger"],
-  integrates: ["outbox", "audit"],
+  integrates: ["outbox", "audit", "accounting"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,
@@ -329,6 +334,10 @@ export const LEASES: BlockSqlDefinition = {
     },
   ],
   names: NAMES,
+  contributes: {
+    accounting: (own) =>
+      accountingContributions(own, leaseAccountingSources(own)),
+  },
   contract,
   build,
 };
