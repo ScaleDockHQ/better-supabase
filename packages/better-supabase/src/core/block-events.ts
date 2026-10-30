@@ -639,6 +639,12 @@ export interface DriveEventData extends SubjectEventData {
   /** For `drive.node_unlocked`: someone other than the holder broke it. */
   readonly forced?: boolean;
   /**
+   * For `drive.node_ownership_transferred` and `drive.ownership_transferred`:
+   * the user who held the node or drive, and the user who holds it now.
+   */
+  readonly fromUserId?: string;
+  readonly toUserId?: string;
+  /**
    * For `drive.node_download_blocked_changed` and
    * `drive.download_blocked_changed`.
    */

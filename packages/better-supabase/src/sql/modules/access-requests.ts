@@ -357,6 +357,8 @@ function build(ctx: BlockSqlContext): string {
     max,
     approvals,
     membership,
+    status,
+    read,
   };
 
   const grantBranch = records
@@ -650,6 +652,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           {
             name: "review_emergency_access",
             args: ["uuid", "text", "text"],
+            returns: "jsonb",
+          },
+          {
+            name: "list_record_access_requests",
+            args: ["text", "text", "text", "integer"],
             returns: "jsonb",
           },
         ]

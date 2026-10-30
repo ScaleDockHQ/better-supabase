@@ -3,6 +3,7 @@ import type { DriveKit } from "./drive-kit.ts";
 import { sqlString } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { UUID_TEXT } from "./drive-kit.ts";
+import { linkPolicyCheck } from "./drive-ownership.ts";
 import { liveShareLink } from "./share-links.ts";
 
 /** The rate-limit scope of uploads through one file request link. */
@@ -115,7 +116,7 @@ begin
     and x.${n("tenant")}::text = v_link ->> 'organizationId'${live("x")};
   if not found or v_folder.${n("kind")} <> 'folder' then
     ${fail("DRIVE_LINK_NOT_FOUND", "this link does not open that item", "P0002")}
-  end if;
+  end if;${linkPolicyCheck(kit, `v_folder.${n("tenant")}`)}
   if ${readOnly("v_folder")} then
     ${fail("DRIVE_READ_ONLY", "this item mirrors an external account and is read-only", "42501")}
   end if;${uploadLimit}
@@ -164,7 +165,7 @@ begin
   end if;
   if v_role = 'upload' then
     ${fail("DRIVE_LINK_ROLE_INVALID", "an upload link takes files and opens nothing", "22023")}
-  end if;
+  end if;${linkPolicyCheck(kit, `v_node.${n("tenant")}`)}
   v_download := coalesce(v_download, true) and not ${fn("drive_download_blocked")}(v_node.${n("id")});
   return jsonb_build_object(
     'link', jsonb_build_object('id', v_link_id, 'role', v_role, 'nodeId', v_root::uuid, 'expiresAt', v_expires, 'downloadAllowed', v_download),

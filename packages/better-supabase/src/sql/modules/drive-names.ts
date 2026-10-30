@@ -74,6 +74,14 @@ const EVENTS: BlockSqlEvents<DriveEvents> = {
     subject: "drives",
     payload: [...SUBJECT, "principalType", "principalId"],
   },
+  "drive.node_ownership_transferred": {
+    subject: PATH_SEGMENT,
+    payload: [...SUBJECT, "fromUserId", "toUserId"],
+  },
+  "drive.ownership_transferred": {
+    subject: "drives",
+    payload: [...SUBJECT, "fromUserId", "toUserId"],
+  },
   "drive.connection_created": {
     subject: "drive-connections",
     payload: [...SUBJECT, "name"],
@@ -237,6 +245,7 @@ export const NAMES: BlockSqlNames = {
         team: "team_id",
         role: "role",
         expiresAt: "expires_at",
+        accessRequest: "access_request",
         createdBy: "created_by",
         createdAt: "created_at",
       },
@@ -246,6 +255,7 @@ export const NAMES: BlockSqlNames = {
         "user",
         "team",
         "expiresAt",
+        "accessRequest",
         "createdBy",
       ],
       typed: ["role"],

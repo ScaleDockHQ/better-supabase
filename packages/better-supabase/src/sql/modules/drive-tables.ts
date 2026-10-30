@@ -258,9 +258,11 @@ create index if not exists ${sqlIdent(`${ctx.tableName("grants").name}_team_prin
 ${grantIdentity}
   ${g("role")} text not null,
   ${g("expiresAt")} timestamptz,
+  ${g("accessRequest")} boolean not null default false,
   ${g("createdBy")} uuid default auth.uid(),
   ${g("createdAt")} timestamptz not null default now()${grantUnique ? "," : ""}
 ${grantUnique ? `${grantUnique}\n` : ""});
+alter table ${G} add column if not exists ${g("accessRequest")} boolean not null default false;
 ${grantIndexes}
 ${ensureCheck(G, "bsb_drive_grants_role", `${g("role")} = any (${grantRolesArray})`)}
 ${lockTable(G, { read: false })}

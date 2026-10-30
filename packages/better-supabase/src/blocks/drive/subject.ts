@@ -10,6 +10,11 @@ import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
  * `drive_node_writable` for custom field writes, and custom field values follow
  * the node's read grants. Search indexes each node's name and the start of the
  * text `createDriveText` stored for it, through the `drive_node_search` view.
+ *
+ * `accessRequests` lets members ask for access to a node through the
+ * access-requests block: it declares the record team those requests need
+ * (`read` by default), and an approved request becomes a node grant instead of
+ * a team row.
  */
 export function driveSubject(
   options: {
@@ -18,6 +23,8 @@ export function driveSubject(
     readonly table?: string;
     /** `blocks.drive.columns.nodes.tenant`. Default `tenant_id`. */
     readonly tenant?: string;
+    /** The actions members may request, or `true` for `["read"]`. */
+    readonly accessRequests?: true | readonly ("read" | "comment" | "write")[];
   } = {},
 ): SubjectConfig {
   const schema = options.schema ?? DEFAULT_BLOCK_SCHEMA;
@@ -35,6 +42,16 @@ export function driveSubject(
       fields: { check: `${schema}.drive_node_writable` },
     },
     readAccess: "record",
+    ...(options.accessRequests === undefined
+      ? {}
+      : {
+          team: {
+            actions:
+              options.accessRequests === true
+                ? ["read"]
+                : options.accessRequests,
+          },
+        }),
     search: {
       title: "name",
       body: ["content"],

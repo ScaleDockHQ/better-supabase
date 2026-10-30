@@ -36,6 +36,10 @@ export interface RecordAccessKit {
   readonly max: string | undefined;
   readonly approvals: BlockSqlContext;
   readonly membership: (tenant: string) => string;
+  /** A request's status over its row and its approval row. */
+  readonly status: (row: string, approval: string) => string;
+  /** The `access_requests.read` permission check. */
+  readonly read: string;
 }
 
 /** A record type a request can name, with the actions it can ask for. */
@@ -44,6 +48,8 @@ interface RequestableType {
   readonly actions: readonly string[];
   /** The accessGrant function that grants it instead of a team row. */
   readonly grant: string | undefined;
+  /** The accessGrant function that names approvers without a team lead. */
+  readonly approvers: string | undefined;
 }
 
 /**
@@ -115,11 +121,16 @@ function requestableTypes(ctx: BlockSqlContext): readonly RequestableType[] {
     }
   }
 
-  return withTeam.map((subject) => ({
-    subject,
-    actions: teamActions(subject),
-    grant: grants.find((each) => each.subject === subject.type)?.grant,
-  }));
+  return withTeam.map((subject) => {
+    const contribution = grants.find((each) => each.subject === subject.type);
+
+    return {
+      subject,
+      actions: teamActions(subject),
+      grant: contribution?.grant,
+      approvers: contribution?.approvers,
+    };
+  });
 }
 
 /** Request, emergency, review and list functions for record access. */
@@ -175,10 +186,30 @@ export function recordAccessSql(
 
   const reasonColumn = hasReason ? `${c("reason")}, ` : "";
 
+  const named = types.filter((each) => each.approvers !== undefined);
+
+  const approverFallback =
+    named.length === 0
+      ? ""
+      : `
+  if coalesce(cardinality(v_leads), 0) = 0 then
+    v_leads := case request_record_access.subject_type
+      ${named.map((each) => `when ${sqlString(each.subject.type)} then array_remove(${each.approvers}(request_record_access.subject_id), v_me)`).join("\n      ")}
+      else v_leads end;
+  end if;`;
+
+  const isApprover =
+    named.length === 0
+      ? "false"
+      : `coalesce(auth.uid() = any (case list_record_access_requests.subject_type
+      ${named.map((each) => `when ${sqlString(each.subject.type)} then ${each.approvers}(list_record_access_requests.subject_id)`).join("\n      ")}
+      end), false)`;
+
   return `
--- Asks for access to one record: its team leads approve, or the holders of
--- subjects.manage when it has no lead. The final approval adds a team row
--- (or the record's accessGrant) that ends after the duration.
+-- Asks for access to one record: its team leads approve, then the record's
+-- own approvers when its type names them, or the holders of subjects.manage.
+-- The final approval adds a team row (or the record's accessGrant) that ends
+-- after the duration.
 create or replace function ${fn("request_record_access")}(subject_type text, subject_id text, action text default 'read', reason text default null, duration interval default interval '7 days')
 returns jsonb
 language plpgsql
@@ -229,7 +260,7 @@ begin
   insert into ${requests} (${c("tenant")}, ${c("user")}, ${c("target")}, ${c("subjectType")}, ${c("subjectId")}, ${c("action")}, ${reasonColumn}${c("duration")})
   values (v_tenant, v_me, 'record', request_record_access.subject_type, request_record_access.subject_id, request_record_access.action, ${hasReason ? "request_record_access.reason, " : ""}v_duration)
   returning * into v_row;
-  v_leads := ${sfn("record_team_leads")}(request_record_access.subject_type, request_record_access.subject_id);
+  v_leads := ${sfn("record_team_leads")}(request_record_access.subject_type, request_record_access.subject_id);${approverFallback}
   v_approval := ${kit.approvals.fn("open_approval")}(
     v_tenant, 'access_request', v_row.${c("id")}::text, 'grant',
     ${sqlString(kit.policy)}::jsonb || jsonb_build_object('steps', jsonb_build_array(jsonb_build_object(
@@ -371,6 +402,47 @@ as $$
   ) items
 $$;
 ${userGrant(`${fn("list_emergency_access")}(${ctx.idType}, boolean, integer, timestamptz)`)}
+
+-- The access requests on one record, newest first: every one for a holder of
+-- access_requests.read, a team lead or one of the record's approvers, and the
+-- caller's own for anyone else.
+create or replace function ${fn("list_record_access_requests")}(subject_type text, subject_id text, status text default null, page_size integer default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+set intervalstyle = 'iso_8601'
+as $$
+#variable_conflict use_column
+declare
+  v_tenant ${ctx.idType};
+  v_all boolean;
+begin
+  v_tenant := ${sfn("record_team_tenant")}(list_record_access_requests.subject_type, list_record_access_requests.subject_id);
+  if v_tenant is null then
+    return '[]'::jsonb;
+  end if;
+  v_all := ${SERVICE_CALLER} or ${ctx.can("tenant", "v_tenant", kit.read)}
+    or coalesce(auth.uid() = any (${sfn("record_team_leads")}(list_record_access_requests.subject_type, list_record_access_requests.subject_id)), false)
+    or ${isApprover};
+  return (
+    select coalesce(jsonb_agg(item order by created desc), '[]'::jsonb)
+    from (
+      select ${json("r", kit.status("r", "x"))} as item, r.${c("createdAt")} as created
+      from ${requests} r
+      left join ${ar} x on x.${a("id")} = r.${c("approval")}
+      where r.${c("tenant")} = v_tenant and r.${c("target")} = 'record'
+        and r.${c("subjectType")} = list_record_access_requests.subject_type and r.${c("subjectId")} = list_record_access_requests.subject_id
+        and (v_all or r.${c("user")} = auth.uid())
+        and (list_record_access_requests.status is null or ${kit.status("r", "x")} = list_record_access_requests.status)
+      order by r.${c("createdAt")} desc
+      limit ${pageSize("list_record_access_requests.page_size", 50, 200)}
+    ) items
+  );
+end;
+$$;
+${userGrant(`${fn("list_record_access_requests")}(text, text, text, integer)`)}
 `;
 }
 

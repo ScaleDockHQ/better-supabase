@@ -19,6 +19,7 @@ import {
 import { labelTags, READ_ONLY_GUARD, UUID_TEXT } from "./drive-kit.ts";
 import { driveLinksSql } from "./drive-links.ts";
 import { lockGuard, subtreeLockGuard } from "./drive-locks.ts";
+import { guestPolicySql } from "./drive-ownership.ts";
 import { driveQuotaCheck, driveTextFunctionsSql } from "./drive-texts.ts";
 
 /**
@@ -992,7 +993,7 @@ drop trigger if exists ${ctx.trigger("drive_node_purged")} on ${T};
 create trigger ${ctx.trigger("drive_node_purged")}
   after delete on ${T}
   for each row execute function ${fn("drive_node_purged")}();
-${fileFunctions}${driveTextFunctionsSql(kit)}${revisionFunctions}${binFunctions}${stateFunctions}${driveLinksSql(kit)}${labelFunctions}${approvalFunctions}${driveDocumentsSql(kit)}`;
+${fileFunctions}${driveTextFunctionsSql(kit)}${revisionFunctions}${binFunctions}${stateFunctions}${driveLinksSql(kit)}${labelFunctions}${approvalFunctions}${driveDocumentsSql(kit)}${guestPolicySql(kit)}`;
 
   return late;
 }

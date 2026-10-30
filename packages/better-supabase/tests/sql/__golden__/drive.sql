@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:3bf40081ba74519b96ffc38dda1508e36efa0ffe099c0512254b3792e6f236af
+-- @bsb-hash sha256:91ef965486c49cbac7672ac4c201dcd0aef8be00402f9c65567e398352501965
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -133,10 +133,12 @@ create table if not exists "better_supabase"."drive_grants" (
   "principal_id" text not null,
   "role" text not null,
   "expires_at" timestamptz,
+  "access_request" boolean not null default false,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
+alter table "better_supabase"."drive_grants" add column if not exists "access_request" boolean not null default false;
 create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
 do $$
 begin
@@ -641,7 +643,7 @@ begin
   if drive_insert_node.parent is null and auth.uid() is not null then
     insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, 'owner')
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
   end if;
   null;
   declare
@@ -916,7 +918,7 @@ begin
       v_role := "better_supabase"."drive_role"(v_node."id");
       insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, v_role)
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
     end if;
     if drive_move.rank is null then
       select max(x."rank") into v_last from "better_supabase"."drive_nodes" x
@@ -1365,6 +1367,140 @@ create or replace view "better_supabase"."drive_node_search" with (security_invo
 revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_search" to service_role;
 
+
+-- The grant an approved access request on a node makes: the user gets the
+-- role that matches the action until ends_at, and loses it when ends_at is
+-- past. A grant of their own at that role or higher stays as it is; a lower
+-- one is replaced. Only access-requests calls it, as the service role.
+create or replace function "better_supabase"."drive_grant_access"(subject_id text, user_id uuid, action text, ends_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_role text := case drive_grant_access.action when 'read' then 'viewer' when 'comment' then 'editor' when 'write' then 'editor' end;
+begin
+  if drive_grant_access.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_grant_access.subject_id::uuid and x."deleted_at" is null;
+  if not found then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_role is null then
+    raise exception 'action must be read, comment or write' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
+  end if;
+  if drive_grant_access.ends_at is not null and drive_grant_access.ends_at <= now() then
+    delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and dg."access_request";
+    if found then
+      null;
+    end if;
+    return;
+  end if;
+  if exists (
+    select 1 from "better_supabase"."drive_grants" dg
+    where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and not dg."access_request"
+      and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], v_role::text), 0)
+      and (dg."expires_at" is null or dg."expires_at" > now())
+  ) then
+    return;
+  end if;
+  delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text;
+  insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role", "expires_at", "access_request", "created_by")
+  values (v_node."tenant_id", v_node."id", 'user', drive_grant_access.user_id::text, v_role, drive_grant_access.ends_at, true, auth.uid());
+  null;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_grant_access"(text, uuid, text, timestamptz) from public, anon, authenticated;
+
+create or replace function "better_supabase"."drive_access_approvers"(subject_id text)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if drive_access_approvers.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return '{}';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_access_approvers.subject_id::uuid;
+  if not found then
+    return '{}';
+  end if;
+  return coalesce((
+    select array_agg(mu."user_id" order by mu."user_id")
+    from "better_supabase"."memberships" mu
+    where mu."organization_id" = v_node."tenant_id" and mu."disabled_at" is null
+      and (exists (
+        select 1 from "better_supabase"."drive_grants" gr
+        where gr."node_id" = any ("better_supabase"."drive_ancestors"(v_node."id")) and (gr."expires_at" is null or gr."expires_at" > now())
+          and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], gr."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'owner'::text), 0)
+          and ((gr."principal_type" = 'user' and gr."principal_id" = mu."user_id"::text)
+      or (gr."principal_type" = 'team' and false)
+      or (gr."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = mu."organization_id" and mr."user_id" = mu."user_id" and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))
+  ), '{}');
+end;
+$$;
+revoke execute on function "better_supabase"."drive_access_approvers"(text) from public, anon, authenticated;
+
+-- Hands every item one member holds at owner in an organization to
+-- another member: their owner grants on nodes and drives, and the drives they
+-- own. The new holder keeps one grant per item. Needs drive.manage.
+create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_grant "better_supabase"."drive_grants"%rowtype;
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_drive_ids uuid[] := '{}';
+  v_nodes integer := 0;
+  v_drives integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
+    raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
+    or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
+    raise exception 'name two different users to transfer between' using errcode = '22023', hint = 'DRIVE_TRANSFER_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."memberships" mu
+    where mu."organization_id" = drive_transfer_ownership.tenant and mu."user_id" = drive_transfer_ownership.to_user and mu."disabled_at" is null
+  ) then
+    raise exception 'the new owner is not an active member of this organization' using errcode = 'P0002', hint = 'DRIVE_PRINCIPAL_NOT_FOUND';
+  end if;
+  for v_grant in
+    select gr.* from "better_supabase"."drive_grants" gr
+    where gr."tenant_id" = drive_transfer_ownership.tenant and gr."role"::text = 'owner'
+      and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.from_user::text
+  loop
+    delete from "better_supabase"."drive_grants" gr where gr."node_id" = v_grant."node_id" and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.to_user::text;
+    update "better_supabase"."drive_grants" set "principal_id" = drive_transfer_ownership.to_user::text where "id" = v_grant."id";
+    select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_grant."node_id";
+    v_nodes := v_nodes + 1;
+    null;
+  end loop;
+  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -1453,7 +1589,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:ded7f7aec0abb0231ba0bb321fe569d79cd147d436c1d01e2ab378902318a599
+-- @bsb-hash sha256:f107771648f890c2685bd87abee68f51b2d2f291de1e1531a45820a566459893
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1585,10 +1721,12 @@ create table if not exists "better_supabase"."drive_grants" (
   "principal_id" text not null,
   "role" text not null,
   "expires_at" timestamptz,
+  "access_request" boolean not null default false,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
+alter table "better_supabase"."drive_grants" add column if not exists "access_request" boolean not null default false;
 create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
 do $$
 begin
@@ -1820,6 +1958,9 @@ begin
   end if;
   if drive_share_link_allowed.role = 'upload' and v_node."kind" <> 'folder' then
     raise exception 'an upload link names a folder' using errcode = '22023', hint = 'DRIVE_LINK_ROLE_INVALID';
+  end if;
+  if "better_supabase"."drive_sharing"(v_node."tenant_id") ->> 'links' = 'none' then
+    raise exception 'this organization has turned off share links' using errcode = '42501', hint = 'DRIVE_SHARING_DISABLED';
   end if;
   return true;
 end;
@@ -2093,7 +2234,7 @@ begin
   if drive_insert_node.parent is null and auth.uid() is not null then
     insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, 'owner')
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
   end if;
   perform "better_supabase".emit_event('drive.node_created', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id", 'source', drive_insert_node.source), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
   perform better_supabase.audit_event(
@@ -2388,7 +2529,7 @@ begin
       v_role := "better_supabase"."drive_role"(v_node."id");
       insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, v_role)
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
     end if;
     if drive_move.rank is null then
       select max(x."rank") into v_last from "better_supabase"."drive_nodes" x
@@ -2917,6 +3058,183 @@ create or replace view "better_supabase"."drive_node_search" with (security_invo
 revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_search" to service_role;
 
+
+-- The grant an approved access request on a node makes: the user gets the
+-- role that matches the action until ends_at, and loses it when ends_at is
+-- past. A grant of their own at that role or higher stays as it is; a lower
+-- one is replaced. Only access-requests calls it, as the service role.
+create or replace function "better_supabase"."drive_grant_access"(subject_id text, user_id uuid, action text, ends_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_role text := case drive_grant_access.action when 'read' then 'viewer' when 'comment' then 'editor' when 'write' then 'editor' end;
+begin
+  if drive_grant_access.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_grant_access.subject_id::uuid and x."deleted_at" is null;
+  if not found then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_role is null then
+    raise exception 'action must be read, comment or write' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
+  end if;
+  if drive_grant_access.ends_at is not null and drive_grant_access.ends_at <= now() then
+    delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and dg."access_request";
+    if found then
+      perform "better_supabase".emit_event('drive.node_unshared', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', 'user', 'principalId', drive_grant_access.user_id::text), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_unshared',
+    category => 'access',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'access request ended',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', 'user', 'principalId', drive_grant_access.user_id::text)
+  );
+    end if;
+    return;
+  end if;
+  if exists (
+    select 1 from "better_supabase"."drive_grants" dg
+    where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and not dg."access_request"
+      and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], v_role::text), 0)
+      and (dg."expires_at" is null or dg."expires_at" > now())
+  ) then
+    return;
+  end if;
+  delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text;
+  insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role", "expires_at", "access_request", "created_by")
+  values (v_node."tenant_id", v_node."id", 'user', drive_grant_access.user_id::text, v_role, drive_grant_access.ends_at, true, auth.uid());
+  perform "better_supabase".emit_event('drive.node_shared', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', 'user', 'principalId', drive_grant_access.user_id::text, 'role', v_role), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_shared',
+    category => 'access',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'access request granted',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', 'user', 'principalId', drive_grant_access.user_id::text, 'role', v_role)
+  );
+end;
+$$;
+revoke execute on function "better_supabase"."drive_grant_access"(text, uuid, text, timestamptz) from public, anon, authenticated;
+
+create or replace function "better_supabase"."drive_access_approvers"(subject_id text)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if drive_access_approvers.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return '{}';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_access_approvers.subject_id::uuid;
+  if not found then
+    return '{}';
+  end if;
+  return coalesce((
+    select array_agg(mu."user_id" order by mu."user_id")
+    from "better_supabase"."memberships" mu
+    where mu."organization_id" = v_node."tenant_id" and mu."disabled_at" is null
+      and (exists (
+        select 1 from "better_supabase"."drive_grants" gr
+        where gr."node_id" = any ("better_supabase"."drive_ancestors"(v_node."id")) and (gr."expires_at" is null or gr."expires_at" > now())
+          and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], gr."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'owner'::text), 0)
+          and ((gr."principal_type" = 'user' and gr."principal_id" = mu."user_id"::text)
+      or (gr."principal_type" = 'team' and exists (select 1 from "better_supabase"."team_members" tm where tm."team_id"::text = gr."principal_id"::text and tm."user_id" = mu."user_id"))
+      or (gr."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = mu."organization_id" and mr."user_id" = mu."user_id" and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))
+  ), '{}');
+end;
+$$;
+revoke execute on function "better_supabase"."drive_access_approvers"(text) from public, anon, authenticated;
+
+-- Hands every item one member holds at owner in an organization to
+-- another member: their owner grants on nodes and drives, and the drives they
+-- own. The new holder keeps one grant per item. Needs drive.manage.
+create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_grant "better_supabase"."drive_grants"%rowtype;
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_drive_ids uuid[] := '{}';
+  v_nodes integer := 0;
+  v_drives integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
+    raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
+    or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
+    raise exception 'name two different users to transfer between' using errcode = '22023', hint = 'DRIVE_TRANSFER_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."memberships" mu
+    where mu."organization_id" = drive_transfer_ownership.tenant and mu."user_id" = drive_transfer_ownership.to_user and mu."disabled_at" is null
+  ) then
+    raise exception 'the new owner is not an active member of this organization' using errcode = 'P0002', hint = 'DRIVE_PRINCIPAL_NOT_FOUND';
+  end if;
+  for v_grant in
+    select gr.* from "better_supabase"."drive_grants" gr
+    where gr."tenant_id" = drive_transfer_ownership.tenant and gr."role"::text = 'owner'
+      and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.from_user::text
+  loop
+    delete from "better_supabase"."drive_grants" gr where gr."node_id" = v_grant."node_id" and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.to_user::text;
+    update "better_supabase"."drive_grants" set "principal_id" = drive_transfer_ownership.to_user::text where "id" = v_grant."id";
+    select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_grant."node_id";
+    v_nodes := v_nodes + 1;
+    perform "better_supabase".emit_event('drive.node_ownership_transferred', jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'fromUserId', drive_transfer_ownership.from_user::text, 'toUserId', drive_transfer_ownership.to_user::text), 'drive-nodes/' || v_node."id"::text, (v_node."tenant_id")::text, null, 'better-supabase/drive');
+  perform better_supabase.audit_event(
+    event_type => 'drive.node_ownership_transferred',
+    category => 'access',
+    target_type => 'drive_node',
+    record_id => v_node."id"::text,
+    target_label => v_node."name",
+    summary => 'ownership transferred',
+    tenant => (v_node."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_node."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'fromUserId', drive_transfer_ownership.from_user::text, 'toUserId', drive_transfer_ownership.to_user::text)
+  );
+  end loop;
+  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) to authenticated, service_role;
+
+-- The organization's drive.sharing setting over the defaults
+-- '{"guests": true, "links": "anyone"}'::jsonb.
+create or replace function "better_supabase"."drive_sharing"(tenant uuid)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select '{"guests": true, "links": "anyone"}'::jsonb || coalesce("better_supabase"."organization_setting"(drive_sharing.tenant, 'drive.sharing'), '{}'::jsonb)
+$$;
+revoke execute on function "better_supabase"."drive_sharing"(uuid) from public, anon, authenticated;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -3005,7 +3323,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:b62bcf092eae5aa8a33b37c3ad10cf69957241f0900e4a3dd05f216f9d2ad862
+-- @bsb-hash sha256:faa42643dff44dba8d337acd2d943c17257b555ad8565f6151abf7f4e4ee96da
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3142,10 +3460,12 @@ create table if not exists "app_private"."drive_grants" (
   "principal_id" text not null,
   "role" text not null,
   "expires_at" timestamptz,
+  "access_request" boolean not null default false,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
+alter table "app_private"."drive_grants" add column if not exists "access_request" boolean not null default false;
 create index if not exists "drive_grants_principal_idx" on "app_private"."drive_grants" ("principal_type", "principal_id");
 do $$
 begin
@@ -3650,7 +3970,7 @@ begin
   if drive_insert_node.parent is null and auth.uid() is not null then
     insert into "app_private"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, 'owner')
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
   end if;
   null;
   declare
@@ -3925,7 +4245,7 @@ begin
       v_role := "app_private"."drive_role"(v_node."id");
       insert into "app_private"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, v_role)
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
     end if;
     if drive_move.rank is null then
       select max(x."rank") into v_last from "app_private"."drive_nodes" x
@@ -4374,6 +4694,140 @@ create or replace view "app_private"."drive_node_search" with (security_invoker 
 revoke all on "app_private"."drive_node_search" from public, anon, authenticated;
 grant select on "app_private"."drive_node_search" to service_role;
 
+
+-- The grant an approved access request on a node makes: the user gets the
+-- role that matches the action until ends_at, and loses it when ends_at is
+-- past. A grant of their own at that role or higher stays as it is; a lower
+-- one is replaced. Only access-requests calls it, as the service role.
+create or replace function "app_private"."drive_grant_access"(subject_id text, user_id uuid, action text, ends_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "app_private"."drive_nodes"%rowtype;
+  v_role text := case drive_grant_access.action when 'read' then 'viewer' when 'comment' then 'editor' when 'write' then 'editor' end;
+begin
+  if drive_grant_access.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  select * into v_node from "app_private"."drive_nodes" x where x."id" = drive_grant_access.subject_id::uuid and x."deleted_at" is null;
+  if not found then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_role is null then
+    raise exception 'action must be read, comment or write' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
+  end if;
+  if drive_grant_access.ends_at is not null and drive_grant_access.ends_at <= now() then
+    delete from "app_private"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and dg."access_request";
+    if found then
+      null;
+    end if;
+    return;
+  end if;
+  if exists (
+    select 1 from "app_private"."drive_grants" dg
+    where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and not dg."access_request"
+      and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], v_role::text), 0)
+      and (dg."expires_at" is null or dg."expires_at" > now())
+  ) then
+    return;
+  end if;
+  delete from "app_private"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text;
+  insert into "app_private"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role", "expires_at", "access_request", "created_by")
+  values (v_node."tenant_id", v_node."id", 'user', drive_grant_access.user_id::text, v_role, drive_grant_access.ends_at, true, auth.uid());
+  null;
+end;
+$$;
+revoke execute on function "app_private"."drive_grant_access"(text, uuid, text, timestamptz) from public, anon, authenticated;
+
+create or replace function "app_private"."drive_access_approvers"(subject_id text)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "app_private"."drive_nodes"%rowtype;
+begin
+  if drive_access_approvers.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return '{}';
+  end if;
+  select * into v_node from "app_private"."drive_nodes" x where x."id" = drive_access_approvers.subject_id::uuid;
+  if not found then
+    return '{}';
+  end if;
+  return coalesce((
+    select array_agg(mu."user_id" order by mu."user_id")
+    from "better_supabase"."memberships" mu
+    where mu."organization_id" = v_node."tenant_id" and mu."disabled_at" is null
+      and (exists (
+        select 1 from "app_private"."drive_grants" gr
+        where gr."node_id" = any ("app_private"."drive_ancestors"(v_node."id")) and (gr."expires_at" is null or gr."expires_at" > now())
+          and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], gr."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'owner'::text), 0)
+          and ((gr."principal_type" = 'user' and gr."principal_id" = mu."user_id"::text)
+      or (gr."principal_type" = 'team' and false)
+      or (gr."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = mu."organization_id" and mr."user_id" = mu."user_id" and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))
+  ), '{}');
+end;
+$$;
+revoke execute on function "app_private"."drive_access_approvers"(text) from public, anon, authenticated;
+
+-- Hands every item one member holds at owner in an organization to
+-- another member: their owner grants on nodes and drives, and the drives they
+-- own. The new holder keeps one grant per item. Needs drive.manage.
+create or replace function "app_private"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_grant "app_private"."drive_grants"%rowtype;
+  v_node "app_private"."drive_nodes"%rowtype;
+  v_drive_ids uuid[] := '{}';
+  v_nodes integer := 0;
+  v_drives integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
+    raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
+    or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
+    raise exception 'name two different users to transfer between' using errcode = '22023', hint = 'DRIVE_TRANSFER_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."memberships" mu
+    where mu."organization_id" = drive_transfer_ownership.tenant and mu."user_id" = drive_transfer_ownership.to_user and mu."disabled_at" is null
+  ) then
+    raise exception 'the new owner is not an active member of this organization' using errcode = 'P0002', hint = 'DRIVE_PRINCIPAL_NOT_FOUND';
+  end if;
+  for v_grant in
+    select gr.* from "app_private"."drive_grants" gr
+    where gr."tenant_id" = drive_transfer_ownership.tenant and gr."role"::text = 'owner'
+      and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.from_user::text
+  loop
+    delete from "app_private"."drive_grants" gr where gr."node_id" = v_grant."node_id" and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.to_user::text;
+    update "app_private"."drive_grants" set "principal_id" = drive_transfer_ownership.to_user::text where "id" = v_grant."id";
+    select * into v_node from "app_private"."drive_nodes" x where x."id" = v_grant."node_id";
+    v_nodes := v_nodes + 1;
+    null;
+  end loop;
+  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
+end;
+$$;
+revoke execute on function "app_private"."drive_transfer_ownership"(uuid, uuid, uuid) from public, anon;
+grant execute on function "app_private"."drive_transfer_ownership"(uuid, uuid, uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -4462,7 +4916,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:f4214ececfc1312b2077afa6619713adba1c9d0e9a57b6d34d7a159a388ce735
+-- @bsb-hash sha256:a5358db3db6c3d12397369e5d545d6738652795c4511c87f87803f9e22528948
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4594,10 +5048,12 @@ create table if not exists "better_supabase"."drive_grants" (
   "principal_id" text not null,
   "role" text not null,
   "expires_at" timestamptz,
+  "access_request" boolean not null default false,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
+alter table "better_supabase"."drive_grants" add column if not exists "access_request" boolean not null default false;
 create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
 do $$
 begin
@@ -5102,7 +5558,7 @@ begin
   if drive_insert_node.parent is null and auth.uid() is not null then
     insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, 'owner')
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
   end if;
   null;
   declare
@@ -5377,7 +5833,7 @@ begin
       v_role := "better_supabase"."drive_role"(v_node."id");
       insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, v_role)
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
     end if;
     if drive_move.rank is null then
       select max(x."rank") into v_last from "better_supabase"."drive_nodes" x
@@ -5826,6 +6282,140 @@ create or replace view "better_supabase"."drive_node_search" with (security_invo
 revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_search" to service_role;
 
+
+-- The grant an approved access request on a node makes: the user gets the
+-- role that matches the action until ends_at, and loses it when ends_at is
+-- past. A grant of their own at that role or higher stays as it is; a lower
+-- one is replaced. Only access-requests calls it, as the service role.
+create or replace function "better_supabase"."drive_grant_access"(subject_id text, user_id uuid, action text, ends_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_role text := case drive_grant_access.action when 'read' then 'viewer' when 'comment' then 'editor' when 'write' then 'editor' end;
+begin
+  if drive_grant_access.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_grant_access.subject_id::uuid and x."deleted_at" is null;
+  if not found then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_role is null then
+    raise exception 'action must be read, comment or write' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
+  end if;
+  if drive_grant_access.ends_at is not null and drive_grant_access.ends_at <= now() then
+    delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and dg."access_request";
+    if found then
+      null;
+    end if;
+    return;
+  end if;
+  if exists (
+    select 1 from "better_supabase"."drive_grants" dg
+    where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and not dg."access_request"
+      and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], v_role::text), 0)
+      and (dg."expires_at" is null or dg."expires_at" > now())
+  ) then
+    return;
+  end if;
+  delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text;
+  insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role", "expires_at", "access_request", "created_by")
+  values (v_node."tenant_id", v_node."id", 'user', drive_grant_access.user_id::text, v_role, drive_grant_access.ends_at, true, auth.uid());
+  null;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_grant_access"(text, uuid, text, timestamptz) from public, anon, authenticated;
+
+create or replace function "better_supabase"."drive_access_approvers"(subject_id text)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if drive_access_approvers.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return '{}';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_access_approvers.subject_id::uuid;
+  if not found then
+    return '{}';
+  end if;
+  return coalesce((
+    select array_agg(mu."user_id" order by mu."user_id")
+    from "better_supabase"."memberships" mu
+    where mu."organization_id" = v_node."tenant_id" and mu."disabled_at" is null
+      and (exists (
+        select 1 from "better_supabase"."drive_grants" gr
+        where gr."node_id" = any ("better_supabase"."drive_ancestors"(v_node."id")) and (gr."expires_at" is null or gr."expires_at" > now())
+          and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], gr."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'owner'::text), 0)
+          and ((gr."principal_type" = 'user' and gr."principal_id" = mu."user_id"::text)
+      or (gr."principal_type" = 'team' and false)
+      or (gr."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = mu."organization_id" and mr."user_id" = mu."user_id" and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))
+  ), '{}');
+end;
+$$;
+revoke execute on function "better_supabase"."drive_access_approvers"(text) from public, anon, authenticated;
+
+-- Hands every item one member holds at owner in an organization to
+-- another member: their owner grants on nodes and drives, and the drives they
+-- own. The new holder keeps one grant per item. Needs drive.manage.
+create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_grant "better_supabase"."drive_grants"%rowtype;
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_drive_ids uuid[] := '{}';
+  v_nodes integer := 0;
+  v_drives integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
+    raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
+    or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
+    raise exception 'name two different users to transfer between' using errcode = '22023', hint = 'DRIVE_TRANSFER_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."memberships" mu
+    where mu."organization_id" = drive_transfer_ownership.tenant and mu."user_id" = drive_transfer_ownership.to_user and mu."disabled_at" is null
+  ) then
+    raise exception 'the new owner is not an active member of this organization' using errcode = 'P0002', hint = 'DRIVE_PRINCIPAL_NOT_FOUND';
+  end if;
+  for v_grant in
+    select gr.* from "better_supabase"."drive_grants" gr
+    where gr."tenant_id" = drive_transfer_ownership.tenant and gr."role"::text = 'owner'
+      and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.from_user::text
+  loop
+    delete from "better_supabase"."drive_grants" gr where gr."node_id" = v_grant."node_id" and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.to_user::text;
+    update "better_supabase"."drive_grants" set "principal_id" = drive_transfer_ownership.to_user::text where "id" = v_grant."id";
+    select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_grant."node_id";
+    v_nodes := v_nodes + 1;
+    null;
+  end loop;
+  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -6149,6 +6739,15 @@ as $$ select "better_supabase"."drive_set_download_blocked"($1, $2, $3) $$;
 revoke execute on function "api"."drive_set_download_blocked"(text, uuid, boolean) from public, anon;
 grant execute on function "api"."drive_set_download_blocked"(text, uuid, boolean) to authenticated, service_role;
 
+create or replace function "api"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."drive_transfer_ownership"($1, $2, $3) $$;
+revoke execute on function "api"."drive_transfer_ownership"(uuid, uuid, uuid) from public, anon;
+grant execute on function "api"."drive_transfer_ownership"(uuid, uuid, uuid) to authenticated, service_role;
+
 create schema if not exists better_supabase;
 create table if not exists better_supabase.blocks (
   name text primary key,
@@ -6179,7 +6778,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:3c049ac99e736b1450abd6b8dd7b0c6aabf801c80784f0d4212e9332953a36b6
+-- @bsb-hash sha256:02536ea189d15b03b4c411c2836411cbdbe22542f285e512b6516544e33a9949
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6757,7 +7356,7 @@ begin
   if drive_insert_node.parent is null and auth.uid() is not null then
     insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, better_supabase.as_column_type('owner', (null::"better_supabase"."drive_grants")."role"))
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
   end if;
   null;
   declare
@@ -7034,7 +7633,7 @@ begin
       v_role := "better_supabase"."drive_role"(v_node."id");
       insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."tenant_id", v_node."id", 'user', auth.uid()::text, better_supabase.as_column_type(v_role, (null::"better_supabase"."drive_grants")."role"))
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
     end if;
     if drive_move.rank is null then
       select max(x."rank") into v_last from "better_supabase"."drive_nodes" x
@@ -7465,6 +8064,140 @@ create or replace view "better_supabase"."drive_node_search" with (security_invo
 revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_search" to service_role;
 
+
+-- The grant an approved access request on a node makes: the user gets the
+-- role that matches the action until ends_at, and loses it when ends_at is
+-- past. A grant of their own at that role or higher stays as it is; a lower
+-- one is replaced. Only access-requests calls it, as the service role.
+create or replace function "better_supabase"."drive_grant_access"(subject_id text, user_id uuid, action text, ends_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_role text := case drive_grant_access.action when 'read' then 'viewer' when 'comment' then 'editor' when 'write' then 'editor' end;
+begin
+  if drive_grant_access.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_grant_access.subject_id::uuid and x."deleted_at" is null;
+  if not found then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_role is null then
+    raise exception 'action must be read, comment or write' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
+  end if;
+  if drive_grant_access.ends_at is not null and drive_grant_access.ends_at <= now() then
+    delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and dg."access_request";
+    if found then
+      null;
+    end if;
+    return;
+  end if;
+  if exists (
+    select 1 from "better_supabase"."drive_grants" dg
+    where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and not dg."access_request"
+      and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], v_role::text), 0)
+      and (dg."expires_at" is null or dg."expires_at" > now())
+  ) then
+    return;
+  end if;
+  delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text;
+  insert into "better_supabase"."drive_grants" ("tenant_id", "node_id", "principal_type", "principal_id", "role", "expires_at", "access_request", "created_by")
+  values (v_node."tenant_id", v_node."id", 'user', drive_grant_access.user_id::text, better_supabase.as_column_type(v_role, (null::"better_supabase"."drive_grants")."role"), drive_grant_access.ends_at, true, auth.uid());
+  null;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_grant_access"(text, uuid, text, timestamptz) from public, anon, authenticated;
+
+create or replace function "better_supabase"."drive_access_approvers"(subject_id text)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if drive_access_approvers.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return '{}';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_access_approvers.subject_id::uuid;
+  if not found then
+    return '{}';
+  end if;
+  return coalesce((
+    select array_agg(mu."user_id" order by mu."user_id")
+    from "better_supabase"."memberships" mu
+    where mu."organization_id" = v_node."tenant_id" and mu."disabled_at" is null
+      and (exists (
+        select 1 from "better_supabase"."drive_grants" gr
+        where gr."node_id" = any ("better_supabase"."drive_ancestors"(v_node."id")) and (gr."expires_at" is null or gr."expires_at" > now())
+          and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], gr."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'owner'::text), 0)
+          and ((gr."principal_type" = 'user' and gr."principal_id" = mu."user_id"::text)
+      or (gr."principal_type" = 'team' and false)
+      or (gr."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."organization_id" = mu."organization_id" and mr."user_id" = mu."user_id" and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))
+  ), '{}');
+end;
+$$;
+revoke execute on function "better_supabase"."drive_access_approvers"(text) from public, anon, authenticated;
+
+-- Hands every item one member holds at owner in an organization to
+-- another member: their owner grants on nodes and drives, and the drives they
+-- own. The new holder keeps one grant per item. Needs drive.manage.
+create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_grant "better_supabase"."drive_grants"%rowtype;
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_drive_ids uuid[] := '{}';
+  v_nodes integer := 0;
+  v_drives integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
+    raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
+    or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
+    raise exception 'name two different users to transfer between' using errcode = '22023', hint = 'DRIVE_TRANSFER_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."memberships" mu
+    where mu."organization_id" = drive_transfer_ownership.tenant and mu."user_id" = drive_transfer_ownership.to_user and mu."disabled_at" is null
+  ) then
+    raise exception 'the new owner is not an active member of this organization' using errcode = 'P0002', hint = 'DRIVE_PRINCIPAL_NOT_FOUND';
+  end if;
+  for v_grant in
+    select gr.* from "better_supabase"."drive_grants" gr
+    where gr."tenant_id" = drive_transfer_ownership.tenant and gr."role"::text = 'owner'
+      and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.from_user::text
+  loop
+    delete from "better_supabase"."drive_grants" gr where gr."node_id" = v_grant."node_id" and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.to_user::text;
+    update "better_supabase"."drive_grants" set "principal_id" = drive_transfer_ownership.to_user::text where "id" = v_grant."id";
+    select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_grant."node_id";
+    v_nodes := v_nodes + 1;
+    null;
+  end loop;
+  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) to authenticated, service_role;
+
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
 -- table to the caller's organizations and what the block's policies grant.
@@ -7532,7 +8265,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:9455c8de31fed18c9bd123af471a2f5be49cdf39b1bc7736b291f8b9666a754a
+-- @bsb-hash sha256:571b3b712cce83602ccaab96e731cf2481572e8402c23975ef056c56e58231c7
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7664,10 +8397,12 @@ create table if not exists "better_supabase"."drive_grants" (
   "principal_id" text not null,
   "role" text not null,
   "expires_at" timestamptz,
+  "access_request" boolean not null default false,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("node_id", "principal_type", "principal_id")
 );
+alter table "better_supabase"."drive_grants" add column if not exists "access_request" boolean not null default false;
 create index if not exists "drive_grants_principal_idx" on "better_supabase"."drive_grants" ("principal_type", "principal_id");
 do $$
 begin
@@ -8172,7 +8907,7 @@ begin
   if drive_insert_node.parent is null and auth.uid() is not null then
     insert into "better_supabase"."drive_grants" ("org_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."org_id", v_node."id", 'user', auth.uid()::text, 'owner')
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
   end if;
   null;
   declare
@@ -8447,7 +9182,7 @@ begin
       v_role := "better_supabase"."drive_role"(v_node."id");
       insert into "better_supabase"."drive_grants" ("org_id", "node_id", "principal_type", "principal_id", "role")
     values (v_node."org_id", v_node."id", 'user', auth.uid()::text, v_role)
-    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role";
+    on conflict ("node_id", "principal_type", "principal_id") do update set "role" = excluded."role", "access_request" = false;
     end if;
     if drive_move.rank is null then
       select max(x."rank") into v_last from "better_supabase"."drive_nodes" x
@@ -8895,6 +9630,140 @@ create or replace view "better_supabase"."drive_node_search" with (security_invo
   left join "better_supabase"."drive_node_texts" t on t."node_id" = s."id";
 revoke all on "better_supabase"."drive_node_search" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_search" to service_role;
+
+
+-- The grant an approved access request on a node makes: the user gets the
+-- role that matches the action until ends_at, and loses it when ends_at is
+-- past. A grant of their own at that role or higher stays as it is; a lower
+-- one is replaced. Only access-requests calls it, as the service role.
+create or replace function "better_supabase"."drive_grant_access"(subject_id text, user_id uuid, action text, ends_at timestamptz)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_role text := case drive_grant_access.action when 'read' then 'viewer' when 'comment' then 'editor' when 'write' then 'editor' end;
+begin
+  if drive_grant_access.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_grant_access.subject_id::uuid and x."deleted_at" is null;
+  if not found then
+    raise exception 'item not found' using errcode = 'P0002', hint = 'DRIVE_NOT_FOUND';
+  end if;
+  if v_role is null then
+    raise exception 'action must be read, comment or write' using errcode = '22023', hint = 'DRIVE_ROLE_UNKNOWN';
+  end if;
+  if drive_grant_access.ends_at is not null and drive_grant_access.ends_at <= now() then
+    delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and dg."access_request";
+    if found then
+      null;
+    end if;
+    return;
+  end if;
+  if exists (
+    select 1 from "better_supabase"."drive_grants" dg
+    where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text and not dg."access_request"
+      and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], dg."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], v_role::text), 0)
+      and (dg."expires_at" is null or dg."expires_at" > now())
+  ) then
+    return;
+  end if;
+  delete from "better_supabase"."drive_grants" dg where dg."node_id" = v_node."id" and dg."principal_type" = 'user' and dg."principal_id" = drive_grant_access.user_id::text;
+  insert into "better_supabase"."drive_grants" ("org_id", "node_id", "principal_type", "principal_id", "role", "expires_at", "access_request", "created_by")
+  values (v_node."org_id", v_node."id", 'user', drive_grant_access.user_id::text, v_role, drive_grant_access.ends_at, true, auth.uid());
+  null;
+end;
+$$;
+revoke execute on function "better_supabase"."drive_grant_access"(text, uuid, text, timestamptz) from public, anon, authenticated;
+
+create or replace function "better_supabase"."drive_access_approvers"(subject_id text)
+returns uuid[]
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_node "better_supabase"."drive_nodes"%rowtype;
+begin
+  if drive_access_approvers.subject_id !~ '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' then
+    return '{}';
+  end if;
+  select * into v_node from "better_supabase"."drive_nodes" x where x."id" = drive_access_approvers.subject_id::uuid;
+  if not found then
+    return '{}';
+  end if;
+  return coalesce((
+    select array_agg(mu."user_id" order by mu."user_id")
+    from "better_supabase"."memberships" mu
+    where mu."org_id" = v_node."org_id" and mu."disabled_at" is null
+      and (exists (
+        select 1 from "better_supabase"."drive_grants" gr
+        where gr."node_id" = any ("better_supabase"."drive_ancestors"(v_node."id")) and (gr."expires_at" is null or gr."expires_at" > now())
+          and coalesce(array_position(array['viewer', 'editor', 'owner']::text[], gr."role"::text), 0) >= coalesce(array_position(array['viewer', 'editor', 'owner']::text[], 'owner'::text), 0)
+          and ((gr."principal_type" = 'user' and gr."principal_id" = mu."user_id"::text)
+      or (gr."principal_type" = 'team' and false)
+      or (gr."principal_type" = 'role' and exists (select 1 from "better_supabase"."memberships" mr where mr."org_id" = mu."org_id" and mr."user_id" = mu."user_id" and mr."role"::text = gr."principal_id" and mr."disabled_at" is null)))
+      ))
+  ), '{}');
+end;
+$$;
+revoke execute on function "better_supabase"."drive_access_approvers"(text) from public, anon, authenticated;
+
+-- Hands every item one member holds at owner in an organization to
+-- another member: their owner grants on nodes and drives, and the drives they
+-- own. The new holder keeps one grant per item. Needs drive.manage.
+create or replace function "better_supabase"."drive_transfer_ownership"(tenant uuid, from_user uuid, to_user uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_grant "better_supabase"."drive_grants"%rowtype;
+  v_node "better_supabase"."drive_nodes"%rowtype;
+  v_drive_ids uuid[] := '{}';
+  v_nodes integer := 0;
+  v_drives integer := 0;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', drive_transfer_ownership.tenant, 'drive.manage'), false)) then
+    raise exception 'you can''t transfer items in this organization' using errcode = '42501', hint = 'DRIVE_FORBIDDEN';
+  end if;
+  if drive_transfer_ownership.from_user is null or drive_transfer_ownership.to_user is null
+    or drive_transfer_ownership.from_user = drive_transfer_ownership.to_user then
+    raise exception 'name two different users to transfer between' using errcode = '22023', hint = 'DRIVE_TRANSFER_INVALID';
+  end if;
+  if not exists (
+    select 1 from "better_supabase"."memberships" mu
+    where mu."org_id" = drive_transfer_ownership.tenant and mu."user_id" = drive_transfer_ownership.to_user and mu."disabled_at" is null
+  ) then
+    raise exception 'the new owner is not an active member of this organization' using errcode = 'P0002', hint = 'DRIVE_PRINCIPAL_NOT_FOUND';
+  end if;
+  for v_grant in
+    select gr.* from "better_supabase"."drive_grants" gr
+    where gr."org_id" = drive_transfer_ownership.tenant and gr."role"::text = 'owner'
+      and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.from_user::text
+  loop
+    delete from "better_supabase"."drive_grants" gr where gr."node_id" = v_grant."node_id" and gr."principal_type" = 'user' and gr."principal_id" = drive_transfer_ownership.to_user::text;
+    update "better_supabase"."drive_grants" set "principal_id" = drive_transfer_ownership.to_user::text where "id" = v_grant."id";
+    select * into v_node from "better_supabase"."drive_nodes" x where x."id" = v_grant."node_id";
+    v_nodes := v_nodes + 1;
+    null;
+  end loop;
+  return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
+end;
+$$;
+revoke execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) from public, anon;
+grant execute on function "better_supabase"."drive_transfer_ownership"(uuid, uuid, uuid) to authenticated, service_role;
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
 -- the app adds would widen the block's. These restrictive policies keep each
