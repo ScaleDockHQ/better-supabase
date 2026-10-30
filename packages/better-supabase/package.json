@@ -490,6 +490,11 @@
       "types": "./dist/better-result/index.d.ts",
       "default": "./dist/better-result/index.js"
     },
+    "./fhir": {
+      "@better-supabase/source": "./src/fhir/index.ts",
+      "types": "./dist/fhir/index.d.ts",
+      "default": "./dist/fhir/index.js"
+    },
     "./blocks/inbox": {
       "@better-supabase/source": "./src/blocks/inbox/index.ts",
       "types": "./dist/blocks/inbox/index.d.ts",
@@ -1495,6 +1500,10 @@
       "./better-result": {
         "types": "./dist/better-result/index.d.ts",
         "default": "./dist/better-result/index.js"
+      },
+      "./fhir": {
+        "types": "./dist/fhir/index.d.ts",
+        "default": "./dist/fhir/index.js"
       },
       "./blocks/inbox": {
         "types": "./dist/blocks/inbox/index.d.ts",

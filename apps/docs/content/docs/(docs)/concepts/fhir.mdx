@@ -1,0 +1,118 @@
+---
+title: FHIR
+description: Map care plans, observations, medications, consents and people to base FHIR R4 resources, and import observations and medication orders back.
+---
+
+`better-supabase/fhir` turns the rows of the care blocks into
+[HL7 FHIR R4](https://hl7.org/fhir/R4/) resources, and reads FHIR
+`Observation` and `MedicationRequest` resources back into the shape the
+blocks import. It has pure functions only: no tables, no SQL module and no
+FHIR type package. Its types are structural, so a resource from any FHIR
+library fits, and it runs on every WinterTC runtime. The FHIR version it
+follows, 4.0.1, is pinned in `SPEC_PINS.fhirR4`.
+
+```ts
+import {
+  fromFhirObservation,
+  toFhirBundle,
+  toFhirCarePlan,
+  toFhirObservation,
+} from "better-supabase/fhir";
+```
+
+The mappers produce base R4 resources. National profiles such as the Dutch
+zib, eOverdracht and MedMij profiles are out of scope; a profile layer can
+extend the output with the `meta.profile`, extensions and codes its profile
+asks for.
+
+## Export
+
+Each exporter takes a row as the block returns it and gives one resource. It
+reads only the fields it maps, so a `Pick` of the row is enough.
+
+| Function                                                | Returns                                                                                      |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `toFhirPatient(person)`                                 | A `Patient` with name, telecom, gender, birth date and identifiers; `active` unless archived |
+| `toFhirRelatedPerson(representative, patientId)`        | A `RelatedPerson` with its role as a v3 RoleCode or v2 0131 code, and its valid period       |
+| `toFhirCarePlan(plan)`                                  | A `CarePlan` from `db.carePlans.get`, its problems and goals as contained resources          |
+| `toFhirGoal(goal, subjectId)`                           | A standalone `Goal`, addressing `Condition/<problemId>`                                      |
+| `toFhirObservation(observation, { definition })`        | An `Observation` with its code, value, components and reference range                        |
+| `toFhirMedicationRequest(order)`                        | A `MedicationRequest` with its medication code, dosage and timing                            |
+| `toFhirMedicationAdministration(administration, order)` | A `MedicationAdministration` for one given, skipped or refused dose                          |
+| `toFhirConsent(consent)`                                | A `Consent`: a permit provision for a grant and a deny provision for a refusal               |
+| `toFhirBundle(resources, { type })`                     | A `collection`, `searchset`, `transaction` or `batch` Bundle                                 |
+
+The subject of a resource is `Patient/<subjectId>` unless you pass
+`subject`. Users, such as the performer of an observation or the prescriber
+of an order, only appear when you pass `user`, a function from a user id to
+a reference:
+
+```ts
+const resource = toFhirObservation(observation, {
+  definition,
+  subject: { reference: `Patient/${patient.externalId}` },
+  user: (userId) => ({ reference: `Practitioner/${userId}` }),
+});
+```
+
+A care plan holds its problems as contained `Condition` resources and its
+goals as contained `Goal` resources, referenced as `#<id>`. Its actions
+become `activity` entries, an appointment action with kind `Appointment` and
+a task action with kind `Task`. Pass `codeSystems` to give each of the
+block's code systems a URI, such as `{ icf: "http://hl7.org/fhir/sid/icf-nl" }`.
+
+The output never holds an empty array or an empty object, which FHIR JSON
+forbids: a field without a value is left out.
+
+## Bundles
+
+`toFhirBundle` wraps resources in one Bundle. Pass `baseUrl` to give each
+entry a `fullUrl`. A `transaction` or `batch` Bundle gets a `request` per
+entry: a `PUT` to `Type/id`, or a `POST` to `Type` for a resource without an
+id. The Next.js example serves a customer's records as a Bundle:
+
+```ts title="app/api/customers/[id]/fhir/route.ts"
+export const GET = bsb.route<{ id: string }, true>(
+  async (_request, { db, params }) => {
+    const observations = await db.observations.list("customer", params.id);
+
+    if (!observations.ok) {
+      return observations;
+    }
+
+    const bundle = toFhirBundle(
+      observations.data.map((observation) => toFhirObservation(observation)),
+    );
+
+    return Response.json(bundle, {
+      headers: { "content-type": "application/fhir+json" },
+    });
+  },
+  { requireTenant: true, permission: "customers.read" },
+);
+```
+
+## Import
+
+`fromFhirObservation` and `fromFhirMedicationRequest` take an untrusted
+value, such as a parsed request body, and return a `Result`. They never
+throw: input that isn't a valid resource gives a `validation` error that
+lists every problem in `issues`.
+
+```ts
+const definitions = await db.observations.definitions(organizationId).orThrow();
+const item = fromFhirObservation(body, { subjectType: "client", definitions });
+
+if (item.ok) {
+  await db.observations.ingest(organizationId, [item.data]);
+}
+```
+
+| Function                                    | Reads                                                                                            | Gives                                      |
+| ------------------------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------ |
+| `fromFhirObservation(input, options)`       | A final, amended, corrected or preliminary `Observation` whose code matches one of `definitions` | An item for `db.observations.ingest`       |
+| `fromFhirMedicationRequest(input, options)` | A `MedicationRequest` with an order intent, its medication code, dosage and timing               | An order for `db.medications.importOrders` |
+
+Both need an id or identifier on the resource, which becomes the
+`externalId`, so importing the same resource twice records it once. The
+subject id comes from `subject.reference` unless you pass `subjectId`.

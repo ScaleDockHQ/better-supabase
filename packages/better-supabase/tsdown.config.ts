@@ -187,6 +187,7 @@ const entries = [
   "stripe/index",
   "yjs/index",
   "better-result/index",
+  "fhir/index",
   "blocks/inbox/index",
   "chat-sdk/index",
   "blocks/onboarding/index",
