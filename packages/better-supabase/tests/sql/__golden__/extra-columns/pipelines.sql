@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:832ee271dca8706e0a672ae9d3444c985e308933ea82973dfc7f398632a93b30
+-- @bsb-hash sha256:e584ff6e880e7890c556728b18f33e2b1a73465500ee8899a8212d51fc6f5991
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -402,7 +402,11 @@ begin
   exception when unique_violation then
     raise exception 'another stage of this pipeline has this key' using errcode = '23505', hint = 'PIPELINE_STAGE_KEY_TAKEN';
   end;
-  null;
+  if save_pipeline_stage.stage is null then
+    null;
+  else
+    null;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_pipeline_stage_save"(uuid)');
   begin

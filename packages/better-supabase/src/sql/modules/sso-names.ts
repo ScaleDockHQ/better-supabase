@@ -14,19 +14,19 @@ const EVENTS: BlockSqlEvents<SsoEvents> = {
     subject: "organizations",
     payload: ["organizationId", "userId", "role", "previousRole"],
   },
-  "organization.domain_added": {
+  "sso_domain.created": {
     subject: "organizations",
     payload: ["organizationId", "domainId", "domain", "userId"],
   },
-  "organization.domain_updated": {
+  "sso_domain.updated": {
     subject: "organizations",
     payload: ["organizationId", "domainId", "domain", "userId"],
   },
-  "organization.domain_removed": {
+  "sso_domain.deleted": {
     subject: "organizations",
     payload: ["organizationId", "domainId", "domain", "userId"],
   },
-  "organization.domain_verified": {
+  "sso_domain.verified": {
     subject: "organizations",
     payload: ["organizationId", "domainId", "domain", "userId"],
   },
@@ -38,7 +38,11 @@ const EVENTS: BlockSqlEvents<SsoEvents> = {
     subject: "organizations",
     payload: ["organizationId", "providerId", "domains", "userId"],
   },
-  "scim_user.saved": {
+  "scim_user.created": {
+    subject: "organizations",
+    payload: ["organizationId", "scimUserId"],
+  },
+  "scim_user.updated": {
     subject: "organizations",
     payload: ["organizationId", "scimUserId"],
   },
@@ -46,7 +50,11 @@ const EVENTS: BlockSqlEvents<SsoEvents> = {
     subject: "organizations",
     payload: ["organizationId", "scimUserId"],
   },
-  "scim_group.saved": {
+  "scim_group.created": {
+    subject: "organizations",
+    payload: ["organizationId", "scimGroupId"],
+  },
+  "scim_group.updated": {
     subject: "organizations",
     payload: ["organizationId", "scimGroupId"],
   },

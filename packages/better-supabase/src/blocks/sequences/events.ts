@@ -2,7 +2,7 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `sequence.saved` and `sequence.deleted`. */
+/** `sequence.created`, `sequence.updated` and `sequence.deleted`. */
 export interface SequenceEventData {
   readonly organizationId: string;
   /** The sequence. */
@@ -31,7 +31,8 @@ export interface SequenceEnrollmentEventData {
 
 /** The events of the `sequences` block: type to data. */
 export type SequencesEvents = {
-  readonly "sequence.saved": SequenceEventData;
+  readonly "sequence.created": SequenceEventData;
+  readonly "sequence.updated": SequenceEventData;
   readonly "sequence.deleted": SequenceEventData;
   readonly "sequence_enrollment.created": SequenceEnrollmentEventData;
   readonly "sequence_enrollment.step_completed": SequenceEnrollmentEventData;
@@ -43,7 +44,8 @@ export type SequencesEvents = {
 
 /** The `sequences` block's event types, for its manifest and `onBlockEvent`. */
 export const sequencesEvents: Events<SequencesEvents> = defineEvents({
-  "sequence.saved": event<SequenceEventData>(),
+  "sequence.created": event<SequenceEventData>(),
+  "sequence.updated": event<SequenceEventData>(),
   "sequence.deleted": event<SequenceEventData>(),
   "sequence_enrollment.created": event<SequenceEnrollmentEventData>(),
   "sequence_enrollment.step_completed": event<SequenceEnrollmentEventData>(),

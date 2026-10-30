@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:7d1c8c23ebf8ded278500fbb33ad72487f22aac37837669a62effc5daf90524f
+-- @bsb-hash sha256:47242c0731140532a426df09b44d0d6dd54aced3a3fdba826157f9612a39d6e5
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -211,7 +211,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_connector_server.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -613,7 +617,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:d580e730aca5971395d1fd34dc866200866e3e102f07307a278eb893c4652ac4
+-- @bsb-hash sha256:be60779eb86d371d552574dd0fdaa575821370c87e92f6e02e42b32ad5dd2233
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -823,9 +827,10 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('connector.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+  if save_connector_server.id is null then
+    perform "better_supabase".emit_event('connector.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
   perform better_supabase.audit_event(
-    event_type => 'connector.saved',
+    event_type => 'connector.created',
     category => 'integration',
     target_type => 'connector',
     record_id => v_row."id"::text,
@@ -833,6 +838,18 @@ begin
     tenant => (v_row."organization_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
   );
+  else
+    perform "better_supabase".emit_event('connector.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/connectors/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/connectors');
+  perform better_supabase.audit_event(
+    event_type => 'connector.updated',
+    category => 'integration',
+    target_type => 'connector',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'serverId', v_row."id", 'name', v_row."name")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -1268,7 +1285,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:b65183e3af9ae952ff1ee470989544f218cdacc58e01c41440a0150b136a947c
+-- @bsb-hash sha256:794053e8dee6ec31aa0481b1e5bf5b53824dd55cb448ac5ed7eb3850d2586c24
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1483,7 +1500,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_connector_server.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -1885,7 +1906,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:6dcb0104da2f9004761297f94ef40f83870520fe3e3774022af2aec68b27d69f
+-- @bsb-hash sha256:552d3a40e876ec24c76fa969d79cc75461e115a25c489fca3e7e7ca6778c4df6
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2095,7 +2116,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_connector_server.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -2636,7 +2661,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:6b2cb267a8a4375354c7113083ba6d08f4b56552cdb12949d7ad7014d5755c2f
+-- @bsb-hash sha256:eccdfaf34d1f7ee192b22f87cde5c1f176c122fe019adf96c06d84027259d6f1
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2853,7 +2878,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_connector_server.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -3255,7 +3284,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:3b78a44ab53b0ba6cdfd3a9c57439bce9ddecc0d2206c0531b9577d6e1b5b456
+-- @bsb-hash sha256:7bfc29276e204e6ca982c7d914eb896405d1fe61dd0d6e0a415ae73b39c7a0c9
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3465,7 +3494,11 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  null;
+  if save_connector_server.id is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;

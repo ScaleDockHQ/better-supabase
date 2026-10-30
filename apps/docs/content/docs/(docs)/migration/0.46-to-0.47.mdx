@@ -1,13 +1,17 @@
 ---
 title: From 0.46 to 0.47
-description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed and doctor adds BS423.
+description: What to check when upgrading from better-supabase 0.46 to 0.47, where block entity keys equal the entity's singular, three subject types and the hint codes take the new nouns, block functions are renamed, every event type names its entity and a past verb, and doctor adds BS423 and BS424.
 ---
 
 0.47.0 finishes the naming convention (ADR 0130): the key of every entity in
-`blocks.<name>.entities` is the entity's singular, and the subject types, hint
-codes and function names follow the new nouns. Run
-`better-supabase codemod 0.47` and check what it lists for review. Old entity
-keys and the old subject types keep working until 0.48, with a warning.
+`blocks.<name>.entities` is the entity's singular, the subject types, hint
+codes and function names follow the new nouns, and each event type is an
+entity and a past verb. Run `better-supabase codemod 0.47` and check what it
+lists for review. Old entity keys and the old subject types keep working until
+0.48, with a warning. The outbox stores the new event types, so subscribers to
+an old type miss its events until you rename them; receivers outside the app
+can keep the old names for one minor with the outbox `legacyEventTypes`
+option.
 
 | Section                             | Needs code                                          |
 | ----------------------------------- | --------------------------------------------------- |
@@ -15,6 +19,7 @@ keys and the old subject types keep working until 0.48, with a warning.
 | [Subject types](#subject-types)     | Run `upgrade`; rename stored types outside SQL      |
 | [Hint codes](#hint-codes)           | Run `codemod 0.47`, then check `ACTIVITY_FORBIDDEN` |
 | [Function names](#function-names)   | Rename calls in your own SQL                        |
+| [Event types](#event-types)         | Run `codemod 0.47`, then check `saved` types        |
 | [The SQL modules](#the-sql-modules) | Run `upgrade` and generate a migration              |
 
 ## Entity keys
@@ -70,9 +75,9 @@ key is listed for review instead of renamed. The tasks binding
 `workItemChecklistBinding` is now `taskChecklistBinding`; the codemod moves
 the import.
 
-An install that names an entity keeps its tables, events and subject type. An
-install that doesn't keeps its tables and events too: the tasks block still
-writes `work_items` and emits `work_item.created`.
+An install that names an entity keeps its tables and subject type. An install
+that doesn't keeps its tables too: the tasks block still writes `work_items`.
+Its events are renamed (see [Event types](#event-types)).
 
 ## Subject types
 
@@ -139,11 +144,111 @@ rename the calls in your own SQL:
 A key in `blocks.<name>.functions` that names an old function still applies
 to the new one.
 
+## Event types
+
+Every event type is now `<entity>.<past verb>`: the prefix is the entity the
+event is about, and a `saved` event is `created` or `updated`, depending on
+whether the save inserted the row. Run the codemod. It renames the types in
+strings in your code and config and in quoted types in your own SQL:
+
+| 0.46                                                                        | 0.47                                                                                    |
+| --------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `work_item.*`                                                               | `task.*`                                                                                |
+| `engagement.*`                                                              | `activity.*`                                                                            |
+| `rule.*`, `rule.removed`                                                    | `automation.*`, `automation.deleted`                                                    |
+| `access.requested`, `access.request_approved`, `access.ended`               | `access_request.requested`, `access_request.approved`, `access_request.ended`           |
+| `custom_field.*`                                                            | `field_definition.*`                                                                    |
+| `drive.node_created` and the other `drive.node_*` events                    | `drive_node.created` and so on                                                          |
+| `forecast.snapshotted`                                                      | `forecast_snapshot.created`                                                             |
+| `job.*` (hiring)                                                            | `job_opening.*`                                                                         |
+| `leave.adjusted`                                                            | `leave_balance.adjusted`                                                                |
+| `leave.requested` and the other `leave.*` events                            | `leave_request.requested` and so on                                                     |
+| `obligation.*`                                                              | `contract_obligation.*`                                                                 |
+| `organization.domain_added`, `organization.domain_removed`                  | `sso_domain.created`, `sso_domain.deleted`                                              |
+| `organization.domain_updated`, `organization.domain_verified`               | `sso_domain.updated`, `sso_domain.verified`                                             |
+| `policy.*` (compliance)                                                     | `compliance_policy.*`                                                                   |
+| `postmortem.*`                                                              | `incident_postmortem.*`                                                                 |
+| `signature.*`                                                               | `signature_request.*`                                                                   |
+| `support.*`                                                                 | `support_session.*`                                                                     |
+| `time.invoiced`                                                             | `time_entry.invoiced`                                                                   |
+| `variant.*`                                                                 | `product_variant.*`                                                                     |
+| `waitlist.*`                                                                | `waitlist_entry.*`                                                                      |
+| `webhook.*`                                                                 | `webhook_endpoint.*`                                                                    |
+| `workflow.published`                                                        | `workflow_definition.published`                                                         |
+| `segment.removed`, `hostname.removed`, `approval_policy.removed`            | `segment.deleted`, `hostname.deleted`, `approval_policy.deleted`                        |
+| `marketplace_installation.removed`                                          | `marketplace_installation.deleted`                                                      |
+| `credential.set`, `ai_tool_policy.set`                                      | `credential.updated`, `ai_tool_policy.updated`                                          |
+| `flag.override_set`, `hostname.primary_set`, `incoming_webhook.enabled_set` | `flag.override_changed`, `hostname.primary_changed`, `incoming_webhook.enabled_changed` |
+| `marketplace_invoice.state_changed`                                         | `marketplace_invoice.status_changed`                                                    |
+| `<entity>.saved`, `marketplace_installation.upserted`                       | `<entity>.created` or `<entity>.updated`                                                |
+| `party.enriched`                                                            | `company.enriched` or `person.enriched`                                                 |
+
+The `saved` events were `agent`, `ai_provider_key`, `announcement`,
+`approval_policy`, `connector`, `control`, `course`, `custom_field` (now
+`field_definition`), `enrollment_program`, `flag`, `obligation` (now
+`contract_obligation`), `pipeline_stage`, `post_board`, `rule` (now
+`automation`), `saved_view`, `scim_group`, `scim_user`, `score_model`,
+`segment` and `sequence`. The `sla.*` events keep their names: they are about
+a record's SLA clock, and no table of their own fits. Relation events such as
+`collection.entry_removed` keep `removed`, and `field_value.set` keeps `set`.
+Notification types, which are their own names, don't change: the tasks
+block still sends `work_item.assigned` notifications.
+
+An install that names an entity names its events after that name, as in
+0.46: with `entities: { task: "ticket" }` the tasks block emits
+`ticket.created`, and the data step leaves those rows alone.
+
+The full list is `EVENT_TYPE_RENAMES` and `EVENT_TYPE_SPLITS` from
+`better-supabase`, with `isOldEventType(type)`, `currentEventTypes(type)` and
+`legacyEventType(type)` for code that matches types stored outside
+better-supabase.
+
+The codemod lists some strings for review instead of guessing:
+
+- A split type, such as `agent.saved`: subscribe to `agent.created`,
+  `agent.updated` or both.
+- `support.*` and `workflow.*`, which were permission wildcards before 0.46
+  too. As event patterns, `support.*` is now `support_session.*` and
+  `workflow.*` is `workflow_definition.*`.
+- `leave.*` and `waitlist.*`, which are current permission wildcards. As event
+  patterns they are now `leave_request.*` plus `leave_balance.*`, and
+  `waitlist_entry.*`.
+- `drive.*` and `organization.*`, which still match some events: the node
+  events moved to `drive_node.*` and the SSO domain events to `sso_domain.*`.
+
+Doctor reports each old type it finds in your code
+([BS424](/docs/cli/doctor#bs424)).
+
+The outbox stores the new types. `upgrade` renders a data step that renames the
+stored types one to one: the outbox events and dead letters, automation
+triggers and timeline entries. For the type lists of outbox consumers and
+webhook endpoints it adds the new types and keeps the old ones, so a consumer
+of `agent.saved` gets `agent.created` and `agent.updated`. An automation
+whose trigger is a split type keeps it, and the rule sink also tests it
+against the events the old type became.
+
+Receivers outside the app, such as a service that reads the relayed
+CloudEvents or a webhook endpoint, can keep the old names for one minor with
+`legacyEventTypes`. The relay then sends each renamed type under its old name,
+with the new one in the `currenttype` extension, which the library's sinks
+read:
+
+```ts
+const outbox = createOutbox({
+  transport,
+  source: "https://crm.example.com",
+  legacyEventTypes: true,
+});
+```
+
+The option is deprecated and goes away in the next minor, so move the
+receivers to the new types first.
+
 ## The SQL modules
 
 Regenerate the module SQL and the migration. The schema diff drops the old
-function names and creates the new ones, and the data step moves the subject
-types:
+function names and creates the new ones, and the data steps move the subject
+types and the stored event types:
 
 ```sh
 npx better-supabase@latest upgrade

@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@1 managed
--- @bsb-hash sha256:0f432791f91bed0af8306af9cad2a768166719763abe503035281d7b23379ae8
+-- @bsb-hash sha256:42903b7aaafeae74e47094cb6d433012f032114bf1144125750ae219560939f2
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -341,7 +341,9 @@ begin
   if save_control.owner_id is not null and not exists (select 1 from "public"."memberships" m where m."organization_id" = v_framework."tenant_id" and m."user_id" = save_control.owner_id) then
     raise exception 'the owner must be a member of the organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;
+  v_new := false;
   if save_control.control_id is null then
+    v_new := not exists (select 1 from "better_supabase"."controls" x where x."framework_id" = v_framework."id" and x."code" = trim(save_control.code));
     insert into "better_supabase"."controls" ("tenant_id", "framework_id", "code", "title", "description", "owner_id", "source", "jurisdiction", "applicable")
     values (v_framework."tenant_id", v_framework."id", trim(save_control.code), trim(save_control.title), nullif(trim(save_control.description), ''), save_control.owner_id, nullif(trim(save_control.source), ''), nullif(trim(save_control.jurisdiction), ''), coalesce(save_control.applicable, true))
     on conflict ("framework_id", "code") do update
@@ -358,16 +360,29 @@ begin
       raise exception 'control not found' using errcode = 'P0002', hint = 'CONTROL_NOT_FOUND';
     end if;
   end if;
-  perform "better_supabase".emit_event('control.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code"), 'controls/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
+  if v_new then
+    perform "better_supabase".emit_event('control.created', jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code"), 'controls/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
   perform better_supabase.audit_event(
-    event_type => 'control.saved',
+    event_type => 'control.created',
     category => 'data',
     target_type => 'control',
     record_id => v_row."id"::text,
-    summary => 'saved control ' || v_row."code",
+    summary => 'created control ' || v_row."code",
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code")
   );
+  else
+    perform "better_supabase".emit_event('control.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code"), 'controls/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
+  perform better_supabase.audit_event(
+    event_type => 'control.updated',
+    category => 'data',
+    target_type => 'control',
+    record_id => v_row."id"::text,
+    summary => 'updated control ' || v_row."code",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'controlId', v_row."id", 'frameworkId', v_row."framework_id", 'code', v_row."code")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'frameworkId', v_row."framework_id", 'code', v_row."code", 'title', v_row."title", 'description', v_row."description", 'ownerId', v_row."owner_id", 'applicable', v_row."applicable", 'source', v_row."source", 'jurisdiction', v_row."jurisdiction", 'status', case
     when not v_row."applicable" then 'not_applicable'
     when exists (select 1 from "better_supabase"."evidence_tasks" st where st."control_id" = v_row."id" and (st."active" and st."due_on" < current_date)) then 'failing'
@@ -789,9 +804,9 @@ begin
     "version_number" = (v_version ->> 'number')::integer, "published_at" = now(), "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase".emit_event('policy.published', jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'number', v_row."version_number"), 'policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
+  perform "better_supabase".emit_event('compliance_policy.published', jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'number', v_row."version_number"), 'policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
   perform better_supabase.audit_event(
-    event_type => 'policy.published',
+    event_type => 'compliance_policy.published',
     category => 'data',
     target_type => 'policy',
     record_id => v_row."id"::text,
@@ -863,9 +878,9 @@ begin
   values (v_row."tenant_id", v_row."id", v_row."current_version_id", v_me)
   on conflict ("policy_id", "version_id", "user_id") do nothing;
   if found then
-    perform "better_supabase".emit_event('policy.acknowledged', jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'userId', v_me), 'policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
+    perform "better_supabase".emit_event('compliance_policy.acknowledged', jsonb_build_object('organizationId', v_row."tenant_id", 'policyId', v_row."id", 'versionId', v_row."current_version_id", 'userId', v_me), 'policies/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/compliance');
   perform better_supabase.audit_event(
-    event_type => 'policy.acknowledged',
+    event_type => 'compliance_policy.acknowledged',
     category => 'data',
     target_type => 'policy',
     record_id => v_row."id"::text,

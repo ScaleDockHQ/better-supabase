@@ -11,7 +11,11 @@ import { jsonReplacer } from "../core/json.ts";
 import { nowInstant } from "../core/temporal.ts";
 import { dataschemaOf } from "./cloud-event.ts";
 
-export { blockCloudEvent, forwardBlockEvents } from "./cloud-event.ts";
+export {
+  blockCloudEvent,
+  eventTypeOf,
+  forwardBlockEvents,
+} from "./cloud-event.ts";
 
 export type {
   CloudEvent,

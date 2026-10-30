@@ -8,15 +8,16 @@ import type {
 import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import {
   addExtraColumns,
   columnsObject,
   extraFieldsArg,
-  insertExtraColumns,
   extraFieldsJson,
   fail,
+  insertExtraColumns,
   lockTable,
   schemaPreamble,
   userGrant,
@@ -40,7 +41,11 @@ export const SAVED_VIEW_SCOPES = ["user", "team", "tenant"] as const;
 const MAX_STATE_BYTES = 65_536;
 
 const EVENTS: BlockSqlEvents<SavedViewsEvents> = {
-  "saved_view.saved": {
+  "saved_view.created": {
+    subject: "saved-views",
+    payload: ["organizationId", "id", "kind", "name"],
+  },
+  "saved_view.updated": {
     subject: "saved-views",
     payload: ["organizationId", "id", "kind", "name"],
   },
@@ -216,6 +221,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row ${views};
   v_last text;
   v_rank text;
@@ -289,13 +295,15 @@ begin
     where ${id} = v_id
     returning ${rank} into v_rank;
   end if;${writeExtraColumns(views, extras, "save_view.fields", `x.${id} = v_id`)}
-  ${ctx.record({
-    type: "saved_view.saved",
-    payload: `jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name)`,
-    subject: `'saved-views/' || v_id::text`,
-    tenant: "save_view.tenant",
-    audit: false,
-  })}
+  ${createdOrUpdated("v_inserted", (verb) =>
+    ctx.record({
+      type: `saved_view.${verb}`,
+      payload: `jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name)`,
+      subject: `'saved-views/' || v_id::text`,
+      tenant: "save_view.tenant",
+      audit: false,
+    }),
+  )}
   ${ctx.hook("after_view_save", [["uuid", "v_id"]])}
   return jsonb_build_object('id', v_id, 'rank', v_rank${
     extras.length === 0

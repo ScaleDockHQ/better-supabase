@@ -5,18 +5,18 @@ import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `signatures` block: type to data. */
 export type SignaturesEvents = {
-  readonly "signature.requested": SignatureEventData;
-  readonly "signature.signed": SignatureEventData;
-  readonly "signature.completed": SignatureEventData;
-  readonly "signature.declined": SignatureEventData;
-  readonly "signature.cancelled": SignatureEventData;
+  readonly "signature_request.requested": SignatureEventData;
+  readonly "signature_request.signed": SignatureEventData;
+  readonly "signature_request.completed": SignatureEventData;
+  readonly "signature_request.declined": SignatureEventData;
+  readonly "signature_request.cancelled": SignatureEventData;
 };
 
 /** The `signatures` block's event types, for its manifest and `onBlockEvent`. */
 export const signaturesEvents: Events<SignaturesEvents> = defineEvents({
-  "signature.requested": event<SignatureEventData>(),
-  "signature.signed": event<SignatureEventData>(),
-  "signature.completed": event<SignatureEventData>(),
-  "signature.declined": event<SignatureEventData>(),
-  "signature.cancelled": event<SignatureEventData>(),
+  "signature_request.requested": event<SignatureEventData>(),
+  "signature_request.signed": event<SignatureEventData>(),
+  "signature_request.completed": event<SignatureEventData>(),
+  "signature_request.declined": event<SignatureEventData>(),
+  "signature_request.cancelled": event<SignatureEventData>(),
 });

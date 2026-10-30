@@ -1,5 +1,6 @@
 import type { BlockSqlContext } from "../context.ts";
 
+import { createdOrUpdated } from "../event-verbs.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, userGrant, writeExtraColumns } from "../shared.ts";
 import { COURSE_KEYS, courseSql } from "./courses-sql.ts";
@@ -294,7 +295,7 @@ begin
       ${fail("COURSE_EXISTS", "a course with this key already exists", "23505")}
     end;
   end if;${writeExtraColumns(q.courses, extras, "(save_course.course -> 'fields')", `x.${c("id")} = v_row.${c("id")}`, "v_row")}
-  ${courseRecord("course.saved", "v_row", "saved a course")}
+  ${createdOrUpdated(`v_old.${c("id")} is null`, (verb) => courseRecord(`course.${verb}`, "v_row", `${verb} a course`))}
   return ${fn("course_json")}(v_row.${c("id")});
 end;
 $$;

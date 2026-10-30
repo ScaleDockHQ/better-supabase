@@ -218,7 +218,7 @@ export function workItemExtraFunctions(
 
   const touched = (field: string): string =>
     record(
-      "work_item.updated",
+      "task.updated",
       "v_row",
       `, 'fields', jsonb_build_array(${sqlString(field)})`,
     );

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@1 managed
--- @bsb-hash sha256:b17faa004b85b39cf361ca6f9b874da51c72ef74d3fd3dca91c67591b51463e4
+-- @bsb-hash sha256:6f7405cd52f5279a59727bb0617344c189fb49c19be89b9be739c51d9deb42a5
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -207,7 +207,11 @@ begin
   from jsonb_populate_record(null::"better_supabase"."agents", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_agent.fields) e where e.key in ('app_note'))) r
   where x."id" = v_row."id"
   returning x.* into v_row;
-  null;
+  if save_agent.id is null then
+    null;
+  else
+    null;
+  end if;
   return (jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note")));
 exception
   when unique_violation then

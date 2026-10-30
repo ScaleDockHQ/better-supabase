@@ -423,7 +423,7 @@ plural is wrong, `url` for the page of one row and `subject: false` to keep
 the entity out of the subject registry. A bare string for `entities` renames
 the block's primary entity. `work_item: "task"` turns the `work_items` table
 into `tasks`, `work_item_id` into `task_id`, `create_work_item` into
-`create_task`, `work_item.created` into `task.created` and the
+`create_task`, `task.created` into `task.created` and the
 `tasks.read` permission into `tasks.read`:
 
 ```ts title="better-supabase.config.ts"
@@ -783,7 +783,7 @@ token without an `act` claim, whose values win otherwise:
 
 ```sql
 select better_supabase.audit_event(
-  event_type => 'support.started',
+  event_type => 'support_session.started',
   category => 'security',
   support_session => session_id,
   impersonated_by => auth.uid(),
@@ -1072,7 +1072,7 @@ was purged is stored and processed again.
 [support mode](/docs/auth/impersonation). It needs `permissions` and `audit`.
 `start_support_session(target, reason, ttl, read_only, metadata, tenant)`
 checks `is_platform('impersonation.start')` for the caller, ends the caller's
-previous session, writes `support.started` to the audit log and returns the
+previous session, writes `support_session.started` to the audit log and returns the
 session as jsonb. An admin has one active session (a unique index). It refuses
 a target with platform permissions and a writable session unless the options
 below allow them. Under the `provider` access model, a target holds platform
@@ -1084,7 +1084,7 @@ platform ones. `end_support_session(session_id)` ends it for its admin
 service role, which alone passes `ended_by`. `expire_support_sessions()`,
 for the service role only, ends every running session past its expiry with
 `ended_by` set to `expired` and returns them, so each one gets its
-`support.ended` entry. `active_support_session` called
+`support_session.ended` entry. `active_support_session` called
 as the admin checks `impersonation.start` again. Errors carry `SUPPORT_FORBIDDEN`,
 `SUPPORT_SELF`, `SUPPORT_TARGET_MISSING`, `SUPPORT_TARGET_PLATFORM`,
 `SUPPORT_WRITES_DISABLED`, `SUPPORT_TTL`, `SUPPORT_REASON_REQUIRED` or
@@ -1097,7 +1097,7 @@ metadata, tenant)`, which runs the same checks as a start and stores a row in
 `approve_support_request(request_id)`. `start_support_session` then uses the
 newest approved, unused request for the same admin, target and tenant (a
 read-only approval never starts a writable session) and records its id and
-approver in the `support.started` audit entry. A request is open for
+approver in the `support_session.started` audit entry. A request is open for
 `approvalTtl` and starts one session.
 
 The requester never approves their own request: `approve_support_request`
@@ -1130,16 +1130,16 @@ and runs before reads.
 With an authorization provider, set `authorization.functions.actorMayWrite`
 and the writes call that instead of the built-in check.
 
-| Option                 | Default    | What it does                                                             |
-| ---------------------- | ---------- | ------------------------------------------------------------------------ |
-| `maxTtl`               | `4 hours`  | the longest session `start_support_session` accepts                      |
-| `requireReason`        | `true`     | refuses a start or request with an empty or blank reason                 |
-| `approval`             | `distinct` | `none` starts without a second admin's approval                          |
-| `approvalTtl`          | `1 hour`   | how long a request stays open for approval and a start                   |
-| `allowWrites`          | `false`    | accepts `read_only => false`                                             |
-| `allowPlatformTargets` | `false`    | lets a session target platform staff                                     |
-| `auditCategory`        | `support`  | the audit log category of `support.started` and `support.ended`          |
-| `claimsHook`           | none       | `schema.function` of your access token hook, for `support_target_claims` |
+| Option                 | Default    | What it does                                                                    |
+| ---------------------- | ---------- | ------------------------------------------------------------------------------- |
+| `maxTtl`               | `4 hours`  | the longest session `start_support_session` accepts                             |
+| `requireReason`        | `true`     | refuses a start or request with an empty or blank reason                        |
+| `approval`             | `distinct` | `none` starts without a second admin's approval                                 |
+| `approvalTtl`          | `1 hour`   | how long a request stays open for approval and a start                          |
+| `allowWrites`          | `false`    | accepts `read_only => false`                                                    |
+| `allowPlatformTargets` | `false`    | lets a session target platform staff                                            |
+| `auditCategory`        | `support`  | the audit log category of `support_session.started` and `support_session.ended` |
+| `claimsHook`           | none       | `schema.function` of your access token hook, for `support_target_claims`        |
 
 The permission keys are `impersonation.start`, `impersonation.read` and `impersonation.revoke`;
 rename them with `blocks["impersonation"].permissions`. The hooks

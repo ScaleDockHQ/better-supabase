@@ -57,7 +57,7 @@ describe("sso module", () => {
     expect(sql).toContain("'_acme-verify.' || ");
     expect(sql).toContain("'viewer') into v_role");
     expect(sql).toMatch(/emit_event\('organization\.member_added'/);
-    expect(sql).toMatch(/emit_event\('organization\.domain_verified'/);
+    expect(sql).toMatch(/emit_event\('sso_domain\.verified'/);
   });
 
   it("assigns catalog role ids", () => {

@@ -1,6 +1,6 @@
 -- better-supabase module: credentials
 -- @bsb-block credentials@1 managed
--- @bsb-hash sha256:650a4adacf5b86169ac8992d1e7182b881b7090eed4e1df19b8b09eb7706d682
+-- @bsb-hash sha256:788b06753c1ccdbe1549ecd00e10c6570d3a022a24731a0f2409fb0300ee37b3
 -- Third-party tokens and API keys in Supabase Vault as bs:cred:<provider>:<name>, behind security definer credential_get, credential_set and credential_delete functions only the service role may call. vaultCredentials() in better-supabase/credentials resolves credential references through them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -108,9 +108,9 @@ begin
     insert into "centrakit"."integration_credentials" ("provider", "key", "organization_id", "vault_secret_id", "updated_at")
     values (v_row."provider", v_row."key", v_row."organization_id", v_vault, now());
   end if;
-  perform "better_supabase".emit_event('credential.set', jsonb_build_object('provider', credential_set.provider, 'name', credential_set.name), 'credentials/' || credential_set.provider || '/' || credential_set.name, null, null, 'domain');
+  perform "better_supabase".emit_event('credential.updated', jsonb_build_object('provider', credential_set.provider, 'name', credential_set.name), 'credentials/' || credential_set.provider || '/' || credential_set.name, null, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'credential.set',
+    event_type => 'credential.updated',
     category => 'security',
     target_type => 'credential',
     record_id => credential_set.provider || ':' || credential_set.name,

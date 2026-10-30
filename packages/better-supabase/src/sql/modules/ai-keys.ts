@@ -8,14 +8,15 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Columns } from "./module-columns.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   raise,
+  revokeTable,
   schemaPreamble,
   SERVICE_CALLER,
   serviceGrant,
   userGrant,
-  revokeTable,
 } from "../shared.ts";
 import { tenantRefGuard } from "./credentials.ts";
 import { asText } from "./over-app.ts";
@@ -67,7 +68,11 @@ const ITEMS = {
 } as const;
 
 const EVENTS: BlockSqlEvents<AiKeysEvents> = {
-  "ai_provider_key.saved": {
+  "ai_provider_key.created": {
+    subject: "organizations",
+    payload: ["organizationId", "keyId", "provider", "name"],
+  },
+  "ai_provider_key.updated": {
     subject: "organizations",
     payload: ["organizationId", "keyId", "provider", "name"],
   },
@@ -411,6 +416,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row ${keys}%rowtype;
 begin
   if not (${SERVICE_CALLER} or ${ctx.scope.can("save_ai_provider_key.tenant", manage)}) then
@@ -420,12 +426,13 @@ begin
   select x.${k.credentialRef} into v_old from ${keys} x
   where x.${k.tenant} = save_ai_provider_key.tenant and x.${k.provider} = save_ai_provider_key.provider and x.${k.name} = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into ${keys} (${keyInsert.map(([column]) => column).join(", ")})
   values (${keyInsert.map(([, value]) => value).join(", ")})
   on conflict (${k.tenant}, ${k.provider}, ${k.name}) do update set
     ${keyUpdate.join(",\n    ")}
   returning * into v_row;
-  ${keyEvent("ai_provider_key.saved", "v_row")}
+  ${createdOrUpdated("v_inserted", (verb) => keyEvent(`ai_provider_key.${verb}`, "v_row"))}
   return jsonb_build_object('key', ${keyJson("v_row")}, 'replaced', v_old);
 end;
 $$;

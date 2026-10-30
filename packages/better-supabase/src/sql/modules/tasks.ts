@@ -64,19 +64,19 @@ const ITEM = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<TasksEvents> = {
-  "work_item.created": { subject: "work-items", payload: [...ITEM] },
-  "work_item.updated": { subject: "work-items", payload: [...ITEM, "fields"] },
-  "work_item.assigned": {
+  "task.created": { subject: "work-items", payload: [...ITEM] },
+  "task.updated": { subject: "work-items", payload: [...ITEM, "fields"] },
+  "task.assigned": {
     subject: "work-items",
     payload: [...ITEM, "assigneeIds", "addedIds"],
   },
-  "work_item.closed": {
+  "task.closed": {
     subject: "work-items",
     payload: [...ITEM, "state", "closeReason"],
   },
-  "work_item.reopened": { subject: "work-items", payload: [...ITEM] },
-  "work_item.archived": { subject: "work-items", payload: [...ITEM] },
-  "work_item.deleted": { subject: "work-items", payload: [...ITEM] },
+  "task.reopened": { subject: "work-items", payload: [...ITEM] },
+  "task.archived": { subject: "work-items", payload: [...ITEM] },
+  "task.deleted": { subject: "work-items", payload: [...ITEM] },
 };
 
 const NAMES: BlockSqlNames = {
@@ -358,7 +358,7 @@ ${checklistTable(ctx, n)}`;
 
 /**
  * The guard trigger: no parent cycles, a locked item keeps its dates, a closing
- * state stamps closed_at and a close reason and records work_item.closed, and
+ * state stamps closed_at and a close reason and records task.closed, and
  * reopening clears both.
  */
 function guard(ctx: BlockSqlContext, n: WorkItemNames): string {
@@ -436,11 +436,11 @@ ${
       end if;
 `
     : ""
-}      ${ctx.record({ type: "work_item.closed", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false })}
+}      ${ctx.record({ type: "task.closed", payload: payload(`, 'state', new.${w("state")}, 'closeReason', new.${w("closeReason")}`), subject, tenant, audit: false })}
     elsif not (${closed}) and ${state(`old.${w("state")}`, ["completed", "canceled"])} then
       new.${w("closedAt")} := null;
       new.${w("closeReason")} := null;
-      ${ctx.record({ type: "work_item.reopened", payload: payload(""), subject, tenant, audit: false })}
+      ${ctx.record({ type: "task.reopened", payload: payload(""), subject, tenant, audit: false })}
     end if;
   end if;
   new.${w("updatedAt")} := now();

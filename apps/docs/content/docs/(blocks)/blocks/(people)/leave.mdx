@@ -114,7 +114,7 @@ blocks: {
 
 ### Without the approvals block
 
-`options.approvals: false` keeps the decision on the request, so leave runs without the [approvals block](/docs/blocks/approvals) (an `approval` column mapped to `null` does the same). A request stays `pending` until `decide(requestId, { approved, note? })` approves or rejects it: the service role, or a member with `leave.approve` who didn't ask for it. Approval books the leave like a final approval; rejection sets `rejected_at` and records `leave.rejected`. The requests table takes optional `rejectedAt`, `decidedBy` and `decisionNote` columns; without `rejectedAt` a rejection fails with `LEAVE_REJECTION_UNSUPPORTED`. An app that decides elsewhere calls `decide_leave_request` from its own flow. The service role decides for a user with `decidedBy` (`decided_by` in SQL), which is kept in the `decidedBy` column instead of an empty value; a member passing someone else, or `decidedBy` naming the requester, fails with the forbidden error. With `options.approver: "manager"`, the requester's manager in the [employees block](/docs/blocks/employees) (or the request's employee's manager) may also decide, next to holders of `leave.approve`. That needs the employees block's tables; the default is `"permission"`.
+`options.approvals: false` keeps the decision on the request, so leave runs without the [approvals block](/docs/blocks/approvals) (an `approval` column mapped to `null` does the same). A request stays `pending` until `decide(requestId, { approved, note? })` approves or rejects it: the service role, or a member with `leave.approve` who didn't ask for it. Approval books the leave like a final approval; rejection sets `rejected_at` and records `leave_request.rejected`. The requests table takes optional `rejectedAt`, `decidedBy` and `decisionNote` columns; without `rejectedAt` a rejection fails with `LEAVE_REJECTION_UNSUPPORTED`. An app that decides elsewhere calls `decide_leave_request` from its own flow. The service role decides for a user with `decidedBy` (`decided_by` in SQL), which is kept in the `decidedBy` column instead of an empty value; a member passing someone else, or `decidedBy` naming the requester, fails with the forbidden error. With `options.approver: "manager"`, the requester's manager in the [employees block](/docs/blocks/employees) (or the request's employee's manager) may also decide, next to holders of `leave.approve`. That needs the employees block's tables; the default is `"permission"`.
 
 ### Your own tables without a key or part-of-day column
 
@@ -254,7 +254,7 @@ leave: {
 
 ## Events
 
-The block records `leave.requested`, `leave.approved`, `leave.rejected` (without the approvals block), `leave.cancelled`, `leave.updated` and `leave.split` (the new request) with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).
+The block records `leave_request.requested`, `leave_request.approved`, `leave_request.rejected` (without the approvals block), `leave_request.cancelled`, `leave_request.updated` and `leave_request.split` (the new request) with `organizationId`, `id`, `userId`, `typeId`, `startsOn`, `endsOn`, `amount` and `approvalId`, and `leave_balance.adjusted` with `kind`, `amount` and `period` for grants and adjustments. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods; see [extending blocks](/docs/extending/blocks).
 

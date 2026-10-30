@@ -94,7 +94,7 @@ describe("the temporal option of block creators", () => {
     betterSupabase.on("block", (event) => {
       seen.push(event);
     });
-    emitBlockEvent(betterSupabase.events, "support.started", {
+    emitBlockEvent(betterSupabase.events, "support_session.started", {
       sessionId: "s1",
       adminId: "u1",
       targetUserId: "u2",

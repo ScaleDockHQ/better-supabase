@@ -1,6 +1,6 @@
 -- better-supabase module: sequences
 -- @bsb-block sequences@1 managed
--- @bsb-hash sha256:2481989b149d3a0945aa1b372887ec8fbe1b36b7147e657b6a2208ae99b536b9
+-- @bsb-hash sha256:0bcc0da241d91cd3fe25d532191d7fd31c9c29f0ba17a67d5e203898e65b0ba0
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -475,17 +475,31 @@ begin
       end loop;
     end if;
   end if;
-  perform "better_supabase".emit_event('sequence.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'sequences/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/sequences');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('sequence.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'sequences/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/sequences');
   perform better_supabase.audit_event(
-    event_type => 'sequence.saved',
+    event_type => 'sequence.created',
     category => 'data',
     target_type => 'sequence',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    summary => 'saved a sequence',
+    summary => 'created a sequence',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
   );
+  else
+    perform "better_supabase".emit_event('sequence.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status"), 'sequences/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/sequences');
+  perform better_supabase.audit_event(
+    event_type => 'sequence.updated',
+    category => 'data',
+    target_type => 'sequence',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'updated a sequence',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'status', v_row."status")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'status', v_row."status", 'exitOnReply', v_row."exit_on_reply", 'accountId', v_row."mail_account_id", 'steps', v_row."steps", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at") || jsonb_build_object('counts', (select jsonb_build_object('active', count(*) filter (where m."status" = 'active'), 'paused', count(*) filter (where m."status" = 'paused'),
       'completed', count(*) filter (where m."status" = 'completed'), 'exited', count(*) filter (where m."status" = 'exited'),
       'replied', count(*) filter (where m."exit_reason" = 'replied'))

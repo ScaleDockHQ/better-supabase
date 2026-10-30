@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:b925ebd56033af3e2d0df4f4f1c362909b37a5e347fa73173fa08eaa8ce9b885
+-- @bsb-hash sha256:3e8ec5a1a28618be5ec1df35389693aecd92c531610b92253fc856719dc1e49b
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -216,7 +216,11 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  null;
+  if save_announcement.id is null then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;
@@ -321,7 +325,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:d5948cdbe57d40ee7338fc434144ab1295107350db5a6d3fe1a9a681b91b9cd6
+-- @bsb-hash sha256:51049c9d4b6ac6bbf77e644fd60eb55148470684a3c1cfcd50bcc21789101c51
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -536,14 +540,25 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('announcement.saved', jsonb_build_object('announcementId', v_row."id"), 'announcements/' || v_row."id"::text, null, null, 'better-supabase/announcements');
+  if save_announcement.id is null then
+    perform "better_supabase".emit_event('announcement.created', jsonb_build_object('announcementId', v_row."id"), 'announcements/' || v_row."id"::text, null, null, 'better-supabase/announcements');
   perform better_supabase.audit_event(
-    event_type => 'announcement.saved',
+    event_type => 'announcement.created',
     category => 'configuration',
     target_type => 'announcement',
     record_id => v_row."id"::text,
     metadata => jsonb_build_object('announcementId', v_row."id")
   );
+  else
+    perform "better_supabase".emit_event('announcement.updated', jsonb_build_object('announcementId', v_row."id"), 'announcements/' || v_row."id"::text, null, null, 'better-supabase/announcements');
+  perform better_supabase.audit_event(
+    event_type => 'announcement.updated',
+    category => 'configuration',
+    target_type => 'announcement',
+    record_id => v_row."id"::text,
+    metadata => jsonb_build_object('announcementId', v_row."id")
+  );
+  end if;
   return to_jsonb(v_row);
 end;
 $$;
@@ -655,7 +670,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:eed3855367d37b7f9afcdb132dd5df826078960eeeda7f58b709988f47bf3c90
+-- @bsb-hash sha256:65389e6fb148f32db5dba22ea1e08b6e0ef5fc8684f3f68887173ea06ba53450
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -875,7 +890,11 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  null;
+  if save_announcement.id is null then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;
@@ -980,7 +999,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:d28ba99eecacaded465f479c6cc89a2cda48f94cfdc493bf287b5735e620fa41
+-- @bsb-hash sha256:9c5799ca21368e92af9ced09cb2a9dbde43a8831c4e9bb799a203d49827458ec
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1195,7 +1214,11 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  null;
+  if save_announcement.id is null then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;
@@ -1367,7 +1390,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:e0ad3e942e494380a29b28d500fa34c8ba0b1559e229fa8efb96b75737aa873e
+-- @bsb-hash sha256:43524a2094df5eaffad8cf1814f2634189a2232feb1ff8fec31e0f7ef8a798e3
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1574,7 +1597,11 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  null;
+  if save_announcement.id is null then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;

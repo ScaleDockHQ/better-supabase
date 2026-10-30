@@ -1,6 +1,6 @@
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:3d6254b1ee0cb336bf39482229b86a42a8dd33f0105a16141b2a1e8b8e7d8585
+-- @bsb-hash sha256:2b8dfd0a44e25fb4d1dbba81caee5628960f8ae9143aacad8e6f7a0c3fabd4d8
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,6 +128,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "better_supabase"."shared_views";
   v_last text;
   v_rank text;
@@ -212,7 +213,11 @@ begin
     where "id" = v_id
     returning "rank" into v_rank;
   end if;
-  perform "better_supabase".emit_event('saved_view.saved', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
+  if v_inserted then
+    perform "better_supabase".emit_event('saved_view.created', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
+  else
+    perform "better_supabase".emit_event('saved_view.updated', jsonb_build_object('organizationId', save_view.tenant, 'id', v_id, 'kind', save_view.kind, 'name', save_view.name), 'saved-views/' || v_id::text, (save_view.tenant)::text, null, 'better-supabase/saved-views');
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin

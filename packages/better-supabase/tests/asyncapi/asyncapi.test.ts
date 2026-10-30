@@ -98,7 +98,10 @@ const api = defineApi(betterSupabase, {
       rows: ["customers", "contacts"],
       intents: ["insert"],
       dataschema: ({ type }) => `https://schemas.test/${type}.json`,
-      blocks: { "support.started": supportStarted, "support.ended": true },
+      blocks: {
+        "support_session.started": supportStarted,
+        "support_session.ended": true,
+      },
     },
   },
   webhooks: [
@@ -379,8 +382,10 @@ describe("asyncapiFormat", () => {
     expect((contacts["payload"] as Json)["properties"]).toMatchObject({
       row: { type: "object" },
     });
-    expect(doc.components.messages?.["blockSupportStarted"]).toMatchObject({
-      name: "dev.better-supabase.support.started",
+    expect(
+      doc.components.messages?.["blockSupportSessionStarted"],
+    ).toMatchObject({
+      name: "dev.better-supabase.support_session.started",
       payload: {
         properties: {
           sessionId: { type: "string" },
@@ -643,7 +648,7 @@ describe("BlockEventSchemas", () => {
 
     const schemas: BlockEventSchemas<ImpersonationEvents> = {
       // @ts-expect-error: adminId is a string in SupportEventData
-      "support.started": wrong,
+      "support_session.started": wrong,
     };
 
     expect(schemas).toBeDefined();

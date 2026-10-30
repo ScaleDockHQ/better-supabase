@@ -52,11 +52,11 @@ const APPLICATION = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<HiringEvents> = {
-  "job.opened": {
+  "job_opening.opened": {
     subject: "jobs",
     payload: ["organizationId", "jobId", "title"],
   },
-  "job.closed": {
+  "job_opening.closed": {
     subject: "jobs",
     payload: ["organizationId", "jobId", "title"],
   },
@@ -659,11 +659,11 @@ begin
         ctx.has("jobs", "closedAt") ? `${j("closedAt")} = null` : undefined,
       ],
     )}
-      ${jobRecord("job.opened")}
+      ${jobRecord("job_opening.opened")}
     elsif ${ctx.is("jobs", "status", `v_job.${j("status")}`, ["closed"])} then${stamp(
       [ctx.has("jobs", "closedAt") ? `${j("closedAt")} = now()` : undefined],
     )}
-      ${jobRecord("job.closed")}
+      ${jobRecord("job_opening.closed")}
     end if;
   end if;
   return ${withExtraFields(ctx.rowJson("jobs", "v_job"), "v_job", extras)};

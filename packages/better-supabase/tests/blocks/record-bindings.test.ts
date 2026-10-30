@@ -139,7 +139,7 @@ describe("bindings of a renamed block", () => {
       permissions: { read: "read" },
       load: (client: WorkNotes, subject) => client.list(subject),
       count: (client: WorkNotes) => client.counts(),
-      events: ["work_item.created"],
+      events: ["task.created"],
       optimistic: (
         state: readonly { workItemId: string }[],
         action: { workItemId: string },

@@ -32,7 +32,7 @@ const OFF: ServerAudit = { account: () => undefined };
 /**
  * The server's audit trail: account actions are sent to `sink` as CloudEvents
  * typed `dev.better-supabase.account.*` with subject `users/<id>`, and
- * `support.denied` block events are forwarded to it.
+ * `support_session.denied` block events are forwarded to it.
  */
 export function serverAudit(
   betterSupabase: { readonly events: EventHub },
@@ -45,7 +45,7 @@ export function serverAudit(
   const { events } = betterSupabase;
   forwardBlockEvents(betterSupabase, sink, {
     source: SERVER_EVENT_SOURCE,
-    types: ["support.denied"],
+    types: ["support_session.denied"],
   });
 
   const report = (cause: unknown): void => {

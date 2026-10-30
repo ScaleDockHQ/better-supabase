@@ -138,11 +138,11 @@ When a grant ends, the previous role comes back (or the membership goes, for som
 
 ## The provider access model
 
-With the `provider` access model the module doesn't touch memberships. The authorization provider's adapter grants the role when it receives `access.request_approved` and takes it back on `access.ended`.
+With the `provider` access model the module doesn't touch memberships. The authorization provider's adapter grants the role when it receives `access_request.approved` and takes it back on `access_request.ended`.
 
 ## Events and hooks
 
-The module records `access.requested`, `access.request_approved` and `access.ended` (with `reason` set to `expired` or `revoked`), each with `organizationId`, `userId`, `role`, the request `id`, `approvalId` and `expiresAt`, plus `target`, `subjectType`, `subjectId` and `action` (null for a role request; `role` is null for a record request). Emergency access records `access_request.emergency_opened` (with the `reason`) and `access_request.emergency_reviewed` (with the `verdict`) instead. They all go to the [audit log](/docs/blocks/audit). The approvals module records its own `approval.*` events for the request. The module calls `before_access_request` and `after_access_request` for role requests, and `before_access_grant` and `after_access_grant` for every grant.
+The module records `access_request.requested`, `access_request.approved` and `access_request.ended` (with `reason` set to `expired` or `revoked`), each with `organizationId`, `userId`, `role`, the request `id`, `approvalId` and `expiresAt`, plus `target`, `subjectType`, `subjectId` and `action` (null for a role request; `role` is null for a record request). Emergency access records `access_request.emergency_opened` (with the `reason`) and `access_request.emergency_reviewed` (with the `verdict`) instead. They all go to the [audit log](/docs/blocks/audit). The approvals module records its own `approval.*` events for the request. The module calls `before_access_request` and `after_access_request` for role requests, and `before_access_grant` and `after_access_grant` for every grant.
 
 ## With ReUI
 

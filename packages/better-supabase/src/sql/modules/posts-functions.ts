@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import {
   pageSize,
   SERVICE_CALLER,
@@ -50,19 +51,21 @@ function boardFunctions(ctx: BlockSqlContext): string {
     ...(q.hasBoard("updatedAt") ? [`${b("updatedAt")} = now()`] : []),
   ];
 
-  const saved = ctx.record({
-    type: "post_board.saved",
-    payload: `jsonb_build_object('organizationId', v_row.${b("tenant")}, 'id', v_row.${b("id")}, 'key', v_row.${b("key")}, 'kind', v_row.${b("kind")})`,
-    subject: `'post-boards/' || v_row.${b("id")}::text`,
-    tenant: `v_row.${b("tenant")}`,
-    audit: {
-      category: "data",
-      targetType: "post_board",
-      recordId: `v_row.${b("id")}::text`,
-      targetLabel: `v_row.${b("name")}`,
-      summary: sqlString("saved a board"),
-    },
-  });
+  const saved = createdOrUpdated(`v_old.${b("id")} is null`, (verb) =>
+    ctx.record({
+      type: `post_board.${verb}`,
+      payload: `jsonb_build_object('organizationId', v_row.${b("tenant")}, 'id', v_row.${b("id")}, 'key', v_row.${b("key")}, 'kind', v_row.${b("kind")})`,
+      subject: `'post-boards/' || v_row.${b("id")}::text`,
+      tenant: `v_row.${b("tenant")}`,
+      audit: {
+        category: "data",
+        targetType: "post_board",
+        recordId: `v_row.${b("id")}::text`,
+        targetLabel: `v_row.${b("name")}`,
+        summary: sqlString(`${verb} a board`),
+      },
+    }),
+  );
 
   return `-- Creates or changes a board. board is { id?, key, name, description, kind,
 -- archived }; keys left out keep their value, and the key can't change.

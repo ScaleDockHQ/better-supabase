@@ -49,7 +49,7 @@ When the team takes an idea on, it creates a work item and links the two with
 the relations block's `created_from` kind, so the item names the idea it came
 from and the idea lists the items it was `converted_to`
 ([relations](/docs/blocks/relations)). When the work ships, an outbox sink on
-`work_item.updated` can set the idea to `done`, and one on
+`task.updated` can set the idea to `done`, and one on
 `post.status_changed` can notify its author.
 
 ## With ReUI

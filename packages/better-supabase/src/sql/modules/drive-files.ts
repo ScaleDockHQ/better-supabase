@@ -958,7 +958,7 @@ revoke execute on function ${fn("drive_node_json")}(${T}) from public, anon, aut
   const late = `${schemaPreamble(own)}
 ${attachmentKey}${documentPreludeSql(kit)}${fileNodeJson}
 -- Before a node is deleted for good, its stored objects go into
--- drive.node_purged for the app to remove through Storage; after, its
+-- drive_node.purged for the app to remove through Storage; after, its
 -- grants, attachments${versions === undefined ? "" : ", revisions"}${state === undefined ? "" : " and starred state"} go too.
 create or replace function ${fn("drive_node_purging")}()
 returns trigger
@@ -969,7 +969,7 @@ as $$
 declare
   v_objects jsonb := ${purgeObjects};
 begin
-  ${record("drive.node_purged", "old", ", 'objects', v_objects", dataAudit("old", "deleted for good"))}
+  ${record("drive_node.purged", "old", ", 'objects', v_objects", dataAudit("old", "deleted for good"))}
   return old;
 end;
 $$;

@@ -469,7 +469,7 @@ export function optionFunctions(ctx: BlockSqlContext, names: Names): string {
       delete from ${variants} x where x.${v("id")} = v_variant;
       ${ctx
         .record({
-          type: "variant.deleted",
+          type: "product_variant.deleted",
           payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_variant, 'productId', ${product})`,
           subject: `'variants/' || v_variant::text`,
           tenant: "v_tenant",
@@ -1002,7 +1002,7 @@ ${valueChecks.check}
 ${valueChecks.write}
   if v_created then
     ${ctx.record({
-      type: "variant.created",
+      type: "product_variant.created",
       payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku)`,
       subject: `'variants/' || v_id::text`,
       tenant: "v_tenant",
@@ -1010,7 +1010,7 @@ ${valueChecks.write}
     })}
   else
     ${ctx.record({
-      type: "variant.updated",
+      type: "product_variant.updated",
       payload: `jsonb_build_object('organizationId', v_tenant, 'id', v_id, 'productId', save_variant.product, 'sku', v_sku)`,
       subject: `'variants/' || v_id::text`,
       tenant: "v_tenant",
@@ -1075,7 +1075,7 @@ begin
   ${guard(names, "v_tenant", names.remove)}${historyCheck("delete_variant.variant", "CATALOG_VARIANT_IN_USE")}
   delete from ${variants} x where x.${v("id")} = delete_variant.variant;
   ${ctx.record({
-    type: "variant.deleted",
+    type: "product_variant.deleted",
     payload: `jsonb_build_object('organizationId', v_tenant, 'id', delete_variant.variant, 'productId', v_product)`,
     subject: `'variants/' || delete_variant.variant::text`,
     tenant: "v_tenant",

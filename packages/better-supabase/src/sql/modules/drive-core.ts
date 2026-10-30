@@ -581,7 +581,7 @@ ${
   end if;
 `
     : ""
-}  ${record("drive.node_created", "v_node", `, 'kind', v_node.${n("kind")}, 'name', v_node.${n("name")}, 'parentId', v_node.${n("parent")}, 'source', drive_insert_node.source`, dataAudit("v_node", "created"))}
+}  ${record("drive_node.created", "v_node", `, 'kind', v_node.${n("kind")}, 'name', v_node.${n("name")}, 'parentId', v_node.${n("parent")}, 'source', drive_insert_node.source`, dataAudit("v_node", "created"))}
   ${ctx.hook("after_drive_node_create", [["uuid", `v_node.${n("id")}`]])}
   return v_node;
 end;
@@ -765,7 +765,7 @@ begin
   update ${T} x set ${n("name")} = v_name${touch}
   where x.${n("id")} = v_node.${n("id")}
   returning * into v_node;
-  ${record("drive.node_renamed", "v_node", `, 'name', v_node.${n("name")}, 'previousName', v_previous`, dataAudit("v_node", "renamed"))}
+  ${record("drive_node.renamed", "v_node", `, 'name', v_node.${n("name")}, 'previousName', v_previous`, dataAudit("v_node", "renamed"))}
   ${ctx.hook("after_drive_node_rename", [["uuid", `v_node.${n("id")}`]])}
   return ${withRole("v_node")};
 end;
@@ -878,7 +878,7 @@ begin
     update ${T} x set ${n("parent")} = drive_move.parent, ${n("name")} = v_name${driveColumn ? `, ${n("drive")} = v_target` : ""}${ranked ? `, ${n("rank")} = coalesce(drive_move.rank, ${rankAfter("v_last")})` : ""}${touch}
     where x.${n("id")} = v_node.${n("id")}
     returning * into v_node;
-    ${record("drive.node_moved", "v_node", `, 'parentId', v_node.${n("parent")}, 'previousParentId', v_previous`, dataAudit("v_node", "moved"))}
+    ${record("drive_node.moved", "v_node", `, 'parentId', v_node.${n("parent")}, 'previousParentId', v_previous`, dataAudit("v_node", "moved"))}
   ${
     ranked
       ? `elsif drive_move.rank is not null then

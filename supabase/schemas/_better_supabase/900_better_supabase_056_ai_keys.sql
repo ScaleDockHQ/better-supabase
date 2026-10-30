@@ -1,6 +1,6 @@
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:2c2fca006716db4ca94574d96e4bf5b6e25fde3be8372e153a36c8524953a482
+-- @bsb-hash sha256:2118f6f2d323ba337ae26978bc89a9fa1d4b6acbd9927835edc80eb2f44cf2ad
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -178,6 +178,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -194,6 +195,7 @@ begin
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
   where x."organization_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into "better_supabase"."ai_provider_keys" ("organization_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
   on conflict ("organization_id", "provider", "name") do update set
@@ -202,9 +204,10 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
-  perform "better_supabase".emit_event('ai_provider_key.saved', jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/ai-provider-keys/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-keys');
+  if v_inserted then
+    perform "better_supabase".emit_event('ai_provider_key.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/ai-provider-keys/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-keys');
   perform better_supabase.audit_event(
-    event_type => 'ai_provider_key.saved',
+    event_type => 'ai_provider_key.created',
     category => 'security',
     target_type => 'ai_provider_key',
     record_id => v_row."id"::text,
@@ -212,6 +215,18 @@ begin
     tenant => (v_row."organization_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name")
   );
+  else
+    perform "better_supabase".emit_event('ai_provider_key.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name"), 'organizations/' || v_row."organization_id"::text || '/ai-provider-keys/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-keys');
+  perform better_supabase.audit_event(
+    event_type => 'ai_provider_key.updated',
+    category => 'security',
+    target_type => 'ai_provider_key',
+    record_id => v_row."id"::text,
+    target_label => v_row."provider" || '/' || v_row."name",
+    tenant => (v_row."organization_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'keyId', v_row."id", 'provider', v_row."provider", 'name', v_row."name")
+  );
+  end if;
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;

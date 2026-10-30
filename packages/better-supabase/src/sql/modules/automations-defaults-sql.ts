@@ -133,7 +133,7 @@ begin
   where x.${r("id")} = v_row.${r("id")}
   returning * into v_row;
   ${saveVersionSql(ctx)}
-  ${ruleEvent("rule.saved", "v_row")}
+  ${ruleEvent("automation.updated", "v_row")}
   return ${ruleJson("v_row")};
 end;
 $$;`;

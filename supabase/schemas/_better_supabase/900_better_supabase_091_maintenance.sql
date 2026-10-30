@@ -1,6 +1,6 @@
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@2 managed tasks
--- @bsb-hash sha256:983e8f57eaa5d8b2cefc633bd7e279035464bb02fa6b7537ccdb5fd7d13761e4
+-- @bsb-hash sha256:f081c5cea0b119e42c75d493560d1390b586a8607575c9b0f7eb8aae8ad8b6a1
 -- @bsb-names maintenance task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -465,7 +465,7 @@ revoke execute on function "better_supabase"."update_maintenance_requests"(jsonb
 grant execute on function "better_supabase"."update_maintenance_requests"(jsonb, boolean) to authenticated, service_role;
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified. work_item.assigned is recorded only
+-- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
 create or replace function "better_supabase"."set_maintenance_request_assignees"(work_item uuid, users uuid[])
 returns integer
@@ -515,7 +515,7 @@ begin
       'action_path', null,
       'recipients', to_jsonb(v_new),
       'watchers', false,
-      'key', 'maintenance_request.assigned:' || v_row."id"::text || ':' || md5(array_to_string(v_new, ',')),
+      'key', 'task.assigned:' || v_row."id"::text || ':' || md5(array_to_string(v_new, ',')),
       'data', jsonb_build_object('maintenanceRequestId', v_row."id")
     ));
     perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);

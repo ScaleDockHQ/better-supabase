@@ -272,7 +272,7 @@ begin
   update ${requests} r set ${c("approval")} = (v_approval ->> 'id')::uuid
   where r.${c("id")} = v_row.${c("id")}
   returning * into v_row;
-  ${record("access.requested", "v_row")}
+  ${record("access_request.requested", "v_row")}
   return ${json("v_row", "'pending'")};
 end;
 $$;

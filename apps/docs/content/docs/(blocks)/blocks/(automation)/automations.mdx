@@ -424,7 +424,7 @@ blocks: {
 
 ## Events
 
-The block records `rule.saved`, `rule.enabled`, `rule.disabled` and `rule.removed` with `organizationId`, `ruleId`, `name`, `subjectType`, `trigger` and `version`, which the audit log keeps as configuration changes. A live match records `rule.matched` with the `subjectId`. See [events](/docs/extending/events).
+The block records `automation.created`, `automation.updated`, `automation.enabled`, `automation.disabled` and `automation.deleted` with `organizationId`, `ruleId`, `name`, `subjectType`, `trigger` and `version`, which the audit log keeps as configuration changes. A live match records `automation.matched` with the `subjectId`. See [events](/docs/extending/events).
 
 The block takes `hooks` around its methods; see [extending blocks](/docs/extending/blocks).
 

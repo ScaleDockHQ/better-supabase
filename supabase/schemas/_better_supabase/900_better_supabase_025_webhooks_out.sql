@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:5241ea462f72ede51f0523cd0a7cc825c1adae80014db73818cac3ddc53f53d8
+-- @bsb-hash sha256:e259736efdf727bc70138e590deb4a3183f7c433855726253be8debe6a64d63e
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -492,15 +492,15 @@ begin
       where d."id" = v_endpoint and d."enabled";
       if found then
         v_result := 'disabled';
-        perform "better_supabase".emit_event('webhook.disabled', jsonb_build_object('endpointId', v_endpoint, 'organizationId', v_tenant::text, 'failingSince', v_since), 'webhooks/' || v_endpoint::text, (v_tenant::text)::text, 'webhook.disabled:' || v_endpoint::text || ':' || v_since::text, 'better-supabase/webhooks-out');
+        perform "better_supabase".emit_event('webhook_endpoint.disabled', jsonb_build_object('endpointId', v_endpoint, 'organizationId', v_tenant::text, 'failingSince', v_since), 'webhooks/' || v_endpoint::text, (v_tenant::text)::text, 'webhook_endpoint.disabled:' || v_endpoint::text || ':' || v_since::text, 'better-supabase/webhooks-out');
   perform better_supabase.audit_event(
-    event_type => 'webhook.disabled',
+    event_type => 'webhook_endpoint.disabled',
     category => 'integration',
     target_type => 'webhook_endpoint',
     record_id => v_endpoint::text,
     tenant => (v_tenant::text)::uuid,
     metadata => jsonb_build_object('endpointId', v_endpoint, 'organizationId', v_tenant::text, 'failingSince', v_since),
-    idempotency_key => 'webhook.disabled:' || v_endpoint::text || ':' || v_since::text
+    idempotency_key => 'webhook_endpoint.disabled:' || v_endpoint::text || ':' || v_since::text
   );
       end if;
     end if;
@@ -639,9 +639,9 @@ begin
   );
   insert into "better_supabase"."webhook_endpoint_secrets" ("endpoint_id", "vault_secret_id", "organization_id")
   values (rotate_webhook_secret.endpoint, v_vault, v_tenant);
-  perform "better_supabase".emit_event('webhook.secret_rotated', jsonb_build_object('endpointId', rotate_webhook_secret.endpoint, 'organizationId', v_tenant::text), 'webhooks/' || rotate_webhook_secret.endpoint::text, (v_tenant)::text, null, 'better-supabase/webhooks-out');
+  perform "better_supabase".emit_event('webhook_endpoint.secret_rotated', jsonb_build_object('endpointId', rotate_webhook_secret.endpoint, 'organizationId', v_tenant::text), 'webhooks/' || rotate_webhook_secret.endpoint::text, (v_tenant)::text, null, 'better-supabase/webhooks-out');
   perform better_supabase.audit_event(
-    event_type => 'webhook.secret_rotated',
+    event_type => 'webhook_endpoint.secret_rotated',
     category => 'security',
     target_type => 'webhook_endpoint',
     record_id => rotate_webhook_secret.endpoint::text,

@@ -262,7 +262,7 @@ const EVENTS: BlockSqlEvents<AiChatEvents> = {
     subject: "ai-chats",
     payload: ["organizationId", "chatId", "approvalId", "tool", "decision"],
   },
-  "ai_tool_policy.set": {
+  "ai_tool_policy.updated": {
     subject: "organizations",
     payload: ["organizationId", "tool", "policy"],
   },

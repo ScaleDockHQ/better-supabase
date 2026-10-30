@@ -5,6 +5,7 @@ import type { AuditEventInput } from "./audit-log.ts";
 
 import { MAX_BATCH } from "../../core/batch-limit.ts";
 import { DbException } from "../../core/errors.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 import { chunksOf, isRecord } from "../shared.ts";
 
 export interface AuditSinkOptions {
@@ -16,7 +17,7 @@ export interface AuditSinkOptions {
   /**
    * The category for an event type (without the prefix), from the categories
    * the SQL modules use. Defaults to `security` for `account.*` and
-   * `support.*`, and no category for the rest.
+   * `support_session.*`, and no category for the rest.
    */
   readonly category?: (eventType: string) => AuditCategory | undefined;
 }
@@ -25,13 +26,13 @@ const textIn = (value: unknown): string | undefined =>
   typeof value === "string" && value !== "" ? value : undefined;
 
 const defaultCategory = (eventType: string): AuditCategory | undefined =>
-  eventType.startsWith("account.") || eventType.startsWith("support.")
+  eventType.startsWith("account.") || eventType.startsWith("support_session.")
     ? "security"
     : undefined;
 
 /**
- * The impersonation fields of a `support.*` event: its session, admin and
- * reason.
+ * The impersonation fields of a `support_session.*` event: its session, admin
+ * and reason.
  */
 function supportFields(
   eventType: string,
@@ -40,7 +41,7 @@ function supportFields(
   AuditEventInput,
   "supportSessionId" | "impersonatedBy" | "impersonationReason"
 > {
-  if (!eventType.startsWith("support.") || data === undefined) {
+  if (!eventType.startsWith("support_session.") || data === undefined) {
     return {};
   }
 
@@ -59,9 +60,9 @@ function supportFields(
  * The audit entry for one CloudEvent: its type without the prefix, its subject
  * as the record, the tenant from the `tenant` or `partitionkey` extension (or
  * `data.organizationId`), and the data as metadata. The idempotency key is the
- * event's source and id, so a redelivery records once. A `support.*` event also
- * fills the impersonation columns from its `sessionId`, `adminId` and
- * `reason`.
+ * event's source and id, so a redelivery records once. A `support_session.*`
+ * event also fills the impersonation columns from its `sessionId`, `adminId`
+ * and `reason`.
  */
 export function auditEventOf(
   event: CloudEvent,
@@ -80,9 +81,7 @@ export function auditEventOf(
   const metadata =
     data ?? (event.data === undefined ? undefined : { data: event.data });
 
-  const eventType = event.type.startsWith(prefix)
-    ? event.type.slice(prefix.length)
-    : event.type;
+  const eventType = eventTypeOf(event, prefix);
 
   const category = (options.category ?? defaultCategory)(eventType);
 

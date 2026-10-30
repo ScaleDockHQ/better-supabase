@@ -380,7 +380,7 @@ begin
   from ${t("links")} k where k.${l("engagement")} = v_from.${e("id")};
   v_subjects := ${subjectsOf("v_id")};
   v_first := v_subjects -> 0;
-  ${record("engagement.amended", "v_id", `v_from.${e("type")}::text`, `v_from.${e("tenant")}`, `'amendsId', v_from.${e("id")}`)}
+  ${record("activity.amended", "v_id", `v_from.${e("type")}::text`, `v_from.${e("tenant")}`, `'amendsId', v_from.${e("id")}`)}
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;
@@ -431,7 +431,7 @@ begin
   if v_tenant is null then
     ${fail("ACTIVITY_NOT_FOUND", "no such engagement you can edit", "P0002")}
   end if;
-  ${record("engagement.error_marked", "v_id", "v_type", "v_tenant", "'reason', v_reason")}
+  ${record("activity.error_marked", "v_id", "v_type", "v_tenant", "'reason', v_reason")}
   return (select ${row("x")} from ${t("engagements")} x where x.${e("id")} = v_id);
 end;
 $$;

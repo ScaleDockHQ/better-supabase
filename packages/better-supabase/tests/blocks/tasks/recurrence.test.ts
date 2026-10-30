@@ -17,7 +17,7 @@ const RULE = {
   dtstart: instant("2026-10-19T08:00:00Z"),
 };
 
-const closed = (data: Record<string, unknown>, type = "work_item.closed") => ({
+const closed = (data: Record<string, unknown>, type = "task.closed") => ({
   specversion: "1.0" as const,
   id: crypto.randomUUID(),
   source: "test",
@@ -61,7 +61,7 @@ describe("workItemRecurrenceSink", () => {
     await workItemRecurrenceSink(items).send([
       closed({ subjectId: "w1", state: "completed" }),
       closed({ subjectId: "w1", state: "canceled" }),
-      closed({ subjectId: "w1", state: "completed" }, "work_item.reopened"),
+      closed({ subjectId: "w1", state: "completed" }, "task.reopened"),
       closed({ state: "completed" }),
     ]);
 

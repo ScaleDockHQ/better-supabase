@@ -116,7 +116,7 @@ export default defineConfig({
 | Rescheduled while confirmed | The same meeting moves to the new time and opens again                                                                                        |
 | Cancelled after confirming  | The meeting is done at the cancel time, with the outcome `cancelled: <reason>`                                                                |
 
-The meeting's `externalRef` is `booking:<id>`, so it is one engagement per booking, and code that logs the same booking with that ref updates it instead of adding a second one. With [parties](/docs/blocks/contacts) installed, the meeting sits on the person whose user or email (in any case) matches the booker's, and on that person's company (the primary link first). A booker with no contact gets a meeting on no record, which every reader of the organization sees. The owner is the member who made the booking, else the contact's owner. It needs `meeting` in `options.types`, and installing it without the bookings block fails at render time. The events are the usual `engagement.logged`, `engagement.updated` and `engagement.completed`.
+The meeting's `externalRef` is `booking:<id>`, so it is one engagement per booking, and code that logs the same booking with that ref updates it instead of adding a second one. With [parties](/docs/blocks/contacts) installed, the meeting sits on the person whose user or email (in any case) matches the booker's, and on that person's company (the primary link first). A booker with no contact gets a meeting on no record, which every reader of the organization sees. The owner is the member who made the booking, else the contact's owner. It needs `meeting` in `options.types`, and installing it without the bookings block fails at render time. The events are the usual `activity.logged`, `activity.updated` and `activity.completed`.
 
 ## Read
 
@@ -241,13 +241,13 @@ Recordings, transcripts and notes are readable by whoever can read the engagemen
 
 ## Events
 
-| Event                                                                                   | Data                                                                             |
-| --------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `engagement.logged`, `engagement.updated`, `engagement.completed`, `engagement.deleted` | `organizationId`, `engagementId`, `type`, `subjectType`, `subjectId`, `subjects` |
-| `engagement.recorded`, `engagement.transcribed`                                         | The same, and `recordingId`                                                      |
-| `engagement.summarized`                                                                 | The same as `engagement.logged`                                                  |
-| `engagement.amended`                                                                    | The same for the addendum, and `amendsId`: the original                          |
-| `engagement.error_marked`                                                               | The same, and `reason`                                                           |
+| Event                                                                           | Data                                                                             |
+| ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `activity.logged`, `activity.updated`, `activity.completed`, `activity.deleted` | `organizationId`, `engagementId`, `type`, `subjectType`, `subjectId`, `subjects` |
+| `activity.recorded`, `activity.transcribed`                                     | The same, and `recordingId`                                                      |
+| `activity.summarized`                                                           | The same as `activity.logged`                                                    |
+| `activity.amended`                                                              | The same for the addendum, and `amendsId`: the original                          |
+| `activity.error_marked`                                                         | The same, and `reason`                                                           |
 
 ## Hooks
 

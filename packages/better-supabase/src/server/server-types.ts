@@ -174,8 +174,8 @@ export interface ServerOptions<
    * Where the server's audit trail goes, such as `audit.sink()` from
    * `better-supabase/blocks/audit`. `suspendAccount`, `deleteAccount` and
    * `endSessions` send `dev.better-supabase.account.*` CloudEvents, and
-   * `support.denied` events are forwarded. A failed send is logged and never
-   * fails the action.
+   * `support_session.denied` events are forwarded. A failed send is logged and
+   * never fails the action.
    */
   readonly audit?: EventSink;
   /**

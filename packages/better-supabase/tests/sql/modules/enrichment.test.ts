@@ -28,7 +28,8 @@ describe("enrichment module", () => {
     const sql = sqlOf();
     expect(sql).toContain('v_company."domain" is null and v_domain ~');
     expect(sql).toContain('v_person."title" is null');
-    expect(sql).toContain("'party.enriched'");
+    expect(sql).toContain("'company.enriched'");
+    expect(sql).toContain("'person.enriched'");
   });
 
   it("names records by the parties block's renamed subject types", () => {

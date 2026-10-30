@@ -110,7 +110,7 @@ export interface BlockDefinition<
    */
   readonly schemas?: BlockSchemas;
   /**
-   * The read methods each event pattern (`"work_item.*"`) makes stale, for
+   * The read methods each event pattern (`"task.*"`) makes stale, for
    * `invalidateOnBlockEvents`. An event no pattern matches makes every read
    * method of the block stale.
    */
@@ -177,7 +177,7 @@ export interface Block<
   /** Standard Schemas for what the client takes, by entity key. */
   readonly schemas: BlockSchemas;
   /**
-   * The read methods each event pattern (`"work_item.*"`) makes stale, for
+   * The read methods each event pattern (`"task.*"`) makes stale, for
    * `invalidateOnBlockEvents`. An event no pattern matches makes every read
    * method of the block stale.
    */

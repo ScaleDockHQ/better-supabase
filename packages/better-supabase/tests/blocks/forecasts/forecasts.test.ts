@@ -301,6 +301,6 @@ describe("createForecasts", () => {
 
   it("is the forecasts block", () => {
     expect(forecastsBlock.name).toBe("forecasts");
-    expect(forecastsBlock.events.types).toEqual(["forecast.snapshotted"]);
+    expect(forecastsBlock.events.types).toEqual(["forecast_snapshot.created"]);
   });
 });

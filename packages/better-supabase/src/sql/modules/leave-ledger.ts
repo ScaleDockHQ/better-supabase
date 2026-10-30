@@ -100,7 +100,7 @@ export function leaveLedgerFunctions(
       'note', ${ledger.has("transactions", "memo") ? `r.${lt("memo")}` : "null"}, 'createdAt', y.${le("createdAt")})`;
 
   const adjusted = ctx.record({
-    type: "leave.adjusted",
+    type: "leave_balance.adjusted",
     payload: `jsonb_build_object('organizationId', adjust_leave_balance.tenant, 'id', v_entry, 'userId', ${employee ? "v_user, 'employeeId', v_owner" : "adjust_leave_balance.user_id"}, 'typeId', adjust_leave_balance.type_id, 'kind', coalesce(adjust_leave_balance.kind, 'adjustment'), 'amount', adjust_leave_balance.amount::numeric(8, 2)::text, 'period', v_period)`,
     subject: `'leave-ledger-entries/' || v_entry::text`,
     tenant: "adjust_leave_balance.tenant",

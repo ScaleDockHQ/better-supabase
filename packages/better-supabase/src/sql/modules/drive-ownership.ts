@@ -93,7 +93,7 @@ begin
   if drive_grant_access.ends_at is not null and drive_grant_access.ends_at <= now() then
     delete from ${G} dg where dg.${g("node")} = v_node.${n("id")} and ${mine("dg")} and dg.${g("accessRequest")};
     if found then
-      ${record("drive.node_unshared", "v_node", principal, accessAudit("v_node", "access request ended"))}
+      ${record("drive_node.unshared", "v_node", principal, accessAudit("v_node", "access request ended"))}
     end if;
     return;
   end if;
@@ -108,7 +108,7 @@ begin
   delete from ${G} dg where dg.${g("node")} = v_node.${n("id")} and ${mine("dg")};
   insert into ${G} (${columns})
   values (${values});
-  ${record("drive.node_shared", "v_node", `${principal}, 'role', v_role`, accessAudit("v_node", "access request granted"))}
+  ${record("drive_node.shared", "v_node", `${principal}, 'role', v_role`, accessAudit("v_node", "access request granted"))}
 end;
 $$;
 revoke execute on function ${fn("drive_grant_access")}(text, uuid, text, timestamptz) from public, anon, authenticated;
@@ -324,7 +324,7 @@ begin
     update ${G} set ${repoint} where ${g("id")} = v_grant.${g("id")};
     select * into v_node from ${T} x where x.${n("id")} = v_grant.${g("node")};
     v_nodes := v_nodes + 1;
-    ${record("drive.node_ownership_transferred", "v_node", users, accessAudit("v_node", "ownership transferred"))}
+    ${record("drive_node.ownership_transferred", "v_node", users, accessAudit("v_node", "ownership transferred"))}
   end loop;${driveGrants}${driveOwners}${driveEvents}
   return jsonb_build_object('nodes', v_nodes, 'drives', v_drives);
 end;

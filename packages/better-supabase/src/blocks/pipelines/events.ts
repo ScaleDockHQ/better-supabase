@@ -11,7 +11,8 @@ export type PipelinesEvents = {
   readonly "pipeline.created": PipelineEventData;
   readonly "pipeline.updated": PipelineEventData;
   readonly "pipeline.archived": PipelineEventData;
-  readonly "pipeline_stage.saved": PipelineEventData;
+  readonly "pipeline_stage.created": PipelineEventData;
+  readonly "pipeline_stage.updated": PipelineEventData;
   readonly "pipeline_stage.archived": PipelineEventData;
   readonly "pipeline.stage_changed": PipelineStageEventData;
 };
@@ -21,7 +22,8 @@ export const pipelinesEvents: Events<PipelinesEvents> = defineEvents({
   "pipeline.created": event<PipelineEventData>(),
   "pipeline.updated": event<PipelineEventData>(),
   "pipeline.archived": event<PipelineEventData>(),
-  "pipeline_stage.saved": event<PipelineEventData>(),
+  "pipeline_stage.created": event<PipelineEventData>(),
+  "pipeline_stage.updated": event<PipelineEventData>(),
   "pipeline_stage.archived": event<PipelineEventData>(),
   "pipeline.stage_changed": event<PipelineStageEventData>(),
 });

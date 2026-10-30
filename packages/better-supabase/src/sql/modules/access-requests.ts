@@ -58,12 +58,15 @@ const RECORD_PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<AccessRequestsEvents> = {
-  "access.requested": { subject: "access-requests", payload: RECORD_PAYLOAD },
-  "access.request_approved": {
+  "access_request.requested": {
     subject: "access-requests",
     payload: RECORD_PAYLOAD,
   },
-  "access.ended": {
+  "access_request.approved": {
+    subject: "access-requests",
+    payload: RECORD_PAYLOAD,
+  },
+  "access_request.ended": {
     subject: "access-requests",
     payload: [...RECORD_PAYLOAD, "reason"],
   },
@@ -374,7 +377,7 @@ function build(ctx: BlockSqlContext): string {
     where r.${c("id")} = v_row.${c("id")}
     returning * into v_row;
     if not v_row.${c("emergency")} then
-      ${record("access.request_approved", "v_row")}
+      ${record("access_request.approved", "v_row")}
     end if;
     ${ctx.hook("after_access_grant", [["uuid", `v_row.${c("id")}`]])}
     return;
@@ -488,7 +491,7 @@ begin
   update ${requests} r set ${c("approval")} = (v_approval ->> 'id')::uuid
   where r.${c("id")} = v_row.${c("id")}
   returning * into v_row;
-  ${record("access.requested", "v_row")}
+  ${record("access_request.requested", "v_row")}
   ${ctx.hook("after_access_request", [["uuid", `v_row.${c("id")}`]])}
   return ${json("v_row", "'pending'")};
 end;
@@ -518,7 +521,7 @@ begin
       ${c("expiresAt")} = case when v_row.${c("duration")} is null then null else now() + v_row.${c("duration")} end
   where r.${c("id")} = v_row.${c("id")}
   returning * into v_row;
-  ${record("access.request_approved", "v_row")}
+  ${record("access_request.approved", "v_row")}
   ${ctx.hook("after_access_grant", [["uuid", `v_row.${c("id")}`]])}
 end;
 $$;
@@ -546,7 +549,7 @@ begin
     ${fail("ACCESS_NOT_GRANTED", "this access isn't active", "22023")}
   end if;${endBranch(revertRole)}
   update ${requests} r set ${c("endedAt")} = now() where r.${c("id")} = v_row.${c("id")} returning * into v_row;
-  ${record("access.ended", "v_row", ", 'reason', 'revoked'")}
+  ${record("access_request.ended", "v_row", ", 'reason', 'revoked'")}
   return ${json("v_row", "'ended'")};
 end;
 $$;
@@ -571,7 +574,7 @@ begin
     for update skip locked
   loop${expireBranch}
     update ${requests} r set ${c("endedAt")} = now() where r.${c("id")} = v_row.${c("id")} returning * into v_row;
-    ${record("access.ended", "v_row", ", 'reason', 'expired'")}
+    ${record("access_request.ended", "v_row", ", 'reason', 'expired'")}
     v_count := v_count + 1;
   end loop;
   return v_count;

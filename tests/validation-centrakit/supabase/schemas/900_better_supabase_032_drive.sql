@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:e6906e1bc55e853eb114e5237b246c6a184a1033eb50dbc0d809ea3be64f8a86
+-- @bsb-hash sha256:9f83d85dc47d543139ac9934ecdf5431481abfcdac06227dac018eaa29b65f6b
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -517,9 +517,9 @@ begin
     insert into "centrakit"."file_node_grant" ("organization_id", "file_node_id", "user_id", "role")
     values (v_node."organization_id", v_node."id", auth.uid(), better_supabase.as_column_type('editor', (null::"centrakit"."file_node_grant")."role"));
   end if;
-  perform "better_supabase".emit_event('drive.node_created', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id", 'source', drive_insert_node.source), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('drive_node.created', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'kind', v_node."kind", 'name', v_node."name", 'parentId', v_node."parent_id", 'source', drive_insert_node.source), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_created',
+    event_type => 'drive_node.created',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -718,9 +718,9 @@ begin
   update "centrakit"."file_node" x set "name" = v_name, "updated_at" = now()
   where x."id" = v_node."id"
   returning * into v_node;
-  perform "better_supabase".emit_event('drive.node_renamed', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'name', v_node."name", 'previousName', v_previous), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('drive_node.renamed', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'name', v_node."name", 'previousName', v_previous), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_renamed',
+    event_type => 'drive_node.renamed',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -807,9 +807,9 @@ begin
     update "centrakit"."file_node" x set "parent_id" = drive_move.parent, "name" = v_name, "updated_at" = now()
     where x."id" = v_node."id"
     returning * into v_node;
-    perform "better_supabase".emit_event('drive.node_moved', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'parentId', v_node."parent_id", 'previousParentId', v_previous), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
+    perform "better_supabase".emit_event('drive_node.moved', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'parentId', v_node."parent_id", 'previousParentId', v_previous), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_moved',
+    event_type => 'drive_node.moved',
     category => 'data',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -922,9 +922,9 @@ begin
   insert into "centrakit"."file_node_grant" ("organization_id", "file_node_id", "user_id", "team_id", "role")
   values (v_node."organization_id", v_node."id", case when v_type = 'user' then drive_share.principal_id::uuid end, case when v_type = 'team' then (select t."id" from "centrakit"."teams" t where t."id"::text = drive_share.principal_id) end, better_supabase.as_column_type(drive_share.role, (null::"centrakit"."file_node_grant")."role"))
   returning "id" into v_id;
-  perform "better_supabase".emit_event('drive.node_shared', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', v_type, 'principalId', drive_share.principal_id, 'role', drive_share.role), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('drive_node.shared', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', v_type, 'principalId', drive_share.principal_id, 'role', drive_share.role), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_shared',
+    event_type => 'drive_node.shared',
     category => 'access',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -976,9 +976,9 @@ begin
   if not found then
     return false;
   end if;
-  perform "better_supabase".emit_event('drive.node_unshared', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', v_type, 'principalId', drive_unshare.principal_id), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
+  perform "better_supabase".emit_event('drive_node.unshared', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'principalType', v_type, 'principalId', drive_unshare.principal_id), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_unshared',
+    event_type => 'drive_node.unshared',
     category => 'access',
     target_type => 'drive_node',
     record_id => v_node."id"::text,
@@ -1071,9 +1071,9 @@ begin
     update "centrakit"."file_node_grant" set "user_id" = drive_transfer_ownership.to_user where "id" = v_grant."id";
     select * into v_node from "centrakit"."file_node" x where x."id" = v_grant."file_node_id";
     v_nodes := v_nodes + 1;
-    perform "better_supabase".emit_event('drive.node_ownership_transferred', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'fromUserId', drive_transfer_ownership.from_user::text, 'toUserId', drive_transfer_ownership.to_user::text), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
+    perform "better_supabase".emit_event('drive_node.ownership_transferred', jsonb_build_object('organizationId', v_node."organization_id"::text, 'subjectType', 'drive_node', 'subjectId', v_node."id"::text, 'fromUserId', drive_transfer_ownership.from_user::text, 'toUserId', drive_transfer_ownership.to_user::text), 'drive-nodes/' || v_node."id"::text, (v_node."organization_id")::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_ownership_transferred',
+    event_type => 'drive_node.ownership_transferred',
     category => 'access',
     target_type => 'drive_node',
     record_id => v_node."id"::text,

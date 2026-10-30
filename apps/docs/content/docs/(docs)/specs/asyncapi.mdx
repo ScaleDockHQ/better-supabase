@@ -39,7 +39,7 @@ export const api = defineApi(betterSupabase, {
     cloudEvents: {
       source: "/crm",
       rows: ["customers"],
-      blocks: { "support.started": true },
+      blocks: { "support_session.started": true },
     },
   },
   webhooks: [
@@ -218,7 +218,7 @@ by a block's event map, such as `BlockEventSchemas<MessagingEvents>`: it only
 takes that block's event types, and a schema must be a `BlockEventSchema<T>`
 whose output is that event's data. A block can
 export its own `BlockEventSchemas` map. The message is `block<Event>`, its
-type is the prefix plus the event (`dev.better-supabase.support.started`),
+type is the prefix plus the event (`dev.better-supabase.support_session.started`),
 and its payload gains `actorId` when the schema doesn't have it.
 
 Every CloudEvents message lists the shared `cloudEvent` message trait

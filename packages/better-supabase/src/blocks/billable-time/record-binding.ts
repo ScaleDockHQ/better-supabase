@@ -43,7 +43,7 @@ export const billableTimeBinding: RecordBinding<
   permissions: { read: "read", write: "manage" },
   module: "billable-time",
   load: (client: BillableTime, subject) => client.unbilled({ subject }),
-  events: ["time.*"],
+  events: ["time_entry.*"],
   writes: {
     setRate: {
       input: timeRateSectionInputSchema,

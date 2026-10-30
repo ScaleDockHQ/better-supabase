@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:8348b1706a1f63d57dca20109c5fba9217c50fadb79c75df0772a4bdf7ccd6c8
+-- @bsb-hash sha256:624ffc57c2af85aa2cbd787b580cfeca19c1a10d20bb50ade3c327f0f0c4a733
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -182,9 +182,10 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('segment.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'segments/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/segments');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('segment.created', jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'segments/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/segments');
   perform better_supabase.audit_event(
-    event_type => 'segment.saved',
+    event_type => 'segment.created',
     category => 'data',
     target_type => 'segment',
     record_id => v_row."id"::text,
@@ -192,6 +193,18 @@ begin
     tenant => (v_row."tenant_id"::text)::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name")
   );
+  else
+    perform "better_supabase".emit_event('segment.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'segments/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/segments');
+  perform better_supabase.audit_event(
+    event_type => 'segment.updated',
+    category => 'data',
+    target_type => 'segment',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    tenant => (v_row."tenant_id"::text)::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'subjectType', v_row."subject_type", 'conditions', v_row."conditions", 'memberCount', v_row."member_count", 'refreshedAt', v_row."refreshed_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 exception when unique_violation then
   raise exception 'Another segment in this organization has this name' using errcode = '23505', hint = 'SEGMENT_NAME_TAKEN';
@@ -221,9 +234,9 @@ begin
     raise exception 'You need segments.edit to remove a segment' using errcode = '42501', hint = 'SEGMENT_FORBIDDEN';
   end if;
   delete from "better_supabase"."segments" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('segment.removed', jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'segments/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/segments');
+  perform "better_supabase".emit_event('segment.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'segmentId', v_row."id", 'subjectType', v_row."subject_type", 'name', v_row."name"), 'segments/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/segments');
   perform better_supabase.audit_event(
-    event_type => 'segment.removed',
+    event_type => 'segment.deleted',
     category => 'data',
     target_type => 'segment',
     record_id => v_row."id"::text,

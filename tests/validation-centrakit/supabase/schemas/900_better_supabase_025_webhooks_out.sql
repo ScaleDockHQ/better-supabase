@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:be2b7205a309367a1174799c5d1964a6e6b997682d8a788b9c09b8a636dd80bf
+-- @bsb-hash sha256:699290a4ede8e5a34a2fff8d443b4c16fe07b40e58ef9b456d4b1ecf75d0960a
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -508,9 +508,9 @@ begin
   delete from "centrakit"."webhook_destination_secrets" s where s."destination_id" = rotate_webhook_secret.endpoint;
   insert into "centrakit"."webhook_destination_secrets" ("destination_id", "secret", "organization_id")
   values (rotate_webhook_secret.endpoint, v_secret, v_tenant);
-  perform "better_supabase".emit_event('webhook.secret_rotated', jsonb_build_object('endpointId', rotate_webhook_secret.endpoint, 'organizationId', v_tenant::text), 'webhooks/' || rotate_webhook_secret.endpoint::text, (v_tenant)::text, null, 'domain');
+  perform "better_supabase".emit_event('webhook_endpoint.secret_rotated', jsonb_build_object('endpointId', rotate_webhook_secret.endpoint, 'organizationId', v_tenant::text), 'webhooks/' || rotate_webhook_secret.endpoint::text, (v_tenant)::text, null, 'domain');
   perform better_supabase.audit_event(
-    event_type => 'webhook.secret_rotated',
+    event_type => 'webhook_endpoint.secret_rotated',
     category => 'security',
     target_type => 'webhook_endpoint',
     record_id => rotate_webhook_secret.endpoint::text,

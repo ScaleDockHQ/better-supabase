@@ -120,7 +120,7 @@ describe.skipIf(!live)("forecasts", () => {
       expect((await forecasts.get(first.id).orThrow()).deals).toHaveLength(2);
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type = 'forecast.snapshotted'",
+        "select type from better_supabase.outbox_events where organization_id = $1 and type = 'forecast_snapshot.created'",
         [org],
       );
 

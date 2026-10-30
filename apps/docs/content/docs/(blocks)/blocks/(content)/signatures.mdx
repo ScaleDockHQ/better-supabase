@@ -51,7 +51,7 @@ With the [approvals](/docs/blocks/approvals) module, `approvalRequestId` links a
 
 ## Meanings
 
-A request can say what signing means with `meaning`, such as `approved` for a release sign-off or `reviewed` for a review. The meaning is stored on the request, returned by `get` and `list`, and sent with `signature.completed`. The allowed meanings are `authored`, `reviewed`, `approved`, `released`, `acknowledged` and `agreed` (a care plan agreement uses `agreed`); set `blocks.signatures.options.meanings` to your own list of lowercase names. A meaning outside the list fails with `SIGNATURE_REQUEST_MEANING_UNKNOWN`.
+A request can say what signing means with `meaning`, such as `approved` for a release sign-off or `reviewed` for a review. The meaning is stored on the request, returned by `get` and `list`, and sent with `signature_request.completed`. The allowed meanings are `authored`, `reviewed`, `approved`, `released`, `acknowledged` and `agreed` (a care plan agreement uses `agreed`); set `blocks.signatures.options.meanings` to your own list of lowercase names. A meaning outside the list fails with `SIGNATURE_REQUEST_MEANING_UNKNOWN`.
 
 ```ts title="better-supabase.config.ts"
 export default defineConfig({
@@ -71,7 +71,7 @@ Until 0.14 the client was exported from `better-supabase/blocks/forms`. Import i
 
 ## Events and hooks
 
-The module records `signature.requested`, `signature.signed` (with `signer` and `method`), `signature.completed` (with the request's `meaning`), `signature.declined` and `signature.cancelled`, each with the signed record's `subjectType` and `subjectId`, and audits requests, signatures, declines and cancellations. It calls `before_signature_request`, `after_signature_request`, `before_signature_sign` and `after_signature_sign`.
+The module records `signature_request.requested`, `signature_request.signed` (with `signer` and `method`), `signature_request.completed` (with the request's `meaning`), `signature_request.declined` and `signature_request.cancelled`, each with the signed record's `subjectType` and `subjectId`, and audits requests, signatures, declines and cancellations. It calls `before_signature_request`, `after_signature_request`, `before_signature_sign` and `after_signature_sign`.
 
 ## With ReUI
 

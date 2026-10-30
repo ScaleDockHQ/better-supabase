@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:ac53585d785c4f61fc0f9cb60d48266e89ee6b1dbdbe8f49c282d3d9d587dec4
+-- @bsb-hash sha256:de689732deb87b414ce9fa93a8faea383a3c5c8d14098b93a5b27f37412df635
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -179,6 +179,7 @@ as $$
 #variable_conflict use_column
 declare
   v_old jsonb;
+  v_inserted boolean;
   v_row "better_supabase"."ai_provider_keys"%rowtype;
 begin
   if not (better_supabase.actor_may_write()) then
@@ -195,6 +196,7 @@ begin
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
   where x."workspace_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
+  v_inserted := not found;
   insert into "better_supabase"."ai_provider_keys" ("workspace_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
   on conflict ("workspace_id", "provider", "name") do update set
@@ -203,7 +205,11 @@ begin
     "enabled" = excluded."enabled",
     "updated_at" = now()
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;

@@ -309,7 +309,7 @@ describe.skipIf(!live)("courses", () => {
         ),
       ).toEqual(
         expect.arrayContaining([
-          { type: "course.saved" },
+          { type: "course.created" },
           { type: "course.enrolled" },
           { type: "course_lesson.completed" },
           { type: "course.completed" },
@@ -325,7 +325,7 @@ describe.skipIf(!live)("courses", () => {
         ),
       ).toEqual(
         expect.arrayContaining([
-          { type: "course.saved" },
+          { type: "course.created" },
           { type: "course.enrolled" },
           { type: "course_certificate.revoked" },
         ]),

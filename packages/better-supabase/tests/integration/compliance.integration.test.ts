@@ -218,16 +218,16 @@ describe.skipIf(!live)("compliance", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where type like any (array['control%', 'policy.%', 'evidence_task.%'])",
+        "select type from better_supabase.outbox_events where type like any (array['control%', 'compliance_policy.%', 'evidence_task.%'])",
       );
 
       expect(new Set(events.map((row) => row.type))).toEqual(
         new Set([
-          "control.saved",
+          "control.created",
           "control.evidence_added",
           "evidence_task.missed",
-          "policy.published",
-          "policy.acknowledged",
+          "compliance_policy.published",
+          "compliance_policy.acknowledged",
         ]),
       );
     } finally {

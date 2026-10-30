@@ -24,20 +24,17 @@ export interface EngagementEventData extends SubjectEventData {
   readonly subjects: readonly { readonly type: string; readonly id: string }[];
 }
 
-/** `engagement.recorded` and `engagement.transcribed`: a recording's turn. */
+/** `activity.recorded` and `activity.transcribed`: a recording's turn. */
 export interface EngagementRecordingEventData extends EngagementEventData {
   readonly recordingId: string;
 }
 
-/**
- * `engagement.amended`: `engagementId` is the addendum, `amendsId` the
- * original.
- */
+/** `activity.amended`: `engagementId` is the addendum, `amendsId` the original. */
 export interface EngagementAmendedEventData extends EngagementEventData {
   readonly amendsId: string;
 }
 
-/** `engagement.error_marked`: the engagement was flagged as entered in error. */
+/** `activity.error_marked`: the engagement was flagged as entered in error. */
 export interface EngagementErrorMarkedEventData extends EngagementEventData {
   readonly reason: string;
 }
@@ -86,8 +83,8 @@ export interface MailTrackingEventData {
 }
 
 /**
- * `segment.saved` and `segment.removed`: a tenant's filter over one subject
- * type.
+ * `segment.created`, `segment.updated` and `segment.deleted`: a tenant's filter
+ * over one subject type.
  */
 export interface SegmentEventData {
   readonly organizationId: string;
@@ -119,8 +116,8 @@ export interface AssignmentEventData {
 }
 
 /**
- * `party.enriched`: a provider's result for a company or a person was stored,
- * with the empty columns the match filled.
+ * `company.enriched` or `person.enriched`: a provider's result for a company or
+ * a person was stored, with the empty columns the match filled.
  */
 export interface EnrichmentEventData {
   readonly organizationId: string;
@@ -133,7 +130,7 @@ export interface EnrichmentEventData {
 }
 
 /**
- * `forecast.snapshotted`: the forecast call for a period and currency was
+ * `forecast_snapshot.created`: the forecast call for a period and currency was
  * stored with the deals it counted.
  */
 export interface ForecastSnapshotEventData {
@@ -198,13 +195,13 @@ export interface WorkItemEventData extends SubjectEventData {
   readonly organizationId: string;
   readonly workItemId: string;
   readonly title: string;
-  /** For `work_item.updated`: the fields the batch changed. */
+  /** For `task.updated`: the fields the batch changed. */
   readonly fields?: readonly string[];
-  /** For `work_item.assigned`: everyone assigned now. */
+  /** For `task.assigned`: everyone assigned now. */
   readonly assigneeIds?: readonly string[];
-  /** For `work_item.assigned`: the people this change assigned. */
+  /** For `task.assigned`: the people this change assigned. */
   readonly addedIds?: readonly string[];
-  /** For `work_item.closed`: `completed` or `canceled`, and why. */
+  /** For `task.closed`: `completed` or `canceled`, and why. */
   readonly state?: string;
   readonly closeReason?: string;
 }
@@ -305,7 +302,8 @@ export interface EmployeeEventData extends SubjectEventData {
 /**
  * Events from the pipelines module. `pipeline.stage_changed` carries the record
  * that moved as `subjectType` and `subjectId`; the configuration events
- * (`pipeline.created`, `pipeline_stage.saved`) carry none.
+ * (`pipeline.created`, `pipeline_stage.created`, `pipeline_stage.updated`)
+ * carry none.
  */
 export interface PipelineEventData {
   readonly organizationId: string;

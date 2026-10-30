@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:a670a80c3a5fd9bbe806e110ceaecb4b6d41f9d0b8f82f6956f028e47113fed6
+-- @bsb-hash sha256:63a5996513655624f83a39a2073374e1cefd5c6db47c607ca86bde0463990c9e
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -187,17 +187,31 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('post_board.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind"), 'post-boards/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('post_board.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind"), 'post-boards/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
   perform better_supabase.audit_event(
-    event_type => 'post_board.saved',
+    event_type => 'post_board.created',
     category => 'data',
     target_type => 'post_board',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    summary => 'saved a board',
+    summary => 'created a board',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind")
   );
+  else
+    perform "better_supabase".emit_event('post_board.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind"), 'post-boards/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
+  perform better_supabase.audit_event(
+    event_type => 'post_board.updated',
+    category => 'data',
+    target_type => 'post_board',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'updated a board',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;

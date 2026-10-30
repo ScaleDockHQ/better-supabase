@@ -189,6 +189,12 @@ describe("blocks.generated.ts", () => {
           to: { singular: "initiative", plural: "initiatives" },
         },
       ],
+      events: [
+        {
+          from: { singular: "task", plural: "tasks" },
+          to: { singular: "ticket", plural: "tickets" },
+        },
+      ],
     });
   });
 
@@ -302,7 +308,7 @@ describe("blocks.generated.ts", () => {
       "export type Ticket<F extends object = Record<never, never>> = RenamedType<DefaultWorkItem<F>, TicketsRenames>;",
     );
     expect(contents).toContain(
-      "export type TicketsEvents = RenamedEvents<DefaultTasksEvents, TicketsRenames>;",
+      "export type TicketsEvents = RenamedEvents<DefaultTasksEvents, TicketsRenamesEvents>;",
     );
     expect(contents).toMatch(/BlockEvents = .*TasksEvents & TicketsEvents/);
   });

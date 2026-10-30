@@ -33,7 +33,7 @@ import {
 } from "./support-approvals.ts";
 
 const EVENTS: BlockSqlEvents<ImpersonationEvents> = {
-  "support.started": {
+  "support_session.started": {
     subject: "support-sessions",
     payload: [
       "sessionId",
@@ -45,7 +45,7 @@ const EVENTS: BlockSqlEvents<ImpersonationEvents> = {
       "organizationId",
     ],
   },
-  "support.ended": {
+  "support_session.ended": {
     subject: "support-sessions",
     payload: [
       "sessionId",
@@ -743,11 +743,11 @@ begin
   select ${sessionJson(ctx, "s")} into started from ${sessions} s where s.${c("id")} = session_id;
   ${ctx.hook("after_support_start", [["uuid", "session_id"]])}
   ${ctx.record({
-    type: "support.started",
+    type: "support_session.started",
     payload: supportPayload("started"),
     subject: "'support-sessions/' || session_id",
     tenant: "tenant",
-    key: "'support.started:' || session_id",
+    key: "'support_session.started:' || session_id",
     audit: {
       category: "security",
       targetType: "user",
@@ -816,11 +816,11 @@ begin
   end if;
   ${ctx.hook("after_support_end", [["uuid", "session_id"]])}
   ${ctx.record({
-    type: "support.ended",
+    type: "support_session.ended",
     payload: supportPayload("ended", ", 'endedBy', ended_by"),
     subject: "'support-sessions/' || session_id",
     ...(tenant ? { tenant } : {}),
-    key: "'support.ended:' || session_id",
+    key: "'support_session.ended:' || session_id",
     audit: {
       category: "security",
       targetType: "user",
@@ -842,7 +842,8 @@ $$;`;
 /**
  * `expire_support_sessions()`: ends every running session past its expiry
  * through `end_support_session(id, 'expired')`, so each one records
- * `support.ended`, and returns the sessions it ended. Service role only.
+ * `support_session.ended`, and returns the sessions it ended. Service role
+ * only.
  */
 function expire(ctx: BlockSqlContext): string {
   const sessions = ctx.table("sessions");

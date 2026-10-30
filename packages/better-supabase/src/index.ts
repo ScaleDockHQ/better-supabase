@@ -9,10 +9,14 @@ export type {
 export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";
 
 export {
+  currentEventTypes,
   ENTITY_KEY_RENAMES,
   ENTITY_RENAMES_CODEMOD,
   EVENT_TYPE_RENAMES,
+  EVENT_TYPE_SPLITS,
   HINT_RENAMES,
+  isOldEventType,
+  legacyEventType,
   legacyHintOf,
   renamed,
   SUBJECT_TYPE_RENAMES,

@@ -2,7 +2,7 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `time.invoiced`: unbilled time became a draft invoice. */
+/** `time_entry.invoiced`: unbilled time became a draft invoice. */
 export interface TimeInvoicedEventData {
   readonly organizationId: string;
   readonly invoiceId: string;
@@ -15,10 +15,10 @@ export interface TimeInvoicedEventData {
 
 /** The events of the `billable-time` block: type to data. */
 export type BillableTimeEvents = {
-  readonly "time.invoiced": TimeInvoicedEventData;
+  readonly "time_entry.invoiced": TimeInvoicedEventData;
 };
 
 /** The `billable-time` block's event types, for its manifest and `onBlockEvent`. */
 export const billableTimeEvents: Events<BillableTimeEvents> = defineEvents({
-  "time.invoiced": event<TimeInvoicedEventData>(),
+  "time_entry.invoiced": event<TimeInvoicedEventData>(),
 });

@@ -3,6 +3,12 @@ import { describe, expect, it } from "vitest";
 
 import { BLOCK_MANIFESTS } from "../../src/blocks/registry.ts";
 import { BLOCK_EVENT_RENAMES } from "../../src/core/block-events.ts";
+import {
+  currentEventTypes,
+  EVENT_TYPE_RENAMES,
+  EVENT_TYPE_SPLITS,
+  isOldEventType,
+} from "../../src/core/renames.ts";
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
 
@@ -65,7 +71,7 @@ const OPTIONAL = new Set([
   "field_value.deleted",
   "team.restored",
   "timesheet.rejected",
-  "leave.rejected",
+  "leave_request.rejected",
   "expense_report.rejected",
   "expense.created",
   "expense.submitted",
@@ -77,8 +83,9 @@ const OPTIONAL = new Set([
   "object.uploaded",
   "pipeline.stage_changed",
   "calendar.updated",
-  "approval_policy.saved",
-  "approval_policy.removed",
+  "approval_policy.created",
+  "approval_policy.updated",
+  "approval_policy.deleted",
 ]);
 
 const declared = (module: string): string[] =>
@@ -132,6 +139,21 @@ describe("SQL module event catalog", () => {
       Object.entries(BLOCK_EVENT_RENAMES).filter(
         ([from, to]) => known.has(from) || !known.has(to),
       ),
+    ).toEqual([]);
+  });
+
+  it("emits no type the 0.47 naming convention renamed", () => {
+    const recorded = [...RECORDED.values()].flatMap((types) => [...types]);
+    expect([...MAP_TYPES, ...recorded].filter(isOldEventType)).toEqual([]);
+  });
+
+  it("renames every old type to a type some block emits", () => {
+    const known = new Set(MAP_TYPES);
+    expect(
+      Object.keys({ ...EVENT_TYPE_RENAMES, ...EVENT_TYPE_SPLITS })
+        .filter((old) => !old.endsWith(".*"))
+        .flatMap(currentEventTypes)
+        .filter((type) => !known.has(type)),
     ).toEqual([]);
   });
 

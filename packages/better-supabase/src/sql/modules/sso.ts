@@ -446,7 +446,7 @@ begin
   insert into ${d} as x (${cd("tenant")}, ${cd("domain")}) values (add_organization_domain.tenant, v_domain)
   on conflict (${cd("tenant")}, ${cd("domain")}) do update set ${cd("domain")} = x.${cd("domain")}
   returning * into v_row;
-  ${domainEvent("organization.domain_added", "auth.uid()")}
+  ${domainEvent("sso_domain.created", "auth.uid()")}
   return ${withRecord("v_row")};
 end;
 $$;
@@ -516,7 +516,7 @@ begin
   update ${d} x set ${cd("autoJoinRole")} = ${ctx.cast("domains", "autoJoinRole", "update_organization_domain.auto_join_role")}, ${cd("enforceSso")} = update_organization_domain.enforce_sso
   where x.${cd("id")} = v_row.${cd("id")}
   returning * into v_row;
-  ${domainEvent("organization.domain_updated", "auth.uid()")}
+  ${domainEvent("sso_domain.updated", "auth.uid()")}
   return ${withRecord("v_row")};
 end;
 $$;
@@ -538,7 +538,7 @@ begin
     ${fail("SSO_DOMAIN_IN_USE", "An SSO provider uses this domain; remove it first", "23503")}
   end if;
   delete from ${d} x where x.${cd("id")} = v_row.${cd("id")};
-  ${domainEvent("organization.domain_removed", "auth.uid()")}
+  ${domainEvent("sso_domain.deleted", "auth.uid()")}
   return true;
 end;
 $$;
@@ -566,7 +566,7 @@ begin
     ${raise("Another organization has verified %", "23505", "SSO_DOMAIN_TAKEN", `v_row.${cd("domain")}`)}
   end if;
   update ${d} x set ${cd("verifiedAt")} = now() where x.${cd("id")} = v_row.${cd("id")} returning * into v_row;
-  ${domainEvent("organization.domain_verified", "verify_organization_domain.actor")}
+  ${domainEvent("sso_domain.verified", "verify_organization_domain.actor")}
   return ${withRecord("v_row")};
 end;
 $$;

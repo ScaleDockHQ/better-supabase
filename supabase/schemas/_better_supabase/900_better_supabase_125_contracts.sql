@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:c3cde2291cd829686e8721e5875ca70ef916f28099bc7a6de904030f10810366
+-- @bsb-hash sha256:813981e14df5dcc1e0fd065d9d982ba141bbe7eea2e6ae9cfe55644123c409be
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -733,16 +733,29 @@ begin
       raise exception 'obligation not found' using errcode = 'P0002', hint = 'CONTRACT_OBLIGATION_NOT_FOUND';
     end if;
   end if;
-  perform "better_supabase".emit_event('obligation.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status"), 'obligations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/contracts');
+  if save_contract_obligation.obligation_id is null then
+    perform "better_supabase".emit_event('contract_obligation.created', jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status"), 'obligations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/contracts');
   perform better_supabase.audit_event(
-    event_type => 'obligation.saved',
+    event_type => 'contract_obligation.created',
     category => 'data',
     target_type => 'obligation',
     record_id => v_row."id"::text,
-    summary => 'saved obligation' || ' ' || v_row."title",
+    summary => 'created obligation' || ' ' || v_row."title",
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status")
   );
+  else
+    perform "better_supabase".emit_event('contract_obligation.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status"), 'obligations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/contracts');
+  perform better_supabase.audit_event(
+    event_type => 'contract_obligation.updated',
+    category => 'data',
+    target_type => 'obligation',
+    record_id => v_row."id"::text,
+    summary => 'updated obligation' || ' ' || v_row."title",
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'contractId', v_row."contract_id", 'title', v_row."title", 'description', v_row."description", 'dueOn', v_row."due_on", 'ownerId', v_row."owner_id", 'status', v_row."status", 'overdue', (v_row."status" = 'open' and v_row."due_on" < current_date), 'completedAt', v_row."completed_at", 'completedBy', v_row."completed_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -779,9 +792,9 @@ begin
     "updated_at" = now()
     where x."id" = v_row."id"
     returning * into v_row;
-  perform "better_supabase".emit_event('obligation.status_changed', jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status"), 'obligations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/contracts');
+  perform "better_supabase".emit_event('contract_obligation.status_changed', jsonb_build_object('organizationId', v_row."tenant_id", 'obligationId', v_row."id", 'contractId', v_row."contract_id", 'status', v_row."status"), 'obligations/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/contracts');
   perform better_supabase.audit_event(
-    event_type => 'obligation.status_changed',
+    event_type => 'contract_obligation.status_changed',
     category => 'data',
     target_type => 'obligation',
     record_id => v_row."id"::text,

@@ -84,7 +84,7 @@ import { useTasks } from "@/lib/supabase/hooks";
 const rows = useTasks({ limit: 50 });
 ```
 
-`update(changes)` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`TASK_PARENT_CYCLE`) and date changes on a locked item (`TASK_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `work_item.closed`. Moving back to an open stage clears both and records `work_item.reopened`.
+`update(changes)` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`TASK_PARENT_CYCLE`) and date changes on a locked item (`TASK_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `task.closed`. Moving back to an open stage clears both and records `task.reopened`.
 
 A Gantt drag that moves both ends sends one `window` change, `{ startAt, endAt }`, which writes the two dates in one update. Two separate changes would fail the `endAt >= startAt` check halfway when the bar moves past its old end. Either key can be left out or `null`. Pass `{ atomic: true }` as the second argument when a batch must apply in full or not at all: the first refused change then fails the whole call with its hint, and nothing is written.
 
@@ -97,7 +97,7 @@ await db.tasks
   .orThrow();
 ```
 
-`assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. The `work_item.assigned` event is recorded only when the call adds someone: `assigneeIds` holds everyone assigned now and `addedIds` the people the call added. `options.maxAssignees` caps the list (`TASK_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
+`assign(id, userIds)` replaces the assignees. Each one watches the item, and the people newly assigned get a `work_item.assigned` notification. The `task.assigned` event is recorded only when the call adds someone: `assigneeIds` holds everyone assigned now and `addedIds` the people the call added. `options.maxAssignees` caps the list (`TASK_ASSIGNEES_LIMIT`), and `1` gives the single-assignee shape of Linear and Jira.
 
 The notification carries the item's title as its subject label, and `options.actionPath` sets its action path from a template with `{id}` and `{identifier}`, such as `"/tasks/{id}"`. Set `options.notify: false` when the app sends its own assignment notifications; the assignees still watch the item.
 
@@ -119,9 +119,9 @@ await items.saveChecklistItem(task.id, { done: true }, draft.id).orThrow();
 const steps = await items.checklist(task.id).orThrow();
 ```
 
-`saveChecklistItem(workItemId, input, checklistItemId?)` adds a step at the end, or edits the one you name: its `title`, `done` (which stamps `doneAt` and `doneBy`) or `rank`. `removeChecklistItem(id)` deletes one, and `checklist(workItemId)` lists them in rank order. Every item a read returns carries `checklist: { total, done }`, and `get(id)` reads one item. An app that keeps its own subtasks maps `tables.checklist` to `null`: the module then creates no checklist table or functions, reads return `checklist: null`, and `repeat` copies no steps. A checklist change records `work_item.updated` with `fields: ["checklist"]`.
+`saveChecklistItem(workItemId, input, checklistItemId?)` adds a step at the end, or edits the one you name: its `title`, `done` (which stamps `doneAt` and `doneBy`) or `rank`. `removeChecklistItem(id)` deletes one, and `checklist(workItemId)` lists them in rank order. Every item a read returns carries `checklist: { total, done }`, and `get(id)` reads one item. An app that keeps its own subtasks maps `tables.checklist` to `null`: the module then creates no checklist table or functions, reads return `checklist: null`, and `repeat` copies no steps. A checklist change records `task.updated` with `fields: ["checklist"]`.
 
-On the work item's own page, the block's record binding (`taskChecklistBinding`) loads the steps for the item as the subject (`{ type: "task", id }`, or the renamed type) and reads again on `work_item.updated`. `workItemChecklistOptimistic` is its `useOptimistic` reducer: `{ type: "save", item }` adds or replaces a step in rank order and `{ type: "remove", id }` drops one.
+On the work item's own page, the block's record binding (`taskChecklistBinding`) loads the steps for the item as the subject (`{ type: "task", id }`, or the renamed type) and reads again on `task.updated`. `workItemChecklistOptimistic` is its `useOptimistic` reducer: `{ type: "save", item }` adds or replaces a step in rank order and `{ type: "remove", id }` drops one.
 
 With the [attachments](/docs/blocks/attachments) block installed, `create` takes `attachmentIds` and `update` takes an `attachments` change with a list of ids. Upload the files first without a subject, then link them: the block links only files the caller uploaded that have no subject yet (`TASK_ATTACHMENTS_INVALID`). A bucket whose path template uses `{subject_type}` or `{subject_id}` can't move a file after upload, so link through `attachments.upload` with the item as the subject instead (`TASK_ATTACHMENTS_PATH`).
 
@@ -148,10 +148,10 @@ With the [notifications](/docs/blocks/notifications) block installed, `watch(id,
 
 ## Events
 
-| Event                                                                                                                           | Data                                                                                                     |
-| ------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `work_item.created`, `work_item.updated`, `work_item.assigned`, `work_item.reopened`, `work_item.archived`, `work_item.deleted` | `organizationId`, `workItemId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds`, `addedIds` |
-| `work_item.closed`                                                                                                              | the same, with `state` and `closeReason`                                                                 |
+| Event                                                                                             | Data                                                                                                     |
+| ------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `task.created`, `task.updated`, `task.assigned`, `task.reopened`, `task.archived`, `task.deleted` | `organizationId`, `workItemId`, `subjectType`, `subjectId`, `title`, `fields`, `assigneeIds`, `addedIds` |
+| `task.closed`                                                                                     | the same, with `state` and `closeReason`                                                                 |
 
 ## Hooks
 

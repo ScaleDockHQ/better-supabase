@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:b8b78ad1b3bc244aa50725fdb672f4c61efd91a80557c9e0122043851ecf52a5
+-- @bsb-hash sha256:9b502da114d21a73056e331b6da7210d4efccfb903f73323c824f235d459a3ad
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -182,7 +182,7 @@ begin
 end;
 $$;
 
--- Approves or rejects an entry. Approving emits waitlist.approved, for the
+-- Approves or rejects an entry. Approving emits waitlist_entry.approved, for the
 -- email that says they can sign up.
 create or replace function "better_supabase"."decide_waitlist_entry"(id uuid, approve boolean)
 returns jsonb
@@ -481,7 +481,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:5d77fe02a09ad07fb214f9d4b38794a1c99cd6ffc07816e15ab62134bb4a09ff
+-- @bsb-hash sha256:45d1beecc807765979f8da6f6eb25a58df7d68ced281d55ce4e5f3cb66811ae0
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -662,7 +662,7 @@ begin
 end;
 $$;
 
--- Approves or rejects an entry. Approving emits waitlist.approved, for the
+-- Approves or rejects an entry. Approving emits waitlist_entry.approved, for the
 -- email that says they can sign up.
 create or replace function "better_supabase"."decide_waitlist_entry"(id uuid, approve boolean)
 returns jsonb
@@ -689,9 +689,9 @@ begin
     raise exception 'No open waitlist entry %', decide_waitlist_entry.id using errcode = 'P0002', hint = 'WAITLIST_NOT_FOUND';
   end if;
   if decide_waitlist_entry.approve then
-    perform "better_supabase".emit_event('waitlist.approved', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
+    perform "better_supabase".emit_event('waitlist_entry.approved', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
   perform better_supabase.audit_event(
-    event_type => 'waitlist.approved',
+    event_type => 'waitlist_entry.approved',
     category => 'access',
     target_type => 'waitlist_entry',
     record_id => v_row."id"::text,
@@ -699,9 +699,9 @@ begin
     metadata => jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email")
   );
   else
-    perform "better_supabase".emit_event('waitlist.rejected', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
+    perform "better_supabase".emit_event('waitlist_entry.rejected', jsonb_build_object('entryId', v_row."id"::text, 'email', v_row."email"), 'waitlist-entries/' || v_row."id"::text, null, null, 'better-supabase/waitlist');
   perform better_supabase.audit_event(
-    event_type => 'waitlist.rejected',
+    event_type => 'waitlist_entry.rejected',
     category => 'access',
     target_type => 'waitlist_entry',
     record_id => v_row."id"::text,
@@ -1003,7 +1003,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:e3f0cab3f08767d93bb90897de0e4513b70aea0f993629308c99436bb3a45a10
+-- @bsb-hash sha256:4ab962db41f66c009a89ba6d81a1fde45a930d29274699bc612c45f01c430dab
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1189,7 +1189,7 @@ begin
 end;
 $$;
 
--- Approves or rejects an entry. Approving emits waitlist.approved, for the
+-- Approves or rejects an entry. Approving emits waitlist_entry.approved, for the
 -- email that says they can sign up.
 create or replace function "app_private"."decide_waitlist_entry"(id uuid, approve boolean)
 returns jsonb
@@ -1488,7 +1488,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:2f52256608b997ba30bc1122d86eaa86efeb36243f3344816ff512e698256785
+-- @bsb-hash sha256:56a9f8cc40736742a74f7e38cd891a25560ddb9cce9f92f58254a267d042f39d
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1669,7 +1669,7 @@ begin
 end;
 $$;
 
--- Approves or rejects an entry. Approving emits waitlist.approved, for the
+-- Approves or rejects an entry. Approving emits waitlist_entry.approved, for the
 -- email that says they can sign up.
 create or replace function "better_supabase"."decide_waitlist_entry"(id uuid, approve boolean)
 returns jsonb
@@ -2073,7 +2073,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:9be5619ef2a42e3014d8e9a84ae4320e111d2ec299c1f6aee4af3add258b4544
+-- @bsb-hash sha256:b8d63f43d966bd5186c9d863e6065950502d6f55b17b003f28a5123db3ddf7b3
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2266,7 +2266,7 @@ begin
 end;
 $$;
 
--- Approves or rejects an entry. Approving emits waitlist.approved, for the
+-- Approves or rejects an entry. Approving emits waitlist_entry.approved, for the
 -- email that says they can sign up.
 create or replace function "better_supabase"."decide_waitlist_entry"(id uuid, approve boolean)
 returns jsonb
@@ -2566,7 +2566,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:3349e771344d085edae8ba4ac581744927974973ca8ec770d43f834dd3ba0f5c
+-- @bsb-hash sha256:22bdb872a4187a8a1dbb75d2b1dd0201c7954ec9c58667de4c49ebf928fe2f30
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2747,7 +2747,7 @@ begin
 end;
 $$;
 
--- Approves or rejects an entry. Approving emits waitlist.approved, for the
+-- Approves or rejects an entry. Approving emits waitlist_entry.approved, for the
 -- email that says they can sign up.
 create or replace function "better_supabase"."decide_waitlist_entry"(id uuid, approve boolean)
 returns jsonb

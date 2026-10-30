@@ -192,7 +192,7 @@ function approvals(
     `(select c.${ch.tenant} from ${t.chats} c where c.${ch.id} = ${chat})`;
 
   const policyEvent = ctx.record({
-    type: "ai_tool_policy.set",
+    type: "ai_tool_policy.updated",
     payload:
       "jsonb_build_object('organizationId', set_ai_tool_policy.tenant::text, 'tool', set_ai_tool_policy.tool, 'policy', set_ai_tool_policy.policy)",
     subject:

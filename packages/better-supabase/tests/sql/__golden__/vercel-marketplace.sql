@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:7ba2806ef2d7be4ab84e8e85c7ba85c16a3b37ad432b6297795e852506427d78
+-- @bsb-hash sha256:67ab0478b9faaacd970302f92521db1b7da458518271d4b59ac84b2e80bb8c62
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -129,10 +129,12 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."marketplace_installations";
+  v_inserted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
+  v_inserted := not exists (select 1 from "better_supabase"."marketplace_installations" x where x."configuration_id" = upsert_marketplace_installation.configuration_id);
   insert into "better_supabase"."marketplace_installations" ("configuration_id", "team_id", "user_id", "tenant", "metadata")
   values (upsert_marketplace_installation.configuration_id, upsert_marketplace_installation.team_id, upsert_marketplace_installation.user_id, upsert_marketplace_installation.tenant, coalesce(upsert_marketplace_installation.metadata, '{}'::jsonb))
   on conflict ("configuration_id") do update set
@@ -143,7 +145,11 @@ begin
     "status" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then 'active' else "better_supabase"."marketplace_installations"."status" end,
     "removed_at" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then null else "better_supabase"."marketplace_installations"."removed_at" end
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;
@@ -615,7 +621,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:d7419964c90585dff6a20aa78c5a502316a07931885f166d40a10970c7c15a3a
+-- @bsb-hash sha256:42f3a726a30ba3f0007503e9228e6c2b8bafe3aa13d3781504b433642f2812ac
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -743,10 +749,12 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."marketplace_installations";
+  v_inserted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
+  v_inserted := not exists (select 1 from "better_supabase"."marketplace_installations" x where x."configuration_id" = upsert_marketplace_installation.configuration_id);
   insert into "better_supabase"."marketplace_installations" ("configuration_id", "team_id", "user_id", "tenant", "metadata")
   values (upsert_marketplace_installation.configuration_id, upsert_marketplace_installation.team_id, upsert_marketplace_installation.user_id, upsert_marketplace_installation.tenant, coalesce(upsert_marketplace_installation.metadata, '{}'::jsonb))
   on conflict ("configuration_id") do update set
@@ -757,14 +765,25 @@ begin
     "status" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then 'active' else "better_supabase"."marketplace_installations"."status" end,
     "removed_at" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then null else "better_supabase"."marketplace_installations"."removed_at" end
   returning * into v_row;
-  perform "better_supabase".emit_event('marketplace_installation.upserted', jsonb_build_object('installationId', v_row."id", 'configurationId', v_row."configuration_id", 'teamId', v_row."team_id"), 'marketplace-installations/' || v_row."id", null, null, 'better-supabase/vercel-marketplace');
+  if v_inserted then
+    perform "better_supabase".emit_event('marketplace_installation.created', jsonb_build_object('installationId', v_row."id", 'configurationId', v_row."configuration_id", 'teamId', v_row."team_id"), 'marketplace-installations/' || v_row."id", null, null, 'better-supabase/vercel-marketplace');
   perform better_supabase.audit_event(
-    event_type => 'marketplace_installation.upserted',
+    event_type => 'marketplace_installation.created',
     category => 'configuration',
     target_type => 'marketplace_installation',
     record_id => v_row."id"::text,
     metadata => jsonb_build_object('installationId', v_row."id", 'configurationId', v_row."configuration_id", 'teamId', v_row."team_id")
   );
+  else
+    perform "better_supabase".emit_event('marketplace_installation.updated', jsonb_build_object('installationId', v_row."id", 'configurationId', v_row."configuration_id", 'teamId', v_row."team_id"), 'marketplace-installations/' || v_row."id", null, null, 'better-supabase/vercel-marketplace');
+  perform better_supabase.audit_event(
+    event_type => 'marketplace_installation.updated',
+    category => 'configuration',
+    target_type => 'marketplace_installation',
+    record_id => v_row."id"::text,
+    metadata => jsonb_build_object('installationId', v_row."id", 'configurationId', v_row."configuration_id", 'teamId', v_row."team_id")
+  );
+  end if;
   return to_jsonb(v_row);
 end;
 $$;
@@ -811,9 +830,9 @@ begin
     returning * into v_row;
   end if;
   update "better_supabase"."marketplace_resources" y set "status" = 'deleted' where y."installation_id" = v_row."id" and y."status" <> 'deleted';
-  perform "better_supabase".emit_event('marketplace_installation.removed', jsonb_build_object('installationId', v_row."id", 'configurationId', v_row."configuration_id", 'teamId', v_row."team_id"), 'marketplace-installations/' || v_row."id", null, null, 'better-supabase/vercel-marketplace');
+  perform "better_supabase".emit_event('marketplace_installation.deleted', jsonb_build_object('installationId', v_row."id", 'configurationId', v_row."configuration_id", 'teamId', v_row."team_id"), 'marketplace-installations/' || v_row."id", null, null, 'better-supabase/vercel-marketplace');
   perform better_supabase.audit_event(
-    event_type => 'marketplace_installation.removed',
+    event_type => 'marketplace_installation.deleted',
     category => 'configuration',
     target_type => 'marketplace_installation',
     record_id => v_row."id"::text,
@@ -913,9 +932,9 @@ begin
   if v_row."id" is null then
     select y.* into v_row from "better_supabase"."marketplace_invoices" y where y."installation_id" = v_installation and y."external_id" = record_marketplace_invoice.external_id;
   elsif v_before is distinct from v_row."state" then
-    perform "better_supabase".emit_event('marketplace_invoice.state_changed', jsonb_build_object('installationId', v_installation, 'invoiceId', v_row."id", 'externalId', v_row."external_id", 'state', v_row."state"), 'marketplace-invoices/' || v_row."id", null, null, 'better-supabase/vercel-marketplace');
+    perform "better_supabase".emit_event('marketplace_invoice.status_changed', jsonb_build_object('installationId', v_installation, 'invoiceId', v_row."id", 'externalId', v_row."external_id", 'state', v_row."state"), 'marketplace-invoices/' || v_row."id", null, null, 'better-supabase/vercel-marketplace');
   perform better_supabase.audit_event(
-    event_type => 'marketplace_invoice.state_changed',
+    event_type => 'marketplace_invoice.status_changed',
     category => 'billing',
     target_type => 'marketplace_invoice',
     record_id => v_row."id"::text,
@@ -1250,7 +1269,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:c1459b07438a85b337b24ab4fa154127e93fcdff8e207c75227745f7b4331224
+-- @bsb-hash sha256:3d9ad0a38e157821d24b9a5e277c1a32057bd11c31a6d263f9f3035df4ec5f35
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1383,10 +1402,12 @@ as $$
 #variable_conflict use_column
 declare
   v_row "app_private"."marketplace_installations";
+  v_inserted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
+  v_inserted := not exists (select 1 from "app_private"."marketplace_installations" x where x."configuration_id" = upsert_marketplace_installation.configuration_id);
   insert into "app_private"."marketplace_installations" ("configuration_id", "team_id", "user_id", "tenant", "metadata")
   values (upsert_marketplace_installation.configuration_id, upsert_marketplace_installation.team_id, upsert_marketplace_installation.user_id, upsert_marketplace_installation.tenant, coalesce(upsert_marketplace_installation.metadata, '{}'::jsonb))
   on conflict ("configuration_id") do update set
@@ -1397,7 +1418,11 @@ begin
     "status" = case when "app_private"."marketplace_installations"."status" = 'removed' then 'active' else "app_private"."marketplace_installations"."status" end,
     "removed_at" = case when "app_private"."marketplace_installations"."status" = 'removed' then null else "app_private"."marketplace_installations"."removed_at" end
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;
@@ -1869,7 +1894,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:771627e78dacdb312c197f7997d9ef5d4aca9e82d3d647deb27082bf58c48469
+-- @bsb-hash sha256:70aad0a004fdbc25bf0a7936bb34586ed046d54826d833cdff4c7f0f9cb37244
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1997,10 +2022,12 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."marketplace_installations";
+  v_inserted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
+  v_inserted := not exists (select 1 from "better_supabase"."marketplace_installations" x where x."configuration_id" = upsert_marketplace_installation.configuration_id);
   insert into "better_supabase"."marketplace_installations" ("configuration_id", "team_id", "user_id", "tenant", "metadata")
   values (upsert_marketplace_installation.configuration_id, upsert_marketplace_installation.team_id, upsert_marketplace_installation.user_id, upsert_marketplace_installation.tenant, coalesce(upsert_marketplace_installation.metadata, '{}'::jsonb))
   on conflict ("configuration_id") do update set
@@ -2011,7 +2038,11 @@ begin
     "status" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then 'active' else "better_supabase"."marketplace_installations"."status" end,
     "removed_at" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then null else "better_supabase"."marketplace_installations"."removed_at" end
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;
@@ -2640,7 +2671,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:e6ebc8fbe49eb2b8550360e04dc508eb20f1de799e3f91f06cae8524cd59c90d
+-- @bsb-hash sha256:a590d5fee14556214deda4ea0f91c01f3fa6b2979a9fb549a3bd77453f4b2199
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2775,10 +2806,12 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."marketplace_installations";
+  v_inserted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
+  v_inserted := not exists (select 1 from "better_supabase"."marketplace_installations" x where x."configuration_id" = upsert_marketplace_installation.configuration_id);
   insert into "better_supabase"."marketplace_installations" ("configuration_id", "team_id", "user_id", "tenant", "metadata")
   values (upsert_marketplace_installation.configuration_id, upsert_marketplace_installation.team_id, upsert_marketplace_installation.user_id, upsert_marketplace_installation.tenant, coalesce(upsert_marketplace_installation.metadata, '{}'::jsonb))
   on conflict ("configuration_id") do update set
@@ -2789,7 +2822,11 @@ begin
     "status" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then better_supabase.as_column_type('active', (null::"better_supabase"."marketplace_installations")."status") else "better_supabase"."marketplace_installations"."status" end,
     "removed_at" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then null else "better_supabase"."marketplace_installations"."removed_at" end
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'configuration_id', v_row."configuration_id", 'team_id', v_row."team_id", 'user_id', v_row."user_id", 'tenant', v_row."tenant", 'tenant_created', v_row."tenant_created", 'access_token_secret_id', v_row."access_token_secret_id", 'status', v_row."status", 'metadata', v_row."metadata", 'removed_at', v_row."removed_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
@@ -3261,7 +3298,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:e143731b7d89d4c1b96e03863da49681394b3b9915fa76812a8401a7e020c94b
+-- @bsb-hash sha256:c39a21fd3bbbb2ecc6cbf3dd1ddcd0142e38e0decdc0316b57a462e9b5575a1b
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3389,10 +3426,12 @@ as $$
 #variable_conflict use_column
 declare
   v_row "better_supabase"."marketplace_installations";
+  v_inserted boolean;
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'only the service role manages Marketplace installations' using errcode = '42501', hint = 'MARKETPLACE_FORBIDDEN';
   end if;
+  v_inserted := not exists (select 1 from "better_supabase"."marketplace_installations" x where x."configuration_id" = upsert_marketplace_installation.configuration_id);
   insert into "better_supabase"."marketplace_installations" ("configuration_id", "team_id", "user_id", "org_id", "metadata")
   values (upsert_marketplace_installation.configuration_id, upsert_marketplace_installation.team_id, upsert_marketplace_installation.user_id, upsert_marketplace_installation.tenant, coalesce(upsert_marketplace_installation.metadata, '{}'::jsonb))
   on conflict ("configuration_id") do update set
@@ -3403,7 +3442,11 @@ begin
     "status" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then 'active' else "better_supabase"."marketplace_installations"."status" end,
     "removed_at" = case when "better_supabase"."marketplace_installations"."status" = 'removed' then null else "better_supabase"."marketplace_installations"."removed_at" end
   returning * into v_row;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;

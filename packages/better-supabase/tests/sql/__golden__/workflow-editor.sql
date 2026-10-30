@@ -2286,7 +2286,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:c8170b330b88ae2c3740b545cffea40e2de1aada9812995a51a0b53d1391ea2e
+-- @bsb-hash sha256:deaa87958c2a215c2679e8e6cae9146f8a12128067a09387e9b591a9ce72d030
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3253,15 +3253,15 @@ begin
     "permissions" = v_permissions
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('workflow.published', jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row."definition_id", 'versionId', v_row."id", 'version', v_row."version"), 'workflows/' || v_row."definition_id"::text, (v_tenant)::text, 'workflow.published:' || v_row."id"::text, 'better-supabase/workflow-editor');
+  perform "better_supabase".emit_event('workflow_definition.published', jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row."definition_id", 'versionId', v_row."id", 'version', v_row."version"), 'workflows/' || v_row."definition_id"::text, (v_tenant)::text, 'workflow_definition.published:' || v_row."id"::text, 'better-supabase/workflow-editor');
   perform better_supabase.audit_event(
-    event_type => 'workflow.published',
+    event_type => 'workflow_definition.published',
     category => 'configuration',
     target_type => 'workflow_version',
     record_id => v_row."id"::text,
     tenant => (v_tenant)::uuid,
     metadata => jsonb_build_object('organizationId', v_tenant::text, 'definitionId', v_row."definition_id", 'versionId', v_row."id", 'version', v_row."version"),
-    idempotency_key => 'workflow.published:' || v_row."id"::text
+    idempotency_key => 'workflow_definition.published:' || v_row."id"::text
   );
   return jsonb_build_object(
     'id', v_row."id",

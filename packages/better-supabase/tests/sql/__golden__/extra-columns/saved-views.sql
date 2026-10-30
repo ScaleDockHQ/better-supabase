@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:4f9bbde041e56c4bfba2a71eb92a671225d3d83e2001079eb1ba3a15a3eaffab
+-- @bsb-hash sha256:add69c8e38dd2011b6b8b54dfbd1f6bc8372a821bb1015c07fcb0939dc8d28f3
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -155,6 +155,7 @@ as $$
 #variable_conflict use_column
 declare
   v_id uuid := save_view.view_id;
+  v_inserted boolean := save_view.view_id is null;
   v_row "better_supabase"."saved_views";
   v_last text;
   v_rank text;
@@ -242,7 +243,11 @@ begin
   update "better_supabase"."saved_views" x set "app_note" = case when save_view.fields ? 'app_note' then r."app_note" else x."app_note" end
   from jsonb_populate_record(null::"better_supabase"."saved_views", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_view.fields) e where e.key in ('app_note'))) r
   where x."id" = v_id;
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_view_save"(uuid)');
   begin

@@ -188,8 +188,8 @@ export interface SupportApi {
   ): AsyncResult<readonly SupportSession[]>;
   /**
    * Ends every session past its expiry through the store and emits
-   * `support.ended` with `endedBy: "expired"` for each; the SQL store runs over
-   * `postgres.admin`. Returns the sessions it ended.
+   * `support_session.ended` with `endedBy: "expired"` for each; the SQL store
+   * runs over `postgres.admin`. Returns the sessions it ended.
    */
   expire(): AsyncResult<readonly SupportSession[]>;
   /**
@@ -279,7 +279,10 @@ function createSupport(
   const cookieName = options.cookie?.name;
 
   const emit = (
-    type: "support.started" | "support.ended" | "support.denied",
+    type:
+      | "support_session.started"
+      | "support_session.ended"
+      | "support_session.denied",
     data: SupportEventData,
   ): void => {
     emitBlockEvent<ImpersonationEvents>(events, type, data, {
@@ -477,7 +480,7 @@ function createSupport(
       }
 
       for (const session of expired) {
-        emit("support.ended", {
+        emit("support_session.ended", {
           sessionId: session.id,
           adminId: session.adminId,
           targetUserId: session.targetUserId,
@@ -612,7 +615,7 @@ function createSupport(
           error: DbError,
           denial: NonNullable<SupportEventData["denial"]>,
         ) => {
-          emit("support.denied", {
+          emit("support_session.denied", {
             adminId: admin.user.id,
             targetUserId: request.targetUserId,
             ...(reason ? { reason } : {}),
@@ -705,7 +708,7 @@ function createSupport(
           return deny(error, error.code === "42501" ? "permission" : "store");
         }
 
-        emit("support.started", {
+        emit("support_session.started", {
           sessionId: session.id,
           adminId: session.adminId,
           targetUserId: session.targetUserId,
@@ -851,7 +854,7 @@ function createSupport(
           const ended = await store.end(sessionId, "admin", admin.claims);
 
           if (ended) {
-            emit("support.ended", {
+            emit("support_session.ended", {
               sessionId,
               adminId: session.adminId,
               targetUserId: session.targetUserId,

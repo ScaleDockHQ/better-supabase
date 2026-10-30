@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:dbaf0a51bafe1db71605ab6af648a4505972cda0b2d5b9d59b75b66c6c2a949e
+-- @bsb-hash sha256:f31fe423ccbff38a82919f2056b511dc5ae29c533eeddaa336ef5bd8037fd2ff
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -506,13 +506,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.started',
+    event_type => 'support_session.started',
     category => 'security',
     target_type => 'user',
     record_id => target::text,
     tenant => (tenant)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'reason', reason, 'read_only', read_only, 'request_id', approval_id, 'approved_by', approver),
-    idempotency_key => 'support.started:' || session_id,
+    idempotency_key => 'support_session.started:' || session_id,
     actor_id => admin,
     support_session => session_id,
     impersonated_by => admin,
@@ -578,13 +578,13 @@ begin
     end if;
   end;
   perform better_supabase.audit_event(
-    event_type => 'support.ended',
+    event_type => 'support_session.ended',
     category => 'security',
     target_type => 'user',
     record_id => ended ->> 'target_user_id',
     tenant => ((ended ->> 'tenant')::uuid)::uuid,
     metadata => jsonb_build_object('session_id', session_id, 'ended_by', ended_by),
-    idempotency_key => 'support.ended:' || session_id,
+    idempotency_key => 'support_session.ended:' || session_id,
     actor_id => case when service then (ended ->> 'admin_id')::uuid else auth.uid() end,
     support_session => session_id,
     impersonated_by => (ended ->> 'admin_id')::uuid,

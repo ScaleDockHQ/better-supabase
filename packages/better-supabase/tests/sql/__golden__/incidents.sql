@@ -1103,7 +1103,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@1 managed
--- @bsb-hash sha256:24246cc42f80296f31f50a278c57fee6267b4819f1649c1dff93ac348ca20d02
+-- @bsb-hash sha256:1bf483005e19e97f945a1c1533f6988abd0160bfb52bc304c30e733287b0240a
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1904,9 +1904,9 @@ begin
   if not found then
     raise exception 'the incident has no postmortem' using errcode = 'P0002', hint = 'INCIDENT_POSTMORTEM_NOT_FOUND';
   end if;
-  perform "better_supabase".emit_event('postmortem.published', jsonb_build_object('organizationId', v_row."tenant_id", 'postmortemId', v_post."id", 'incidentId', v_row."id"), 'incidents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/incidents');
+  perform "better_supabase".emit_event('incident_postmortem.published', jsonb_build_object('organizationId', v_row."tenant_id", 'postmortemId', v_post."id", 'incidentId', v_row."id"), 'incidents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/incidents');
   perform better_supabase.audit_event(
-    event_type => 'postmortem.published',
+    event_type => 'incident_postmortem.published',
     category => 'data',
     target_type => 'incident',
     record_id => v_row."id"::text,

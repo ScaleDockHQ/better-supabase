@@ -10,6 +10,7 @@ import type { RegisteredSubject } from "../subject-registry.ts";
 
 import { subjectPermissionKey } from "../../core/subject-permission.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   fail,
@@ -38,8 +39,9 @@ const MEMBER_PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<SegmentsEvents> = {
-  "segment.saved": { subject: "segments", payload: [...SEGMENT_PAYLOAD] },
-  "segment.removed": { subject: "segments", payload: [...SEGMENT_PAYLOAD] },
+  "segment.created": { subject: "segments", payload: [...SEGMENT_PAYLOAD] },
+  "segment.updated": { subject: "segments", payload: [...SEGMENT_PAYLOAD] },
+  "segment.deleted": { subject: "segments", payload: [...SEGMENT_PAYLOAD] },
   "segment.entered": {
     subject: "segments",
     payload: [...MEMBER_PAYLOAD],
@@ -356,7 +358,7 @@ ${n.has("description") ? `      ${s("description")} = v_description,\n` : ""}   
     where x.${s("id")} = v_old.${s("id")}
     returning * into v_row;
   end if;
-  ${segmentRecord("segment.saved", "v_row")}
+  ${createdOrUpdated(`v_old.${s("id")} is null`, (verb) => segmentRecord(`segment.${verb}`, "v_row"))}
   return ${json("v_row")};
 exception when unique_violation then
   ${fail("SEGMENT_NAME_TAKEN", "Another segment in this organization has this name", "23505")}
@@ -382,7 +384,7 @@ begin
     ${fail("SEGMENT_FORBIDDEN", "You need segments.edit to remove a segment")}
   end if;
   delete from ${t("segments")} x where x.${s("id")} = v_row.${s("id")};
-  ${segmentRecord("segment.removed", "v_row")}
+  ${segmentRecord("segment.deleted", "v_row")}
   return true;
 end;
 $$;

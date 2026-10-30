@@ -30,6 +30,16 @@ export type RenamesOf<N> = N extends {
   ? E
   : [];
 
+/**
+ * The renames a block's event types go through: the generated `names.events`
+ * (`task` to `ticket`), then its entity renames.
+ */
+export type EventRenamesOf<N> = N extends {
+  readonly events: infer E extends NounRenames;
+}
+  ? readonly [...E, ...RenamesOf<N>]
+  : RenamesOf<N>;
+
 type Upper =
   | "A"
   | "B"
@@ -292,8 +302,11 @@ export type RenamedOptions<
       }
     : O;
 
-/** A block with its client, events and hooks under the renamed nouns. */
-export type RenamedBlock<B, R extends NounRenames> =
+/**
+ * A block with its client, events and hooks under the renamed nouns; its event
+ * types go through `E`.
+ */
+export type RenamedBlock<B, R extends NounRenames, E extends NounRenames = R> =
   B extends Block<
     infer Name,
     infer O,
@@ -307,7 +320,7 @@ export type RenamedBlock<B, R extends NounRenames> =
         Name,
         RenamedOptions<O, Client, R>,
         RenamedClient<Client, R>,
-        RenamedEvents<M, R>,
+        RenamedEvents<M, E>,
         C,
         P,
         S
@@ -469,7 +482,7 @@ interface HookOptions {
 function renamedBinding(
   binding: AnyRecordBinding,
   renamer: Renamer,
-  names: EntityNames,
+  events: EntityNames,
 ): AnyRecordBinding {
   // SAFETY: a binding's functions take the client its block's creator made,
   // which `originalOf` returns, and values it renames back.
@@ -487,7 +500,7 @@ function renamedBinding(
 
   return {
     ...binding,
-    events: binding.events.map((type) => names.rename(type)),
+    events: binding.events.map((type) => events.rename(type)),
     load: (client: never, subject, options: never) =>
       load(renamer.originalOf(client), subject, options).map((data) =>
         renamer.forward(data),
@@ -513,6 +526,7 @@ function renamed(
   block: AnyBlock,
   renamer: Renamer,
   names: EntityNames,
+  events: EntityNames,
 ): AnyBlock {
   const create = block.create;
 
@@ -531,11 +545,11 @@ function renamed(
 
   return {
     ...block,
-    events: { types: block.events.types.map((type) => names.rename(type)) },
+    events: { types: block.events.types.map((type) => events.rename(type)) },
     schemas: renameSchemas(block.schemas ?? {}, names, renamer),
     invalidates: Object.fromEntries(
       Object.entries(block.invalidates ?? {}).map(([pattern, methods]) => [
-        names.rename(pattern),
+        events.rename(pattern),
         methods.map((method) => names.rename(method)),
       ]),
     ),
@@ -543,7 +557,7 @@ function renamed(
     record:
       block.record === undefined
         ? undefined
-        : renamedBinding(block.record, renamer, names),
+        : renamedBinding(block.record, renamer, events),
     create:
       create === undefined
         ? undefined
@@ -567,19 +581,21 @@ function renamed(
               },
             );
           },
-    with: (settings: never) => renamed(block.with(settings), renamer, names),
-    using: (next: never) => renamed(block.using(next), renamer, names),
+    with: (settings: never) =>
+      renamed(block.with(settings), renamer, names, events),
+    using: (next: never) => renamed(block.using(next), renamer, names, events),
   };
 }
 
 /**
  * `block` under the names `blocks.<name>.entities` gives its entities: method
  * names (`saveProject` to `saveInitiative`), argument and result keys
- * (`projectId` to `initiativeId`) and event types (`work_item.created` to
- * `task.created`), with the same `name`, SQL and ports. Hooks see the renamed
- * client. Pass the block's `names` from `blocks.generated.ts`, which `gen`
- * writes as `export const tasksBlock = renameBlock(tasksBlock,
- * blockConfig["tasks"].names)`; with no renamed entity it returns `block`.
+ * (`projectId` to `initiativeId`) and event types (`task.created` to
+ * `ticket.created`, through `names.events`), with the same `name`, SQL and
+ * ports. Hooks see the renamed client. Pass the block's `names` from
+ * `blocks.generated.ts`, which `gen` writes as `export const tasksBlock =
+ * renameBlock(tasksBlock, blockConfig["tasks"].names)`; with no renamed entity
+ * it returns `block`.
  */
 export function renameBlock<
   Name extends string,
@@ -593,14 +609,23 @@ export function renameBlock<
 >(
   block: Block<Name, O, Client, M, C, P, R>,
   names: N,
-): RenamedBlock<Block<Name, O, Client, M, C, P, R>, RenamesOf<N>>;
+): RenamedBlock<
+  Block<Name, O, Client, M, C, P, R>,
+  RenamesOf<N>,
+  EventRenamesOf<N>
+>;
 export function renameBlock(
   block: AnyBlock,
   names: BlockNaming | undefined,
 ): AnyBlock {
   const entities = entityNames(names?.entities);
 
+  const events = entityNames([
+    ...(names?.events ?? []),
+    ...(names?.entities ?? []),
+  ]);
+
   return entities.renamed
-    ? renamed(block, new Renamer(entities), entities)
+    ? renamed(block, new Renamer(entities), entities, events)
     : block;
 }

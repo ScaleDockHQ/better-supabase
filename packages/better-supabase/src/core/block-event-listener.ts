@@ -12,9 +12,10 @@ const matches = (pattern: string, type: string): boolean =>
     : pattern === type;
 
 /**
- * Listens to the block events that match `pattern` (`'support.started'` or
- * `'support.*'`), typed by `events`: a block's events, `defineBlocks(...)` or
- * `defineEvents(...)`. Returns a function that stops listening.
+ * Listens to the block events that match `pattern` (`'support_session.started'`
+ * or `'support_session.*'`), typed by `events`: a block's events,
+ * `defineBlocks(...)` or `defineEvents(...)`. Returns a function that stops
+ * listening.
  */
 export function onBlockEvent<
   M extends EventMap,

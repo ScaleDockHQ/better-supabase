@@ -141,7 +141,7 @@ describe.skipIf(!live)("domains module", () => {
       expect(types.map((row) => row.type)).toEqual([
         "hostname.added",
         "hostname.verified",
-        "hostname.primary_set",
+        "hostname.primary_changed",
       ]);
     } finally {
       await s.close();

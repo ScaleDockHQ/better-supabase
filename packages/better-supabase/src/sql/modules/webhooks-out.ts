@@ -18,6 +18,7 @@ import {
   schemaPreamble,
   updatedAt,
 } from "../shared.ts";
+import { eventTypeData, typeListRenames } from "./event-type-renames.ts";
 import { endpointFunctions } from "./webhooks-out-endpoints.ts";
 import {
   ADDED_COLUMNS,
@@ -27,12 +28,12 @@ import {
 } from "./webhooks-out-sql.ts";
 
 const EVENTS: BlockSqlEvents<WebhooksEvents> = {
-  "webhook.disabled": {
+  "webhook_endpoint.disabled": {
     subject: "webhooks",
     payload: ["endpointId", "organizationId", "failingSince"],
     retries: true,
   },
-  "webhook.secret_rotated": {
+  "webhook_endpoint.secret_rotated": {
     subject: "webhooks",
     payload: ["endpointId", "organizationId"],
   },
@@ -541,6 +542,14 @@ export const WEBHOOKS_OUT: BlockSqlDefinition = {
   modes: ["managed", "custom"],
   version: 6,
   names: NAMES,
+  data: (ctx) =>
+    eventTypeData([
+      typeListRenames(
+        ctx,
+        ctx.table("endpoints"),
+        ctx.col("endpoints", "eventTypes"),
+      ),
+    ]),
   contract,
   upgrades: [
     {

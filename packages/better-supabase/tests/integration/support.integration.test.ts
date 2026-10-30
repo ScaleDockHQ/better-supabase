@@ -219,7 +219,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
         [type, session.id],
       );
 
-    expect(await columns("support.started")).toEqual([
+    expect(await columns("support_session.started")).toEqual([
       {
         actor_id: ADMIN,
         support_session_id: session.id,
@@ -241,7 +241,7 @@ describe.skipIf(!live)("support sessions against the local database", () => {
       endedBy: "expired",
     });
     expect(await store.get(session.id, ADMIN)).toBeUndefined();
-    expect(await columns("support.ended")).toEqual([
+    expect(await columns("support_session.ended")).toEqual([
       {
         actor_id: ADMIN,
         support_session_id: session.id,

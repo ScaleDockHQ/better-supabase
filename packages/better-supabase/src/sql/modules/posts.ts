@@ -28,7 +28,11 @@ const POST_PAYLOAD = [
 const post = { subject: "posts", payload: POST_PAYLOAD } as const;
 
 const EVENTS: BlockSqlEvents<PostsEvents> = {
-  "post_board.saved": {
+  "post_board.created": {
+    subject: "post-boards",
+    payload: ["organizationId", "id", "key", "kind"],
+  },
+  "post_board.updated": {
     subject: "post-boards",
     payload: ["organizationId", "id", "key", "kind"],
   },

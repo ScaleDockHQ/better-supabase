@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:7e9b96228ae53da8518e8c5cf20d2eab214b1047bbf3017c64a14cb1d56ac467
+-- @bsb-hash sha256:cc492f71cd77cbee7c8b76b7a02d5179b208e3b80bba82b02943c8616225c807
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -216,7 +216,11 @@ begin
   from jsonb_populate_record(null::"better_supabase"."connector_servers", (select coalesce(jsonb_object_agg(e.key, e.value), '{}') from jsonb_each(save_connector_server.fields) e where e.key in ('app_note'))) r
   where x."id" = v_row."id"
   returning x.* into v_row;
-  null;
+  if save_connector_server.id is null then
+    null;
+  else
+    null;
+  end if;
   return (jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('fields', jsonb_build_object('app_note', v_row."app_note")));
 end;
 $$;

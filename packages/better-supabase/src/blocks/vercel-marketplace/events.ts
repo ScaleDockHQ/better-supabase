@@ -12,7 +12,7 @@ export interface MarketplaceInstallationEventData {
   readonly teamId: string | null;
 }
 
-/** `marketplace_invoice.state_changed`: Vercel moved an invoice to a new state. */
+/** `marketplace_invoice.status_changed`: Vercel moved an invoice to a new state. */
 export interface MarketplaceInvoiceEventData {
   readonly installationId: string;
   readonly invoiceId: string;
@@ -22,9 +22,10 @@ export interface MarketplaceInvoiceEventData {
 
 /** The events of the `vercel-marketplace` block: type to data. */
 export type VercelMarketplaceEvents = {
-  readonly "marketplace_installation.upserted": MarketplaceInstallationEventData;
-  readonly "marketplace_installation.removed": MarketplaceInstallationEventData;
-  readonly "marketplace_invoice.state_changed": MarketplaceInvoiceEventData;
+  readonly "marketplace_installation.created": MarketplaceInstallationEventData;
+  readonly "marketplace_installation.updated": MarketplaceInstallationEventData;
+  readonly "marketplace_installation.deleted": MarketplaceInstallationEventData;
+  readonly "marketplace_invoice.status_changed": MarketplaceInvoiceEventData;
 };
 
 /**
@@ -33,9 +34,11 @@ export type VercelMarketplaceEvents = {
  */
 export const vercelMarketplaceEvents: Events<VercelMarketplaceEvents> =
   defineEvents({
-    "marketplace_installation.upserted":
+    "marketplace_installation.created":
       event<MarketplaceInstallationEventData>(),
-    "marketplace_installation.removed":
+    "marketplace_installation.updated":
       event<MarketplaceInstallationEventData>(),
-    "marketplace_invoice.state_changed": event<MarketplaceInvoiceEventData>(),
+    "marketplace_installation.deleted":
+      event<MarketplaceInstallationEventData>(),
+    "marketplace_invoice.status_changed": event<MarketplaceInvoiceEventData>(),
   });

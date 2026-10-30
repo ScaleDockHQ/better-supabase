@@ -1,6 +1,6 @@
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:dae124a581d23422b384504b7e567489817f4aa5176ec73cdf8915256126c7c6
+-- @bsb-hash sha256:f4eb6c42f9e047e13d727868bab1702351eca88c375b3914ece4f22ec0084b5d
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -243,9 +243,9 @@ begin
   insert into "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id", "version_id", "content_hash", "signers", "sign_order", "approval_request_id", "message", "meaning", "requested_by")
   values (create_signature_request.tenant, create_signature_request.subject_type, create_signature_request.subject_id, v_version, v_hash, create_signature_request.signers, create_signature_request.sign_order, create_signature_request.approval_request_id, nullif(trim(create_signature_request.message), ''), create_signature_request.meaning, auth.uid())
   returning * into v_row;
-  perform "better_supabase".emit_event('signature.requested', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'versionId', v_row."version_id"), 'signature-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/signatures');
+  perform "better_supabase".emit_event('signature_request.requested', jsonb_build_object('organizationId', v_row."tenant_id", 'subjectType', v_row."subject_type", 'subjectId', v_row."subject_id", 'id', v_row."id", 'versionId', v_row."version_id"), 'signature-requests/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/signatures');
   perform better_supabase.audit_event(
-    event_type => 'signature.requested',
+    event_type => 'signature_request.requested',
     category => 'data',
     target_type => 'signature_request',
     record_id => v_row."id"::text,
@@ -388,9 +388,9 @@ begin
     left(v_headers ->> 'user-agent', 512),
     v_at)
   returning * into v_row;
-  perform "better_supabase".emit_event('signature.signed', jsonb_build_object('organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'signatureId', v_row."id", 'signer', v_me, 'method', v_row."method"), 'signature-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/signatures');
+  perform "better_supabase".emit_event('signature_request.signed', jsonb_build_object('organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'signatureId', v_row."id", 'signer', v_me, 'method', v_row."method"), 'signature-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/signatures');
   perform better_supabase.audit_event(
-    event_type => 'signature.signed',
+    event_type => 'signature_request.signed',
     category => 'data',
     target_type => 'signature_request',
     record_id => v_req."id"::text,
@@ -406,7 +406,7 @@ begin
     update "better_supabase"."signature_requests" x set "status" = 'completed', "completed_at" = v_at
       where x."id" = v_req."id"
       returning * into v_req;
-    perform "better_supabase".emit_event('signature.completed', jsonb_build_object('organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'versionId', v_req."version_id", 'meaning', v_req."meaning"), 'signature-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/signatures');
+    perform "better_supabase".emit_event('signature_request.completed', jsonb_build_object('organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'versionId', v_req."version_id", 'meaning', v_req."meaning"), 'signature-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/signatures');
   end if;
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_signature_sign"(uuid, text)');
@@ -449,9 +449,9 @@ begin
   update "better_supabase"."signature_requests" x set "status" = 'declined', "completed_at" = now()
     where x."id" = v_req."id"
     returning * into v_req;
-  perform "better_supabase".emit_event('signature.declined', jsonb_build_object('organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'signer', v_me), 'signature-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/signatures');
+  perform "better_supabase".emit_event('signature_request.declined', jsonb_build_object('organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id", 'signer', v_me), 'signature-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/signatures');
   perform better_supabase.audit_event(
-    event_type => 'signature.declined',
+    event_type => 'signature_request.declined',
     category => 'data',
     target_type => 'signature_request',
     record_id => v_req."id"::text,
@@ -491,9 +491,9 @@ begin
   update "better_supabase"."signature_requests" x set "status" = 'cancelled', "completed_at" = now()
     where x."id" = v_req."id"
     returning * into v_req;
-  perform "better_supabase".emit_event('signature.cancelled', jsonb_build_object('organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id"), 'signature-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/signatures');
+  perform "better_supabase".emit_event('signature_request.cancelled', jsonb_build_object('organizationId', v_req."tenant_id", 'subjectType', v_req."subject_type", 'subjectId', v_req."subject_id", 'id', v_req."id"), 'signature-requests/' || v_req."id"::text, (v_req."tenant_id")::text, null, 'better-supabase/signatures');
   perform better_supabase.audit_event(
-    event_type => 'signature.cancelled',
+    event_type => 'signature_request.cancelled',
     category => 'data',
     target_type => 'signature_request',
     record_id => v_req."id"::text,

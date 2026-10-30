@@ -1886,6 +1886,8 @@ until the next minor, with a warning. Run `better-supabase codemod 0.46` to
 rename them, then check the keys it lists for review, such as the `ai.*` keys
 that split into one area per AI block. The
 [0.45 to 0.46 guide](/docs/migration/0.45-to-0.46) has the full table.
+A string that is an old permission key and a current event pattern, such as
+`activity.*`, isn't reported.
 
 ### BS423
 
@@ -1898,6 +1900,21 @@ in the config and an old hint code in a quoted string in the app sources in
 warning; `error.hint` carries only the new code, and `error.legacyHint` the old
 one until 0.48. Run `better-supabase codemod 0.47` to rename both. The
 [0.46 to 0.47 guide](/docs/migration/0.46-to-0.47) has the full tables.
+
+### BS424
+
+**Warning: code uses a renamed event type.** Since 0.47 an event type is
+`<entity>.<past verb>`: `work_item.created` is `task.created`, `rule.removed`
+is `automation.deleted`, and each `saved` event is now `created` or `updated`.
+The outbox stores the new types, so a subscriber to an old one misses its
+events. Doctor reports a quoted old type in the app sources in
+`doctor.sources`; strings that are also permission keys, such as `support.*`,
+are left to BS422. Run `better-supabase codemod 0.47` to rename them, then
+pick `created`, `updated` or both for the split types it lists. Receivers
+outside the app can keep the old names until the next minor with the outbox
+`legacyEventTypes` option. The
+[0.46 to 0.47 guide](/docs/migration/0.46-to-0.47#event-types) has the full
+table.
 
 ## Env files
 

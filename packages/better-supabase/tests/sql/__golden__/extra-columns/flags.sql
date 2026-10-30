@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:471ff88a860cd8a01a9e44bbad9c281c989e9ce77d2dd01b55b63a364fbf25c6
+-- @bsb-hash sha256:cb4975ee822d0075a334b59b21e1683547dbcf0d10b30c273337830a996c9449
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -443,6 +443,7 @@ as $$
 declare
   d jsonb := coalesce(definition, '{}');
   saved jsonb;
+  v_inserted boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -457,6 +458,7 @@ begin
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
+  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = save_flag.key);
   insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule", "app_note")
   values (
     save_flag.key,
@@ -495,7 +497,11 @@ begin
     save_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
-  null;
+  if v_inserted then
+    null;
+  else
+    null;
+  end if;
   return saved;
 end;
 $$;

@@ -230,17 +230,17 @@ describe.skipIf(!live)("engagement recordings", () => {
       expect(
         await s.value<string[]>(
           `(select array_agg(type order by type) from better_supabase.outbox_events
-           where type like 'engagement.%' and payload ->> 'engagementId' = $1)`,
+           where type like 'activity.%' and payload ->> 'engagementId' = $1)`,
           [call.id],
         ),
       ).toEqual([
-        "engagement.logged",
-        "engagement.recorded",
-        "engagement.recorded",
-        "engagement.summarized",
-        "engagement.summarized",
-        "engagement.transcribed",
-        "engagement.transcribed",
+        "activity.logged",
+        "activity.recorded",
+        "activity.recorded",
+        "activity.summarized",
+        "activity.summarized",
+        "activity.transcribed",
+        "activity.transcribed",
       ]);
 
       await s.asRole(owner);

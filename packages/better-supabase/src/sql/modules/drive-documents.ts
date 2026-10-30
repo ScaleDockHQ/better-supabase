@@ -430,7 +430,7 @@ begin
     ${transitionTo(kit, "draft", "null")}
     select * into v_node from ${T} x where x.${n("id")} = v_node.${n("id")};
   end if;
-  ${record("drive.node_document_saved", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'documentType', v_node.${n("documentType")}, 'ownerId', v_node.${n("documentOwner")}`, kit.dataAudit("v_node", "document saved"))}
+  ${record("drive_node.document_saved", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'documentType', v_node.${n("documentType")}, 'ownerId', v_node.${n("documentOwner")}`, kit.dataAudit("v_node", "document saved"))}
   return ${withRole("v_node")};
 end;
 $$;
@@ -496,7 +496,7 @@ begin
   v_request := ${approvals.fn("request_approval")}(v_node.${n("tenant")}, ${typeLit}, v_node.${n("id")}::text, ${RELEASE},
     drive_document_submit.reason, jsonb_build_object('attachmentId', v_file.${a("id")}, 'revision', v_revision, 'name', v_file.${a("name")}));
   select * into v_node from ${T} x where x.${n("id")} = v_node.${n("id")};
-  ${record("drive.node_submitted", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'attachmentId', v_file.${a("id")}, 'requestId', v_request ->> 'id'`, kit.dataAudit("v_node", "document submitted"))}
+  ${record("drive_node.submitted", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'attachmentId', v_file.${a("id")}, 'requestId', v_request ->> 'id'`, kit.dataAudit("v_node", "document submitted"))}
   return ${withRole("v_node")};
 end;
 $$;
@@ -570,7 +570,7 @@ begin
     ${transitionTo(kit, "effective", "'released'")}
   end if;
   select * into v_node from ${T} x where x.${n("id")} = v_node.${n("id")};
-  ${record("drive.node_released", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'versionId', v_version, 'attachmentId', v_file.${a("id")}`, kit.dataAudit("v_node", "document released"))}
+  ${record("drive_node.released", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'versionId', v_version, 'attachmentId', v_file.${a("id")}`, kit.dataAudit("v_node", "document released"))}
   return ${withRole("v_node")};
 end;
 $$;
@@ -656,7 +656,7 @@ begin
   end if;
   ${transitionTo(kit, "obsolete", "drive_document_obsolete.reason")}
   select * into v_node from ${T} x where x.${n("id")} = v_node.${n("id")};
-  ${record("drive.node_obsoleted", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'reason', drive_document_obsolete.reason`, kit.dataAudit("v_node", "document made obsolete"))}
+  ${record("drive_node.obsoleted", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'reason', drive_document_obsolete.reason`, kit.dataAudit("v_node", "document made obsolete"))}
   return ${withRole("v_node")};
 end;
 $$;
@@ -697,7 +697,7 @@ begin
     where x.${n("id")} = v_node.${n("id")}
     returning * into v_node;
   end if;
-  ${record("drive.node_reviewed", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'outcome', drive_document_review.outcome, 'note', drive_document_review.note, 'nextReviewOn', v_node.${n("nextReviewOn")}`, kit.dataAudit("v_node", "document reviewed"))}
+  ${record("drive_node.reviewed", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'outcome', drive_document_review.outcome, 'note', drive_document_review.note, 'nextReviewOn', v_node.${n("nextReviewOn")}`, kit.dataAudit("v_node", "document reviewed"))}
   return ${withRole("v_node")};
 end;
 $$;
@@ -771,7 +771,7 @@ function dueSql(kit: DriveKit): string {
 
   return `
 -- Reports each effective document whose review date has come once per date:
--- a drive.node_review_requested event and, with notifications, a notification
+-- a drive_node.review_requested event and, with notifications, a notification
 -- to its owner. Run it daily from a job.
 create or replace function ${fn("notify_due_drive_reviews")}()
 returns integer
@@ -789,7 +789,7 @@ begin
       and x.${n("reviewNotifiedFor")} is distinct from x.${n("nextReviewOn")}${kit.live("x")}
     for update skip locked
   loop
-    ${record("drive.node_review_requested", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'ownerId', v_node.${n("documentOwner")}, 'nextReviewOn', v_node.${n("nextReviewOn")}`, false)}
+    ${record("drive_node.review_requested", "v_node", `, 'documentNumber', v_node.${n("documentNumber")}, 'ownerId', v_node.${n("documentOwner")}, 'nextReviewOn', v_node.${n("nextReviewOn")}`, false)}
     ${notify}
     update ${T} x set ${n("reviewNotifiedFor")} = v_node.${n("nextReviewOn")} where x.${n("id")} = v_node.${n("id")};
     v_count := v_count + 1;

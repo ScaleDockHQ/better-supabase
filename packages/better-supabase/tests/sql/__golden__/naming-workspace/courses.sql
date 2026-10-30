@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:2c85c992d129af35cc87f85aa7484a6896926253743be62ad363e937236dcea9
+-- @bsb-hash sha256:987171a87ed996836cf1bf2c2c88a6a3abde909f3cb9f37d8489891e84cdf3af
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -406,7 +406,11 @@ begin
       raise exception 'a course with this key already exists' using errcode = '23505', hint = 'COURSE_EXISTS';
     end;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return "better_supabase"."course_json"(v_row."id");
 end;
 $$;

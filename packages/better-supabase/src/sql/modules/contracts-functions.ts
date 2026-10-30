@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import {
   extraFieldsArg,
   extraFieldsJson,
@@ -720,7 +721,7 @@ ${
       ${fail("CONTRACT_OBLIGATION_NOT_FOUND", "obligation not found", "P0002")}
     end if;
   end if;
-  ${obligationRecord("obligation.saved", "v_row", "saved obligation")}
+  ${createdOrUpdated("save_contract_obligation.obligation_id is null", (verb) => obligationRecord(`contract_obligation.${verb}`, "v_row", `${verb} obligation`))}
   return ${obligationJson("v_row")};
 end;
 $$;
@@ -767,7 +768,7 @@ begin
   ].join(",\n    ")}
     where x.${o("id")} = v_row.${o("id")}
     returning * into v_row;
-  ${obligationRecord("obligation.status_changed", "v_row", "marked obligation")}
+  ${obligationRecord("contract_obligation.status_changed", "v_row", "marked obligation")}
   return ${obligationJson("v_row")};
 end;
 $$;

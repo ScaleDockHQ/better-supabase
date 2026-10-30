@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:2d7c52be9c789510adfe971ba34bada7ae5a40d9bd0e184aa1e2405f3e2622de
+-- @bsb-hash sha256:4634cdad03cee9264faa8d8070e94eaf8c7cbe3d6be6287e8de5bcc4bdef583b
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -188,7 +188,11 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -736,7 +740,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:eec1d95212569e9d730a3396a175b01a5d74229d670b6fc1382cdf65e9419ee2
+-- @bsb-hash sha256:bfbcfa0202f5bac390bac976e68a7e9e4879f31de6cea17f0abed90c3c055289
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -923,17 +927,31 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('post_board.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind"), 'post-boards/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('post_board.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind"), 'post-boards/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
   perform better_supabase.audit_event(
-    event_type => 'post_board.saved',
+    event_type => 'post_board.created',
     category => 'data',
     target_type => 'post_board',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    summary => 'saved a board',
+    summary => 'created a board',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind")
   );
+  else
+    perform "better_supabase".emit_event('post_board.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind"), 'post-boards/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/posts');
+  perform better_supabase.audit_event(
+    event_type => 'post_board.updated',
+    category => 'data',
+    target_type => 'post_board',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'updated a board',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'kind', v_row."kind")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -1521,7 +1539,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:81e04e72ddabdbe8d8988a7ce5c570c0c6b5416e8bdb614a4f3af7f01297f3db
+-- @bsb-hash sha256:36c36010a51171fe37196ab0a670cdab87317de0ef0095ba192fa3f02b33cf63
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1713,7 +1731,11 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -2261,7 +2283,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:8ad4019fc4b0ab5c3fb0a09c9b5b775cb09481dc9bf8f79a1cff63fecb79e464
+-- @bsb-hash sha256:26d5ebdf3ac3e35e16188e8c5cfce9af18e813eed797e172623f77b43b58927b
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2448,7 +2470,11 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -3108,7 +3134,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:ad667e481b87a28fea8dc5972cb708be01c63ff1487abdabd4080c928cc07bbb
+-- @bsb-hash sha256:7eeadb8ea6873b1fe767302b23d9661941bd582e6c73161aa8737b54e25bb9c7
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3304,7 +3330,11 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;
@@ -3852,7 +3882,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:def87c9b7edeb0d8e094ae26a5ecc78570750238f3bc9b76ec8e39a27e974d7f
+-- @bsb-hash sha256:e6ced983387e1c1a6771fe4c0e7b06b30552db63bbb13d18697c8f9075dcfba3
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4039,7 +4069,11 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  null;
+  if v_old."id" is null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'kind', v_row."kind", 'archivedAt', v_row."archived_at", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;

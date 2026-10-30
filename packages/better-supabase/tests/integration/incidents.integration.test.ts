@@ -193,14 +193,14 @@ describe.skipIf(!live)("incidents", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type from better_supabase.outbox_events where type like any (array['incident.%', 'postmortem.%', 'status_component.%']) order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where type like any (array['incident.%', 'incident_postmortem.%', 'status_component.%']) order by type",
       );
 
       expect(events.map((row) => row.type)).toEqual([
         "incident.opened",
         "incident.resolved",
         "incident.updated",
-        "postmortem.published",
+        "incident_postmortem.published",
         "status_component.changed",
       ]);
     } finally {

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:98feacc162cecd397ddfed4aa6cc2abc8b227944d371f842fe80a7d7bd5eb12d
+-- @bsb-hash sha256:a306156743fe7fda8a4a4cff0cb8c220b8062467caf717245629f61cc3853dd7
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -216,7 +216,11 @@ begin
     where x."id" = v_row."id"
     returning * into v_row;
   end if;
-  null;
+  if save_announcement.id is null then
+    null;
+  else
+    null;
+  end if;
   return to_jsonb(v_row);
 end;
 $$;

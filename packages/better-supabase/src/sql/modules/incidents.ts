@@ -45,7 +45,7 @@ const EVENTS: BlockSqlEvents<IncidentsEvents> = {
     subject: "incidents",
     payload: ["organizationId", "incidentId", "severity"],
   },
-  "postmortem.published": {
+  "incident_postmortem.published": {
     subject: "incidents",
     payload: ["organizationId", "postmortemId", "incidentId"],
   },

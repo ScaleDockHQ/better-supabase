@@ -197,6 +197,7 @@ export type {
 export {
   blockEntities,
   blockEntityRenames,
+  blockEventRenames,
   blockFormerFunctions,
   blockSubjectTypes,
 } from "./block-subjects.ts";

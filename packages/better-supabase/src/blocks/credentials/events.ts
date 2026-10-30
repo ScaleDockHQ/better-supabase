@@ -5,12 +5,12 @@ import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `credentials` block: type to data. */
 export type CredentialsEvents = {
-  readonly "credential.set": CredentialEventData;
+  readonly "credential.updated": CredentialEventData;
   readonly "credential.deleted": CredentialEventData;
 };
 
 /** The `credentials` block's event types, for its manifest and `onBlockEvent`. */
 export const credentialsEvents: Events<CredentialsEvents> = defineEvents({
-  "credential.set": event<CredentialEventData>(),
+  "credential.updated": event<CredentialEventData>(),
   "credential.deleted": event<CredentialEventData>(),
 });

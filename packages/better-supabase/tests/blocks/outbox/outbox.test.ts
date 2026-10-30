@@ -441,6 +441,37 @@ describe("createOutbox", () => {
     expect(event.data).toBeNull();
   });
 
+  it("relays a renamed type under its old name with legacyEventTypes", () => {
+    const event = (type: string, legacyEventTypes?: boolean) =>
+      outboxCloudEvent(
+        {
+          position: 1,
+          id: "1",
+          type,
+          payload: null,
+          source: null,
+          subject: null,
+          tenant: null,
+          key: null,
+          actorId: null,
+          createdAt: Temporal.Instant.from("2026-01-01T00:00:00Z"),
+        },
+        {
+          ...OPTIONS,
+          // oxlint-disable-next-line typescript/no-deprecated -- tests the deprecated option.
+          ...(legacyEventTypes === undefined ? {} : { legacyEventTypes }),
+        },
+      );
+
+    const legacy = event("task.created", true);
+
+    expect(legacy.type).toBe("dev.better-supabase.work_item.created");
+    expect(legacy["currenttype"]).toBe("task.created");
+    expect(event("member.joined", true)).not.toHaveProperty("currenttype");
+    expect(event("task.created").type).toBe("dev.better-supabase.task.created");
+    expect(event("task.created", false)).not.toHaveProperty("currenttype");
+  });
+
   it("keeps the payload as it is and sends no actor", () => {
     const base = {
       position: 1,

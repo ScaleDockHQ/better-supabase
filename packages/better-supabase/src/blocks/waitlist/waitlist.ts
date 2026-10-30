@@ -131,7 +131,7 @@ export interface Waitlist<F extends object = Record<never, never>> {
     readonly limit?: number;
     readonly afterPosition?: number;
   }): AsyncResult<readonly WaitlistEntry<F>[]>;
-  /** Lets the address sign up and emits `waitlist.approved`. */
+  /** Lets the address sign up and emits `waitlist_entry.approved`. */
   approve(entryId: string): AsyncResult<WaitlistEntry<F>>;
   reject(entryId: string): AsyncResult<WaitlistEntry<F>>;
   /** Creates a code; `code` is shown once, the database keeps its hash. */

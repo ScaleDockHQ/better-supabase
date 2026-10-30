@@ -251,7 +251,7 @@ export function workItemFunctions(
       'action_path', ${actionPath},
       'recipients', to_jsonb(v_new),
       'watchers', false,
-      'key', ${sqlString(e("work_item.assigned:"))} || v_row.${w("id")}::text || ':' || md5(array_to_string(v_new, ',')),
+      'key', ${sqlString(e("task.assigned:"))} || v_row.${w("id")}::text || ':' || md5(array_to_string(v_new, ',')),
       'data', jsonb_build_object(${itemId}, v_row.${w("id")})
     )`,
       { indent: "    " },
@@ -614,7 +614,7 @@ begin
   end if;
   select * into v_row from ${t("items")} x where x.${w("id")} = v_id;
   ${linkAttachmentsSql(ctx, n, "v_row", "(create_task.attrs -> 'attachments')")}
-  ${record("work_item.created", "v_row")}
+  ${record("task.created", "v_row")}
   ${ctx.hook("after_task_create", [["uuid", "v_id"]])}
   return (select ${row("x")} from ${t("items")} x where x.${w("id")} = v_id);
 end;
@@ -680,7 +680,7 @@ ${writes}
     end;
   end loop;
   for v_row in select * from ${t("items")} x where x.${w("id")} = any (v_touched) loop
-    ${record("work_item.updated", "v_row", `, 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> ${itemId})::uuid = v_row.${w("id")})`)}
+    ${record("task.updated", "v_row", `, 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> ${itemId})::uuid = v_row.${w("id")})`)}
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
@@ -688,7 +688,7 @@ $$;
 ${userGrant(`${fn("update_tasks")}(jsonb, boolean)`)}
 
 -- Replaces an item's assignees. Each one watches the item, and those who
--- weren't assigned before are notified. work_item.assigned is recorded only
+-- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
 create or replace function ${fn("set_task_assignees")}(work_item uuid, users uuid[])
 returns integer
@@ -725,7 +725,7 @@ begin
   end loop;`
   }${notify}
   if cardinality(v_added) > 0 then
-    ${record("work_item.assigned", "v_row", ", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)")}
+    ${record("task.assigned", "v_row", ", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)")}
   end if;
   return cardinality(v_users);
 end;
@@ -748,7 +748,7 @@ begin
     return false;
   end if;
   if archive_task.archived then
-    ${record("work_item.archived", "v_row")}
+    ${record("task.archived", "v_row")}
   end if;
   return true;
 end;
@@ -772,7 +772,7 @@ begin
   if v_row.${w("id")} is null then
     return false;
   end if;
-  ${record("work_item.deleted", "v_row")}
+  ${record("task.deleted", "v_row")}
   return true;
 end;
 $$;

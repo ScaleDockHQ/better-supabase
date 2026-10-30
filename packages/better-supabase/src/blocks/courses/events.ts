@@ -2,7 +2,7 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `course.saved` and `course.deleted`. */
+/** `course.created`, `course.updated` and `course.deleted`. */
 export interface CourseEventData {
   readonly organizationId: string;
   /** The course. */
@@ -48,7 +48,8 @@ export interface CourseCertificateIssuedEventData extends CourseCertificateEvent
 
 /** The events of the `courses` block: type to data. */
 export type CoursesEvents = {
-  readonly "course.saved": CourseEventData;
+  readonly "course.created": CourseEventData;
+  readonly "course.updated": CourseEventData;
   readonly "course.deleted": CourseEventData;
   readonly "course.enrolled": CourseLearnerEventData;
   readonly "course.unenrolled": CourseLearnerEventData;
@@ -60,7 +61,8 @@ export type CoursesEvents = {
 
 /** The `courses` block's event types, for its manifest and `onBlockEvent`. */
 export const coursesEvents: Events<CoursesEvents> = defineEvents({
-  "course.saved": event<CourseEventData>(),
+  "course.created": event<CourseEventData>(),
+  "course.updated": event<CourseEventData>(),
   "course.deleted": event<CourseEventData>(),
   "course.enrolled": event<CourseLearnerEventData>(),
   "course.unenrolled": event<CourseLearnerEventData>(),

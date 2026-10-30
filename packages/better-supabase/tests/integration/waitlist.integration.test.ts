@@ -88,7 +88,7 @@ describe.skipIf(!live)("waitlist", () => {
       await s.service();
       expect(
         await s.rows(
-          "select type from better_supabase.outbox_events where type = 'waitlist.approved' and payload ->> 'entryId' = $1",
+          "select type from better_supabase.outbox_events where type = 'waitlist_entry.approved' and payload ->> 'entryId' = $1",
           [firstEntry.id],
         ),
       ).toHaveLength(1);

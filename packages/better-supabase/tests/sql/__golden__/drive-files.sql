@@ -38,7 +38,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_083_drive_files.sql
 -- better-supabase module: drive-files
 -- @bsb-block drive-files@2 managed
--- @bsb-hash sha256:cbc6c7747946bee29068b35a5389edcb94ca0d95a3b000f0238fa3e9ef9ba9b0
+-- @bsb-hash sha256:23608899e7f9bcfddecae3f8dceca8a00c933102a213a12eb5133bf1dd0b0bae
 -- The part of the drive module that needs attachments, versions, trash and share-links: file uploads and revisions with an optional usage quota, extracted text, storage policies, the bin, starred and recent items, folder share links and the purge event. Installed with drive.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -101,7 +101,7 @@ $$;
 revoke execute on function "better_supabase"."drive_node_json"("better_supabase"."drive_nodes") from public, anon, authenticated;
 
 -- Before a node is deleted for good, its stored objects go into
--- drive.node_purged for the app to remove through Storage; after, its
+-- drive_node.purged for the app to remove through Storage; after, its
 -- grants, attachments, revisions and starred state go too.
 create or replace function "better_supabase"."drive_node_purging"()
 returns trigger
@@ -112,9 +112,9 @@ as $$
 declare
   v_objects jsonb := (select coalesce(jsonb_agg(jsonb_build_object('bucket', pa."bucket", 'path', pa."object_path")), '[]'::jsonb) from "better_supabase"."attachments" pa where pa."subject_type" = 'drive_node' and pa."subject_id" = old."id"::text and pa."uploaded_at" is not null);
 begin
-  perform "better_supabase".emit_event('drive.node_purged', jsonb_build_object('organizationId', old."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', old."id"::text, 'objects', v_objects), 'drive-nodes/' || old."id"::text, (old."tenant_id")::text, null, 'better-supabase/drive-files');
+  perform "better_supabase".emit_event('drive_node.purged', jsonb_build_object('organizationId', old."tenant_id"::text, 'subjectType', 'drive_node', 'subjectId', old."id"::text, 'objects', v_objects), 'drive-nodes/' || old."id"::text, (old."tenant_id")::text, null, 'better-supabase/drive-files');
   perform better_supabase.audit_event(
-    event_type => 'drive.node_purged',
+    event_type => 'drive_node.purged',
     category => 'data',
     target_type => 'drive_node',
     record_id => old."id"::text,

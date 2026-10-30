@@ -21,7 +21,8 @@ const MODEL_PAYLOAD = [
 ] as const;
 
 const EVENTS: BlockSqlEvents<ScoresEvents> = {
-  "score_model.saved": { subject: "score-models", payload: MODEL_PAYLOAD },
+  "score_model.created": { subject: "score-models", payload: MODEL_PAYLOAD },
+  "score_model.updated": { subject: "score-models", payload: MODEL_PAYLOAD },
   "score_model.deleted": { subject: "score-models", payload: MODEL_PAYLOAD },
   "score.changed": {
     subject: "scores",

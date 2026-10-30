@@ -155,9 +155,9 @@ select is(
 
 reset role;
 select is(
-  (select count(*)::integer from better_supabase.outbox_events where type = 'forecast.snapshotted'),
+  (select count(*)::integer from better_supabase.outbox_events where type = 'forecast_snapshot.created'),
   3,
-  'each snapshot records forecast.snapshotted'
+  'each snapshot records forecast_snapshot.created'
 );
 
 -- Acme member reads what the owner took.

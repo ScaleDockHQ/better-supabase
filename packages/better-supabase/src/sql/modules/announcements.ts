@@ -8,20 +8,25 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
+import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addExtraColumns,
-  withExtraFields,
+  fail,
+  lockTable,
+  raise,
   schemaPreamble,
   SERVICE_CALLER,
-  lockTable,
-  fail,
-  raise,
+  withExtraFields,
 } from "../shared.ts";
 import { OPERATIONS } from "./permissions-model.ts";
 
 const EVENTS: BlockSqlEvents<AnnouncementsEvents> = {
-  "announcement.saved": {
+  "announcement.created": {
+    subject: "announcements",
+    payload: ["announcementId"],
+  },
+  "announcement.updated": {
     subject: "announcements",
     payload: ["announcementId"],
   },
@@ -355,7 +360,7 @@ begin
     where x.${ca("id")} = v_row.${ca("id")}
     returning * into v_row;
   end if;
-  ${announcementEvent("announcement.saved", `v_row.${ca("id")}`)}
+  ${createdOrUpdated("save_announcement.id is null", (verb) => announcementEvent(`announcement.${verb}`, `v_row.${ca("id")}`))}
   return ${withExtraFields("to_jsonb(v_row)", "v_row", extras)};
 end;
 $$;

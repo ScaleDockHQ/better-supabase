@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:45f8ff1a4820c9012382ee9610e4b8f27bf853676972cd4fcd2bc0cd6f003733
+-- @bsb-hash sha256:fca55591b19ddfe9faba8d0d37a919dc69c5b45b219a24a534e72976063cef51
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -242,7 +242,11 @@ begin
       "requested_by" = excluded."requested_by"
     returning * into v_row;
   end if;
-  null;
+  if v_company."id" is not null then
+    null;
+  else
+    null;
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'subjectType', case when v_row."company_id" is not null then 'company' else 'person' end, 'subjectId', coalesce(v_row."company_id", v_row."person_id"), 'provider', v_row."provider", 'status', v_row."status", 'data', v_row."data", 'filled', to_jsonb(v_row."filled"), 'fetchedAt', v_row."fetched_at", 'requestedBy', v_row."requested_by");
 end;
 $$;

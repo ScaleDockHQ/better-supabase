@@ -103,10 +103,12 @@ and functions by one convention, so you can guess a name from the block and
 the noun.
 [ADR 0130](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0130-one-naming-convention-for-blocks.md)
 records the decision. 0.46 renamed the permission keys and 0.47 the entity
-keys, subject types, hint codes and functions, each with a codemod and one
-minor in which the old names keep working. Event types and the tables of an
-entity whose singular changed (`work_item.*` events and `work_items` on
-`tasks`) keep their names until a later minor.
+keys, subject types, hint codes, functions and event types, each with a
+codemod and one minor in which the old names keep working (see
+[0.45 to 0.46](/docs/migration/0.45-to-0.46) and
+[0.46 to 0.47](/docs/migration/0.46-to-0.47)). The tables of an entity whose
+singular changed (`work_items` on `tasks`) keep their names until a later
+minor.
 
 1. Block names are kebab-case. Existing block names do not change.
 2. An entity key equals its `singular`. Entity keys are unique across all

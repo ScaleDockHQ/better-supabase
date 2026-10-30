@@ -45,7 +45,7 @@ describe("blocks.<name>.entities in the SQL", () => {
 
     expect(sql).toContain('"better_supabase"."work_items"');
     expect(sql).toContain('"better_supabase"."create_task"(');
-    expect(sql).toContain("'work_item.created'");
+    expect(sql).toContain("'task.created'");
     expect(sql).not.toContain("@bsb-names");
   });
 
@@ -59,7 +59,7 @@ describe("blocks.<name>.entities in the SQL", () => {
       modules: { memberships: { entities: { organization: "workspace" } } },
     });
 
-    expect(sql).toContain("'work_item.created'");
+    expect(sql).toContain("'task.created'");
     expect(sql).toContain("'organizationId'");
     expect(sql).toContain("'tasks.read'");
   });

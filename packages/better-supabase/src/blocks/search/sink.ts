@@ -1,7 +1,7 @@
 import type { CloudEvent, EventSink } from "../../events/cloud-event.ts";
 import type { Search } from "./search.ts";
 
-import { stripTypePrefix } from "../../events/cloud-event.ts";
+import { eventTypeOf } from "../../events/cloud-event.ts";
 import { isRecord, optionalText } from "../shared.ts";
 
 /** What an event does to the index. */
@@ -56,7 +56,7 @@ export function searchSink(
   return {
     async send(events) {
       for (const event of events) {
-        const action = actions[stripTypePrefix(event.type, options.typePrefix)];
+        const action = actions[eventTypeOf(event, options.typePrefix)];
 
         if (action === undefined) {
           continue;

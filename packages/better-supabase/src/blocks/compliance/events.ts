@@ -2,7 +2,7 @@ import type { Events } from "../../core/event-map.ts";
 
 import { defineEvents, event } from "../../core/event-map.ts";
 
-/** `control.saved`: a control was created or changed. */
+/** `control.created` and `control.updated`: a control was created or changed. */
 export interface ControlSavedEventData {
   readonly organizationId: string;
   readonly controlId: string;
@@ -29,7 +29,7 @@ export interface EvidenceTaskMissedEventData {
   readonly dueOn: string;
 }
 
-/** `policy.published`: a policy has a new current version. */
+/** `compliance_policy.published`: a policy has a new current version. */
 export interface PolicyPublishedEventData {
   readonly organizationId: string;
   readonly policyId: string;
@@ -37,7 +37,10 @@ export interface PolicyPublishedEventData {
   readonly number: number;
 }
 
-/** `policy.acknowledged`: a member acknowledged a policy's current version. */
+/**
+ * `compliance_policy.acknowledged`: a member acknowledged a policy's current
+ * version.
+ */
 export interface PolicyAcknowledgedEventData {
   readonly organizationId: string;
   readonly policyId: string;
@@ -47,18 +50,20 @@ export interface PolicyAcknowledgedEventData {
 
 /** The events of the `compliance` block: type to data. */
 export type ComplianceEvents = {
-  readonly "control.saved": ControlSavedEventData;
+  readonly "control.created": ControlSavedEventData;
+  readonly "control.updated": ControlSavedEventData;
   readonly "control.evidence_added": ControlEvidenceAddedEventData;
   readonly "evidence_task.missed": EvidenceTaskMissedEventData;
-  readonly "policy.published": PolicyPublishedEventData;
-  readonly "policy.acknowledged": PolicyAcknowledgedEventData;
+  readonly "compliance_policy.published": PolicyPublishedEventData;
+  readonly "compliance_policy.acknowledged": PolicyAcknowledgedEventData;
 };
 
 /** The `compliance` block's event types, for its manifest and `onBlockEvent`. */
 export const complianceEvents: Events<ComplianceEvents> = defineEvents({
-  "control.saved": event<ControlSavedEventData>(),
+  "control.created": event<ControlSavedEventData>(),
+  "control.updated": event<ControlSavedEventData>(),
   "control.evidence_added": event<ControlEvidenceAddedEventData>(),
   "evidence_task.missed": event<EvidenceTaskMissedEventData>(),
-  "policy.published": event<PolicyPublishedEventData>(),
-  "policy.acknowledged": event<PolicyAcknowledgedEventData>(),
+  "compliance_policy.published": event<PolicyPublishedEventData>(),
+  "compliance_policy.acknowledged": event<PolicyAcknowledgedEventData>(),
 });

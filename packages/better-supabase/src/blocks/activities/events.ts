@@ -10,31 +10,31 @@ import { defineEvents, event } from "../../core/event-map.ts";
 
 /** The events of the `engagements` block: type to data. */
 export type ActivitiesEvents = {
-  readonly "engagement.logged": EngagementEventData;
-  readonly "engagement.updated": EngagementEventData;
-  readonly "engagement.completed": EngagementEventData;
-  readonly "engagement.deleted": EngagementEventData;
+  readonly "activity.logged": EngagementEventData;
+  readonly "activity.updated": EngagementEventData;
+  readonly "activity.completed": EngagementEventData;
+  readonly "activity.deleted": EngagementEventData;
   /** A recording was attached (`options.recordings`). */
-  readonly "engagement.recorded": EngagementRecordingEventData;
+  readonly "activity.recorded": EngagementRecordingEventData;
   /** A recording's transcript was saved. */
-  readonly "engagement.transcribed": EngagementRecordingEventData;
+  readonly "activity.transcribed": EngagementRecordingEventData;
   /** The engagement's notes were saved. */
-  readonly "engagement.summarized": EngagementEventData;
+  readonly "activity.summarized": EngagementEventData;
   /** An addendum was added to an engagement. */
-  readonly "engagement.amended": EngagementAmendedEventData;
+  readonly "activity.amended": EngagementAmendedEventData;
   /** An engagement was flagged as entered in error. */
-  readonly "engagement.error_marked": EngagementErrorMarkedEventData;
+  readonly "activity.error_marked": EngagementErrorMarkedEventData;
 };
 
 /** The `engagements` block's event types, for its manifest and `onBlockEvent`. */
 export const activitiesEvents: Events<ActivitiesEvents> = defineEvents({
-  "engagement.logged": event<EngagementEventData>(),
-  "engagement.updated": event<EngagementEventData>(),
-  "engagement.completed": event<EngagementEventData>(),
-  "engagement.deleted": event<EngagementEventData>(),
-  "engagement.recorded": event<EngagementRecordingEventData>(),
-  "engagement.transcribed": event<EngagementRecordingEventData>(),
-  "engagement.summarized": event<EngagementEventData>(),
-  "engagement.amended": event<EngagementAmendedEventData>(),
-  "engagement.error_marked": event<EngagementErrorMarkedEventData>(),
+  "activity.logged": event<EngagementEventData>(),
+  "activity.updated": event<EngagementEventData>(),
+  "activity.completed": event<EngagementEventData>(),
+  "activity.deleted": event<EngagementEventData>(),
+  "activity.recorded": event<EngagementRecordingEventData>(),
+  "activity.transcribed": event<EngagementRecordingEventData>(),
+  "activity.summarized": event<EngagementEventData>(),
+  "activity.amended": event<EngagementAmendedEventData>(),
+  "activity.error_marked": event<EngagementErrorMarkedEventData>(),
 });

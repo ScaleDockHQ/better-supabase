@@ -140,10 +140,10 @@ lead is hot.
 
 ## Events
 
-| Event                                      | Data                                                                                                                  |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
-| `score_model.saved`, `score_model.deleted` | `organizationId`, `id`, `key`, `subjectType`, `version`                                                               |
-| `score.changed`                            | `organizationId`, `modelId`, `modelKey`, `subjectType`, `subjectId`, `score`, `previousScore`, `band`, `previousBand` |
+| Event                                                               | Data                                                                                                                  |
+| ------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `score_model.created`, `score_model.updated`, `score_model.deleted` | `organizationId`, `id`, `key`, `subjectType`, `version`                                                               |
+| `score.changed`                                                     | `organizationId`, `modelId`, `modelKey`, `subjectType`, `subjectId`, `score`, `previousScore`, `band`, `previousBand` |
 
 A rule on `score.changed` can route a lead that turns hot, or notify an
 account owner when health drops a band.

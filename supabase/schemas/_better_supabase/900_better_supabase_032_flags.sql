@@ -1,6 +1,6 @@
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:35c1a29c695c3438248713c39b8015f114312b06d18be38f01c7f656329c2309
+-- @bsb-hash sha256:afea203c994e22185251eba7d35df0cffd3b660f75052792abec2db5568b82af
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -416,6 +416,7 @@ as $$
 declare
   d jsonb := coalesce(definition, '{}');
   saved jsonb;
+  v_inserted boolean;
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -430,6 +431,7 @@ begin
   ) then
     raise exception 'Each rollout variant needs a known variant and a weight from 0 to 100' using errcode = '22023', hint = 'FLAGS_ROLLOUT_VARIANTS';
   end if;
+  v_inserted := not exists (select 1 from "better_supabase"."flags" x where x."key" = save_flag.key);
   insert into "better_supabase"."flags" as x ("key", "type", "description", "variants", "default_variant", "enabled", "archived", "rules", "rollout_percentage", "rollout_variants", "rollout_schedule")
   values (
     save_flag.key,
@@ -465,14 +467,25 @@ begin
     save_flag.message,
     (select u.id from auth.users u where u.id = auth.uid())
   );
-  perform "better_supabase".emit_event('flag.saved', jsonb_build_object('key', save_flag.key), 'flags/' || save_flag.key, null, null, 'better-supabase/flags');
+  if v_inserted then
+    perform "better_supabase".emit_event('flag.created', jsonb_build_object('key', save_flag.key), 'flags/' || save_flag.key, null, null, 'better-supabase/flags');
   perform better_supabase.audit_event(
-    event_type => 'flag.saved',
+    event_type => 'flag.created',
     category => 'configuration',
     target_type => 'flag',
     record_id => save_flag.key,
     metadata => jsonb_build_object('key', save_flag.key)
   );
+  else
+    perform "better_supabase".emit_event('flag.updated', jsonb_build_object('key', save_flag.key), 'flags/' || save_flag.key, null, null, 'better-supabase/flags');
+  perform better_supabase.audit_event(
+    event_type => 'flag.updated',
+    category => 'configuration',
+    target_type => 'flag',
+    record_id => save_flag.key,
+    metadata => jsonb_build_object('key', save_flag.key)
+  );
+  end if;
   return saved;
 end;
 $$;
@@ -639,9 +652,9 @@ begin
     if not found then
       return false;
     end if;
-    perform "better_supabase".emit_event('flag.override_set', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');
+    perform "better_supabase".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');
   perform better_supabase.audit_event(
-    event_type => 'flag.override_set',
+    event_type => 'flag.override_changed',
     category => 'configuration',
     target_type => 'flag',
     record_id => set_flag_override.key,
@@ -653,9 +666,9 @@ begin
   insert into "better_supabase"."flag_overrides" ("flag_key", "organization_id", "user_id", "context", "context_key", "variant")
   values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)
   on conflict on constraint flag_overrides_unique do update set "variant" = excluded."variant";
-  perform "better_supabase".emit_event('flag.override_set', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');
+  perform "better_supabase".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');
   perform better_supabase.audit_event(
-    event_type => 'flag.override_set',
+    event_type => 'flag.override_changed',
     category => 'configuration',
     target_type => 'flag',
     record_id => set_flag_override.key,

@@ -286,7 +286,7 @@ begin
   update ${T} x set ${n("lockedBy")} = auth.uid(), ${n("lockedUntil")} = v_until${note ? `, ${n("lockNote")} = drive_lock.note` : ""}${touch}
   where x.${n("id")} = v_node.${n("id")}
   returning * into v_node;
-  ${record("drive.node_locked", "v_node", `, 'lockedBy', v_node.${n("lockedBy")}::text, 'lockedUntil', v_node.${n("lockedUntil")}`, dataAudit("v_node", "checked out"))}
+  ${record("drive_node.locked", "v_node", `, 'lockedBy', v_node.${n("lockedBy")}::text, 'lockedUntil', v_node.${n("lockedUntil")}`, dataAudit("v_node", "checked out"))}
   return ${withRole("v_node")};
 end;
 $$;
@@ -331,7 +331,7 @@ begin
   update ${T} x set ${n("lockedBy")} = null, ${n("lockedUntil")} = null${note ? `, ${n("lockNote")} = null` : ""}${touch}
   where x.${n("id")} = v_node.${n("id")}
   returning * into v_node;
-  ${record("drive.node_unlocked", "v_node", ", 'lockedBy', v_holder::text, 'forced', v_forced", dataAudit("v_node", "checked in"))}
+  ${record("drive_node.unlocked", "v_node", ", 'lockedBy', v_holder::text, 'forced', v_forced", dataAudit("v_node", "checked in"))}
   return ${withRole("v_node")};
 end;
 $$;
@@ -384,7 +384,7 @@ ${userGrant(`${fn("drive_unlock")}(uuid, boolean)`)}
     update ${T} x set ${n("downloadBlocked")} = drive_set_download_blocked.blocked${touch}
     where x.${n("id")} = v_node.${n("id")}
     returning * into v_node;
-    ${record("drive.node_download_blocked_changed", "v_node", `, 'downloadBlocked', v_node.${n("downloadBlocked")}`, accessAudit("v_node", "download block changed"))}
+    ${record("drive_node.download_blocked_changed", "v_node", `, 'downloadBlocked', v_node.${n("downloadBlocked")}`, accessAudit("v_node", "download block changed"))}
   end if;
   return ${withRole("v_node")};`
     : `

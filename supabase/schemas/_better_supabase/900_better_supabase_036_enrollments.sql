@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:0d34d64e86a91c45605f27ebf4a8fe68a00b3546feb9b895ae3d1432753d3949
+-- @bsb-hash sha256:e011e90d45a6040488355373415a6276111f0b06aee2a030561161785546e6c1
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -501,17 +501,31 @@ begin
     where x."id" = v_old."id"
     returning * into v_row;
   end if;
-  perform "better_supabase".emit_event('enrollment_program.saved', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'enrollment-programs/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
+  if v_old."id" is null then
+    perform "better_supabase".emit_event('enrollment_program.created', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'enrollment-programs/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
   perform better_supabase.audit_event(
-    event_type => 'enrollment_program.saved',
+    event_type => 'enrollment_program.created',
     category => 'data',
     target_type => 'enrollment_program',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    summary => 'saved an enrollment program',
+    summary => 'created an enrollment program',
     tenant => (v_row."tenant_id")::uuid,
     metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version")
   );
+  else
+    perform "better_supabase".emit_event('enrollment_program.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version"), 'enrollment-programs/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/enrollments');
+  perform better_supabase.audit_event(
+    event_type => 'enrollment_program.updated',
+    category => 'data',
+    target_type => 'enrollment_program',
+    record_id => v_row."id"::text,
+    target_label => v_row."name",
+    summary => 'updated an enrollment program',
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'key', v_row."key", 'version', v_row."version")
+  );
+  end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'key', v_row."key", 'name', v_row."name", 'description', v_row."description", 'subjectTypes', to_jsonb(v_row."subject_types"), 'steps', v_row."steps", 'enabled', v_row."enabled", 'version', v_row."version", 'createdBy', v_row."created_by", 'createdAt', v_row."created_at", 'updatedAt', v_row."updated_at");
 end;
 $$;

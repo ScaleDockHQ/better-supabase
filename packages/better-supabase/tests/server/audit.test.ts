@@ -65,7 +65,7 @@ describe("the server's audit sink", () => {
     await server.events.settled();
     expect(sent.map((event) => event.type)).toEqual([
       "dev.better-supabase.account.sessions_ended",
-      "dev.better-supabase.support.denied",
+      "dev.better-supabase.support_session.denied",
     ]);
     expect(sent[0]).toMatchObject({
       source: SERVER_EVENT_SOURCE,
