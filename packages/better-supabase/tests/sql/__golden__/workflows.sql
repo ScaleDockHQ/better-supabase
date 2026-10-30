@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:67a329905dd33150f6df93439d738b4b48c26e309ee4f6a3ca28bb9141c86498
+-- @bsb-hash sha256:48123c5e351ba1157d94e616d063797240987ddff20d7479200eeb54007be170
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -126,7 +126,7 @@ drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
 create policy workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -156,7 +156,7 @@ grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
 create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
@@ -410,7 +410,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or v_run."actor_id" = (select auth.uid())
-    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflow.admin'), false))) then
+    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflows.manage'), false))) then
     raise exception 'You may not cancel this run' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_run."status" in ('completed', 'failed', 'cancelled') then
@@ -523,7 +523,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
@@ -596,7 +596,7 @@ begin
   end if;
   update "better_supabase"."workflow_schedules" x set "paused" = coalesce(paused, true)
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -616,7 +616,7 @@ begin
   end if;
   delete from "better_supabase"."workflow_schedules" x
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -874,7 +874,7 @@ create policy bsb_workflow_runs_receive on realtime.messages
           or (
             (select realtime.topic()) like 'workflow-runs:%'
             and substr((select realtime.topic()), 15) in (
-              select t::text from better_supabase.tenant_ids_with('workflow.read') t
+              select t::text from better_supabase.tenant_ids_with('workflows.read') t
             )
           )
         ));
@@ -904,7 +904,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
@@ -925,7 +925,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
@@ -971,7 +971,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:6a5d47a79943b31ed1bd23310864c8df1d7d3594c2fcfa11e5ff7a69bfe767ce
+-- @bsb-hash sha256:22555220faff1b085b7b65f49561f564b7c0600536c4dfc7d901888133377a56
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1096,7 +1096,7 @@ drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
 create policy workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -1126,7 +1126,7 @@ grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
 create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
@@ -1392,7 +1392,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or v_run."actor_id" = (select auth.uid())
-    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflow.admin'), false))) then
+    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflows.manage'), false))) then
     raise exception 'You may not cancel this run' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_run."status" in ('completed', 'failed', 'cancelled') then
@@ -1507,7 +1507,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
@@ -1580,7 +1580,7 @@ begin
   end if;
   update "better_supabase"."workflow_schedules" x set "paused" = coalesce(paused, true)
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -1600,7 +1600,7 @@ begin
   end if;
   delete from "better_supabase"."workflow_schedules" x
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -1858,7 +1858,7 @@ create policy bsb_workflow_runs_receive on realtime.messages
           or (
             (select realtime.topic()) like 'workflow-runs:%'
             and substr((select realtime.topic()), 15) in (
-              select t::text from better_supabase.tenant_ids_with('workflow.read') t
+              select t::text from better_supabase.tenant_ids_with('workflows.read') t
             )
           )
         ));
@@ -1888,7 +1888,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
@@ -1909,7 +1909,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
@@ -1955,7 +1955,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:bf204e2fb0772a6b46d9d8999124769814b3d6e22dd9f792a0449c69abd4be1c
+-- @bsb-hash sha256:647bd9d32bf5534c4ba66149d213f09a2d63ce6af35a171ab3091b4fec086730
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2085,7 +2085,7 @@ drop policy if exists workflow_runs_read on "app_private"."workflow_runs";
 create policy workflow_runs_read on "app_private"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -2115,7 +2115,7 @@ grant all on "app_private"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "app_private"."workflow_schedules";
 create policy workflow_schedules_read on "app_private"."workflow_schedules"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
@@ -2369,7 +2369,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or v_run."actor_id" = (select auth.uid())
-    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflow.admin'), false))) then
+    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflows.manage'), false))) then
     raise exception 'You may not cancel this run' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_run."status" in ('completed', 'failed', 'cancelled') then
@@ -2482,7 +2482,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   insert into "app_private"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
@@ -2555,7 +2555,7 @@ begin
   end if;
   update "app_private"."workflow_schedules" x set "paused" = coalesce(paused, true)
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -2575,7 +2575,7 @@ begin
   end if;
   delete from "app_private"."workflow_schedules" x
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -2833,7 +2833,7 @@ create policy bsb_workflow_runs_receive on realtime.messages
           or (
             (select realtime.topic()) like 'workflow-runs:%'
             and substr((select realtime.topic()), 15) in (
-              select t::text from better_supabase.tenant_ids_with('workflow.read') t
+              select t::text from better_supabase.tenant_ids_with('workflows.read') t
             )
           )
         ));
@@ -2863,7 +2863,7 @@ create policy bsb_tenant_scope_select on "app_private"."workflow_runs" as restri
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_runs";
 create policy bsb_tenant_scope_insert on "app_private"."workflow_runs" as restrictive
@@ -2884,7 +2884,7 @@ create policy bsb_tenant_scope_select on "app_private"."workflow_schedules" as r
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "app_private"."workflow_schedules" as restrictive
@@ -2930,7 +2930,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:dce8f758db26fe7f6526ead9ecd2c74b530f7d42a90c8c5652e2f6e0f5006bf9
+-- @bsb-hash sha256:0719174969ab7efa846b31dbd1fcfdbf40fed3f96be6578ccb0ed17d939d49c3
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3055,7 +3055,7 @@ drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
 create policy workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -3085,7 +3085,7 @@ grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
 create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
@@ -3339,7 +3339,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or v_run."actor_id" = (select auth.uid())
-    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflow.admin'), false))) then
+    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflows.manage'), false))) then
     raise exception 'You may not cancel this run' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_run."status" in ('completed', 'failed', 'cancelled') then
@@ -3452,7 +3452,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
@@ -3525,7 +3525,7 @@ begin
   end if;
   update "better_supabase"."workflow_schedules" x set "paused" = coalesce(paused, true)
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -3545,7 +3545,7 @@ begin
   end if;
   delete from "better_supabase"."workflow_schedules" x
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -3803,7 +3803,7 @@ create policy bsb_workflow_runs_receive on realtime.messages
           or (
             (select realtime.topic()) like 'workflow-runs:%'
             and substr((select realtime.topic()), 15) in (
-              select t::text from better_supabase.tenant_ids_with('workflow.read') t
+              select t::text from better_supabase.tenant_ids_with('workflows.read') t
             )
           )
         ));
@@ -3833,7 +3833,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
@@ -3854,7 +3854,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
@@ -4079,7 +4079,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:800f57d6a6a4df39bb6f9e424f48b0a723acc93511e1b886bbfbd355dc383de9
+-- @bsb-hash sha256:905ae3a4d58949935b366fac8505e2968d0e26857a63ea6cca6a7faeaa525867
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4206,7 +4206,7 @@ drop policy if exists bsb_workflow_runs_select on "better_supabase"."workflow_ru
 create policy bsb_workflow_runs_select on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -4234,7 +4234,7 @@ grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists bsb_workflow_schedules_select on "better_supabase"."workflow_schedules";
 create policy bsb_workflow_schedules_select on "better_supabase"."workflow_schedules"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
@@ -4473,7 +4473,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or v_run."actor_id" = (select auth.uid())
-    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflow.admin'), false))) then
+    or (v_run."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_run."tenant_id", 'workflows.manage'), false))) then
     raise exception 'You may not cancel this run' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_run."status" in ('completed', 'failed', 'cancelled') then
@@ -4586,7 +4586,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_workflow_schedule.tenant is not null and coalesce(better_supabase.can('tenant', create_workflow_schedule.tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (create_workflow_schedule.tenant is not null and coalesce(better_supabase.can('tenant', create_workflow_schedule.tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   insert into "better_supabase"."workflow_schedules" as x ("tenant_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
@@ -4659,7 +4659,7 @@ begin
   end if;
   update "better_supabase"."workflow_schedules" x set "paused" = coalesce(paused, true)
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -4679,7 +4679,7 @@ begin
   end if;
   delete from "better_supabase"."workflow_schedules" x
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -4937,7 +4937,7 @@ create policy bsb_workflow_runs_receive on realtime.messages
           or (
             (select realtime.topic()) like 'workflow-runs:%'
             and substr((select realtime.topic()), 15) in (
-              select t::text from better_supabase.tenant_ids_with('workflow.read') t
+              select t::text from better_supabase.tenant_ids_with('workflows.read') t
             )
           )
         ));
@@ -4967,7 +4967,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
-    or "tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
@@ -4988,7 +4988,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive
@@ -5034,7 +5034,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@3 managed
--- @bsb-hash sha256:6b2145445e7f8c89b29bd8a76a002efd69a1952cee47e32a0bfdf73abefc15c0
+-- @bsb-hash sha256:37ac9b3d832d73ed4c3b71cf41187261543f40bc63f7d2a7858b7362312eab1b
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5159,7 +5159,7 @@ drop policy if exists workflow_runs_read on "better_supabase"."workflow_runs";
 create policy workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
-    or "org_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+    or "org_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Recurring starts. The tick (createWorkflows().schedules.tick) claims due
 -- rows, starts each run with the key schedule:<id>:<fire time> and moves
@@ -5189,7 +5189,7 @@ grant all on "better_supabase"."workflow_schedules" to service_role;
 drop policy if exists workflow_schedules_read on "better_supabase"."workflow_schedules";
 create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('workflow.read')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
@@ -5443,7 +5443,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
     or v_run."actor_id" = (select auth.uid())
-    or (v_run."org_id" is not null and coalesce(better_supabase.can('tenant', v_run."org_id", 'workflow.admin'), false))) then
+    or (v_run."org_id" is not null and coalesce(better_supabase.can('tenant', v_run."org_id", 'workflows.manage'), false))) then
     raise exception 'You may not cancel this run' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   if v_run."status" in ('completed', 'failed', 'cancelled') then
@@ -5556,7 +5556,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflow.admin'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (tenant is not null and coalesce(better_supabase.can('tenant', tenant, 'workflows.manage'), false))) then
     raise exception 'You may not schedule workflows here' using errcode = '42501', hint = 'WORKFLOW_FORBIDDEN';
   end if;
   insert into "better_supabase"."workflow_schedules" as x ("org_id", "name", "workflow", "input", "cron", "timezone", "next_run_at", "created_by")
@@ -5629,7 +5629,7 @@ begin
   end if;
   update "better_supabase"."workflow_schedules" x set "paused" = coalesce(paused, true)
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."org_id" is not null and coalesce(better_supabase.can('tenant', x."org_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."org_id" is not null and coalesce(better_supabase.can('tenant', x."org_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -5649,7 +5649,7 @@ begin
   end if;
   delete from "better_supabase"."workflow_schedules" x
   where x."id" = schedule
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."org_id" is not null and coalesce(better_supabase.can('tenant', x."org_id", 'workflow.admin'), false)));
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (x."org_id" is not null and coalesce(better_supabase.can('tenant', x."org_id", 'workflows.manage'), false)));
   return found;
 end;
 $$;
@@ -5907,7 +5907,7 @@ create policy bsb_workflow_runs_receive on realtime.messages
           or (
             (select realtime.topic()) like 'workflow-runs:%'
             and substr((select realtime.topic()), 15) in (
-              select t::text from better_supabase.tenant_ids_with('workflow.read') t
+              select t::text from better_supabase.tenant_ids_with('workflows.read') t
             )
           )
         ));
@@ -5937,7 +5937,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_runs" as re
   using (
     "org_id" in (select better_supabase.member_organization_ids())
     or ("actor_id" = (select auth.uid())
-    or "org_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or "org_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_runs";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_runs" as restrictive
@@ -5958,7 +5958,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."workflow_schedules" 
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('workflow.read')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('workflows.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."workflow_schedules";
 create policy bsb_tenant_scope_insert on "better_supabase"."workflow_schedules" as restrictive

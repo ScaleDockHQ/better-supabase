@@ -103,7 +103,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
           "insert into better_supabase.memberships (organization_id, user_id, role) values ($1, $2, 'admin')",
           [ORG, USER],
         );
-        await asUser(client, { platform_permissions: ["support.*"] });
+        await asUser(client, { platform_permissions: ["impersonation.*"] });
 
         const { rows } = await client.query<Record<string, unknown>>(
           `select better_supabase.can('organization', $1, 'members.invite') as invite,
@@ -111,7 +111,7 @@ describe.skipIf(!live)("access contract against the local database", () => {
           better_supabase.can('team', $1, 'members.invite') as other_scope,
           better_supabase.can_assign($1, 'member') as assign_member,
           better_supabase.can_assign($1, 'owner') as assign_owner,
-          better_supabase.is_platform('support.start') as platform,
+          better_supabase.is_platform('impersonation.start') as platform,
           better_supabase.is_platform('billing.manage') as not_platform,
           array(select better_supabase.tenant_ids_with('audit.read')) as ids,
           better_supabase.permission_claims($2) -> $1::text as claims,

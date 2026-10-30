@@ -661,6 +661,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         docs: "/docs/cli/codemod",
         effects: [FILES],
       },
+      {
+        name: "0.46",
+        description:
+          "Changes from 0.45 to 0.46: permission keys use the block name as their area and the read, write and manage verbs",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
     ],
   },
 ];

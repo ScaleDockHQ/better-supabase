@@ -26,6 +26,11 @@ import { sqlIdent, sqlString } from "../core/template.ts";
 import { tableOwnership } from "./app-owned.ts";
 import { defaultRuleRow, shipsEnabled } from "./default-rule-row.ts";
 import { checkedExtraColumns } from "./extra-columns.ts";
+import {
+  checkInstanceEntities,
+  instanceArea,
+  instanceEntityNames,
+} from "./instance-area.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
@@ -673,43 +678,6 @@ function checkIdent(where: string, value: string): string {
 }
 
 /**
- * Throws when `instance` installs `module` next to another instance without
- * renaming its primary entity and every entity that is a record type: their
- * permission keys, event types and record types would be the other instance's.
- */
-function checkInstanceEntities(
-  instance: string,
-  module: string,
-  names: BlockSqlNames,
-  resolved: ResolvedNames,
-  instances: Readonly<Record<string, ResolvedInstance>> = {},
-): void {
-  const siblings = Object.values(instances).filter(
-    (each) => each.block === module && each.name !== instance,
-  );
-
-  if (siblings.length === 0) {
-    return;
-  }
-
-  const unrenamed = Object.values(resolved.entities).filter((entity) => {
-    const spec = names.entities?.[entity.key];
-
-    return (
-      !entity.global &&
-      (spec?.primary === true || spec?.subject !== undefined) &&
-      entity.to.singular === entity.from.singular
-    );
-  });
-
-  if (unrenamed.length > 0) {
-    throw new TypeError(
-      `blocks.${instance}: "${module}" is installed more than once, so this instance renames ${unrenamed.map((entity) => `"${entity.key}"`).join(" and ")} in blocks.${instance}.entities.`,
-    );
-  }
-}
-
-/**
  * Builds the context for `module`. `namesOf` looks up a module's names, so a
  * module can name another module's tables through `of()`.
  */
@@ -871,6 +839,13 @@ export function createModuleContext(
     prefix === undefined || entityNaming.rename(original) !== original
       ? written
       : `${prefix}_${written}`;
+
+  const ownKey = (key: string): string =>
+    instanceArea(
+      module,
+      prefix === undefined ? undefined : instance,
+      entityNaming.rename(key),
+    );
 
   // blocks.permissions.functions holds the custom model's templates, and the
   // access contract's names (can, tenant_ids_with) name no tenant.
@@ -1265,10 +1240,14 @@ export function createModuleContext(
         return name === other.block || known === undefined
           ? []
           : [
-              resolveNames(other.block, known, {
-                ...shared.modules,
-                [other.block]: other.config,
-              }).entityNaming,
+              instanceEntityNames(
+                other.block,
+                name,
+                resolveNames(other.block, known, {
+                  ...shared.modules,
+                  [other.block]: other.config,
+                }).entityNaming,
+              ),
             ];
       }),
     modules,
@@ -1309,9 +1288,9 @@ export function createModuleContext(
       return config.tables[table] !== null;
     },
     permissionKey: (action, fallback) =>
-      config.permissions[action] ?? entityNaming.rename(fallback),
+      config.permissions[action] ?? ownKey(fallback),
     permission: (action, fallback) =>
-      sqlString(config.permissions[action] ?? entityNaming.rename(fallback)),
+      sqlString(config.permissions[action] ?? ownKey(fallback)),
     trigger: (name) => sqlIdent(`bsb_${scoped(naming.rename(name), name)}`),
     installed(name) {
       declares(name);

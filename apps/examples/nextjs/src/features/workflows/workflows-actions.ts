@@ -39,7 +39,7 @@ export const startWorkflow = bsb.action(
       text: v.optional(v.pipe(v.string(), v.maxLength(20_000))),
     }),
     requireTenant: true,
-    permission: "workflow.run",
+    permission: "workflows.run",
   },
   async ({ workflow, text }, { tenant, auth }) => {
     if (auth.kind !== "user") {
@@ -67,7 +67,7 @@ export const requestApproval = bsb.action(
   {
     input: v.object({ amount: v.pipe(v.number(), v.minValue(1)) }),
     requireTenant: true,
-    permission: "workflow.run",
+    permission: "workflows.run",
   },
   async ({ amount }, { tenant, auth }) => {
     if (auth.kind !== "user") {
@@ -79,7 +79,7 @@ export const requestApproval = bsb.action(
     const run = await startFor(context, expenseApproval, [
       workflowContext(context),
       amount,
-      hookMetadata(context, "workflow.admin"),
+      hookMetadata(context, "workflows.manage"),
     ]);
 
     refresh();
@@ -162,7 +162,7 @@ export const createSchedule = bsb.action(
       cron: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(100)),
     }),
     requireTenant: true,
-    permission: "workflow.admin",
+    permission: "workflows.manage",
   },
   async ({ name, workflow, cron }, { tenant, auth, db }) => {
     if (auth.kind !== "user") {

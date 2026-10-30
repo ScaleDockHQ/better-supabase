@@ -31,7 +31,7 @@ select throws_ok(
     "conditions":{"id":"root","type":"group","combinator":"and","rules":[]}}')$$,
   '42501',
   null,
-  'a member without segments.edit cannot save a segment'
+  'a member without segments.write cannot save a segment'
 );
 
 -- Acme owner.
@@ -153,7 +153,7 @@ select throws_ok(
   $$select api.refresh_segment((select id from ids where name = 'customers'))$$,
   '42501',
   null,
-  'a member without segments.edit cannot refresh a segment'
+  'a member without segments.write cannot refresh a segment'
 );
 select throws_ok(
   $$select better_supabase.evaluate_segment((select id from ids where name = 'customers'))$$,

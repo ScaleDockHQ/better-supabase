@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@3 managed
--- @bsb-hash sha256:3e8d1a1aac909363ac14524fa6a3dd40bf5c424cad314de75c467766f926f0d8
+-- @bsb-hash sha256:2b30c9fd8e2f82adbc9ba1e3b1dc6214ebe403651552fadc2780c490ed58e729
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -361,7 +361,7 @@ begin
     v_principal_kind := null;
   end if;
   if v_tenant is not null and v_actor is not null and v_principal_kind is null
-    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
+    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflows.run'), false) then
     v_tenant := null;
   end if;
   v_subject := new.attributes ->> 'bsb.subject';
@@ -613,7 +613,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@3 managed
--- @bsb-hash sha256:3e8d1a1aac909363ac14524fa6a3dd40bf5c424cad314de75c467766f926f0d8
+-- @bsb-hash sha256:2b30c9fd8e2f82adbc9ba1e3b1dc6214ebe403651552fadc2780c490ed58e729
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -973,7 +973,7 @@ begin
     v_principal_kind := null;
   end if;
   if v_tenant is not null and v_actor is not null and v_principal_kind is null
-    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
+    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflows.run'), false) then
     v_tenant := null;
   end if;
   v_subject := new.attributes ->> 'bsb.subject';
@@ -1225,7 +1225,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@3 managed
--- @bsb-hash sha256:3ef6ced1ef2527b9fe96e6630aecf2fb237114b983c79fd78123052e56fdd673
+-- @bsb-hash sha256:1880e502739629e338b2653870689cb1959c39ba89fb13bf630effbb4257a4b4
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1590,7 +1590,7 @@ begin
     v_principal_kind := null;
   end if;
   if v_tenant is not null and v_actor is not null and v_principal_kind is null
-    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
+    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflows.run'), false) then
     v_tenant := null;
   end if;
   v_subject := new.attributes ->> 'bsb.subject';
@@ -1842,7 +1842,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@3 managed
--- @bsb-hash sha256:b7dbb90b4581b2e39f56f6418a84503cd83b6168f506c30e094cc09287c8bb65
+-- @bsb-hash sha256:dafe01bdb48364fd55364f56004d80a6b1a0c834545e3e033071981a6604ae0c
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.0.4) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2202,7 +2202,7 @@ begin
     v_principal_kind := null;
   end if;
   if v_tenant is not null and v_actor is not null and v_principal_kind is null
-    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflow.run'), false) then
+    and not coalesce(better_supabase.can_user(v_actor, 'tenant', v_tenant, 'workflows.run'), false) then
     v_tenant := null;
   end if;
   v_subject := new.attributes ->> 'bsb.subject';

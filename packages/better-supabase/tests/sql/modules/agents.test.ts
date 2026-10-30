@@ -28,8 +28,8 @@ describe("agents module", () => {
 
   it("publishes through ai.share and moderates through ai.moderate", () => {
     const sql = body();
-    expect(sql).toContain("'ai.share'");
-    expect(sql).toContain("'ai.moderate'");
+    expect(sql).toContain("'agents.publish'");
+    expect(sql).toContain("'agents.moderate'");
     expect(sql).toContain("AGENT_SLUG_TAKEN");
     expect(sql).toContain("AGENT_FORBIDDEN");
   });

@@ -296,7 +296,7 @@ export const permissions = {
     manage: "templates.manage",
   },
   timeline: {
-    read: "activity.read",
+    read: "timeline.read",
   },
   versions: {
     read: "versions.read",
@@ -311,7 +311,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "subjects.manage" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "documents.manage" | "documents.read" | "documents.suggest" | "documents.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reactions.create" | "reactions.manage" | "reactions.read" | "search.read" | "settings.manage" | "settings.read" | "settings.update" | "share_links.create" | "share_links.read" | "subjects.manage" | "teams.manage" | "teams.read" | "templates.apply" | "templates.manage" | "templates.read" | "timeline.read" | "versions.create" | "versions.manage" | "versions.read" | "versions.restore";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

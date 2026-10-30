@@ -66,7 +66,7 @@ export async function TaskViews({
   }
 
   const query = parseTaskQuery(params);
-  const canSaveViews = can(permissions, "views.read");
+  const canSaveViews = can(permissions, "saved_views.read");
 
   const [tasks, projects, members, views] = await Promise.all([
     settle(() => getTasks(query)),

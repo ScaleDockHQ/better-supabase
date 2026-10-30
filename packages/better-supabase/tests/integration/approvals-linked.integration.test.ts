@@ -5,7 +5,7 @@ import { BlockSession, dbUrl, reachable } from "./block-session.ts";
 
 const live = await reachable();
 
-const staff = { platform_permissions: ["support.*"] };
+const staff = { platform_permissions: ["impersonation.*"] };
 
 const REQUEST =
   "better_supabase.request_support_session($1, $2, true, '{}', $3)";

@@ -193,13 +193,13 @@ export const permissions = {
     read: "catalog.read",
   },
   company: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   contacts: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
   },
   enrollments: {
     read: "enrollments.read",
@@ -238,8 +238,8 @@ export const permissions = {
     transferOwnership: "organization.transfer_ownership",
   },
   person: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   product: {
     read: "catalog.read",
@@ -273,7 +273,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "settings.manage" | "settings.read" | "settings.update" | "shipments.manage" | "shipments.read" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "assets.assign" | "assets.manage" | "assets.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "shipments.manage" | "shipments.read" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

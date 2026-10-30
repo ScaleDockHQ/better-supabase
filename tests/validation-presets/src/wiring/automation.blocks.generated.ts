@@ -182,10 +182,10 @@ export const permissions = {
     revert: "audit.revert",
   },
   automations: {
-    read: "rules.read",
-    edit: "rules.edit",
-    publish: "rules.publish",
-    admin: "rules.admin",
+    read: "automations.read",
+    edit: "automations.write",
+    publish: "automations.publish",
+    admin: "automations.manage",
   },
   billing: {
     read: "billing.read",
@@ -193,9 +193,9 @@ export const permissions = {
     viewAll: "billing.read",
   },
   connectors: {
-    read: "ai.read",
-    use: "ai.create",
-    manage: "ai.admin",
+    read: "connectors.read",
+    use: "connectors.use",
+    manage: "connectors.manage",
   },
   enrollments: {
     read: "enrollments.read",
@@ -238,16 +238,16 @@ export const permissions = {
     view: "webhooks.read",
   },
   "workflow-editor": {
-    read: "workflow.read",
-    run: "workflow.run",
-    edit: "workflow.edit",
-    publish: "workflow.publish",
-    admin: "workflow.admin",
+    read: "workflow_editor.read",
+    run: "workflow_editor.run",
+    edit: "workflow_editor.write",
+    publish: "workflow_editor.publish",
+    admin: "workflow_editor.manage",
   },
   workflows: {
-    read: "workflow.read",
-    run: "workflow.run",
-    admin: "workflow.admin",
+    read: "workflows.read",
+    run: "workflows.run",
+    admin: "workflows.manage",
   },
 } as const;
 
@@ -256,7 +256,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "ai.admin" | "ai.create" | "ai.read" | "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "webhooks.manage" | "webhooks.read" | "workflow.admin" | "workflow.edit" | "workflow.publish" | "workflow.read" | "workflow.run";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "connectors.manage" | "connectors.read" | "connectors.use" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "settings.manage" | "settings.read" | "settings.update" | "teams.manage" | "teams.read" | "webhooks.manage" | "webhooks.read" | "workflow_editor.manage" | "workflow_editor.publish" | "workflow_editor.read" | "workflow_editor.run" | "workflow_editor.write" | "workflows.manage" | "workflows.read" | "workflows.run";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

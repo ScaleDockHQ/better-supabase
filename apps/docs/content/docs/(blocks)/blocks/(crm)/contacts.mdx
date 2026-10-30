@@ -5,7 +5,7 @@ description: Companies and people an organization works with, with lifecycle sta
 
 `contacts` keeps the companies and people an organization sells to, supports or hires: the counterparty that deals, quotes, invoices, tickets and applications point at. A company has a name, a domain, a website, a VAT id, an address, an owner and a lifecycle stage. A person has a name, an email, a phone, a title, an owner, a lifecycle stage and optionally the user they sign in as. `company_people` records who works where, with a role and one primary contact per company.
 
-Reading needs `parties.read`, creating, changing, linking and archiving needs `parties.write`, and merging needs `parties.manage`. Admins get every permission, and members get `parties.read` and `parties.write`.
+Reading needs `contacts.read`, creating, changing, linking and archiving needs `contacts.write`, and merging needs `contacts.manage`. Admins get every permission, and members get `contacts.read` and `contacts.write`.
 
 ```bash
 better-supabase add contacts
@@ -75,11 +75,11 @@ const more = page.next
   : undefined;
 ```
 
-The lists, `peopleOf` and the tables all run as the caller: a member reads the organization's records through the `parties.read` policy, and PostgREST reads the tables directly.
+The lists, `peopleOf` and the tables all run as the caller: a member reads the organization's records through the `contacts.read` policy, and PostgREST reads the tables directly.
 
 ## Merge duplicates
 
-`mergeCompanies(keep, drop)` and `mergePeople(keep, drop)` fill the kept record's empty fields from the dropped one, move the dropped record's links to it, and archive the dropped record with `merged_into` set. Merging needs `parties.manage` (`PARTY_MERGE_INVALID` for records of two organizations, one record twice, or one already merged). In the same transaction the merge moves the dropped record's comments, attachments, reactions, tags, relations and guest grants to the kept record ([Merging subject records](/docs/blocks/sql#merging-subject-records)). The `company.merged` and `person.merged` events carry `mergedId`, so a consumer can move the app's own references, such as deals, to the kept record, or the app can add its own merge handler in SQL. A merge is written to the audit log.
+`mergeCompanies(keep, drop)` and `mergePeople(keep, drop)` fill the kept record's empty fields from the dropped one, move the dropped record's links to it, and archive the dropped record with `merged_into` set. Merging needs `contacts.manage` (`PARTY_MERGE_INVALID` for records of two organizations, one record twice, or one already merged). In the same transaction the merge moves the dropped record's comments, attachments, reactions, tags, relations and guest grants to the kept record ([Merging subject records](/docs/blocks/sql#merging-subject-records)). The `company.merged` and `person.merged` events carry `mergedId`, so a consumer can move the app's own references, such as deals, to the kept record, or the app can add its own merge handler in SQL. A merge is written to the audit log.
 
 ## Use them as subjects
 
@@ -195,16 +195,16 @@ The ReUI CRM Contacts Directory reads `listPeople` for its grid, with the Filter
 
 ## Errors
 
-| Hint                      | Cause                                                             |
-| ------------------------- | ----------------------------------------------------------------- |
-| `PARTY_FORBIDDEN`         | the caller lacks `parties.write`, or `parties.manage` for a merge |
-| `PARTY_ATTRS_INVALID`     | the attributes aren't an object                                   |
-| `PARTY_NAME_REQUIRED`     | a new record has no name                                          |
-| `PARTY_LIFECYCLE_INVALID` | not a configured lifecycle stage                                  |
-| `PARTY_DOMAIN_TAKEN`      | another active company has the domain                             |
-| `PARTY_EMAIL_TAKEN`       | another active person has the email                               |
-| `PARTY_NOT_FOUND`         | no such record                                                    |
-| `PARTY_MERGE_INVALID`     | the records can't be merged                                       |
+| Hint                      | Cause                                                               |
+| ------------------------- | ------------------------------------------------------------------- |
+| `PARTY_FORBIDDEN`         | the caller lacks `contacts.write`, or `contacts.manage` for a merge |
+| `PARTY_ATTRS_INVALID`     | the attributes aren't an object                                     |
+| `PARTY_NAME_REQUIRED`     | a new record has no name                                            |
+| `PARTY_LIFECYCLE_INVALID` | not a configured lifecycle stage                                    |
+| `PARTY_DOMAIN_TAKEN`      | another active company has the domain                               |
+| `PARTY_EMAIL_TAKEN`       | another active person has the email                                 |
+| `PARTY_NOT_FOUND`         | no such record                                                      |
+| `PARTY_MERGE_INVALID`     | the records can't be merged                                         |
 
 ## Without the client
 

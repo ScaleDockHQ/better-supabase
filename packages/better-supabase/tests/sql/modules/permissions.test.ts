@@ -47,6 +47,51 @@ const CATALOG: AccessBlockConfig = {
   columns: { overrides: { tenant: "organization_id" } },
 };
 
+const dataOf = (config: AccessBlockConfig, layout: object = {}): string =>
+  renderBlocks(["permissions"], {
+    modules: { permissions: config },
+    ...layout,
+  }).find((file) => file.module === "permissions" && file.kind === "data")
+    ?.contents ?? "";
+
+describe("stored permission key renames", () => {
+  it("moves the catalog's old keys to the new ones", () => {
+    const sql = dataOf({ model: "catalog" });
+
+    expect(sql).toContain(
+      "('parties.read', array['contacts.read']::text[], true)",
+    );
+    expect(sql).toContain(
+      "('ai.read', array['agents.read', 'connectors.read', 'knowledge.read', 'memory.read']::text[], true)",
+    );
+    expect(sql).toContain(
+      "('members.invite', array['waitlist.invite']::text[], false)",
+    );
+    expect(sql).toContain(
+      "to_regprocedure('better_supabase.bump_authz_versions(uuid[])')",
+    );
+  });
+
+  it("renders nothing for the roles and provider models", () => {
+    expect(dataOf({})).not.toContain("naming convention");
+    expect(
+      dataOf({ model: "provider" }, { accessProvider: PROVIDER }),
+    ).not.toContain("naming convention");
+  });
+});
+
+describe("configured roles", () => {
+  it("grant the new keys next to an old one", () => {
+    const sql = access({
+      roles: { owner: ["*"], sales: ["parties.read", "ai.read"] },
+    });
+
+    expect(sql).toContain(
+      "'parties.read', 'contacts.read', 'ai.read', 'agents.read'",
+    );
+  });
+});
+
 describe("access module", () => {
   it("renders the roles model from the default roles", () => {
     const sql = SQL_MODULES["permissions"]!.sql;

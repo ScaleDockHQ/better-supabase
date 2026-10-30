@@ -52,9 +52,9 @@ functions `start_support_session`, `end_support_session`,
 `active_support_session`, `list_support_sessions`, `expire_support_sessions`,
 `request_support_session`, `approve_support_request`, `support_request` and
 `approved_support_request`. Starting a session checks
-`is_platform('support.start')` in the database with the admin's own claims, so
+`is_platform('impersonation.start')` in the database with the admin's own claims, so
 only admins your [access model](/docs/repository/permissions) grants that permission
-can start one. Grant it with a platform permission claim (`"platform_permissions": ["support.*"]`)
+can start one. Grant it with a platform permission claim (`"platform_permissions": ["impersonation.*"]`)
 or a platform role in the catalog model.
 
 In Next.js, start and stop the session from server actions:
@@ -306,7 +306,7 @@ Without `authorize`, the `support.authorize` hook of the
 [authorization hooks](/docs/extending/authorization-providers#runtime-hooks)
 decides. Without either, every start is refused. `authorize: "store"` hands
 the decision to the store alone: the SQL store then checks
-`is_platform('support.start')` and nothing else, so use it only when that
+`is_platform('impersonation.start')` and nothing else, so use it only when that
 permission is the whole rule. A start refused by the decision never reaches
 the store.
 
@@ -345,7 +345,7 @@ request never starts a writable session.
 `{ kind: "support-session", subject: requestId, requester }`. It is never
 asked about the requester as approver: better-supabase refuses them first. Without it, the SQL store
 checks the approver in the database: the provider's `isApprover` template,
-or `is_platform('support.start')` without a provider. Rename that key with
+or `is_platform('impersonation.start')` without a provider. Rename that key with
 `blocks["impersonation"].permissions.approve`.
 
 | Code                           | When                                                       |
@@ -420,8 +420,8 @@ another staff member revokes keeps the session id in the entry's metadata.
 
 `bsb.support.list(auth, { active: true })` lists running sessions for an
 admin page, and `bsb.support.revoke(auth, id)` ends a session. Both run as the
-caller: the SQL store lists sessions for staff with `support.read`, and ends
-the caller's own session or, with `support.revoke`, anyone's.
+caller: the SQL store lists sessions for staff with `impersonation.read`, and ends
+the caller's own session or, with `impersonation.revoke`, anyone's.
 
 ### Ending expired sessions
 
@@ -453,7 +453,7 @@ are read-only unless `blocks["impersonation"].options.allowWrites` is true and
 the policy is `readOnly: "default"`. A token that carries an `act` claim never
 has platform permissions, so a support session can't start another one or act
 as staff. Each request checks again that the admin still holds
-`support.start`, and an admin has one active session at a time.
+`impersonation.start`, and an admin has one active session at a time.
 
 ### Bringing your own store
 

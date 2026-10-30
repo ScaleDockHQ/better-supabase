@@ -61,7 +61,7 @@ export async function ActivityTimeline({
     getPermissions(),
   ]);
 
-  if (!can(permissions, "engagements.read")) {
+  if (!can(permissions, "activities.read")) {
     return null;
   }
 
@@ -71,7 +71,7 @@ export async function ActivityTimeline({
     return null;
   }
 
-  const canLog = can(permissions, "engagements.write");
+  const canLog = can(permissions, "activities.write");
 
   const types = new Map([
     ["call", t("Call")],

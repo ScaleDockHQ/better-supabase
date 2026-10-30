@@ -119,7 +119,7 @@ describe("block instances", () => {
       moduleContext("permissions", moduleLayout(config), config.blockNames),
     );
 
-    expect(roles["admin"]).toContain("work_items.*");
+    expect(roles["admin"]).toContain("tasks.*");
     expect(roles["admin"]).toContain("tickets.*");
   });
 

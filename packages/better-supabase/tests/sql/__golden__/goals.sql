@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:9ecb42f1672d0cb05b2fdc0d4895cf3f551f922c13da298a59ac51fc2be9ea3c
+-- @bsb-hash sha256:804a655591cf23144f515e48e5022d1e66a0ba9dbefc47fa59d5e672d74789f3
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -83,7 +83,7 @@ grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
 create policy targets_read on "better_supabase"."targets"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -100,7 +100,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'targets.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'TARGET_FORBIDDEN';
   end if;
   begin
@@ -176,7 +176,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."targets" as restrict
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
 create policy bsb_tenant_scope_insert on "better_supabase"."targets" as restrictive
@@ -222,7 +222,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:204378faff33e6f43b2ccc94318a591a55048b0e8f4d34ac23bb8eb4a7b1aa11
+-- @bsb-hash sha256:3fbdcf3710c2aadc808b320df24cb809c68778bceae16686a6ff0866c3f093e3
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -304,7 +304,7 @@ grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
 create policy targets_read on "better_supabase"."targets"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -321,7 +321,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'targets.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'TARGET_FORBIDDEN';
   end if;
   begin
@@ -411,7 +411,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."targets" as restrict
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
 create policy bsb_tenant_scope_insert on "better_supabase"."targets" as restrictive
@@ -457,7 +457,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:6787f552bcf77840e2e5f6375df7d27e401fc1d1a9676da7fc5a30a0afb39816
+-- @bsb-hash sha256:d7f6d520adedad8a6da8def47fced494573b8673772fd02a86801f3edb3b3b3c
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -544,7 +544,7 @@ grant all on "app_private"."targets" to service_role;
 drop policy if exists targets_read on "app_private"."targets";
 create policy targets_read on "app_private"."targets"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -561,7 +561,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'targets.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'TARGET_FORBIDDEN';
   end if;
   begin
@@ -637,7 +637,7 @@ create policy bsb_tenant_scope_select on "app_private"."targets" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."targets";
 create policy bsb_tenant_scope_insert on "app_private"."targets" as restrictive
@@ -683,7 +683,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:d73894d5bc466cdc497d31be79800004335f1f01e79b29dd283e55cf89470a5d
+-- @bsb-hash sha256:42ac80dd12bb8b0c5dab0c3c39c99503405065dd4b2df825e8cdab0c814f6708
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -765,7 +765,7 @@ grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
 create policy targets_read on "better_supabase"."targets"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -782,7 +782,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'targets.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'TARGET_FORBIDDEN';
   end if;
   begin
@@ -858,7 +858,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."targets" as restrict
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
 create policy bsb_tenant_scope_insert on "better_supabase"."targets" as restrictive
@@ -944,7 +944,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:2ef445f4ab11c279c1869cdbf4b88b66d62bb4b76ca838888887c226cf4ba590
+-- @bsb-hash sha256:afff34c256c6b11b821b7830b1cd586b2137ecee79c7b52bcb04b08e11f6c3fb
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1023,7 +1023,7 @@ grant all on "better_supabase"."targets" to service_role;
 drop policy if exists bsb_targets_select on "better_supabase"."targets";
 create policy bsb_targets_select on "better_supabase"."targets"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -1040,7 +1040,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'targets.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'TARGET_FORBIDDEN';
   end if;
   begin
@@ -1116,7 +1116,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."targets" as restrict
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('targets.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
 create policy bsb_tenant_scope_insert on "better_supabase"."targets" as restrictive
@@ -1162,7 +1162,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@1 managed
--- @bsb-hash sha256:2958cc564956cb6710ebda84bb6ccca1976f43ab739fdd3e7d7344af7556767e
+-- @bsb-hash sha256:ebe685da88e1ab4fbe1ba5b2636f86a7fe06d0a9c5b87a076ca8128ffd9b0053
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1244,7 +1244,7 @@ grant all on "better_supabase"."targets" to service_role;
 drop policy if exists targets_read on "better_supabase"."targets";
 create policy targets_read on "better_supabase"."targets"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('targets.read')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
 -- Creates or changes a target: name, metric, ownerId, teamId, periodStart,
 -- periodEnd, currency (for amount metrics), goal, actual (for a metric no
@@ -1261,7 +1261,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'targets.manage'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', save_target.tenant, 'goals.manage'), false)) then
     raise exception 'not allowed to manage targets' using errcode = '42501', hint = 'TARGET_FORBIDDEN';
   end if;
   begin
@@ -1337,7 +1337,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."targets" as restrict
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('targets.read')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('goals.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."targets";
 create policy bsb_tenant_scope_insert on "better_supabase"."targets" as restrictive

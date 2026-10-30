@@ -181,13 +181,13 @@ export const permissions = {
     viewAll: "billing.read",
   },
   company: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   contacts: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
   },
   enrollments: {
     read: "enrollments.read",
@@ -222,7 +222,7 @@ export const permissions = {
     read: "notifications.read",
   },
   numbering: {
-    assign: "number_sequences.assign",
+    assign: "numbering.assign",
   },
   onboarding: {
     read: "onboarding.read",
@@ -238,8 +238,8 @@ export const permissions = {
     transferOwnership: "organization.transfer_ownership",
   },
   person: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   quote: {
     read: "quotes.read",
@@ -269,7 +269,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "number_sequences.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "invoices.manage" | "invoices.read" | "invoices.write" | "ledger.manage" | "ledger.post" | "ledger.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "quotes.manage" | "quotes.read" | "quotes.write" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "teams.manage" | "teams.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

@@ -23,7 +23,7 @@ The crm, projects, helpdesk and docs [presets](/docs/presets) include it.
 
 | Permission      | Lets a member                   | Default roles     |
 | --------------- | ------------------------------- | ----------------- |
-| `activity.read` | read the tenant's activity feed | `member`, `admin` |
+| `timeline.read` | read the tenant's activity feed | `member`, `admin` |
 
 `blocks.timeline.permissions.read` renames the key.
 
@@ -140,14 +140,14 @@ about the record: one entry per channel and recipient, with
 `templateKey` when tracked) in `data`. A recipient can read only their own
 deliveries, so `list_activity` reads them through the security definer
 function `activity_subject_deliveries`, which returns them to callers who
-hold both `activity.read` and `notifications.send`, the same bar as
+hold both `timeline.read` and `notifications.send`, the same bar as
 `list_subject_deliveries`.
 
 With the [workflows](/docs/blocks/workflows) module, it returns the
 record's workflow runs with `source: "run"`, `run.<status>` as `type` and
 `runId`, `definition`, `status` and `error` in `data`. Runs are read as the
 caller, so the run's read policy applies: its actor, or members with
-`workflow.read` (by default only `owner`).
+`workflows.read` (by default only `owner`).
 
 Both need `can_subject` read on the record, and the tenant feed lists
 neither.

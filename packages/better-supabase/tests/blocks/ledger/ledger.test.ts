@@ -18,7 +18,7 @@ const ACCOUNT = {
   holderId: "p1",
   ownerId: null,
   allowNegative: false,
-  readPermission: "parties.read",
+  readPermission: "contacts.read",
   managedBy: null,
   metadata: { tier: "gold" },
   closedAt: null,
@@ -114,7 +114,7 @@ describe("createLedger", () => {
         name: "Credits",
         unit: "EUR",
         holder: { type: "party", id: "p1" },
-        readPermission: "parties.read",
+        readPermission: "contacts.read",
         metadata: { tier: "gold" },
       })
       .orThrow();
@@ -125,7 +125,7 @@ describe("createLedger", () => {
       held: 500n,
       available: 1000n,
       holderType: "party",
-      readPermission: "parties.read",
+      readPermission: "contacts.read",
       metadata: { tier: "gold" },
     });
     expect(account.ownerId).toBeUndefined();
@@ -148,7 +148,7 @@ describe("createLedger", () => {
           holder_id: "p1",
           owner_id: null,
           allow_negative: false,
-          read_permission: "parties.read",
+          read_permission: "contacts.read",
           metadata: { tier: "gold" },
         },
       ],
@@ -396,7 +396,7 @@ describe("createLedger", () => {
         holder: { type: "party", id: "p1" },
         ownerId: "u1",
         allowNegative: true,
-        readPermission: "parties.read",
+        readPermission: "contacts.read",
         metadata: { tier: "gold" },
       })
       .orThrow();
@@ -449,7 +449,7 @@ describe("createLedger", () => {
           holder_id: "p1",
           owner_id: "u1",
           allow_negative: true,
-          read_permission: "parties.read",
+          read_permission: "contacts.read",
           metadata: { tier: "gold" },
         },
       ],

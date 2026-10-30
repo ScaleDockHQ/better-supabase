@@ -236,8 +236,8 @@ export interface Workflows {
     /** A run by its id or its engine's id. */
     get(run: string): AsyncResult<WorkflowRun | undefined>;
     /**
-     * Marks a run for cancellation: the actor, `workflow.admin` in its tenant,
-     * or the service role. The engine does the cancelling.
+     * Marks a run for cancellation: the actor, `workflows.manage` in its
+     * tenant, or the service role. The engine does the cancelling.
      */
     requestCancel(run: string): AsyncResult<WorkflowRun | undefined>;
     /** Creates or updates a run (service role; engines call it). */
@@ -250,8 +250,8 @@ export interface Workflows {
   };
   readonly schedules: {
     /**
-     * Creates or replaces a schedule: the service role, or `workflow.admin` in
-     * its tenant.
+     * Creates or replaces a schedule: the service role, or `workflows.manage`
+     * in its tenant.
      */
     create(input: WorkflowScheduleInput): AsyncResult<WorkflowSchedule>;
     list(tenant?: string): AsyncResult<readonly WorkflowSchedule[]>;

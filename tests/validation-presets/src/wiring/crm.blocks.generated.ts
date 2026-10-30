@@ -287,9 +287,9 @@ export const blocks = {
  */
 export const permissions = {
   activities: {
-    read: "engagements.read",
-    write: "engagements.write",
-    manage: "engagements.manage",
+    read: "activities.read",
+    write: "activities.write",
+    manage: "activities.manage",
   },
   "api-keys": {
     manage: "api_keys.manage",
@@ -306,10 +306,10 @@ export const permissions = {
     revert: "audit.revert",
   },
   automations: {
-    read: "rules.read",
-    edit: "rules.edit",
-    publish: "rules.publish",
-    admin: "rules.admin",
+    read: "automations.read",
+    edit: "automations.write",
+    publish: "automations.publish",
+    admin: "automations.manage",
   },
   billing: {
     read: "billing.read",
@@ -322,13 +322,13 @@ export const permissions = {
     moderate: "messages.moderate",
   },
   company: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   contacts: {
-    read: "parties.read",
-    write: "parties.write",
-    manage: "parties.manage",
+    read: "contacts.read",
+    write: "contacts.write",
+    manage: "contacts.manage",
   },
   conversation: {
     read: "messages.read",
@@ -338,7 +338,7 @@ export const permissions = {
   "custom-fields": {
     manage: "custom_fields.manage",
     read: "custom_fields.read",
-    sensitive: "custom_fields.sensitive.read",
+    sensitive: "custom_fields.read_sensitive",
   },
   deal: {
     read: "deals.read",
@@ -350,8 +350,8 @@ export const permissions = {
     manage: "deals.manage",
   },
   engagement: {
-    read: "engagements.read",
-    write: "engagements.write",
+    read: "activities.read",
+    write: "activities.write",
   },
   enrichment: {
     read: "enrichment.read",
@@ -367,8 +367,8 @@ export const permissions = {
     snapshot: "forecasts.snapshot",
   },
   goals: {
-    read: "targets.read",
-    manage: "targets.manage",
+    read: "goals.read",
+    manage: "goals.manage",
   },
   invitations: {
     invite: "members.invite",
@@ -376,10 +376,10 @@ export const permissions = {
     view: "members.invite",
   },
   "mail-sync": {
-    read: "mail.read",
-    connect: "mail.connect",
-    send: "mail.send",
-    manage: "mail.manage",
+    read: "mail_sync.read",
+    connect: "mail_sync.connect",
+    send: "mail_sync.send",
+    manage: "mail_sync.manage",
   },
   message: {
     read: "messages.read",
@@ -409,8 +409,8 @@ export const permissions = {
     transferOwnership: "organization.transfer_ownership",
   },
   person: {
-    read: "parties.read",
-    write: "parties.write",
+    read: "contacts.read",
+    write: "contacts.write",
   },
   pipelines: {
     read: "pipelines.read",
@@ -426,8 +426,8 @@ export const permissions = {
     manage: "quotes.manage",
   },
   "saved-views": {
-    read: "views.read",
-    share: "views.share",
+    read: "saved_views.read",
+    share: "saved_views.share",
   },
   scores: {
     read: "scores.read",
@@ -439,7 +439,7 @@ export const permissions = {
   },
   segments: {
     read: "segments.read",
-    edit: "segments.edit",
+    edit: "segments.write",
   },
   sequences: {
     read: "sequences.read",
@@ -464,7 +464,7 @@ export const permissions = {
     read: "teams.read",
   },
   timeline: {
-    read: "activity.read",
+    read: "timeline.read",
   },
 } as const;
 
@@ -473,7 +473,7 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "activity.read" | "api_keys.manage" | "api_keys.own" | "assignment.assign" | "assignment.manage" | "assignment.read" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.sensitive.read" | "deals.manage" | "deals.read" | "deals.write" | "engagements.manage" | "engagements.read" | "engagements.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forecasts.read" | "forecasts.snapshot" | "mail.connect" | "mail.manage" | "mail.read" | "mail.send" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "parties.manage" | "parties.read" | "parties.write" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "rules.admin" | "rules.edit" | "rules.publish" | "rules.read" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.edit" | "segments.read" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "targets.manage" | "targets.read" | "teams.manage" | "teams.read" | "views.read" | "views.share";
+export type PermissionKey = "activities.manage" | "activities.read" | "activities.write" | "api_keys.manage" | "api_keys.own" | "assignment.assign" | "assignment.manage" | "assignment.read" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "billing.manage" | "billing.read" | "contacts.manage" | "contacts.read" | "contacts.write" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "deals.manage" | "deals.read" | "deals.write" | "enrichment.read" | "enrichment.run" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "forecasts.read" | "forecasts.snapshot" | "goals.manage" | "goals.read" | "mail_sync.connect" | "mail_sync.manage" | "mail_sync.read" | "mail_sync.send" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "pipelines.manage" | "pipelines.read" | "quotes.manage" | "quotes.read" | "quotes.write" | "saved_views.read" | "saved_views.share" | "scores.compute" | "scores.manage" | "scores.read" | "search.read" | "segments.read" | "segments.write" | "sequences.enroll" | "sequences.manage" | "sequences.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "timeline.read";
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";

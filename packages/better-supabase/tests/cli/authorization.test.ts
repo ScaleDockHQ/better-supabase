@@ -311,7 +311,7 @@ describe("moduleKeyProblems", () => {
     {
       module: "impersonation",
       action: "start",
-      key: "support.start",
+      key: "impersonation.start",
       scope: "platform",
     },
   ] as const;
@@ -327,7 +327,7 @@ describe("moduleKeyProblems", () => {
       {
         target: "blocks.impersonation.permissions.start",
         message: expect.stringMatching(
-          /checks "support\.start" \(start\) with authorization\.functions\.isPlatform.*not in authorization\.permissions/,
+          /checks "impersonation\.start" \(start\) with authorization\.functions\.isPlatform.*not in authorization\.permissions/,
         ),
       },
     ]);

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:f10d9cd03a2fe1699e44c3d6cb6d0d8e8087c09cce3d43550b523a9b5f4c6ce2
+-- @bsb-hash sha256:4f9bbde041e56c4bfba2a71eb92a671225d3d83e2001079eb1ba3a15a3eaffab
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -118,7 +118,7 @@ grant all on "better_supabase"."saved_views" to service_role;
 drop policy if exists saved_views_read on "better_supabase"."saved_views";
 create policy saved_views_read on "better_supabase"."saved_views"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('saved_views.read'))
   and (
     ("scope" = 'user' and "owner_id" = (select auth.uid()))
     or ("scope" = 'team' and false)
@@ -172,13 +172,13 @@ begin
   if save_view.state is null or jsonb_typeof(save_view.state) <> 'object' then
     raise exception 'state must be an object' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
   end if;
-  if not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'views.read'), false)) then
+  if not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'saved_views.read'), false)) then
     raise exception 'not allowed to save views' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
   if save_view.scope = 'user' and auth.uid() is null then
     raise exception 'a personal view needs a signed-in user' using errcode = '22023', hint = 'SAVED_VIEW_INVALID';
   end if;
-  if save_view.scope <> 'user' and not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'views.share'), false)) then
+  if save_view.scope <> 'user' and not (v_service or coalesce(better_supabase.can('tenant', save_view.tenant, 'saved_views.share'), false)) then
     raise exception 'not allowed to share views' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
   if save_view.scope = 'team' then
@@ -196,7 +196,7 @@ begin
     end if;
     if not (auth.role() = 'service_role'
     or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
-    or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
+    or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'saved_views.share'), false))) then
       raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
     end if;
   end if;
@@ -306,7 +306,7 @@ begin
   end if;
   if not (auth.role() = 'service_role'
     or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
-    or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
+    or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'saved_views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
   update "better_supabase"."saved_views" set "rank" = rank_view.rank, "updated_at" = now() where "id" = rank_view.view_id;
@@ -335,7 +335,7 @@ begin
   end if;
   if not (auth.role() = 'service_role'
     or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
-    or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
+    or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'saved_views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
   if set_default_view.on_default then
@@ -371,7 +371,7 @@ begin
   end if;
   if not (auth.role() = 'service_role'
     or (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
-    or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.share'), false))) then
+    or (v_row."scope" <> 'user' and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'saved_views.share'), false))) then
     raise exception 'not allowed to change this view' using errcode = '42501', hint = 'SAVED_VIEW_FORBIDDEN';
   end if;
   delete from "better_supabase"."saved_views" where "id" = delete_view.view_id;
@@ -395,7 +395,7 @@ declare
 begin
   select * into v_row from "better_supabase"."saved_views" where "id" = duplicate_view.view_id;
   if not found or not (auth.role() = 'service_role'
-    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'saved_views.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
@@ -432,7 +432,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."saved_views" where "id" = set_view_preference.view_id;
   if not found or not (auth.role() = 'service_role'
-    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'views.read'), false) and (
+    or (coalesce(better_supabase.can('tenant', v_row."tenant_id", 'saved_views.read'), false) and (
       (v_row."scope" = 'user' and coalesce(v_row."owner_id" = auth.uid(), false))
       or (v_row."scope" = 'team' and false)
       or v_row."scope" = 'tenant'))) then
@@ -483,7 +483,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."saved_views" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('views.read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('saved_views.read'))
   and (
     ("scope" = 'user' and "owner_id" = (select auth.uid()))
     or ("scope" = 'team' and false)

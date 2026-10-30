@@ -54,7 +54,7 @@ const EXTRA: Extra = {
       tenant: "tenant_id",
       title: "title",
       deletedAt: "archived_at",
-      permissions: { read: "work_items.read", write: "work_items.write" },
+      permissions: { read: "tasks.read", write: "tasks.write" },
       rank: { column: "rank", group: "stage_id" },
       search: { title: "title", body: ["identifier", "body"] },
     },

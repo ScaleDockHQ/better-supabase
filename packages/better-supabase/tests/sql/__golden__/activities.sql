@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:2199869031adbcc51d55a6be35f27ad33e923f488b26c4a994fe5b2e74ea4fdc
+-- @bsb-hash sha256:ca3b4d6aef3a8fa2715a5be52e76d720e59d33060454c8e57b46a4bca89b74ab
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,11 +106,11 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
 create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
 create policy engagements_read on "better_supabase"."engagements"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -140,7 +140,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'engagements.write'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'activities.write'), false)) then
     raise exception 'not allowed to log engagements' using errcode = '42501', hint = 'ENGAGEMENT_FORBIDDEN';
   end if;
   if v_type is null or not (v_type = any ('{call,email,meeting,note,task}'::text[])) then
@@ -218,7 +218,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type", x."owner_user_id" into v_tenant, v_type, v_previous_owner
-  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false));
+  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
   end if;
@@ -287,7 +287,7 @@ begin
     "done_at" = case when complete_engagement.done then coalesce(x."done_at", now()) end,
     "outcome" = coalesce(complete_engagement.outcome, x."outcome"),
     "updated_at" = now()
-  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
@@ -317,7 +317,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     return false;
@@ -418,7 +418,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagements" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
@@ -442,7 +442,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects"
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
@@ -488,7 +488,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:40790e48ea39b4828111fa0bb2ab4447202fb85c069f4f978da3641842368ba3
+-- @bsb-hash sha256:54c0a545e29002b58eb1701c4d46d6b2813a433c28d18b84e52b2a11341b5a12
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -593,11 +593,11 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
 create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
 create policy engagements_read on "better_supabase"."engagements"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -627,7 +627,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'engagements.write'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'activities.write'), false)) then
     raise exception 'not allowed to log engagements' using errcode = '42501', hint = 'ENGAGEMENT_FORBIDDEN';
   end if;
   if v_type is null or not (v_type = any ('{call,email,meeting,note,task}'::text[])) then
@@ -722,7 +722,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type", x."owner_user_id" into v_tenant, v_type, v_previous_owner
-  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false));
+  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
   end if;
@@ -808,7 +808,7 @@ begin
     "done_at" = case when complete_engagement.done then coalesce(x."done_at", now()) end,
     "outcome" = coalesce(complete_engagement.outcome, x."outcome"),
     "updated_at" = now()
-  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
@@ -838,7 +838,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     return false;
@@ -939,7 +939,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagements" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
@@ -963,7 +963,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects"
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
@@ -1009,7 +1009,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:6d7f8b25982b2aca407d138993a710e4ce04f503e133162ac33d42e82c950319
+-- @bsb-hash sha256:f0a4e724d9ea419c6574124c4af9dcc8888dad694d3293d2d32c0cc9ed476dac
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1119,11 +1119,11 @@ grant all on "app_private"."engagement_subjects" to service_role;
 drop policy if exists engagement_subjects_read on "app_private"."engagement_subjects";
 create policy engagement_subjects_read on "app_private"."engagement_subjects"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "app_private"."engagements";
 create policy engagements_read on "app_private"."engagements"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -1153,7 +1153,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'engagements.write'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'activities.write'), false)) then
     raise exception 'not allowed to log engagements' using errcode = '42501', hint = 'ENGAGEMENT_FORBIDDEN';
   end if;
   if v_type is null or not (v_type = any ('{call,email,meeting,note,task}'::text[])) then
@@ -1231,7 +1231,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type", x."owner_user_id" into v_tenant, v_type, v_previous_owner
-  from "app_private"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false));
+  from "app_private"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
   end if;
@@ -1300,7 +1300,7 @@ begin
     "done_at" = case when complete_engagement.done then coalesce(x."done_at", now()) end,
     "outcome" = coalesce(complete_engagement.outcome, x."outcome"),
     "updated_at" = now()
-  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
@@ -1330,7 +1330,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "app_private"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  delete from "app_private"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     return false;
@@ -1431,7 +1431,7 @@ create policy bsb_tenant_scope_select on "app_private"."engagements" as restrict
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "app_private"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
@@ -1455,7 +1455,7 @@ create policy bsb_tenant_scope_select on "app_private"."engagement_subjects" as 
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."engagement_subjects";
 create policy bsb_tenant_scope_insert on "app_private"."engagement_subjects" as restrictive
@@ -1501,7 +1501,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:f30f08f940b2b964ee300c797c50cd265ad74a317e20bf46df0e95e60587db01
+-- @bsb-hash sha256:c39f847646a0f681c354c0b27656c57113065f690f14867cb991207c10e140c1
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1606,11 +1606,11 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
 create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
 create policy engagements_read on "better_supabase"."engagements"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -1640,7 +1640,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'engagements.write'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'activities.write'), false)) then
     raise exception 'not allowed to log engagements' using errcode = '42501', hint = 'ENGAGEMENT_FORBIDDEN';
   end if;
   if v_type is null or not (v_type = any ('{call,email,meeting,note,task}'::text[])) then
@@ -1718,7 +1718,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type", x."owner_user_id" into v_tenant, v_type, v_previous_owner
-  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false));
+  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
   end if;
@@ -1787,7 +1787,7 @@ begin
     "done_at" = case when complete_engagement.done then coalesce(x."done_at", now()) end,
     "outcome" = coalesce(complete_engagement.outcome, x."outcome"),
     "updated_at" = now()
-  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
@@ -1817,7 +1817,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     return false;
@@ -1918,7 +1918,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagements" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
@@ -1942,7 +1942,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects"
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
@@ -2073,7 +2073,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:2af32dfd4de681b624b5dd4a390aa0034c761ec61d8f2b09f7935f512475b165
+-- @bsb-hash sha256:18d7710ff4a4fea66a8f23f89a17658f7d3e1586d15a382b2314cf6251d60b0d
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2190,11 +2190,11 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 drop policy if exists bsb_engagement_subjects_select on "better_supabase"."engagement_subjects";
 create policy bsb_engagement_subjects_select on "better_supabase"."engagement_subjects"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists bsb_engagements_select on "better_supabase"."engagements";
 create policy bsb_engagements_select on "better_supabase"."engagements"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -2224,7 +2224,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'engagements.write'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'activities.write'), false)) then
     raise exception 'not allowed to log engagements' using errcode = '42501', hint = 'ENGAGEMENT_FORBIDDEN';
   end if;
   if v_type is null or not (v_type = any ('{call,email,meeting,note,task}'::text[])) then
@@ -2302,7 +2302,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."tenant_id", x."type", x."owner_user_id" into v_tenant, v_type, v_previous_owner
-  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false));
+  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
   end if;
@@ -2371,7 +2371,7 @@ begin
     "done_at" = case when complete_engagement.done then coalesce(x."done_at", now()) end,
     "outcome" = coalesce(complete_engagement.outcome, x."outcome"),
     "updated_at" = now()
-  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
@@ -2401,7 +2401,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'engagements.manage'), false))
+  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'activities.manage'), false))
   returning x."tenant_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     return false;
@@ -2502,7 +2502,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagements" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
@@ -2526,7 +2526,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects"
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive
@@ -2572,7 +2572,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@1 managed
--- @bsb-hash sha256:995094893d91f20e27f1b5d5f6a93f421f8ec122b73868d8989dba069ebe509d
+-- @bsb-hash sha256:97e85cc7fbe402b801b6a096aab14ed79b2c0f4c3372aa9bf8cccfc656cd666b
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2677,11 +2677,11 @@ grant all on "better_supabase"."engagement_subjects" to service_role;
 drop policy if exists engagement_subjects_read on "better_supabase"."engagement_subjects";
 create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
+  using ("org_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 drop policy if exists engagements_read on "better_supabase"."engagements";
 create policy engagements_read on "better_supabase"."engagements"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+  using ("org_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ));
@@ -2711,7 +2711,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'engagements.write'), false)) then
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'activities.write'), false)) then
     raise exception 'not allowed to log engagements' using errcode = '42501', hint = 'ENGAGEMENT_FORBIDDEN';
   end if;
   if v_type is null or not (v_type = any ('{call,email,meeting,note,task}'::text[])) then
@@ -2789,7 +2789,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."org_id", x."type", x."owner_user_id" into v_tenant, v_type, v_previous_owner
-  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'engagements.manage'), false));
+  from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'activities.manage'), false));
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
   end if;
@@ -2858,7 +2858,7 @@ begin
     "done_at" = case when complete_engagement.done then coalesce(x."done_at", now()) end,
     "outcome" = coalesce(complete_engagement.outcome, x."outcome"),
     "updated_at" = now()
-  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'engagements.manage'), false))
+  where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'activities.manage'), false))
   returning x."org_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     raise exception 'no such engagement you can edit' using errcode = 'P0002', hint = 'ENGAGEMENT_NOT_FOUND';
@@ -2888,7 +2888,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'engagements.manage'), false))
+  delete from "better_supabase"."engagements" x where x."id" = v_id and (auth.role() = 'service_role' or x."created_by" = auth.uid() or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'activities.manage'), false))
   returning x."org_id", x."type" into v_tenant, v_type;
   if v_tenant is null then
     return false;
@@ -2989,7 +2989,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagements" as rest
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and (
+    or ("org_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id")
   or exists (select 1 from "better_supabase"."engagement_subjects" x where x."engagement_id" = "id" and "better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'))
 ))
@@ -3013,7 +3013,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."engagement_subjects"
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('engagements.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
+    or ("org_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."engagement_subjects";
 create policy bsb_tenant_scope_insert on "better_supabase"."engagement_subjects" as restrictive

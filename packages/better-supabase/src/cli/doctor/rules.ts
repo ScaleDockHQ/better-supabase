@@ -45,6 +45,7 @@ import { skippedForMetadata } from "./metadata.ts";
 import { MIGRATION_SAFETY_RULES } from "./migration-safety.ts";
 import { moduleFiles } from "./module-files.ts";
 import { MODULE_RULES } from "./modules.ts";
+import { NAMING_RULES } from "./naming.ts";
 import { NEXT_CACHE_RULES } from "./next-cache.ts";
 import { NOT_VALID_RULES } from "./not-valid.ts";
 import { PGDELTA_RULES } from "./pgdelta.ts";
@@ -1138,6 +1139,7 @@ export const RULES: readonly Rule[] = [
   ...NEXT_CACHE_RULES,
   ...CLAIM_RULES,
   ...REMOVED_API_RULES,
+  ...NAMING_RULES,
   ...AUTHORIZATION_RULES,
   ...LIVE_RULES,
   ...MODULE_RULES,

@@ -181,7 +181,7 @@ export interface Contacts<F extends object = Record<never, never>> {
     link?: { readonly role?: string; readonly primary?: boolean },
   ): AsyncResult<boolean>;
   unlinkPerson(companyId: string, personId: string): AsyncResult<boolean>;
-  /** Merges `drop` into `keep`. Needs `parties.manage`. */
+  /** Merges `drop` into `keep`. Needs `contacts.manage`. */
   mergeCompanies(keep: string, drop: string): AsyncResult<Company<F>>;
   mergePeople(keep: string, drop: string): AsyncResult<Person>;
   /** A page of active companies by name (50 by default, at most 200). */

@@ -1,6 +1,6 @@
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:3e7a5b3b65a2205478478dd4622c85bc21ab68d17c464a7a7d0b3d48e21a795d
+-- @bsb-hash sha256:849932e81793ce37ee2158b97d29a9545b6c1004eafc5061137a307c86367109
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ grant all on "better_supabase"."connector_servers" to service_role;
 drop policy if exists connector_servers_read on "better_supabase"."connector_servers";
 create policy connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('ai.read')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
 -- A user's connection to a server. credential_ref names where the provider
 -- keeps the token (Vault, Vercel Connect); the row holds none.
@@ -163,7 +163,7 @@ create policy connector_tool_fingerprints_read on "better_supabase"."connector_t
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
--- Adds a server (id null) or changes one ('ai.admin').
+-- Adds a server (id null) or changes one ('connectors.manage').
 create or replace function "better_supabase"."save_connector_server"(tenant uuid, id uuid default null, fields jsonb default '{}')
 returns jsonb
 language plpgsql
@@ -176,7 +176,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_connector_server.tenant, 'ai.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_connector_server.tenant, 'connectors.manage'), false)) then
     raise exception 'you may not manage connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
   if jsonb_typeof(save_connector_server.fields) is distinct from 'object' then
@@ -242,7 +242,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = delete_connector_server.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', delete_connector_server.id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'user_id', y."user_id", 'server_id', y."server_id", 'organization_id', y."organization_id", 'credential_ref', y."credential_ref", 'scopes', y."scopes", 'expires_at', y."expires_at", 'granted_at', y."granted_at", 'revoked_at', y."revoked_at")), '[]') into v_grants
@@ -295,7 +295,7 @@ declare
   v_row "better_supabase"."connector_servers"%rowtype;
 begin
   select * into v_row from "better_supabase"."connector_servers" x where x."id" = get_connector.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.read'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'connectors.read'), false)) then
     return null;
   end if;
   return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'url', v_row."url", 'transport', v_row."transport", 'auth_type', v_row."auth_type", 'credential_ref', v_row."credential_ref", 'scopes', v_row."scopes", 'client_metadata', v_row."client_metadata", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('grant', (
@@ -324,7 +324,7 @@ begin
   if not found then
     raise exception 'connector % not found', record_connector_grant.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
-  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."organization_id", 'ai.create'), false) then
+  if not coalesce(better_supabase.member_can(record_connector_grant.owner, v_server."organization_id", 'connectors.use'), false) then
     raise exception 'the user may not use connectors here' using errcode = '42501', hint = 'CONNECTOR_FORBIDDEN';
   end if;
   update "better_supabase"."connector_grants" y set "revoked_at" = now()
@@ -459,7 +459,7 @@ begin
     return true;
   end if;
   if not exists (select 1 from "better_supabase"."connector_grants" y where y."server_id" = save_connector_session.server_id and y."user_id" = auth.uid() and y."revoked_at" is null)
-    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."organization_id", 'ai.create'), false)) then
+    and not exists (select 1 from "better_supabase"."connector_servers" x where x."id" = save_connector_session.server_id and x."auth_type" <> 'oauth' and coalesce(better_supabase.can('tenant', x."organization_id", 'connectors.use'), false)) then
     return false;
   end if;
   insert into "better_supabase"."connector_sessions" ("server_id", "user_id", "chat_key", "session_id", "initialize_result", "expires_at")
@@ -490,7 +490,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = check_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'ai.create'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.use'), false)) then
     raise exception 'connector % not found', check_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   select p."status" into v_status from "better_supabase"."connector_tool_fingerprints" p
@@ -509,7 +509,7 @@ $$;
 revoke execute on function "better_supabase"."check_connector_fingerprint"(uuid, text, jsonb) from public, anon;
 grant execute on function "better_supabase"."check_connector_fingerprint"(uuid, text, jsonb) to authenticated, service_role;
 
--- Approves or rejects a fingerprint ('ai.admin').
+-- Approves or rejects a fingerprint ('connectors.manage').
 create or replace function "better_supabase"."decide_connector_fingerprint"(server_id uuid, fingerprint text, approved boolean)
 returns boolean
 language plpgsql
@@ -523,7 +523,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_server from "better_supabase"."connector_servers" x where x."id" = decide_connector_fingerprint.server_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_server."organization_id", 'connectors.manage'), false)) then
     raise exception 'connector % not found', decide_connector_fingerprint.server_id using errcode = 'P0002', hint = 'CONNECTOR_NOT_FOUND';
   end if;
   update "better_supabase"."connector_tool_fingerprints" p set
@@ -588,7 +588,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."connector_servers" a
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.read')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."connector_servers";
 create policy bsb_tenant_scope_insert on "better_supabase"."connector_servers" as restrictive

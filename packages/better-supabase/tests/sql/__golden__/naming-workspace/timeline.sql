@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@1 managed
--- @bsb-hash sha256:5a2290539fa37c61544e62b310befc8db7914fb1381775f247722ad6932bed74
+-- @bsb-hash sha256:b147b93fb479c456d13c46a19411ae12cb00ccdd90447c14afe307f102700fb8
 -- An activity_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,7 +45,7 @@ grant all on "better_supabase"."activity_entries" to service_role;
 drop policy if exists activity_entries_read on "better_supabase"."activity_entries";
 create policy activity_entries_read on "better_supabase"."activity_entries"
   for select to authenticated
-  using ("workspace_id" in (select better_supabase.tenant_ids_with('activity.read')));
+  using ("workspace_id" in (select better_supabase.tenant_ids_with('timeline.read')));
 drop function if exists "better_supabase"."activity_subject_readable"(text, text);
 drop function if exists "better_supabase"."activity_subject_deliveries"(uuid, text, text, timestamptz, integer);
 
@@ -146,7 +146,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."activity_entries" as
   for select to public
   using (
     "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select better_supabase.tenant_ids_with('activity.read')))
+    or ("workspace_id" in (select better_supabase.tenant_ids_with('timeline.read')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."activity_entries";
 create policy bsb_tenant_scope_insert on "better_supabase"."activity_entries" as restrictive

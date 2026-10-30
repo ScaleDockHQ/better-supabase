@@ -25,6 +25,14 @@ export {
 } from "./permissions-controller.ts";
 
 export {
+  currentPermissionKeys,
+  isOldPermissionKey,
+  PERMISSION_KEY_RENAMES,
+  PERMISSION_KEY_SPLITS,
+  RENAMES_CODEMOD,
+} from "../../core/renames.ts";
+
+export {
   dbTransport,
   rpcTransport,
   sqlTransport,

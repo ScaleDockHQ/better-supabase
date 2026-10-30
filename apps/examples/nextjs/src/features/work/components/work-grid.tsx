@@ -45,7 +45,7 @@ export async function WorkGrid({
     getPermissions(),
   ]);
 
-  if (!can(permissions, "work_items.read")) {
+  if (!can(permissions, "tasks.read")) {
     forbidden();
   }
 
@@ -59,7 +59,7 @@ export async function WorkGrid({
 
   const [grid, views, members] = await Promise.all([
     settle(() => getWorkGrid(query)),
-    can(permissions, "views.read")
+    can(permissions, "saved_views.read")
       ? settle(getWorkViews)
       : Promise.resolve({ kind: "ok" as const, data: [] }),
     settle(() => getAssignees(tenant)),
@@ -110,7 +110,7 @@ export async function WorkGrid({
                 members={members.kind === "ok" ? members.data : []}
                 views={views.kind === "ok" ? views.data : []}
                 query={query}
-                canWrite={can(permissions, "work_items.write")}
+                canWrite={can(permissions, "tasks.write")}
                 canBulk={can(permissions, "bulk.run")}
               />
               {grid.data.rows.length === 0 ? (

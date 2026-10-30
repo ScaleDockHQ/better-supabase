@@ -49,7 +49,7 @@ export async function ContactDetail({
     getPermissions(),
   ]);
 
-  if (!can(permissions, "parties.read")) {
+  if (!can(permissions, "contacts.read")) {
     forbidden();
   }
 
@@ -180,7 +180,7 @@ export async function ContactDetail({
                 ))}
               </ul>
             )}
-            {can(permissions, "parties.write") ? (
+            {can(permissions, "contacts.write") ? (
               <LinkPersonForm
                 companyId={contact.id}
                 people={contact.candidates.map((person) => ({

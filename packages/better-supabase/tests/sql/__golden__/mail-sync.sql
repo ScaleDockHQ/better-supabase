@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:56c01b75ee4f644c1bcad87289323d7e10343f94b46a2fc0c01bb4157ab6fca8
+-- @bsb-hash sha256:e85680bca3255ce1df4997365a9f0349a3611ce9d6996402280d0255a536c5be
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,7 +231,7 @@ as $$
     where x."id" = $1
       and (k."user_id" = auth.uid() or (
         k."share" = 'records'
-        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.read'), false)
+        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.read'), false)
         and exists (
           select 1 from "better_supabase"."mail_thread_subjects" s
           where s."thread_id" = x."id"
@@ -246,7 +246,7 @@ grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authe
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
 create policy mail_accounts_read on "better_supabase"."mail_accounts"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
 create policy mail_threads_read on "better_supabase"."mail_threads"
   for select to authenticated
@@ -356,7 +356,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail.connect'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail_sync.connect'), false) then
     raise exception 'not allowed to connect a mailbox' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   if connect_mail_account.provider is null or connect_mail_account.provider !~ '^[a-z][a-z0-9-]{0,39}$' then
@@ -445,7 +445,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."mail_accounts" x
   where x."id" = disconnect_mail_account.account
-    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.manage'), false));
+    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.manage'), false));
   if v_row."id" is null then
     return false;
   end if;
@@ -633,7 +633,7 @@ begin
   if v_account.id is null then
     raise exception 'no such mailbox of yours' using errcode = 'P0002', hint = 'MAIL_ACCOUNT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail_sync.send'), false) then
     raise exception 'not allowed to send mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   v_stored := "better_supabase"."store_mail_message"(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);
@@ -848,7 +848,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail_sync.read'), false) then
     raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   return (
@@ -893,7 +893,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."mail_accounts" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."mail_accounts" as restrictive
@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:a6a93e145f3a0ef7a83adabc0951265862e22189772c28298039e57556d3d971
+-- @bsb-hash sha256:28b4eb367f655a7dbb3307231fe4248447ea348609f4ff80f982c2dc1d9d1b2f
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1274,7 +1274,7 @@ as $$
     where x."id" = $1
       and (k."user_id" = auth.uid() or (
         k."share" = 'records'
-        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.read'), false)
+        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.read'), false)
         and exists (
           select 1 from "better_supabase"."mail_thread_subjects" s
           where s."thread_id" = x."id"
@@ -1289,7 +1289,7 @@ grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authe
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
 create policy mail_accounts_read on "better_supabase"."mail_accounts"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
 create policy mail_threads_read on "better_supabase"."mail_threads"
   for select to authenticated
@@ -1487,7 +1487,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail.connect'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail_sync.connect'), false) then
     raise exception 'not allowed to connect a mailbox' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   if connect_mail_account.provider is null or connect_mail_account.provider !~ '^[a-z][a-z0-9-]{0,39}$' then
@@ -1585,7 +1585,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."mail_accounts" x
   where x."id" = disconnect_mail_account.account
-    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.manage'), false));
+    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.manage'), false));
   if v_row."id" is null then
     return false;
   end if;
@@ -1782,7 +1782,7 @@ begin
   if v_account.id is null then
     raise exception 'no such mailbox of yours' using errcode = 'P0002', hint = 'MAIL_ACCOUNT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail_sync.send'), false) then
     raise exception 'not allowed to send mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   v_stored := "better_supabase"."store_mail_message"(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);
@@ -1997,7 +1997,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail_sync.read'), false) then
     raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   return (
@@ -2042,7 +2042,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."mail_accounts" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."mail_accounts" as restrictive
@@ -2193,7 +2193,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:b4062cc56675cf253b2f1ae93f8f2fe636561db1fd7bac001825ade78f75bc16
+-- @bsb-hash sha256:f6d101a57a7300b073796f816c6a41465b66a5634890f6bcf2f04c64d08e6eda
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2428,7 +2428,7 @@ as $$
     where x."id" = $1
       and (k."user_id" = auth.uid() or (
         k."share" = 'records'
-        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.read'), false)
+        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.read'), false)
         and exists (
           select 1 from "app_private"."mail_thread_subjects" s
           where s."thread_id" = x."id"
@@ -2443,7 +2443,7 @@ grant execute on function "app_private"."mail_thread_visible"(uuid) to authentic
 drop policy if exists mail_accounts_read on "app_private"."mail_accounts";
 create policy mail_accounts_read on "app_private"."mail_accounts"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')));
 drop policy if exists mail_threads_read on "app_private"."mail_threads";
 create policy mail_threads_read on "app_private"."mail_threads"
   for select to authenticated
@@ -2553,7 +2553,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail.connect'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail_sync.connect'), false) then
     raise exception 'not allowed to connect a mailbox' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   if connect_mail_account.provider is null or connect_mail_account.provider !~ '^[a-z][a-z0-9-]{0,39}$' then
@@ -2642,7 +2642,7 @@ begin
   end if;
   select * into v_row from "app_private"."mail_accounts" x
   where x."id" = disconnect_mail_account.account
-    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.manage'), false));
+    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.manage'), false));
   if v_row."id" is null then
     return false;
   end if;
@@ -2830,7 +2830,7 @@ begin
   if v_account.id is null then
     raise exception 'no such mailbox of yours' using errcode = 'P0002', hint = 'MAIL_ACCOUNT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail_sync.send'), false) then
     raise exception 'not allowed to send mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   v_stored := "app_private"."store_mail_message"(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);
@@ -3045,7 +3045,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail_sync.read'), false) then
     raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   return (
@@ -3090,7 +3090,7 @@ create policy bsb_tenant_scope_select on "app_private"."mail_accounts" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."mail_accounts";
 create policy bsb_tenant_scope_insert on "app_private"."mail_accounts" as restrictive
@@ -3241,7 +3241,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:1b483f6de3945be78ee6bbbcac6af08b44b360895408f636d687fdf2b6f0349d
+-- @bsb-hash sha256:41fe6b01301c1e0c5741dc395904febf96c7948a5784d483556ea2abc09da329
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3471,7 +3471,7 @@ as $$
     where x."id" = $1
       and (k."user_id" = auth.uid() or (
         k."share" = 'records'
-        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.read'), false)
+        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.read'), false)
         and exists (
           select 1 from "better_supabase"."mail_thread_subjects" s
           where s."thread_id" = x."id"
@@ -3486,7 +3486,7 @@ grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authe
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
 create policy mail_accounts_read on "better_supabase"."mail_accounts"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
 create policy mail_threads_read on "better_supabase"."mail_threads"
   for select to authenticated
@@ -3596,7 +3596,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail.connect'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail_sync.connect'), false) then
     raise exception 'not allowed to connect a mailbox' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   if connect_mail_account.provider is null or connect_mail_account.provider !~ '^[a-z][a-z0-9-]{0,39}$' then
@@ -3685,7 +3685,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."mail_accounts" x
   where x."id" = disconnect_mail_account.account
-    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.manage'), false));
+    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.manage'), false));
   if v_row."id" is null then
     return false;
   end if;
@@ -3873,7 +3873,7 @@ begin
   if v_account.id is null then
     raise exception 'no such mailbox of yours' using errcode = 'P0002', hint = 'MAIL_ACCOUNT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail_sync.send'), false) then
     raise exception 'not allowed to send mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   v_stored := "better_supabase"."store_mail_message"(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);
@@ -4088,7 +4088,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail_sync.read'), false) then
     raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   return (
@@ -4133,7 +4133,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."mail_accounts" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."mail_accounts" as restrictive
@@ -4459,7 +4459,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:79406fb8d4416ae75568a83d56dc6bb5b4ae39f0aa4528e2792708996a2e5551
+-- @bsb-hash sha256:1429ef5cc7d933f410011ae0d469743b087565adbe02e0405c6e049f5b438093
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4691,7 +4691,7 @@ as $$
     where x."id" = $1
       and (k."user_id" = auth.uid() or (
         k."share" = 'records'
-        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.read'), false)
+        and coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.read'), false)
         and exists (
           select 1 from "better_supabase"."mail_thread_subjects" s
           where s."thread_id" = x."id"
@@ -4706,7 +4706,7 @@ grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authe
 drop policy if exists bsb_mail_accounts_select on "better_supabase"."mail_accounts";
 create policy bsb_mail_accounts_select on "better_supabase"."mail_accounts"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')));
 drop policy if exists bsb_mail_threads_select on "better_supabase"."mail_threads";
 create policy bsb_mail_threads_select on "better_supabase"."mail_threads"
   for select to authenticated
@@ -4816,7 +4816,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail.connect'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail_sync.connect'), false) then
     raise exception 'not allowed to connect a mailbox' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   if connect_mail_account.provider is null or connect_mail_account.provider !~ '^[a-z][a-z0-9-]{0,39}$' then
@@ -4905,7 +4905,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."mail_accounts" x
   where x."id" = disconnect_mail_account.account
-    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail.manage'), false));
+    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'mail_sync.manage'), false));
   if v_row."id" is null then
     return false;
   end if;
@@ -5093,7 +5093,7 @@ begin
   if v_account.id is null then
     raise exception 'no such mailbox of yours' using errcode = 'P0002', hint = 'MAIL_ACCOUNT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail_sync.send'), false) then
     raise exception 'not allowed to send mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   v_stored := "better_supabase"."store_mail_message"(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);
@@ -5308,7 +5308,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail_sync.read'), false) then
     raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   return (
@@ -5353,7 +5353,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."mail_accounts" as re
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail.manage')))
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."mail_accounts" as restrictive
@@ -5504,7 +5504,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@1 managed
--- @bsb-hash sha256:916d759b83e6d357ffd3ccf6490bfa07a6024a3f5c60e0e4bd908c08a02375cf
+-- @bsb-hash sha256:24ca5668238b15ddc29316db27a068eba2f9a64d88be2815437803e2816f7e40
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5734,7 +5734,7 @@ as $$
     where x."id" = $1
       and (k."user_id" = auth.uid() or (
         k."share" = 'records'
-        and coalesce(better_supabase.can('tenant', x."org_id", 'mail.read'), false)
+        and coalesce(better_supabase.can('tenant', x."org_id", 'mail_sync.read'), false)
         and exists (
           select 1 from "better_supabase"."mail_thread_subjects" s
           where s."thread_id" = x."id"
@@ -5749,7 +5749,7 @@ grant execute on function "better_supabase"."mail_thread_visible"(uuid) to authe
 drop policy if exists mail_accounts_read on "better_supabase"."mail_accounts";
 create policy mail_accounts_read on "better_supabase"."mail_accounts"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('mail.manage')));
+  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')));
 drop policy if exists mail_threads_read on "better_supabase"."mail_threads";
 create policy mail_threads_read on "better_supabase"."mail_threads"
   for select to authenticated
@@ -5859,7 +5859,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail.connect'), false) then
+  if auth.uid() is null or not coalesce(better_supabase.can('tenant', connect_mail_account.tenant, 'mail_sync.connect'), false) then
     raise exception 'not allowed to connect a mailbox' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   if connect_mail_account.provider is null or connect_mail_account.provider !~ '^[a-z][a-z0-9-]{0,39}$' then
@@ -5948,7 +5948,7 @@ begin
   end if;
   select * into v_row from "better_supabase"."mail_accounts" x
   where x."id" = disconnect_mail_account.account
-    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'mail.manage'), false));
+    and (x."user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'mail_sync.manage'), false));
   if v_row."id" is null then
     return false;
   end if;
@@ -6136,7 +6136,7 @@ begin
   if v_account.id is null then
     raise exception 'no such mailbox of yours' using errcode = 'P0002', hint = 'MAIL_ACCOUNT_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail.send'), false) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_account.tenant, 'mail_sync.send'), false) then
     raise exception 'not allowed to send mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   v_stored := "better_supabase"."store_mail_message"(v_account.id, coalesce(record_sent_mail.message, '{}'::jsonb) || '{"direction": "outbound"}'::jsonb);
@@ -6351,7 +6351,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail.read'), false) then
+  if not coalesce(better_supabase.can('tenant', mail_template_stats.tenant, 'mail_sync.read'), false) then
     raise exception 'not allowed to read mail' using errcode = '42501', hint = 'MAIL_FORBIDDEN';
   end if;
   return (
@@ -6396,7 +6396,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."mail_accounts" as re
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('mail.manage')))
+    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('mail_sync.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."mail_accounts";
 create policy bsb_tenant_scope_insert on "better_supabase"."mail_accounts" as restrictive

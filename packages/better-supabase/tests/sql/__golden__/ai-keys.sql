@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:70e403946a51757d118ccf79df802ad88d37b6150992942f599e74eba6d4da3c
+-- @bsb-hash sha256:163f33526be9e20e117274480c7f2fd7f1844f2fb93e5647d7b712d8760eaa32
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -97,7 +97,7 @@ grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
 create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -131,7 +131,7 @@ grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
 create policy ai_batches_read on "better_supabase"."ai_batches"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
@@ -167,7 +167,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_provider_keys"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_provider_keys"(uuid) to authenticated, service_role;
 
--- Adds or replaces a tenant's key for a provider ('ai.admin' or the service
+-- Adds or replaces a tenant's key for a provider ('ai_keys.manage' or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
 create or replace function "better_supabase"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
@@ -184,7 +184,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai_keys.manage'), false)) then
     raise exception 'you may not manage provider keys here' using errcode = '42501', hint = 'AI_PROVIDER_KEY_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_ai_provider_key.credential_ref is not null and jsonb_typeof(save_ai_provider_key.credential_ref) <> 'null'
@@ -210,7 +210,7 @@ $$;
 revoke execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
 grant execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
--- Deletes a key ('ai.admin' or the service role) and returns it, so the caller
+-- Deletes a key ('ai_keys.manage' or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
 create or replace function "better_supabase"."delete_ai_provider_key"(id uuid)
 returns jsonb
@@ -225,7 +225,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_provider_keys" x where x."id" = delete_ai_provider_key.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_keys.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
@@ -268,7 +268,7 @@ $$;
 revoke execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) to service_role;
 
--- Records a started batch ('ai.create' or the service role). fields: user_id
+-- Records a started batch ('ai_keys.use' or the service role). fields: user_id
 -- (service role only), item_count, metadata, status, raw_status, counts,
 -- expires_at.
 create or replace function "better_supabase"."record_ai_batch"(tenant uuid, provider text, reference jsonb, fields jsonb default '{}')
@@ -285,7 +285,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai.create'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai_keys.use'), false))) then
     raise exception 'you may not start batches here' using errcode = '42501', hint = 'AI_BATCH_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_batches" ("organization_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
@@ -477,7 +477,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_provider_keys" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys" as restrictive
@@ -498,7 +498,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_batches" as restr
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batches";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_batches" as restrictive
@@ -565,7 +565,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:72c2b46f2bd10818d5a2842ff794cd8be6e4b036759c9ce152681458a6b0d3de
+-- @bsb-hash sha256:d80d92bd1b7d58d8ca4914644a511255842806d8aad3b00a0c8bdca755c62389
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -661,7 +661,7 @@ grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
 create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -695,7 +695,7 @@ grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
 create policy ai_batches_read on "better_supabase"."ai_batches"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
@@ -731,7 +731,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_provider_keys"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_provider_keys"(uuid) to authenticated, service_role;
 
--- Adds or replaces a tenant's key for a provider ('ai.admin' or the service
+-- Adds or replaces a tenant's key for a provider ('ai_keys.manage' or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
 create or replace function "better_supabase"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
@@ -748,7 +748,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai_keys.manage'), false)) then
     raise exception 'you may not manage provider keys here' using errcode = '42501', hint = 'AI_PROVIDER_KEY_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_ai_provider_key.credential_ref is not null and jsonb_typeof(save_ai_provider_key.credential_ref) <> 'null'
@@ -783,7 +783,7 @@ $$;
 revoke execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
 grant execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
--- Deletes a key ('ai.admin' or the service role) and returns it, so the caller
+-- Deletes a key ('ai_keys.manage' or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
 create or replace function "better_supabase"."delete_ai_provider_key"(id uuid)
 returns jsonb
@@ -798,7 +798,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_provider_keys" x where x."id" = delete_ai_provider_key.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_keys.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
@@ -850,7 +850,7 @@ $$;
 revoke execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) to service_role;
 
--- Records a started batch ('ai.create' or the service role). fields: user_id
+-- Records a started batch ('ai_keys.use' or the service role). fields: user_id
 -- (service role only), item_count, metadata, status, raw_status, counts,
 -- expires_at.
 create or replace function "better_supabase"."record_ai_batch"(tenant uuid, provider text, reference jsonb, fields jsonb default '{}')
@@ -867,7 +867,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai.create'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai_keys.use'), false))) then
     raise exception 'you may not start batches here' using errcode = '42501', hint = 'AI_BATCH_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_batches" ("organization_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
@@ -1059,7 +1059,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_provider_keys" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys" as restrictive
@@ -1080,7 +1080,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_batches" as restr
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batches";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_batches" as restrictive
@@ -1147,7 +1147,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:135607e57271f0ea7f66ae2044abff309078432de6c78e078315053b56cf1880
+-- @bsb-hash sha256:209c9f0eba6db3c857d6e0e8761c2fcad506ed7a49cdda34a4442e6b14d3eb46
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1248,7 +1248,7 @@ grant all on "app_private"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "app_private"."ai_provider_keys";
 create policy ai_provider_keys_read on "app_private"."ai_provider_keys"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -1282,7 +1282,7 @@ grant all on "app_private"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "app_private"."ai_batches";
 create policy ai_batches_read on "app_private"."ai_batches"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 create table if not exists "app_private"."ai_batch_items" (
   "batch_id" uuid not null references "app_private"."ai_batches" ("id") on delete cascade,
@@ -1318,7 +1318,7 @@ $$;
 revoke execute on function "app_private"."list_ai_provider_keys"(uuid) from public, anon;
 grant execute on function "app_private"."list_ai_provider_keys"(uuid) to authenticated, service_role;
 
--- Adds or replaces a tenant's key for a provider ('ai.admin' or the service
+-- Adds or replaces a tenant's key for a provider ('ai_keys.manage' or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
 create or replace function "app_private"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
@@ -1335,7 +1335,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai_keys.manage'), false)) then
     raise exception 'you may not manage provider keys here' using errcode = '42501', hint = 'AI_PROVIDER_KEY_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_ai_provider_key.credential_ref is not null and jsonb_typeof(save_ai_provider_key.credential_ref) <> 'null'
@@ -1361,7 +1361,7 @@ $$;
 revoke execute on function "app_private"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
 grant execute on function "app_private"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
--- Deletes a key ('ai.admin' or the service role) and returns it, so the caller
+-- Deletes a key ('ai_keys.manage' or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
 create or replace function "app_private"."delete_ai_provider_key"(id uuid)
 returns jsonb
@@ -1376,7 +1376,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."ai_provider_keys" x where x."id" = delete_ai_provider_key.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_keys.manage'), false)) then
     return null;
   end if;
   delete from "app_private"."ai_provider_keys" x where x."id" = v_row."id";
@@ -1419,7 +1419,7 @@ $$;
 revoke execute on function "app_private"."ai_provider_keys_for"(uuid, text[]) from public, anon, authenticated;
 grant execute on function "app_private"."ai_provider_keys_for"(uuid, text[]) to service_role;
 
--- Records a started batch ('ai.create' or the service role). fields: user_id
+-- Records a started batch ('ai_keys.use' or the service role). fields: user_id
 -- (service role only), item_count, metadata, status, raw_status, counts,
 -- expires_at.
 create or replace function "app_private"."record_ai_batch"(tenant uuid, provider text, reference jsonb, fields jsonb default '{}')
@@ -1436,7 +1436,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai.create'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai_keys.use'), false))) then
     raise exception 'you may not start batches here' using errcode = '42501', hint = 'AI_BATCH_FORBIDDEN';
   end if;
   insert into "app_private"."ai_batches" ("organization_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
@@ -1628,7 +1628,7 @@ create policy bsb_tenant_scope_select on "app_private"."ai_provider_keys" as res
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_provider_keys";
 create policy bsb_tenant_scope_insert on "app_private"."ai_provider_keys" as restrictive
@@ -1649,7 +1649,7 @@ create policy bsb_tenant_scope_select on "app_private"."ai_batches" as restricti
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "app_private"."ai_batches";
 create policy bsb_tenant_scope_insert on "app_private"."ai_batches" as restrictive
@@ -1716,7 +1716,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:17c12b7efd5fb73c160fcdb9754ec1368774db3d9cf9e43056d4ab3bef4078cc
+-- @bsb-hash sha256:3cc79557778fa3dcde4368c17d4b782117583797de0705035e82ed53288f6e4f
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1812,7 +1812,7 @@ grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
 create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -1846,7 +1846,7 @@ grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
 create policy ai_batches_read on "better_supabase"."ai_batches"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
@@ -1882,7 +1882,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_provider_keys"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_provider_keys"(uuid) to authenticated, service_role;
 
--- Adds or replaces a tenant's key for a provider ('ai.admin' or the service
+-- Adds or replaces a tenant's key for a provider ('ai_keys.manage' or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
 create or replace function "better_supabase"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
@@ -1899,7 +1899,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai_keys.manage'), false)) then
     raise exception 'you may not manage provider keys here' using errcode = '42501', hint = 'AI_PROVIDER_KEY_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_ai_provider_key.credential_ref is not null and jsonb_typeof(save_ai_provider_key.credential_ref) <> 'null'
@@ -1925,7 +1925,7 @@ $$;
 revoke execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
 grant execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
--- Deletes a key ('ai.admin' or the service role) and returns it, so the caller
+-- Deletes a key ('ai_keys.manage' or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
 create or replace function "better_supabase"."delete_ai_provider_key"(id uuid)
 returns jsonb
@@ -1940,7 +1940,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_provider_keys" x where x."id" = delete_ai_provider_key.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_keys.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
@@ -1983,7 +1983,7 @@ $$;
 revoke execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) to service_role;
 
--- Records a started batch ('ai.create' or the service role). fields: user_id
+-- Records a started batch ('ai_keys.use' or the service role). fields: user_id
 -- (service role only), item_count, metadata, status, raw_status, counts,
 -- expires_at.
 create or replace function "better_supabase"."record_ai_batch"(tenant uuid, provider text, reference jsonb, fields jsonb default '{}')
@@ -2000,7 +2000,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai.create'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai_keys.use'), false))) then
     raise exception 'you may not start batches here' using errcode = '42501', hint = 'AI_BATCH_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_batches" ("organization_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
@@ -2192,7 +2192,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_provider_keys" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys" as restrictive
@@ -2213,7 +2213,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_batches" as restr
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batches";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_batches" as restrictive
@@ -2410,7 +2410,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:e0c58da72be841a9b7989a91777a5ab6b81d205ae520207e9b91723265a84d61
+-- @bsb-hash sha256:0b1785ed9cfba1090e425d4e8d1f35d8572dfad290de79cf4e16a867260ed25b
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2520,7 +2520,7 @@ grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists bsb_ai_provider_keys_select on "better_supabase"."ai_provider_keys";
 create policy bsb_ai_provider_keys_select on "better_supabase"."ai_provider_keys"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -2552,7 +2552,7 @@ grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists bsb_ai_batches_select on "better_supabase"."ai_batches";
 create policy bsb_ai_batches_select on "better_supabase"."ai_batches"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 -- better_supabase.ai_batch_items is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_batch_items" add column if not exists "batch_id" uuid references "better_supabase"."ai_batches" ("id") on delete cascade;
@@ -2586,7 +2586,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_provider_keys"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_provider_keys"(uuid) to authenticated, service_role;
 
--- Adds or replaces a tenant's key for a provider ('ai.admin' or the service
+-- Adds or replaces a tenant's key for a provider ('ai_keys.manage' or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
 create or replace function "better_supabase"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
@@ -2603,7 +2603,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai_keys.manage'), false)) then
     raise exception 'you may not manage provider keys here' using errcode = '42501', hint = 'AI_PROVIDER_KEY_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_ai_provider_key.credential_ref is not null and jsonb_typeof(save_ai_provider_key.credential_ref) <> 'null'
@@ -2629,7 +2629,7 @@ $$;
 revoke execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
 grant execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
--- Deletes a key ('ai.admin' or the service role) and returns it, so the caller
+-- Deletes a key ('ai_keys.manage' or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
 create or replace function "better_supabase"."delete_ai_provider_key"(id uuid)
 returns jsonb
@@ -2644,7 +2644,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_provider_keys" x where x."id" = delete_ai_provider_key.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_keys.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
@@ -2687,7 +2687,7 @@ $$;
 revoke execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) to service_role;
 
--- Records a started batch ('ai.create' or the service role). fields: user_id
+-- Records a started batch ('ai_keys.use' or the service role). fields: user_id
 -- (service role only), item_count, metadata, status, raw_status, counts,
 -- expires_at.
 create or replace function "better_supabase"."record_ai_batch"(tenant uuid, provider text, reference jsonb, fields jsonb default '{}')
@@ -2704,7 +2704,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai.create'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai_keys.use'), false))) then
     raise exception 'you may not start batches here' using errcode = '42501', hint = 'AI_BATCH_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_batches" ("organization_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
@@ -2896,7 +2896,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_provider_keys" as
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys" as restrictive
@@ -2917,7 +2917,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_batches" as restr
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batches";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_batches" as restrictive
@@ -2984,7 +2984,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:17b5e4dd990824873349276b71a8e3013a8ef6f4856073e1ec1b231699bd381c
+-- @bsb-hash sha256:80ddcf6be034841ba7aa9388421907672a31b65458da3c94fba07ea99c1e2381
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3080,7 +3080,7 @@ grant all on "better_supabase"."ai_provider_keys" to service_role;
 drop policy if exists ai_provider_keys_read on "better_supabase"."ai_provider_keys";
 create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
@@ -3114,7 +3114,7 @@ grant all on "better_supabase"."ai_batches" to service_role;
 drop policy if exists ai_batches_read on "better_supabase"."ai_batches";
 create policy ai_batches_read on "better_supabase"."ai_batches"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')));
+  using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 create table if not exists "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
@@ -3150,7 +3150,7 @@ $$;
 revoke execute on function "better_supabase"."list_ai_provider_keys"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_provider_keys"(uuid) to authenticated, service_role;
 
--- Adds or replaces a tenant's key for a provider ('ai.admin' or the service
+-- Adds or replaces a tenant's key for a provider ('ai_keys.manage' or the service
 -- role). Returns the key and the credential_ref it replaced, which the caller
 -- revokes when it differs.
 create or replace function "better_supabase"."save_ai_provider_key"(tenant uuid, provider text, credential_ref jsonb, name text default 'default', settings jsonb default '{}', enabled boolean default true)
@@ -3167,7 +3167,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai.admin'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', save_ai_provider_key.tenant, 'ai_keys.manage'), false)) then
     raise exception 'you may not manage provider keys here' using errcode = '42501', hint = 'AI_PROVIDER_KEY_FORBIDDEN';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and save_ai_provider_key.credential_ref is not null and jsonb_typeof(save_ai_provider_key.credential_ref) <> 'null'
@@ -3193,7 +3193,7 @@ $$;
 revoke execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
 grant execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) to authenticated, service_role;
 
--- Deletes a key ('ai.admin' or the service role) and returns it, so the caller
+-- Deletes a key ('ai_keys.manage' or the service role) and returns it, so the caller
 -- revokes its credential; null when there is no such key.
 create or replace function "better_supabase"."delete_ai_provider_key"(id uuid)
 returns jsonb
@@ -3208,7 +3208,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_provider_keys" x where x."id" = delete_ai_provider_key.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai.admin'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."org_id", 'ai_keys.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
@@ -3251,7 +3251,7 @@ $$;
 revoke execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) from public, anon, authenticated;
 grant execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) to service_role;
 
--- Records a started batch ('ai.create' or the service role). fields: user_id
+-- Records a started batch ('ai_keys.use' or the service role). fields: user_id
 -- (service role only), item_count, metadata, status, raw_status, counts,
 -- expires_at.
 create or replace function "better_supabase"."record_ai_batch"(tenant uuid, provider text, reference jsonb, fields jsonb default '{}')
@@ -3268,7 +3268,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai.create'), false))) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai_keys.use'), false))) then
     raise exception 'you may not start batches here' using errcode = '42501', hint = 'AI_BATCH_FORBIDDEN';
   end if;
   insert into "better_supabase"."ai_batches" ("org_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
@@ -3460,7 +3460,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_provider_keys" as
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys" as restrictive
@@ -3481,7 +3481,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."ai_batches" as restr
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai.admin')))
+    or ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 drop policy if exists bsb_tenant_scope_insert on "better_supabase"."ai_batches";
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_batches" as restrictive

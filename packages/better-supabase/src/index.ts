@@ -8,6 +8,13 @@ export type {
 
 export { EMPTY_STATS, recordStats, StatsRecorder } from "./core/stats.ts";
 
+export {
+  EVENT_TYPE_RENAMES,
+  HINT_RENAMES,
+  renamed,
+  SUBJECT_TYPE_RENAMES,
+} from "./core/renames.ts";
+
 export type { DbStats } from "./core/stats.ts";
 
 export {

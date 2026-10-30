@@ -111,7 +111,7 @@ Sync reads the period each tenant has chosen now, so it needs `periodColumn` (se
 
 `next_number` stays service-only. Called over the API it would commit a number in its own transaction, and a document that then fails to save leaves a gap. A signed-in user gets a number by saving the document: the trigger assigns it in the same transaction, and the table's own policies decide who may save it.
 
-To show the number a document would get, such as on a send dialog, call `preview_number(tenant, entity, at)`. It returns the formatted next number in the tenant's format and period without assigning it, so a concurrent document can still take it first. It checks the block's `assign` permission in the tenant (`number_sequences.assign` by default; the owner role holds it through `*`), and refuses other callers with `NUMBER_FORBIDDEN`. Map `assign` to the key of the people who issue the documents:
+To show the number a document would get, such as on a send dialog, call `preview_number(tenant, entity, at)`. It returns the formatted next number in the tenant's format and period without assigning it, so a concurrent document can still take it first. It checks the block's `assign` permission in the tenant (`numbering.assign` by default; the owner role holds it through `*`), and refuses other callers with `NUMBER_FORBIDDEN`. Map `assign` to the key of the people who issue the documents:
 
 ```ts title="better-supabase.config.ts"
 "numbering": {
@@ -155,9 +155,9 @@ When different people issue different documents, give an entity its own key with
 },
 ```
 
-| Action   | Default key               | Set by                                             | Checked by                                         |
-| -------- | ------------------------- | -------------------------------------------------- | -------------------------------------------------- |
-| `assign` | `number_sequences.assign` | `permissions.assign`, `entities.<name>.permission` | `preview_number`; the service role always holds it |
+| Action   | Default key        | Set by                                             | Checked by                                         |
+| -------- | ------------------ | -------------------------------------------------- | -------------------------------------------------- |
+| `assign` | `numbering.assign` | `permissions.assign`, `entities.<name>.permission` | `preview_number`; the service role always holds it |
 
 `upgrade` and doctor check an entity's key against the authorization provider like the block's own keys.
 

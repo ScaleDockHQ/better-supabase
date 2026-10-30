@@ -19,7 +19,10 @@ export function providerCredentials(): VaultCredentials {
   return vaultCredentials({ transport: service(), schema: API_SCHEMA });
 }
 
-/** The ai-keys block acting as the caller; `ai.admin` lists and saves keys. */
+/**
+ * The ai-keys block acting as the caller; `ai_keys.manage` lists and saves
+ * keys.
+ */
 export function aiProviders(supabase: RpcClient): AiKeys {
   return createAiKeys({
     ...generatedOptions(blockConfig["ai-keys"]),

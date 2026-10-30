@@ -48,7 +48,7 @@ export async function WorkBoard({
     getPermissions(),
   ]);
 
-  if (!can(permissions, "work_items.read")) {
+  if (!can(permissions, "tasks.read")) {
     forbidden();
   }
 
@@ -68,7 +68,7 @@ export async function WorkBoard({
   const teamOptions = teams.kind === "ok" ? teams.data : [];
   const customFields = fields.kind === "ok" ? fields.data : [];
   const teamId = teamOptions.find((each) => each.id === team)?.id ?? null;
-  const canWrite = can(permissions, "work_items.write");
+  const canWrite = can(permissions, "tasks.write");
 
   const empty =
     board.kind === "ok" &&

@@ -202,8 +202,8 @@ export interface WorkflowStepInfo {
   readonly credentialKind?: string | undefined;
   /**
    * The operation a node of this step checks at publish, in place of
-   * `workflow.run`: the provider's entry for it, else the name itself as the
-   * permission key. The provider's `workflow.node.<step>` entry still takes
+   * `workflow_editor.run`: the provider's entry for it, else the name itself as
+   * the permission key. The provider's `workflow.node.<step>` entry still takes
    * precedence.
    */
   readonly operation?: string | undefined;
@@ -362,7 +362,10 @@ export interface DefinitionInput<F extends object = Record<never, never>> {
    * keeps the stored one (`tenant` for a new definition).
    */
   readonly scope?: WorkflowDefinitionScope;
-  /** Changing it needs `workflow.admin`. Left out keeps the stored value. */
+  /**
+   * Changing it needs `workflow_editor.manage`. Left out keeps the stored
+   * value.
+   */
   readonly restricted?: boolean;
   /** The extra columns to set. */
   readonly fields?: Partial<F>;
@@ -504,7 +507,7 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
     }): AsyncResult<WorkflowDefinition<F>>;
     /**
      * Opts a tenant out of a definition, or back in with `optedOut: false`
-     * (`workflow.admin`).
+     * (`workflow_editor.manage`).
      */
     optOut(input: {
       readonly tenant: string;
@@ -513,9 +516,9 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
     }): AsyncResult<boolean>;
     /**
      * Sets what the definition is for and whether it is its tenant's default
-     * (`workflow.admin`; the service role for a system one). Only a lifecycle
-     * definition, which names its subject types, is a default; marking one
-     * clears the tenant's other default for those subject types.
+     * (`workflow_editor.manage`; the service role for a system one). Only a
+     * lifecycle definition, which names its subject types, is a default;
+     * marking one clears the tenant's other default for those subject types.
      */
     setPurpose(
       id: string,
@@ -535,7 +538,10 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
       },
     ): AsyncResult<WorkflowResolved<F> | undefined>;
     readonly grants: {
-      /** Grants run or edit on a restricted definition (`workflow.admin`). */
+      /**
+       * Grants run or edit on a restricted definition
+       * (`workflow_editor.manage`).
+       */
       add(input: GrantInput): AsyncResult<boolean>;
       remove(input: GrantInput): AsyncResult<boolean>;
       list(definition: string): AsyncResult<readonly WorkflowDefinitionGrant[]>;
@@ -579,15 +585,15 @@ export interface WorkflowEditor<F extends object = Record<never, never>> {
     ): AsyncResult<Readonly<Record<string, unknown>>>;
   };
   /**
-   * Starts a run of the published version: `workflow.run` in its tenant, a run
-   * grant on a restricted definition, and not opted out
+   * Starts a run of the published version: `workflow_editor.run` in its tenant,
+   * a run grant on a restricted definition, and not opted out
    * (`WORKFLOW_OPTED_OUT`).
    */
   run(input: RunInput): AsyncResult<string>;
   /**
-   * Starts a test run (`workflow.edit`, and an edit grant on a restricted
-   * definition): mode `test`, steps return their stubs and never run, sleeps
-   * are skipped, and it fires no alerts or outbox events.
+   * Starts a test run (`workflow_editor.write`, and an edit grant on a
+   * restricted definition): mode `test`, steps return their stubs and never
+   * run, sleeps are skipped, and it fires no alerts or outbox events.
    */
   test(input: TestRunInput): AsyncResult<string>;
   readonly triggers: {

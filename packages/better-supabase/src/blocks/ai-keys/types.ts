@@ -155,7 +155,7 @@ export interface AiKeys {
   readonly keys: {
     list(organizationId: string): AsyncResult<readonly AiProviderKey[]>;
     /**
-     * Adds or replaces a key (`ai.admin`), and revokes the credential it
+     * Adds or replaces a key (`ai_keys.manage`), and revokes the credential it
      * replaced.
      */
     upsert(

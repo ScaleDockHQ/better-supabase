@@ -3,9 +3,9 @@ title: Employees
 description: Employees with or without an account, a manager, team and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive.
 ---
 
-`employees` keeps the people an organization employs. An employee has a name, an optional account (`userId`: contractors and interns often have none), a manager, a team, a job title, an employment type, a start and end date, and a status of `preboarding`, `active`, `on_leave` or `offboarded`. Managers form a tree: the database refuses a manager from another organization and a manager who reports to the employee. Private details and a contract history sit in their own tables, which only the employee and holders of `employees.view_sensitive` read.
+`employees` keeps the people an organization employs. An employee has a name, an optional account (`userId`: contractors and interns often have none), a manager, a team, a job title, an employment type, a start and end date, and a status of `preboarding`, `active`, `on_leave` or `offboarded`. Managers form a tree: the database refuses a manager from another organization and a manager who reports to the employee. Private details and a contract history sit in their own tables, which only the employee and holders of `employees.read_sensitive` read.
 
-Reading the directory needs `employees.read`, which members have. Creating, editing and offboarding needs `employees.write`, and the private details and contracts need `employees.view_sensitive`; admins have both. A manager without `employees.read` still reads the employees under them through `reportsOf` and `orgChart`, and every employee reads their own row, details and contracts.
+Reading the directory needs `employees.read`, which members have. Creating, editing and offboarding needs `employees.write`, and the private details and contracts need `employees.read_sensitive`; admins have both. A manager without `employees.read` still reads the employees under them through `reportsOf` and `orgChart`, and every employee reads their own row, details and contracts.
 
 Some actions take their own key when you set one, and fall back otherwise:
 
@@ -151,7 +151,7 @@ The three tables declare their tenant to `data-lifecycle`, so an organization ex
 
 ## Contracts
 
-`addContract(employeeId, { startsOn, endsOn, hoursPerWeek, salary, salaryPeriod, note })` appends to the employee's contract history. `salary` is a `Money` value from [commerce](/docs/concepts/commerce), such as `money(5_400_000n, "EUR")`, which carries its currency and is sent as text so it stays exact past 2^53, and `salaryPeriod` is `hour`, `week`, `month` or `year`. A new contract starts after the latest one (`EMPLOYEE_CONTRACT_OVERLAP`), which ends the day before; rows are never edited. `contracts(employeeId)` returns them, the newest first. Adding one needs `employees.write` and `employees.view_sensitive`.
+`addContract(employeeId, { startsOn, endsOn, hoursPerWeek, salary, salaryPeriod, note })` appends to the employee's contract history. `salary` is a `Money` value from [commerce](/docs/concepts/commerce), such as `money(5_400_000n, "EUR")`, which carries its currency and is sent as text so it stays exact past 2^53, and `salaryPeriod` is `hour`, `week`, `month` or `year`. A new contract starts after the latest one (`EMPLOYEE_CONTRACT_OVERLAP`), which ends the day before; rows are never edited. `contracts(employeeId)` returns them, the newest first. Adding one needs `employees.write` and `employees.read_sensitive`.
 
 With `options.contracts: "editable"`, contracts can be changed and removed
 too: `updateContract(contractId, patch)` sets the keys the patch names

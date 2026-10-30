@@ -5,7 +5,7 @@ description: Goals per period for a member, a team or the organization, with pro
 
 `goals` keeps an organization's targets: a sales quota per rep per quarter, a number of completed work items per team per sprint, cash collected per month. Each target names a metric, a period, an owner or team when it isn't for the whole organization, and a goal. The database computes the progress of the metrics the other blocks own, and the app keeps the value of any other metric.
 
-Reading needs `targets.read`, and setting targets needs `targets.manage`. Admins get both, and members get `targets.read`.
+Reading needs `goals.read`, and setting targets needs `goals.manage`. Admins get both, and members get `goals.read`.
 
 ```bash
 better-supabase add goals
@@ -67,7 +67,7 @@ const rows = useGoals({ limit: 50 });
 
 | Hint               | Cause                                                         |
 | ------------------ | ------------------------------------------------------------- |
-| `TARGET_FORBIDDEN` | the caller lacks `targets.manage`                             |
+| `TARGET_FORBIDDEN` | the caller lacks `goals.manage`                               |
 | `TARGET_INVALID`   | a target needs a name, a metric, a period and a positive goal |
 | `TARGET_NOT_FOUND` | no such target                                                |
 

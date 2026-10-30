@@ -23,7 +23,7 @@ describe("waitlist module", () => {
       /create table if not exists \S+invite_code_redemptions/,
     );
     expect(sql).toContain("'waitlist.manage'");
-    expect(sql).toContain("'members.invite'");
+    expect(sql).toContain("'waitlist.invite'");
     expect(sql).toContain("->> 'invite_code'");
     expect(sql).toContain("array['admin', 'member', 'viewer']::text[]");
     expect(sql).toContain(
@@ -95,16 +95,15 @@ describe("waitlist module", () => {
     ).toThrow(/must not include the owner role/);
   });
 
-  it("checks invite codes with the invitations invite key", () => {
+  it("checks invite codes with its own invite key", () => {
     const sql = sqlOf(["waitlist"], {
       invitations: { permissions: { invite: "member.invite" } },
     });
 
-    expect(sql).toContain("'member.invite'");
-    expect(sql).not.toContain("'members.invite'");
+    expect(sql).toContain("'waitlist.invite'");
+    expect(sql).not.toContain("'member.invite'");
     expect(
       sqlOf(["waitlist"], {
-        invitations: { permissions: { invite: "member.invite" } },
         waitlist: { permissions: { invite: "codes.invite" } },
       }),
     ).toContain("'codes.invite'");
