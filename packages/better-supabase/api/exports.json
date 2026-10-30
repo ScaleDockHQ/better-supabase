@@ -79,6 +79,7 @@
       "StatsRecorder",
       "statusOf",
       "SUBJECT_TYPE_RENAMES",
+      "TABLE_RENAMES",
       "tableMeta",
       "tableSchema",
       "toBetterResult",

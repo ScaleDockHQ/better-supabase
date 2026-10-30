@@ -168,7 +168,7 @@ select is(
   'a woken conversation is open'
 );
 select is(
-  (select count(*)::int from better_supabase.conversation_events
+  (select count(*)::int from better_supabase.inbox_conversation_events
    where conversation_id = (select id from ids where name = 'conversation') and type = 'unsnoozed'),
   1,
   'waking logs unsnoozed in the activity'

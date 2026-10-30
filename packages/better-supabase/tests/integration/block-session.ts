@@ -81,6 +81,28 @@ export class BlockSession {
       end
     $$`);
 
+    // `create table if not exists` keeps a tasks table an earlier render left
+    // with its projects key on another projects table.
+    if (names.includes("tasks")) {
+      const projects =
+        layout.modules?.["tasks"]?.tables?.["projects"] ?? "projects";
+
+      const { rowCount } = await this.client.query(
+        `select 1 from pg_constraint
+        where conrelid = to_regclass('better_supabase.tasks')
+          and conname = 'tasks_project_id_fkey'
+          and confrelid is distinct from to_regclass($1)`,
+        [projects.includes(".") ? projects : `better_supabase.${projects}`],
+      );
+
+      if (rowCount) {
+        await this.client.query(
+          `drop table if exists better_supabase.task_checklist_items,
+            better_supabase.task_assignees, better_supabase.tasks cascade`,
+        );
+      }
+    }
+
     for (const file of renderBlocks(names, layout)) {
       if (file.kind !== "test") {
         await this.client.query(file.contents);

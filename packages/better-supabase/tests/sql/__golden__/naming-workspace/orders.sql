@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
--- @bsb-block orders@3 managed
--- @bsb-hash sha256:ff5c66af0a8b76f759fc406f91bdc6d450fbb26f5097854e578b9d6fe4f44643
+-- @bsb-block orders@4 managed
+-- @bsb-hash sha256:d6981ab736c709c62aff417d783beb6cb0c6bfacf7509a045163ed3345ac4ef3
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -61,11 +61,11 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."shipping_rates";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipping_rates";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipping_rates";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipping_rates";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipping_rates";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."order_shipping_rates";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_shipping_rates";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_shipping_rates";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_shipping_rates";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_shipping_rates";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -93,19 +93,19 @@ begin
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."fulfillments";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."fulfillments";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."fulfillments";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."fulfillments";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."fulfillments";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."order_fulfillments";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_fulfillments";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_fulfillments";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_fulfillments";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_fulfillments";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
-    drop policy if exists bsb_tenant_scope on "better_supabase"."fulfillment_lines";
-    drop policy if exists bsb_tenant_scope_select on "better_supabase"."fulfillment_lines";
-    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."fulfillment_lines";
-    drop policy if exists bsb_tenant_scope_update on "better_supabase"."fulfillment_lines";
-    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."fulfillment_lines";
+    drop policy if exists bsb_tenant_scope on "better_supabase"."order_fulfillment_lines";
+    drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_fulfillment_lines";
+    drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_fulfillment_lines";
+    drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_fulfillment_lines";
+    drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_fulfillment_lines";
   exception when undefined_table or invalid_schema_name then null;
   end;
   begin
@@ -139,7 +139,7 @@ grant usage on schema better_supabase to anon, authenticated, service_role;
 -- Carts on any signed-in user (anonymous sign-ins included), checkout into
 -- orders with numbers, payments, fulfillments, returns and refunds.
 
-create table if not exists "better_supabase"."shipping_rates" (
+create table if not exists "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "name" text not null check (length("name") between 1 and 200),
@@ -153,13 +153,13 @@ create table if not exists "better_supabase"."shipping_rates" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create index if not exists shipping_rates_tenant_idx on "better_supabase"."shipping_rates" ("tenant_id", "currency");
-alter table "better_supabase"."shipping_rates" enable row level security;
-revoke all on "better_supabase"."shipping_rates" from public, anon, authenticated;
-grant select on "better_supabase"."shipping_rates" to authenticated;
-grant all on "better_supabase"."shipping_rates" to service_role;
-drop policy if exists shipping_rates_read on "better_supabase"."shipping_rates";
-create policy shipping_rates_read on "better_supabase"."shipping_rates"
+create index if not exists "order_shipping_rates_tenant_idx" on "better_supabase"."order_shipping_rates" ("tenant_id", "currency");
+alter table "better_supabase"."order_shipping_rates" enable row level security;
+revoke all on "better_supabase"."order_shipping_rates" from public, anon, authenticated;
+grant select on "better_supabase"."order_shipping_rates" to authenticated;
+grant all on "better_supabase"."order_shipping_rates" to service_role;
+drop policy if exists order_shipping_rates_read on "better_supabase"."order_shipping_rates";
+create policy order_shipping_rates_read on "better_supabase"."order_shipping_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -168,12 +168,12 @@ create table if not exists "better_supabase"."carts" (
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "price_list_id" uuid references "better_supabase"."price_lists" ("id") on delete set null,
+  "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
   "status" text not null default 'open' check ("status" in ('open', 'converted', 'abandoned')),
   "email" text check (length("email") <= 320),
   "shipping_address" jsonb check (jsonb_typeof("shipping_address") = 'object'),
   "billing_address" jsonb check (jsonb_typeof("billing_address") = 'object'),
-  "shipping_rate_id" uuid references "better_supabase"."shipping_rates" ("id") on delete set null,
+  "shipping_rate_id" uuid references "better_supabase"."order_shipping_rates" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "converted_at" timestamptz
@@ -322,7 +322,7 @@ create policy order_payments_read on "better_supabase"."order_payments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."fulfillments" (
+create table if not exists "better_supabase"."order_fulfillments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
@@ -335,31 +335,31 @@ create table if not exists "better_supabase"."fulfillments" (
   "shipped_at" timestamptz,
   "delivered_at" timestamptz
 );
-create index if not exists fulfillments_order_idx on "better_supabase"."fulfillments" ("order_id");
-alter table "better_supabase"."fulfillments" enable row level security;
-revoke all on "better_supabase"."fulfillments" from public, anon, authenticated;
-grant select on "better_supabase"."fulfillments" to authenticated;
-grant all on "better_supabase"."fulfillments" to service_role;
-drop policy if exists fulfillments_read on "better_supabase"."fulfillments";
-create policy fulfillments_read on "better_supabase"."fulfillments"
+create index if not exists "order_fulfillments_order_idx" on "better_supabase"."order_fulfillments" ("order_id");
+alter table "better_supabase"."order_fulfillments" enable row level security;
+revoke all on "better_supabase"."order_fulfillments" from public, anon, authenticated;
+grant select on "better_supabase"."order_fulfillments" to authenticated;
+grant all on "better_supabase"."order_fulfillments" to service_role;
+drop policy if exists order_fulfillments_read on "better_supabase"."order_fulfillments";
+create policy order_fulfillments_read on "better_supabase"."order_fulfillments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
-create table if not exists "better_supabase"."fulfillment_lines" (
+create table if not exists "better_supabase"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
-  "fulfillment_id" uuid not null references "better_supabase"."fulfillments" ("id") on delete cascade,
+  "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
   "quantity" integer not null check ("quantity" > 0),
   "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
-create index if not exists fulfillment_lines_line_idx on "better_supabase"."fulfillment_lines" ("order_line_id");
-alter table "better_supabase"."fulfillment_lines" enable row level security;
-revoke all on "better_supabase"."fulfillment_lines" from public, anon, authenticated;
-grant select on "better_supabase"."fulfillment_lines" to authenticated;
-grant all on "better_supabase"."fulfillment_lines" to service_role;
-drop policy if exists fulfillment_lines_read on "better_supabase"."fulfillment_lines";
-create policy fulfillment_lines_read on "better_supabase"."fulfillment_lines"
+create index if not exists "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
+alter table "better_supabase"."order_fulfillment_lines" enable row level security;
+revoke all on "better_supabase"."order_fulfillment_lines" from public, anon, authenticated;
+grant select on "better_supabase"."order_fulfillment_lines" to authenticated;
+grant all on "better_supabase"."order_fulfillment_lines" to service_role;
+drop policy if exists order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines";
+create policy order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -464,12 +464,12 @@ begin
     raise exception 'countries are ISO 3166-1 alpha-2 codes' using errcode = '22023', hint = 'ORDERS_ADDRESS_INVALID';
   end if;
   if save_shipping_rate.rate is null then
-    insert into "better_supabase"."shipping_rates" ("tenant_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
+    insert into "better_supabase"."order_shipping_rates" ("tenant_id", "name", "countries", "currency", "kind", "amount", "amount_per_kg", "free_over", "active")
     values (save_shipping_rate.tenant, data ->> 'name', v_countries, data ->> 'currency', coalesce(data ->> 'kind', 'flat'),
       (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0), (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), coalesce((data ->> 'active')::boolean, true))
     returning "id" into v_id;
   else
-    update "better_supabase"."shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
+    update "better_supabase"."order_shipping_rates" x set "name" = data ->> 'name', "countries" = v_countries, "currency" = data ->> 'currency',
       "kind" = coalesce(data ->> 'kind', 'flat'), "amount" = (case when (data ->> 'amount') ~ '^[0-9]{1,18}$' then (data ->> 'amount')::bigint end), "amount_per_kg" = coalesce((case when (data ->> 'amountPerKg') ~ '^[0-9]{1,18}$' then (data ->> 'amountPerKg')::bigint end), 0),
       "free_over" = (case when (data ->> 'freeOver') ~ '^[0-9]{1,18}$' then (data ->> 'freeOver')::bigint end), "active" = coalesce((data ->> 'active')::boolean, true), "updated_at" = now()
     where x."id" = save_shipping_rate.rate and x."tenant_id" = save_shipping_rate.tenant
@@ -496,14 +496,14 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."shipping_rates" x where x."id" = delete_shipping_rate.rate;
+  select x."tenant_id" into v_tenant from "better_supabase"."order_shipping_rates" x where x."id" = delete_shipping_rate.rate;
   if not found then
     return false;
   end if;
   if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'orders.manage'), false)) then
     raise exception 'not allowed to manage these orders' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
   end if;
-  delete from "better_supabase"."shipping_rates" x where x."id" = delete_shipping_rate.rate;
+  delete from "better_supabase"."order_shipping_rates" x where x."id" = delete_shipping_rate.rate;
   return true;
 end;
 $$;
@@ -582,7 +582,7 @@ begin
   if v_ships and v_cart.shipping_rate is not null then
     select x."id" as id, x."name" as name, x."countries" as countries, x."kind" as kind,
       x."amount" as amount, x."amount_per_kg" as per_kg, x."free_over" as free_over
-    into v_rate from "better_supabase"."shipping_rates" x
+    into v_rate from "better_supabase"."order_shipping_rates" x
     where x."id" = v_cart.shipping_rate and x."active" and x."currency" = v_cart.currency;
     if not found or (cardinality(v_rate.countries) > 0 and (v_country is null or not v_country = any (v_rate.countries))) then
       v_problems := v_problems || jsonb_build_array(jsonb_build_object('problem', 'shipping_unavailable'));
@@ -594,7 +594,7 @@ begin
       v_snapshot := jsonb_build_object('rateId', v_rate.id, 'name', v_rate.name, 'amount', v_shipping::text);
     end if;
   elsif v_ships and exists (
-    select 1 from "better_supabase"."shipping_rates" x
+    select 1 from "better_supabase"."order_shipping_rates" x
     where x."tenant_id" = v_cart.tenant and x."active" and x."currency" = v_cart.currency
   ) then
     v_problems := v_problems || jsonb_build_array(jsonb_build_object('problem', 'shipping_required'));
@@ -636,7 +636,7 @@ begin
     if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', create_cart.tenant, 'orders.manage'), false)) then
       raise exception 'only staff can put a cart on a price list' using errcode = '42501', hint = 'ORDERS_FORBIDDEN';
     end if;
-    if not exists (select 1 from "better_supabase"."price_lists" x where x."id" = create_cart.price_list and x."tenant_id" = create_cart.tenant) then
+    if not exists (select 1 from "better_supabase"."catalog_price_lists" x where x."id" = create_cart.price_list and x."tenant_id" = create_cart.tenant) then
       raise exception 'price list not found' using errcode = 'P0002', hint = 'ORDERS_PRICE_LIST_NOT_FOUND';
     end if;
   end if;
@@ -814,7 +814,7 @@ begin
     raise exception 'the cart is no longer open' using errcode = '55000', hint = 'ORDERS_CART_CLOSED';
   end if;
   if set_cart_shipping_rate.rate is not null and not exists (
-    select 1 from "better_supabase"."shipping_rates" x
+    select 1 from "better_supabase"."order_shipping_rates" x
     where x."id" = set_cart_shipping_rate.rate and x."tenant_id" = v_cart.tenant and x."active"
       and x."currency" = v_cart.currency
       and (cardinality(x."countries") = 0 or (v_cart.shipping_address ->> 'country') = any (x."countries"))
@@ -859,7 +859,7 @@ begin
         when x."free_over" is not null and v_after_discount >= x."free_over" then 0
         else x."amount" + case when x."kind" = 'weight' then (x."amount_per_kg" * v_weight + 999) / 1000 else 0 end
       end)::text) order by x."amount", x."name")
-    from "better_supabase"."shipping_rates" x
+    from "better_supabase"."order_shipping_rates" x
     where x."tenant_id" = v_cart.tenant and x."active" and x."currency" = v_cart.currency
       and (cardinality(x."countries") = 0 or (v_cart.shipping_address ->> 'country') = any (x."countries"))
   ), '[]'::jsonb);
@@ -1016,8 +1016,8 @@ as $$
         'trackingNumber', y."tracking_number", 'trackingUrl', y."tracking_url", 'createdAt', y."created_at",
         'shippedAt', y."shipped_at", 'deliveredAt', y."delivered_at",
         'lines', coalesce((select jsonb_agg(jsonb_build_object('lineId', z."order_line_id", 'quantity', z."quantity"))
-          from "better_supabase"."fulfillment_lines" z where z."fulfillment_id" = y."id"), '[]'::jsonb)) order by y."created_at")
-      from "better_supabase"."fulfillments" y where y."order_id" = x."id"), '[]'::jsonb),
+          from "better_supabase"."order_fulfillment_lines" z where z."fulfillment_id" = y."id"), '[]'::jsonb)) order by y."created_at")
+      from "better_supabase"."order_fulfillments" y where y."order_id" = x."id"), '[]'::jsonb),
     'returns', coalesce((select jsonb_agg(jsonb_build_object(
         'id', y."id", 'status', y."status", 'reason', y."reason", 'createdAt', y."created_at",
         'receivedAt', y."received_at",
@@ -1292,7 +1292,7 @@ begin
   if v_order.status = 'cancelled' then
     return false;
   end if;
-  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."fulfillments" y
+  if v_order.status::text not in ('pending_payment', 'confirmed') or exists (select 1 from "better_supabase"."order_fulfillments" y
     where y."order_id" = v_order.id and y."status" in ('shipped', 'delivered')) then
     raise exception 'only an order waiting for payment or a confirmed one with nothing shipped can be cancelled; refund a paid one' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
@@ -1551,7 +1551,7 @@ begin
   if v_requested is null or jsonb_typeof(v_requested) <> 'array' or jsonb_array_length(v_requested) = 0 then
     raise exception 'no lines left to fulfill' using errcode = '55000', hint = 'ORDERS_NOTHING_TO_FULFILL';
   end if;
-  insert into "better_supabase"."fulfillments" ("tenant_id", "order_id", "location_id", "carrier", "tracking_number", "tracking_url")
+  insert into "better_supabase"."order_fulfillments" ("tenant_id", "order_id", "location_id", "carrier", "tracking_number", "tracking_url")
   values (v_order.tenant, v_order.id,
     coalesce(create_fulfillment.location, (select l."location_id" from "better_supabase"."order_lines" l where l."order_id" = v_order.id and l."location_id" is not null order by l."position" limit 1)),
     create_fulfillment.carrier, create_fulfillment.tracking_number, create_fulfillment.tracking_url)
@@ -1569,7 +1569,7 @@ begin
     if not found then
       raise exception 'a line isn''t on this order or has less left to fulfill' using errcode = '22023', hint = 'ORDERS_FULFILLMENT_INVALID';
     end if;
-    insert into "better_supabase"."fulfillment_lines" as x ("tenant_id", "fulfillment_id", "order_line_id", "quantity", "detail")
+    insert into "better_supabase"."order_fulfillment_lines" as x ("tenant_id", "fulfillment_id", "order_line_id", "quantity", "detail")
     values (v_order.tenant, v_id, v_item.line, v_item.quantity, v_item.detail)
     on conflict ("fulfillment_id", "order_line_id") do update set "quantity" = x."quantity" + excluded."quantity",
       "detail" = coalesce(excluded."detail", x."detail");
@@ -1607,7 +1607,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."id" as id, x."order_id" as order_id, x."status" as status into v_fulfillment
-  from "better_supabase"."fulfillments" x where x."id" = ship_fulfillment.fulfillment for update;
+  from "better_supabase"."order_fulfillments" x where x."id" = ship_fulfillment.fulfillment for update;
   if not found then
     raise exception 'fulfillment not found' using errcode = 'P0002', hint = 'ORDERS_FULFILLMENT_NOT_FOUND';
   end if;
@@ -1624,7 +1624,7 @@ begin
   if v_fulfillment.status <> 'pending' then
     raise exception 'only a pending fulfillment can ship' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
-  update "better_supabase"."fulfillments" x set "status" = 'shipped', "shipped_at" = now(),
+  update "better_supabase"."order_fulfillments" x set "status" = 'shipped', "shipped_at" = now(),
     "carrier" = coalesce(ship_fulfillment.carrier, x."carrier"),
     "tracking_number" = coalesce(ship_fulfillment.tracking_number, x."tracking_number"),
     "tracking_url" = coalesce(ship_fulfillment.tracking_url, x."tracking_url")
@@ -1632,7 +1632,7 @@ begin
   null;
   if v_order.status::text in ('paid', 'confirmed')
     and not exists (select 1 from "better_supabase"."order_lines" l where l."order_id" = v_order.id and l."quantity_fulfilled" < l."quantity")
-    and not exists (select 1 from "better_supabase"."fulfillments" x where x."order_id" = v_order.id and x."status" = 'pending') then
+    and not exists (select 1 from "better_supabase"."order_fulfillments" x where x."order_id" = v_order.id and x."status" = 'pending') then
     perform "better_supabase"."order_transition"(v_order.id, 'fulfilled');
     null;
   end if;
@@ -1658,7 +1658,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."id" as id, x."order_id" as order_id, x."status" as status into v_fulfillment
-  from "better_supabase"."fulfillments" x where x."id" = deliver_fulfillment.fulfillment for update;
+  from "better_supabase"."order_fulfillments" x where x."id" = deliver_fulfillment.fulfillment for update;
   if not found then
     raise exception 'fulfillment not found' using errcode = 'P0002', hint = 'ORDERS_FULFILLMENT_NOT_FOUND';
   end if;
@@ -1675,10 +1675,10 @@ begin
   if v_fulfillment.status <> 'shipped' then
     raise exception 'only a shipped fulfillment can be delivered' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
-  update "better_supabase"."fulfillments" x set "status" = 'delivered', "delivered_at" = now() where x."id" = v_fulfillment.id;
+  update "better_supabase"."order_fulfillments" x set "status" = 'delivered', "delivered_at" = now() where x."id" = v_fulfillment.id;
   null;
   if v_order.status = 'fulfilled'
-    and not exists (select 1 from "better_supabase"."fulfillments" x where x."order_id" = v_order.id and x."status" in ('pending', 'shipped')) then
+    and not exists (select 1 from "better_supabase"."order_fulfillments" x where x."order_id" = v_order.id and x."status" in ('pending', 'shipped')) then
     perform "better_supabase"."order_transition"(v_order.id, 'completed');
     null;
   end if;
@@ -1703,7 +1703,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select x."id" as id, x."order_id" as order_id, x."status" as status into v_fulfillment
-  from "better_supabase"."fulfillments" x where x."id" = cancel_fulfillment.fulfillment for update;
+  from "better_supabase"."order_fulfillments" x where x."id" = cancel_fulfillment.fulfillment for update;
   if not found then
     raise exception 'fulfillment not found' using errcode = 'P0002', hint = 'ORDERS_FULFILLMENT_NOT_FOUND';
   end if;
@@ -1721,9 +1721,9 @@ begin
     raise exception 'a shipped fulfillment can''t be cancelled; request a return' using errcode = '55000', hint = 'ORDERS_TRANSITION_INVALID';
   end if;
   update "better_supabase"."order_lines" x set "quantity_fulfilled" = x."quantity_fulfilled" - y."quantity"
-  from "better_supabase"."fulfillment_lines" y
+  from "better_supabase"."order_fulfillment_lines" y
   where y."fulfillment_id" = v_fulfillment.id and x."id" = y."order_line_id";
-  update "better_supabase"."fulfillments" x set "status" = 'cancelled' where x."id" = v_fulfillment.id;
+  update "better_supabase"."order_fulfillments" x set "status" = 'cancelled' where x."id" = v_fulfillment.id;
   return true;
 end;
 $$;
@@ -2068,25 +2068,25 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."cart_lines";
 create policy bsb_tenant_scope_delete on "better_supabase"."cart_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."shipping_rates";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."shipping_rates";
-create policy bsb_tenant_scope_select on "better_supabase"."shipping_rates" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."order_shipping_rates";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_shipping_rates";
+create policy bsb_tenant_scope_select on "better_supabase"."order_shipping_rates" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."shipping_rates";
-create policy bsb_tenant_scope_insert on "better_supabase"."shipping_rates" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_shipping_rates";
+create policy bsb_tenant_scope_insert on "better_supabase"."order_shipping_rates" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."shipping_rates";
-create policy bsb_tenant_scope_update on "better_supabase"."shipping_rates" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_shipping_rates";
+create policy bsb_tenant_scope_update on "better_supabase"."order_shipping_rates" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."shipping_rates";
-create policy bsb_tenant_scope_delete on "better_supabase"."shipping_rates" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_shipping_rates";
+create policy bsb_tenant_scope_delete on "better_supabase"."order_shipping_rates" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."orders";
@@ -2152,46 +2152,46 @@ drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_paymen
 create policy bsb_tenant_scope_delete on "better_supabase"."order_payments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."fulfillments";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."fulfillments";
-create policy bsb_tenant_scope_select on "better_supabase"."fulfillments" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."order_fulfillments";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_fulfillments";
+create policy bsb_tenant_scope_select on "better_supabase"."order_fulfillments" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."fulfillments";
-create policy bsb_tenant_scope_insert on "better_supabase"."fulfillments" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_fulfillments";
+create policy bsb_tenant_scope_insert on "better_supabase"."order_fulfillments" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."fulfillments";
-create policy bsb_tenant_scope_update on "better_supabase"."fulfillments" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_fulfillments";
+create policy bsb_tenant_scope_update on "better_supabase"."order_fulfillments" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."fulfillments";
-create policy bsb_tenant_scope_delete on "better_supabase"."fulfillments" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_fulfillments";
+create policy bsb_tenant_scope_delete on "better_supabase"."order_fulfillments" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope on "better_supabase"."fulfillment_lines";
-drop policy if exists bsb_tenant_scope_select on "better_supabase"."fulfillment_lines";
-create policy bsb_tenant_scope_select on "better_supabase"."fulfillment_lines" as restrictive
+drop policy if exists bsb_tenant_scope on "better_supabase"."order_fulfillment_lines";
+drop policy if exists bsb_tenant_scope_select on "better_supabase"."order_fulfillment_lines";
+create policy bsb_tenant_scope_select on "better_supabase"."order_fulfillment_lines" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')))
   );
-drop policy if exists bsb_tenant_scope_insert on "better_supabase"."fulfillment_lines";
-create policy bsb_tenant_scope_insert on "better_supabase"."fulfillment_lines" as restrictive
+drop policy if exists bsb_tenant_scope_insert on "better_supabase"."order_fulfillment_lines";
+create policy bsb_tenant_scope_insert on "better_supabase"."order_fulfillment_lines" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_update on "better_supabase"."fulfillment_lines";
-create policy bsb_tenant_scope_update on "better_supabase"."fulfillment_lines" as restrictive
+drop policy if exists bsb_tenant_scope_update on "better_supabase"."order_fulfillment_lines";
+create policy bsb_tenant_scope_update on "better_supabase"."order_fulfillment_lines" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()))
   with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
-drop policy if exists bsb_tenant_scope_delete on "better_supabase"."fulfillment_lines";
-create policy bsb_tenant_scope_delete on "better_supabase"."fulfillment_lines" as restrictive
+drop policy if exists bsb_tenant_scope_delete on "better_supabase"."order_fulfillment_lines";
+create policy bsb_tenant_scope_delete on "better_supabase"."order_fulfillment_lines" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 drop policy if exists bsb_tenant_scope on "better_supabase"."order_returns";
@@ -2274,13 +2274,13 @@ grant select on better_supabase.blocks to service_role;
 -- ==== data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block-data orders
--- @bsb-hash sha256:acf7c31a2affd9b036e8c484b098a6db30922b6ecd1e11fb42eaf5d3c231b461
+-- @bsb-hash sha256:9e7cf68a92d30df8f4303e95812a9d1f5c8e94508111060e75de394239f87417
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 insert into better_supabase.blocks (name, version, mode)
-values ('orders', 3, 'managed')
+values ('orders', 4, 'managed')
 on conflict (name) do update
   set version = excluded.version, mode = excluded.mode, updated_at = now();

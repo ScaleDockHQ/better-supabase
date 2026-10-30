@@ -15,6 +15,7 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { incidentsFunctions } from "./incidents-functions.ts";
 import {
   INCIDENT_RESERVED,
@@ -61,6 +62,7 @@ const EVENTS: BlockSqlEvents<IncidentsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("incidents", 1),
   entities: {
     incident: {
       table: "incidents",
@@ -83,7 +85,7 @@ const NAMES: BlockSqlNames = {
   options: ["extraColumns"],
   tables: {
     components: {
-      name: "status_components",
+      name: "incident_status_components",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -102,7 +104,7 @@ const NAMES: BlockSqlNames = {
       typed: ["status"],
     },
     history: {
-      name: "status_component_history",
+      name: "incident_status_component_history",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -216,7 +218,7 @@ const NAMES: BlockSqlNames = {
       optional: ["createdAt"],
     },
     pages: {
-      name: "status_pages",
+      name: "incident_status_pages",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -537,6 +539,7 @@ export const INCIDENTS: BlockSqlDefinition = {
   integrates: ["notifications", "outbox", "audit", "tasks"],
   target: "schema",
   modes: ["managed", "custom"],
+  version: 2,
   names: NAMES,
   contract,
   build,

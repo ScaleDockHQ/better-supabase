@@ -5,7 +5,7 @@ import type {
 } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlString, sqlIdent } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -17,10 +17,12 @@ import {
   withExtraFields,
   writeExtraColumns,
 } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { invoiceLedger } from "./invoices-ledger.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("goals", 1),
   entities: {
     goal: {
       table: "targets",
@@ -32,7 +34,7 @@ const NAMES: BlockSqlNames = {
   options: ["extraColumns"],
   tables: {
     targets: {
-      name: "targets",
+      name: "goals",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -167,9 +169,9 @@ ${
   ${c("actual")} bigint not null default 0,${optional("archivedAt", "timestamptz")}${optional("createdAt", "timestamptz not null default now()")}${optional("updatedAt", "timestamptz not null default now()")}
   check (${c("periodEnd")} >= ${c("periodStart")})
 );${addExtraColumns(t, extras)}
-create index if not exists ${ctx.naming.rename("targets_period_idx")} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")})${has("archivedAt") ? ` where ${c("archivedAt")} is null` : ""};
+create index if not exists ${sqlIdent(`${ctx.tableName("targets").name}_period_idx`)} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")})${has("archivedAt") ? ` where ${c("archivedAt")} is null` : ""};
 ${lockTable(t, { read: true })}
-${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("targets_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: t })}
+${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("targets").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { drop: true, target: t })}
 `
     : ""
 }
@@ -259,7 +261,7 @@ export const TARGETS: BlockSqlDefinition = {
   integrates: ["deals", "tasks", "invoices"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

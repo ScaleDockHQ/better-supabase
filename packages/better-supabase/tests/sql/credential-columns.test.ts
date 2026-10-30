@@ -18,8 +18,8 @@ const ALLOWED = (name: string): boolean =>
  * TXT record, and a chunk's token count is a number.
  */
 const KNOWN = new Set([
-  '"better_supabase"."organization_domains".verification_token',
-  '"better_supabase"."organization_hostnames".verification_token',
+  '"better_supabase"."sso_domains".verification_token',
+  '"better_supabase"."hostnames".verification_token',
   '"better_supabase"."knowledge_chunks".token_count',
 ]);
 

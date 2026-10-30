@@ -92,7 +92,7 @@ describe.skipIf(!live)("block instances against Postgres", () => {
       `select table_name as name from information_schema.tables
        where table_schema = $1
          and table_name in ('tags', 'taggings', 'labels', 'labels_taggings',
-           'pipelines', 'hiring_pipelines', 'work_items', 'tickets')
+           'pipelines', 'hiring_pipelines', 'tasks', 'tickets')
        order by 1`,
       [SCRATCH],
     );
@@ -104,8 +104,8 @@ describe.skipIf(!live)("block instances against Postgres", () => {
       "pipelines",
       "taggings",
       "tags",
+      "tasks",
       "tickets",
-      "work_items",
     ]);
   });
 

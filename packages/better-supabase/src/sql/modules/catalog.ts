@@ -8,7 +8,7 @@ import type {
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { Names } from "./catalog-names.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlString, sqlIdent } from "../../core/template.ts";
 import { currencyMinorUnitsFunction } from "../money-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
@@ -17,6 +17,7 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import {
   catalogLocales,
   channelContract,
@@ -233,7 +234,7 @@ const NAMES: BlockSqlNames = {
       },
     },
     priceLists: {
-      name: "price_lists",
+      name: "catalog_price_lists",
       app: {},
       lifecycle: tenantExport,
       optionalTable: true,
@@ -266,7 +267,7 @@ const NAMES: BlockSqlNames = {
       optional: ["priceList", "compareAt", "validFrom", "validUntil"],
     },
     categories: {
-      name: "categories",
+      name: "catalog_categories",
       app: {},
       lifecycle: tenantExport,
       optionalTable: true,
@@ -322,7 +323,7 @@ const NAMES: BlockSqlNames = {
       },
     },
     storefronts: {
-      name: "storefronts",
+      name: "catalog_storefronts",
       app: {},
       lifecycle: tenantExport,
       optionalTable: true,
@@ -411,6 +412,7 @@ const NAMES: BlockSqlNames = {
       table: "collections",
       was: "collections",
     },
+    ...tableMoves("catalog", 3),
   ],
 };
 
@@ -578,7 +580,7 @@ create table if not exists ${t("categories")} (
   ${c("categories", "updatedAt")} timestamptz not null default now(),
   unique (${c("categories", "tenant")}, ${c("categories", "slug")})
 );
-create index if not exists ${ctx.naming.rename("categories_parent_idx")} on ${t("categories")} (${c("categories", "parent")});${addExtraColumns(t("categories"), categoryExtras(ctx))}
+create index if not exists ${sqlIdent(`${ctx.tableName("categories").name}_parent_idx`)} on ${t("categories")} (${c("categories", "parent")});${addExtraColumns(t("categories"), categoryExtras(ctx))}
 ${lockTable(t("categories"), { read: true })}
 ${read("categories")}
 
@@ -924,7 +926,7 @@ export const CATALOG: BlockSqlDefinition = {
   integrates: ["outbox", "state-machine", "inventory", "attachments"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 3,
+  version: 4,
   names: NAMES,
   upgrades: [
     {

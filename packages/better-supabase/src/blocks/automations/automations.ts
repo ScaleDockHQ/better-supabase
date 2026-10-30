@@ -68,9 +68,9 @@ export interface Rule {
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
   /**
-   * The key of the default automation this rule copies (`rule_defaults`), or
-   * `undefined` for a rule the organization wrote. A default can't be removed;
-   * turn it off or `resetDefault` it.
+   * The key of the default automation this rule copies (`automation_defaults`),
+   * or `undefined` for a rule the organization wrote. A default can't be
+   * removed; turn it off or `resetDefault` it.
    */
   readonly defaultKey: string | undefined;
 }

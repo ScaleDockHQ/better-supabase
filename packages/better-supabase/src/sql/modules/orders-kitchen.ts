@@ -1,7 +1,7 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 import type { OrdersNames } from "./orders-shared.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlString, sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, pageSize, userGrant } from "../shared.ts";
 import { columns, orderFields, orderPayload } from "./orders-shared.ts";
@@ -16,7 +16,7 @@ export const KITCHEN_TOPIC = "kitchen";
 /** The tables `options.kitchen` adds, for the module's names. */
 export const KITCHEN_TABLES = {
   kitchenStations: {
-    name: "kitchen_stations",
+    name: "order_kitchen_stations",
     app: {},
     columns: {
       id: "id",
@@ -31,7 +31,7 @@ export const KITCHEN_TABLES = {
     },
   },
   kitchenRoutes: {
-    name: "kitchen_routes",
+    name: "order_kitchen_routes",
     app: {},
     columns: {
       product: "product_id",
@@ -176,7 +176,7 @@ create table if not exists ${t("kitchenStations")} (
   ${ks("updatedAt")} timestamptz not null default now(),
   unique (${ks("tenant")}, ${ks("key")})
 );
-create unique index if not exists kitchen_stations_default_idx on ${t("kitchenStations")} (${ks("tenant")}) where ${ks("isDefault")};
+create unique index if not exists ${sqlIdent(`${ctx.tableName("kitchenStations").name}_default_idx`)} on ${t("kitchenStations")} (${ks("tenant")}) where ${ks("isDefault")};
 ${lockModuleTable(ctx, "kitchenStations", { read: true })}
 ${policy("kitchenStations")}
 
@@ -185,7 +185,7 @@ create table if not exists ${t("kitchenRoutes")} (
   ${kr("tenant")} ${ctx.idType} not null,
   ${kr("station")} uuid not null references ${t("kitchenStations")} (${ks("id")}) on delete cascade
 );${appUniqueIndex(ctx, "kitchenRoutes", ["product"])}
-create index if not exists kitchen_routes_station_idx on ${t("kitchenRoutes")} (${kr("station")});
+create index if not exists ${sqlIdent(`${ctx.tableName("kitchenRoutes").name}_${ctx.naming.rename("station_idx")}`)} on ${t("kitchenRoutes")} (${kr("station")});
 ${lockModuleTable(ctx, "kitchenRoutes", { read: true })}
 ${policy("kitchenRoutes")}
 

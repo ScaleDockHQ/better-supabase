@@ -215,6 +215,23 @@ describe("NAMES.migrations", () => {
       ),
     ).toEqual([]);
   });
+
+  it("renders a step before the move against the table's old name", () => {
+    const [plan] = upgradePlan([
+      { module: "compliance", version: 1 },
+      { module: "acknowledgements", version: 1 },
+    ]).filter((each) => each.module === "compliance");
+
+    const [acknowledgements, rename] = plan!.steps;
+
+    expect(acknowledgements!.sql).toContain(
+      'from "better_supabase"."policies" x',
+    );
+    expect(acknowledgements!.sql).not.toContain('."compliance_policies"');
+    expect(rename!.sql).toContain(
+      'alter table "better_supabase"."policies" rename to "compliance_policies"',
+    );
+  });
 });
 
 describe("deprecations", () => {

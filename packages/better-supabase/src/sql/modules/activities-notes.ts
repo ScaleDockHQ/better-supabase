@@ -1,6 +1,6 @@
 import type { BlockSqlContext, BlockSqlContractFunction } from "../context.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlString, sqlIdent } from "../../core/template.ts";
 import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
@@ -271,7 +271,7 @@ export function noteColumnsSql(ctx: BlockSqlContext): string {
 -- in-error flag.
 ${present.map(([column, definition]) => `alter table ${t} add column if not exists ${definition(e(column))};`).join("\n")}${
     ctx.has("engagements", "amends")
-      ? `\ncreate index if not exists ${ctx.naming.rename("engagements_amends_idx")} on ${t} (${e("amends")});`
+      ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_amends_idx`)} on ${t} (${e("amends")});`
       : ""
   }`;
 }

@@ -93,12 +93,12 @@ export function rulesTablesSql(ctx: BlockSqlContext): string {
 
   const byIndex = (column: string, name: string): string =>
     ctx.has("rules", column)
-      ? `\ncreate index if not exists ${ctx.naming.rename(name)} on ${t} (${r(column)}) where ${r(column)} is not null;`
+      ? `\ncreate index if not exists ${name} on ${t} (${r(column)}) where ${r(column)} is not null;`
       : "";
 
   const defaultKey = ctx.has("rules", "defaultKey")
     ? `\nalter table ${t} add column if not exists ${r("defaultKey")} text;
-create unique index if not exists ${ctx.naming.rename("rules_default_key_idx")} on ${t} (${r("tenant")}, ${r("defaultKey")}) where ${r("defaultKey")} is not null;`
+create unique index if not exists ${sqlIdent(`${ctx.tableName("rules").name}_default_key_idx`)} on ${t} (${r("tenant")}, ${r("defaultKey")}) where ${r("defaultKey")} is not null;`
     : "";
 
   return `-- Tenant rules: a FilterQuery over a subject type's fields, tested when the
@@ -136,7 +136,7 @@ ${createTable(ctx, "rules", [
   ["createdAt", "timestamptz not null default now()"],
   ["updatedAt", "timestamptz not null default now()"],
 ])}
-create index if not exists ${ctx.naming.rename("rules_trigger_idx")} on ${t} (${r("tenant")}, ${r("subjectType")}, ${r("trigger")}, ${r("rank")});${byIndex("createdBy", "rules_created_by_idx")}${byIndex("updatedBy", "rules_updated_by_idx")}${defaultKey}
+create index if not exists ${sqlIdent(`${ctx.tableName("rules").name}_trigger_idx`)} on ${t} (${r("tenant")}, ${r("subjectType")}, ${r("trigger")}, ${r("rank")});${byIndex("createdBy", sqlIdent(`${ctx.tableName("rules").name}_created_by_idx`))}${byIndex("updatedBy", sqlIdent(`${ctx.tableName("rules").name}_updated_by_idx`))}${defaultKey}
 ${lockTable(t)}
 
 -- The automations blocks ship (defineBlock automations). Each organization
@@ -183,7 +183,7 @@ ${createTable(ctx, "versions", [
   ["savedAt", "timestamptz not null default now()"],
   [null, `primary key (${rv("rule")}, ${rv("version")})`],
 ])}
-create index if not exists ${ctx.naming.rename("rule_versions_tenant_idx")} on ${v} (${rv("tenant")});${appKey(ctx, "versions", "version", ["rule", "version"])}
+create index if not exists ${sqlIdent(`${ctx.tableName("versions").name}_tenant_idx`)} on ${v} (${rv("tenant")});${appKey(ctx, "versions", "version", ["rule", "version"])}
 ${lockTable(v)}
 
 -- Live and test evaluations: which rule version saw which subject, and the
@@ -205,8 +205,8 @@ ${createTable(ctx, "evaluations", [
   ["evaluatedBy", "uuid"],
   ["evaluatedAt", "timestamptz not null default now()"],
 ])}
-create index if not exists ${ctx.naming.rename("rule_evaluations_rule_idx")} on ${e} (${re("rule")}, ${re("evaluatedAt")} desc);
-create index if not exists ${ctx.naming.rename("rule_evaluations_tenant_idx")} on ${e} (${re("tenant")}, ${re("evaluatedAt")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("evaluations").name}_${ctx.naming.rename("rule_idx")}`)} on ${e} (${re("rule")}, ${re("evaluatedAt")} desc);
+create index if not exists ${sqlIdent(`${ctx.tableName("evaluations").name}_tenant_idx`)} on ${e} (${re("tenant")}, ${re("evaluatedAt")} desc);
 ${lockTable(e)}
 
 -- The fields rules may test, per subject type. The app declares them in code

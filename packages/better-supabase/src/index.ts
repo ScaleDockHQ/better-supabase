@@ -21,6 +21,7 @@ export {
   PROGRAM_EVENT_MOVES,
   renamed,
   SUBJECT_TYPE_RENAMES,
+  TABLE_RENAMES,
 } from "./core/renames.ts";
 
 export type { DbStats } from "./core/stats.ts";

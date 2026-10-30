@@ -467,7 +467,7 @@ export default defineConfig({
     acknowledgements: {
       on: {
         compliance_policy: {
-          table: "better_supabase.policies",
+          table: "better_supabase.compliance_policies",
           idType: "uuid",
           tenant: "tenant_id",
           versionColumn: "current_version_id",

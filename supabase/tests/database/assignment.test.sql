@@ -7,7 +7,7 @@ select plan(18);
 create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, anon, service_role;
 
-insert into better_supabase.rule_fields (subject_type, field_id, label, type, path, column_type, nullable)
+insert into better_supabase.automation_fields (subject_type, field_id, label, type, path, column_type, nullable)
 values ('company', 'lifecycle', 'Lifecycle', 'select', 'lifecycle', 'text', false);
 
 -- Acme member: sees the queues, can't change them.

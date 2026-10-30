@@ -9,7 +9,7 @@ select is(
   (select count(*) from pg_catalog.pg_tables
    where schemaname = 'better_supabase'
      and tablename in ('incidents', 'incident_updates', 'incident_impacts', 'incident_postmortems',
-       'status_components', 'status_component_history', 'status_pages')
+       'incident_status_components', 'incident_status_component_history', 'incident_status_pages')
      and rowsecurity),
   7::bigint,
   'every incidents table has RLS enabled'
@@ -18,9 +18,9 @@ select table_privs_are('better_supabase', 'incidents', 'anon', '{}'::text[],
   'anon has no privileges on incidents');
 select table_privs_are('better_supabase', 'incident_updates', 'anon', '{}'::text[],
   'anon has no privileges on incident updates');
-select table_privs_are('better_supabase', 'status_components', 'anon', '{}'::text[],
+select table_privs_are('better_supabase', 'incident_status_components', 'anon', '{}'::text[],
   'anon has no privileges on status components');
-select table_privs_are('better_supabase', 'status_pages', 'anon', '{}'::text[],
+select table_privs_are('better_supabase', 'incident_status_pages', 'anon', '{}'::text[],
   'anon has no privileges on status pages');
 select is(
   (select array_agg(p.proname::text order by p.proname)
@@ -64,7 +64,7 @@ select lives_ok(
   'an owner posts a private update on a public incident'
 );
 select is(
-  (select status from better_supabase.status_components where id = (select id from ids where name = 'api')),
+  (select status from better_supabase.incident_status_components where id = (select id from ids where name = 'api')),
   'partial_outage',
   'an impact sets the component status'
 );

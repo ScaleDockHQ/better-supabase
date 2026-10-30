@@ -9,8 +9,10 @@ import { sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { fail, raise, schemaPreamble, SERVICE_CALLER } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { defaultRulesSql, saveVersionSql } from "./automations-defaults-sql.ts";
 import { operatorTable, rulesEvaluator } from "./automations-evaluate.ts";
+import { EVENTS } from "./automations-events.ts";
 import {
   ACTION_KIND,
   AUTOMATION_EVENTS,
@@ -23,6 +25,7 @@ import { storedTypesData } from "./event-type-renames.ts";
 import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("automations", 1),
   entities: {
     automation: {
       table: "rules",
@@ -36,7 +39,7 @@ const NAMES: BlockSqlNames = {
   hooks: [],
   tables: {
     rules: {
-      name: "rules",
+      name: "automations",
       app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
@@ -67,7 +70,7 @@ const NAMES: BlockSqlNames = {
       ],
     },
     defaults: {
-      name: "rule_defaults",
+      name: "automation_defaults",
       app: { writes: false },
       columns: {
         key: "key",
@@ -83,7 +86,7 @@ const NAMES: BlockSqlNames = {
       },
     },
     versions: {
-      name: "rule_versions",
+      name: "automation_versions",
       app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
@@ -99,7 +102,7 @@ const NAMES: BlockSqlNames = {
       optional: ["savedBy"],
     },
     evaluations: {
-      name: "rule_evaluations",
+      name: "automation_evaluations",
       app: {},
       lifecycle: { tenant: "tenant" },
       columns: {
@@ -120,7 +123,7 @@ const NAMES: BlockSqlNames = {
       typed: ["mode"],
     },
     fields: {
-      name: "rule_fields",
+      name: "automation_fields",
       app: {},
       columns: {
         subjectType: "subject_type",
@@ -1022,7 +1025,7 @@ export const RULES: BlockSqlDefinition = {
   integrates: [],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   data: (ctx) =>
     storedTypesData(ctx, [

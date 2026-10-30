@@ -169,7 +169,7 @@ describe("generator model blocks", () => {
       from: { singular: "task", plural: "tasks" },
       to: { singular: "task", plural: "tasks" },
       primary: true,
-      table: "work_items",
+      table: "tasks",
       url: "/tasks/{id}",
       schemas: {
         input: expect.objectContaining({ title: "WorkItemInput" }),

@@ -101,7 +101,7 @@ const CASES = [
   {
     module: "leases",
     needs: ["organizations", "subjects", "assets", "ledger"],
-    table: "lease_agreements",
+    table: "leases",
     write: "create_lease.fields",
     read: "get_lease",
   },

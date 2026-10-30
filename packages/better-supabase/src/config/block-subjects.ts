@@ -7,6 +7,7 @@ import { SUBJECT_TYPE_RENAMES } from "../core/renames.ts";
 import { PRESET_CATALOG } from "../preset/catalog.generated.ts";
 import { clientFunctions } from "../sql/client-functions.ts";
 import { resolveNames } from "../sql/resolved-names.ts";
+import { tableBase } from "../sql/table-renames.ts";
 import { blockColumnName } from "../sql/tenant-column.ts";
 import { resolveBlock } from "./blocks.ts";
 
@@ -191,9 +192,10 @@ export function blockEntities(
     const target = logical === undefined ? undefined : mapped[logical];
 
     const table =
-      spec === undefined || target === null
+      logical === undefined || spec === undefined || target === null
         ? undefined
-        : (target ?? resolved.naming.rename(spec.name));
+        : (target ??
+          resolved.naming.rename(tableBase(resolved, logical, spec.name)));
 
     return {
       key: entity.key,
@@ -269,7 +271,10 @@ function subjectsOf(
           ? column(subject.fallbackTitle)
           : column(key);
 
-      const name = mapped ?? resolved.naming.rename(table.name);
+      const name =
+        mapped ??
+        resolved.naming.rename(tableBase(resolved, logical, table.name));
+
       const url = entity.url ?? subject.url;
 
       const entry: SubjectConfig = {

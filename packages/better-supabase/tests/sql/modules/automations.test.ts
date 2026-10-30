@@ -15,10 +15,10 @@ describe("automations block", () => {
     const sql = body();
 
     for (const table of [
-      "rules",
-      "rule_versions",
-      "rule_evaluations",
-      "rule_fields",
+      "automations",
+      "automation_versions",
+      "automation_evaluations",
+      "automation_fields",
     ]) {
       expect(sql).toContain(
         `create table if not exists "better_supabase"."${table}"`,

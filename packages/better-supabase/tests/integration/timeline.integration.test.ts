@@ -130,7 +130,7 @@ describe.skipIf(!live)("activity", () => {
         subject_type: string;
         subject_id: string;
       }>(
-        `select type, actor_id, subject_type, subject_id from better_supabase.activity_entries
+        `select type, actor_id, subject_type, subject_id from better_supabase.timeline_entries
          where organization_id = $1 order by event_id`,
         [organization],
       );
@@ -158,7 +158,7 @@ describe.skipIf(!live)("activity", () => {
 
       await s.asRole(viewer);
       expect(
-        await s.rows("select 1 from better_supabase.activity_entries"),
+        await s.rows("select 1 from better_supabase.timeline_entries"),
       ).toEqual([]);
       await s.asRole(member);
       expect(

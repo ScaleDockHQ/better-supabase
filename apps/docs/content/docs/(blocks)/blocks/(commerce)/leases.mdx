@@ -27,17 +27,17 @@ and how recurring charges post on the ledger is in
 
 ## Tables
 
-| Table              | Holds                                                                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| `lease_agreements` | The unit (an asset), the party (`party_type`, `party_id`), the dates, `rent` and `currency` per `frequency`, the deposit and its hold |
-| `lease_charges`    | One row per rent period posted: the period, the amount and the ledger transaction, unique per lease and period                        |
+| Table           | Holds                                                                                                                                 |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `leases`        | The unit (an asset), the party (`party_type`, `party_id`), the dates, `rent` and `currency` per `frequency`, the deposit and its hold |
+| `lease_charges` | One row per rent period posted: the period, the amount and the ledger transaction, unique per lease and period                        |
 
 Members with `leases.read` read every lease and charge of the organization.
 Writes go through the functions, which need `leases.manage`.
 
 ## Your own columns
 
-`extraColumns` adds columns to the `lease_agreements` table, and the client's `fields` schema types them.
+`extraColumns` adds columns to the `leases` table, and the client's `fields` schema types them.
 
 Server code calls the `leases` instance on `db`, in the caller's organization. With `gen.hooks` set, `better-supabase gen` writes the hooks:
 

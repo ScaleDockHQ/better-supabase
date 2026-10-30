@@ -3270,7 +3270,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       ).rows[0].h,
     ).toBeNull();
     await pool.query(
-      "update better_supabase.leases set expires_at = now() - interval '1 second' where key = $1",
+      "update better_supabase.idempotency_leases set expires_at = now() - interval '1 second' where key = $1",
       [key],
     );
 

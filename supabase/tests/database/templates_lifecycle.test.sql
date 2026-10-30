@@ -204,7 +204,7 @@ select is(
 
 -- A status change the sink also stored shows once, from status_history.
 set local role service_role;
-insert into better_supabase.activity_entries (organization_id, event_id, type, subject_type, subject_id)
+insert into better_supabase.timeline_entries (organization_id, event_id, type, subject_type, subject_id)
 values (
   '00000000-0000-4000-8000-000000000001', 'test:status-changed', 'status.changed', 'change_request',
   (select id::text from public.change_requests where title = 'Rotate keys')

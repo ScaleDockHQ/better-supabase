@@ -21,6 +21,7 @@ import {
   lockTable,
   schemaPreamble,
 } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { acknowledgementTables } from "./acknowledgements.ts";
 import { complianceFunctions } from "./compliance-functions.ts";
 import { POLICY_ROLE, policyFunctions } from "./compliance-policies.ts";
@@ -62,6 +63,7 @@ const EVENTS: BlockSqlEvents<ComplianceEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("compliance", 2),
   entities: {
     control: {
       table: "controls",
@@ -169,7 +171,7 @@ const NAMES: BlockSqlNames = {
       optional: ["assignee", "lastCollectedAt", "createdAt", "updatedAt"],
     },
     policies: {
-      name: "policies",
+      name: "compliance_policies",
       app: {},
       lifecycle: { tenant: "tenant", export: true },
       columns: {
@@ -548,7 +550,7 @@ export const COMPLIANCE: BlockSqlDefinition = {
   integrates: ["attachments", "notifications", "outbox", "audit"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [TO_ACKNOWLEDGEMENTS],
   deprecated: DEPRECATED,
   names: NAMES,

@@ -19,10 +19,10 @@ It has three parts:
 better-supabase add memory   # adds tenant, access and vector-search as well
 ```
 
-| Table                   | Holds                                                                                          |
-| ----------------------- | ---------------------------------------------------------------------------------------------- |
-| `memories`              | Core files (`kind` `core`, with a `path`) and archival facts (`archival`), each with `version` |
-| `ai_message_embeddings` | One embedding per chat message and user                                                        |
+| Table                       | Holds                                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| `memories`                  | Core files (`kind` `core`, with a `path`) and archival facts (`archival`), each with `version` |
+| `memory_message_embeddings` | One embedding per chat message and user                                                        |
 
 Every memory belongs to a namespace: the `user` (the default), an `agent`,
 a `chat` or a `project` of that user, or the `organization`. A `project`

@@ -43,7 +43,7 @@ describe("blocks.<name>.entities in the SQL", () => {
   it("writes the default names and no marker without entities", () => {
     const sql = body("tasks", {});
 
-    expect(sql).toContain('"better_supabase"."work_items"');
+    expect(sql).toContain('"better_supabase"."tasks"');
     expect(sql).toContain('"better_supabase"."create_task"(');
     expect(sql).toContain("'task.created'");
     expect(sql).not.toContain("@bsb-names");
@@ -258,7 +258,7 @@ describe("entityRenamePlan", () => {
     expect(sql(TASKS)).toEqual(
       expect.arrayContaining([
         expect.stringContaining(
-          'alter table "better_supabase"."work_items" rename to "tickets"',
+          'alter table "better_supabase"."tasks" rename to "tickets"',
         ),
         expect.stringContaining(
           'alter table "better_supabase"."projects" rename to "initiatives"',
@@ -353,7 +353,7 @@ describe("entityRenamePlan", () => {
     ).toEqual(
       expect.arrayContaining([
         expect.stringContaining(
-          'alter table "better_supabase"."tickets" rename to "work_items"',
+          'alter table "better_supabase"."tickets" rename to "tasks"',
         ),
       ]),
     );

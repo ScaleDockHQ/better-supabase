@@ -26,13 +26,13 @@ is audited.
 
 ## Tables
 
-| Table                | Holds                                                                                              |
-| -------------------- | -------------------------------------------------------------------------------------------------- |
-| `control_frameworks` | A framework per organization by `key`, with a name and version                                     |
-| `controls`           | A control in a framework by `code`, with a title, an owner and whether it applies                  |
-| `control_evidence`   | Evidence for a control: an attachment, a note or both, who collected it and until when it is valid |
-| `evidence_tasks`     | Recurring evidence: a title, an interval in days, the next due date and an assignee                |
-| `policies`           | A policy by `key` with an owner and its current published version                                  |
+| Table                 | Holds                                                                                              |
+| --------------------- | -------------------------------------------------------------------------------------------------- |
+| `control_frameworks`  | A framework per organization by `key`, with a name and version                                     |
+| `controls`            | A control in a framework by `code`, with a title, an owner and whether it applies                  |
+| `control_evidence`    | Evidence for a control: an attachment, a note or both, who collected it and until when it is valid |
+| `evidence_tasks`      | Recurring evidence: a title, an interval in days, the next due date and an assignee                |
+| `compliance_policies` | A policy by `key` with an owner and its current published version                                  |
 
 Who acknowledged which version of a policy lives in the acknowledgements
 block's `acknowledgements` table.

@@ -17,7 +17,7 @@ $$;
 const BOOT = { timeout: 60_000 };
 
 describe("idempotency next to the leases block", () => {
-  it("creates its leases table apart from the lease agreements", () => {
+  it("creates its idempotency_leases table apart from the leases", () => {
     const files = renderBlocks(["idempotency", "leases"]);
 
     const schema = files
@@ -26,29 +26,31 @@ describe("idempotency next to the leases block", () => {
       .join("\n");
 
     expect(schema).toContain(
-      `create table if not exists "better_supabase"."leases"`,
+      `create table if not exists "better_supabase"."idempotency_leases"`,
     );
     expect(schema).toContain(
-      `create table if not exists "better_supabase"."lease_agreements"`,
+      `create table if not exists "better_supabase"."leases"`,
     );
   });
 
   it("names both config keys when two blocks would create one table", () => {
     expect(() =>
       renderBlocks(["idempotency", "leases"], {
-        modules: { leases: { tables: { leases: "better_supabase.leases" } } },
+        modules: {
+          idempotency: { tables: { leases: "better_supabase.leases" } },
+        },
       }),
     ).toThrow(
       "blocks.idempotency.tables.leases and blocks.leases.tables.leases both name better_supabase.leases",
     );
   });
 
-  it("installs when the idempotency leases table has another name", () => {
+  it("installs when both tables have other names", () => {
     expect(
       renderBlocks(["idempotency", "leases"], {
         modules: {
-          idempotency: { tables: { leases: "idempotency_leases" } },
-          leases: { tables: { leases: "leases" } },
+          idempotency: { tables: { leases: "idempotency_locks" } },
+          leases: { tables: { leases: "lease_agreements" } },
         },
       }).length,
     ).toBeGreaterThan(0);
@@ -76,8 +78,8 @@ begin
   if better_supabase.acquire_lease('job', 60, 'conv') is null then
     raise exception 'no lease';
   end if;
-  if to_regclass('better_supabase.lease_agreements') is null then
-    raise exception 'no lease agreements';
+  if to_regclass('better_supabase.leases') is null then
+    raise exception 'no leases';
   end if;
 end;
 $$;`,

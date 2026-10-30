@@ -16,6 +16,7 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
+import { tableMoves } from "../table-renames.ts";
 import { leaseAccountingSources } from "./leases-accounting.ts";
 import { LEASE_RESERVED, leasesFunctions } from "./leases-functions.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
@@ -58,6 +59,7 @@ const EVENTS: BlockSqlEvents<LeasesEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("leases", 2),
   entities: {
     lease: {
       table: "leases",
@@ -73,7 +75,7 @@ const NAMES: BlockSqlNames = {
   options: ["extraColumns"],
   tables: {
     leases: {
-      name: "lease_agreements",
+      name: "leases",
       app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
@@ -324,7 +326,7 @@ export const LEASES: BlockSqlDefinition = {
   integrates: ["outbox", "audit", "accounting"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,

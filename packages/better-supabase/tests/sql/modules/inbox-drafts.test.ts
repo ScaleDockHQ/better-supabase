@@ -67,8 +67,10 @@ describe("inbox drafts", () => {
   it("adds drafts in the upgrade from version 5", () => {
     const [plan] = upgradePlan([{ module: "inbox", version: 5 }]);
 
-    expect(plan?.steps.map((step) => step.description)).toEqual([
-      expect.stringContaining("inbox_drafts"),
-    ]);
+    expect(
+      plan?.steps
+        .filter((step) => step.from === 5)
+        .map((step) => step.description),
+    ).toEqual([expect.stringContaining("inbox_drafts")]);
   });
 });

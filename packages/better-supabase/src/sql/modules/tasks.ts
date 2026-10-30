@@ -9,7 +9,7 @@ import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 import type { WorkItemNames } from "./tasks-functions.ts";
 
-import { sqlString } from "../../core/template.ts";
+import { sqlString, sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { entityType } from "../resolved-names.ts";
 import {
@@ -18,6 +18,7 @@ import {
   schemaPreamble,
   triggerGrant,
 } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { subjectTypeRenames } from "./subject-type-renames.ts";
@@ -80,6 +81,7 @@ const EVENTS: BlockSqlEvents<TasksEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("tasks", 2),
   events: EVENTS,
   entities: {
     task: {
@@ -115,7 +117,7 @@ const NAMES: BlockSqlNames = {
   ],
   tables: {
     items: {
-      name: "work_items",
+      name: "tasks",
       app: {},
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
       columns: {
@@ -164,7 +166,7 @@ const NAMES: BlockSqlNames = {
       mappable: ["priority"],
     },
     checklist: {
-      name: "work_item_checklist_items",
+      name: "task_checklist_items",
       app: {},
       optionalTable: true,
       lifecycle: { tenant: "tenant", user: "createdBy", export: true },
@@ -183,7 +185,7 @@ const NAMES: BlockSqlNames = {
       optional: ["doneAt", "doneBy", "createdBy"],
     },
     assignees: {
-      name: "work_item_assignees",
+      name: "task_assignees",
       app: {},
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
@@ -338,9 +340,9 @@ create table if not exists ${t("items")} (
   ${w("updatedAt")} timestamptz not null default now(),
   unique (${w("tenant")}, ${w("number")})${both("items", "startAt", "endAt") ? `,\n  check (${w("endAt")} is null or ${w("startAt")} is null or ${w("endAt")} >= ${w("startAt")})` : ""}
 );${appUniqueIndex(ctx, "items", ["tenant", "number"])}
-create index if not exists ${ctx.naming.rename("work_items_board_idx")} on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
-create index if not exists ${ctx.naming.rename("work_items_parent_idx")} on ${t("items")} (${w("parent")});${ctx.has("items", "project") ? `\ncreate index if not exists ${ctx.naming.rename("work_items_project_idx")} on ${t("items")} (${w("project")});` : ""}${ctx.has("items", "iteration") ? `\ncreate index if not exists ${ctx.naming.rename("work_items_iteration_idx")} on ${t("items")} (${w("iteration")});` : ""}
-create index if not exists ${ctx.naming.rename("work_items_due_idx")} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}
+create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_board_idx`)} on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
+create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_parent_idx`)} on ${t("items")} (${w("parent")});${ctx.has("items", "project") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("project_idx")}`)} on ${t("items")} (${w("project")});` : ""}${ctx.has("items", "iteration") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("iteration_idx")}`)} on ${t("items")} (${w("iteration")});` : ""}
+create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_due_idx`)} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}
 ${lockModuleTable(ctx, "items", { read: true })}
 ${read("items")}
 
@@ -350,7 +352,7 @@ create table if not exists ${t("assignees")} (
   ${a("user")} uuid not null,${column("assignees", "createdAt", (name) => `${name} timestamptz not null default now()`)}
   primary key (${a("item")}, ${a("user")})
 );${appUniqueIndex(ctx, "assignees", ["item", "user"])}
-create index if not exists ${ctx.naming.rename("work_item_assignees_user_idx")} on ${t("assignees")} (${a("user")});
+create index if not exists ${sqlIdent(`${ctx.tableName("assignees").name}_user_idx`)} on ${t("assignees")} (${a("user")});
 ${lockModuleTable(ctx, "assignees", { read: true })}
 ${read("assignees")}
 ${checklistTable(ctx, n)}`;
@@ -640,7 +642,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   ],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 2,
+  version: 3,
   upgrades: [
     {
       from: 1,

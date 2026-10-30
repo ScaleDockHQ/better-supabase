@@ -35,7 +35,7 @@ import {
 } from "../shared.ts";
 
 /**
- * Where a timeline entry comes from: `event` for an `activity_entries` row that
+ * Where a timeline entry comes from: `event` for an `timeline_entries` row that
  * `activitySink()` wrote, `audit` for an audit log entry on the subject's row
  * (with the `audit` and `subjects` modules), `delivery` for a notification
  * delivery about the subject (with `notifications`), `run` for a workflow run
@@ -65,7 +65,7 @@ function sourceOf(value: unknown): ActivitySource {
 }
 
 export interface ActivityEntry {
-  /** An `activity_entries` id, or the audit entry's, delivery's or run's id. */
+  /** An `timeline_entries` id, or the audit entry's, delivery's or run's id. */
   readonly id: string;
   readonly source: ActivitySource;
   readonly organizationId: string;
@@ -116,7 +116,7 @@ export interface Timeline {
 }
 
 function activityOf(value: unknown): ActivityEntry {
-  const row = recordOf(value, "activity_entries");
+  const row = recordOf(value, "timeline_entries");
 
   return {
     id: textOf(row["id"]),
@@ -311,7 +311,7 @@ const FACETS: readonly [ActivityFacet, string, string][] = [
 ];
 
 /**
- * A cursor-paged list over `activity_entries` (generate types for the
+ * A cursor-paged list over `timeline_entries` (generate types for the
  * `better_supabase` schema to get it in your models), newest first, filtered by
  * type, actor and subject. Members with `timeline.read` see their tenants'
  * entries, less those on a registered subject that `can_subject` doesn't let

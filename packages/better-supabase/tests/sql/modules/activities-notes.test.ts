@@ -81,10 +81,10 @@ describe("progress notes, rendered", () => {
       `add column if not exists "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'))`,
     );
     expect(sql).toContain(
-      `add column if not exists "amends_id" uuid references "better_supabase"."engagements" ("id") on delete cascade`,
+      `add column if not exists "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade`,
     );
     expect(sql).toContain(
-      `create index if not exists engagements_amends_idx on "better_supabase"."engagements" ("amends_id")`,
+      `create index if not exists "activities_amends_idx" on "better_supabase"."activities" ("amends_id")`,
     );
     expect(sql).toContain('function "better_supabase"."amend_activity"');
     expect(sql).toContain('function "better_supabase"."mark_activity_error"');
@@ -219,7 +219,7 @@ begin
   end if;
   ${fails(`perform better_supabase.mark_activity_error((v_task ->> 'id')::uuid, 'Again')`, "ACTIVITY_ALREADY_MARKED_ERROR")}
   ${fails(`perform better_supabase.complete_activity((v_task ->> 'id')::uuid, true, null)`, "ACTIVITY_LOCKED")}
-  if not exists (select 1 from better_supabase.engagements where id = (v_task ->> 'id')::uuid) then
+  if not exists (select 1 from better_supabase.activities where id = (v_task ->> 'id')::uuid) then
     raise exception 'the flagged row is gone';
   end if;
 end;

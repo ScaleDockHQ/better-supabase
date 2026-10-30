@@ -12,6 +12,7 @@ import {
   userGrant,
   revokeTable,
 } from "../shared.ts";
+import { tableMoves } from "../table-renames.ts";
 import { embeddingColumn, textSearchConfig } from "./knowledge.ts";
 import { DOCUMENTS, memoryDocumentsSql } from "./memory-documents.ts";
 import {
@@ -76,6 +77,7 @@ const MESSAGE_EMBEDDINGS = {
 } as const;
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("memory", 4),
   entities: {
     memory: {
       table: "memories",
@@ -102,7 +104,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { user: "owner", tenant: "tenant" },
     },
     messageEmbeddings: {
-      name: "ai_message_embeddings",
+      name: "memory_message_embeddings",
       columns: MESSAGE_EMBEDDINGS,
       optional: ["model", "createdAt"],
       app: {},
@@ -423,13 +425,13 @@ create table if not exists ${messageEmbeddings} (
   ${e.embedding} ${embedding.column} not null,${line(message("model"), `${e.model} text`)}${line(message("createdAt"), `${e.createdAt} timestamptz not null default now()`)}
   primary key (${e.chat}, ${e.message})
 );${unique("messageEmbeddings", "message", `${e.chat}, ${e.message}`)}
-create index if not exists ai_message_embeddings_user_idx on ${messageEmbeddings} (${e.user}, ${e.tenant});
-create index if not exists ai_message_embeddings_embedding_idx on ${messageEmbeddings} using hnsw (${e.embedding} ${embedding.opclass});
+create index if not exists ${sqlIdent(`${ctx.tableName("messageEmbeddings").name}_user_idx`)} on ${messageEmbeddings} (${e.user}, ${e.tenant});
+create index if not exists ${sqlIdent(`${ctx.tableName("messageEmbeddings").name}_embedding_idx`)} on ${messageEmbeddings} using hnsw (${e.embedding} ${embedding.opclass});
 alter table ${messageEmbeddings} enable row level security;
 ${revokeTable(messageEmbeddings)}
 grant select on ${messageEmbeddings} to authenticated;
 grant all on ${messageEmbeddings} to service_role;
-${renderPolicy(makePolicy({ table: messageEmbeddings, name: "ai_message_embeddings_read", command: "select", roles: ["authenticated"], using: `${e.user} = (select auth.uid())` }), { drop: true, target: messageEmbeddings })}
+${renderPolicy(makePolicy({ table: messageEmbeddings, name: sqlIdent(`${ctx.tableName("messageEmbeddings").name}_read`), command: "select", roles: ["authenticated"], using: `${e.user} = (select auth.uid())` }), { drop: true, target: messageEmbeddings })}
 
 -- A core memory file, or the files under a directory, or null.
 create or replace function ${fn("memory_view")}(tenant ${id}, path text default '/memories', ns jsonb default '{}')
@@ -1000,7 +1002,7 @@ export const MEMORY: BlockSqlDefinition = {
   requires: ["memberships", "permissions", "vector-search"],
   integrates: ["ai-chat"],
   target: "schema",
-  version: 4,
+  version: 5,
   names: NAMES,
   upgrades: [
     {

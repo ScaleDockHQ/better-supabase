@@ -128,7 +128,7 @@ function recordFor(value: unknown): HostnameRecord | undefined {
 }
 
 function hostnameOf(value: unknown): Hostname {
-  const row = recordOf(value, "organization_hostnames");
+  const row = recordOf(value, "hostnames");
 
   return {
     id: textOf(row["id"]),

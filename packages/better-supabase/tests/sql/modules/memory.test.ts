@@ -21,7 +21,7 @@ describe("memory module", () => {
       'create table if not exists "better_supabase"."memories" (',
     );
     expect(sql).toContain(
-      'create table if not exists "better_supabase"."ai_message_embeddings" (',
+      'create table if not exists "better_supabase"."memory_message_embeddings" (',
     );
     expect(sql).toContain("nulls not distinct");
     expect(sql).toContain("using hnsw");
@@ -203,7 +203,7 @@ describe("memory module", () => {
 
   it("upgrades version 2 memories in place", () => {
     const [plan] = upgradePlan([{ module: "memory", version: 2 }]);
-    expect(plan?.to).toBe(4);
+    expect(plan?.to).toBe(5);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
     expect(sql).toContain('add column if not exists "subject_type" text');
     expect(sql).toContain(
@@ -281,7 +281,7 @@ describe("memory module", () => {
 
   it("upgrades version 3 memories to owners on shared scopes", () => {
     const [plan] = upgradePlan([{ module: "memory", version: 3 }]);
-    expect(plan?.to).toBe(4);
+    expect(plan?.to).toBe(5);
     const sql = plan?.steps.map((step) => step.sql).join("\n") ?? "";
     expect(sql).toContain(
       "add constraint memories_owner_check check (\"scope\" in ('organization', 'record') or \"owner_id\" is not null);",

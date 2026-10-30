@@ -1,13 +1,13 @@
 ---
 title: From 0.46 to 0.47
-description: What to check when upgrading from better-supabase 0.46 to 0.47. Block entity keys equal the entity's singular, subject types, hint codes and function names take the new nouns, and every event type names its entity and a past verb. AI document versions, policy acknowledgements and sequence runs move onto the versions, acknowledgements and enrollments blocks, postmortem action items become tasks, and doctor adds BS423 and BS424.
+description: What to check when upgrading from better-supabase 0.46 to 0.47. Block entity keys equal the entity's singular, subject types, hint codes, function names and module tables take the new nouns, and every event type names its entity and a past verb. AI document versions, policy acknowledgements and sequence runs move onto the versions, acknowledgements and enrollments blocks, postmortem action items become tasks, and doctor adds BS423 and BS424.
 ---
 
 0.47.0 finishes the naming convention (ADR 0130): the key of every entity in
 `blocks.<name>.entities` is the entity's singular, the subject types, hint
-codes and function names follow the new nouns, and each event type is an
-entity and a past verb. Run `better-supabase codemod 0.47` and check what it
-lists for review. Old entity keys and the old subject types keep working until
+codes, function names and module tables follow the new nouns, and each event
+type is an entity and a past verb. Run `better-supabase codemod 0.47` and check
+what it lists for review. Old entity keys and the old subject types keep working until
 0.48, with a warning. The outbox stores the new event types, so subscribers to
 an old type miss its events until you rename them; receivers outside the app
 can keep the old names for one minor with the outbox `legacyEventTypes`
@@ -28,6 +28,7 @@ become tasks. Everything this guide calls deprecated is listed in
 | [Postmortem action items](#postmortem-action-items) | With `tasks`, use `addPostmortemAction`             |
 | [Policy acknowledgements](#policy-acknowledgements) | Call the acknowledgements block                     |
 | [Sequence runs](#sequence-runs)                     | Rename SQL that reads `sequence_enrollments`        |
+| [Table names](#table-names)                         | Rename queries on the old tables in your own code   |
 | [The SQL modules](#the-sql-modules)                 | Run `upgrade` and generate a migration              |
 | [Removed in 0.48](#removed-in-048)                  | Move off each item before 0.48                      |
 
@@ -399,6 +400,40 @@ and `legacyEventType(type, data)` returns it for a payload whose `program`
 starts with `sequence:`. `SequenceEnrollmentEventData` is a deprecated alias
 of `EnrollmentEventData` until then. `PROGRAM_EVENT_MOVES` (`better-supabase`)
 lists the moves.
+
+## Table names
+
+A module table is its entity's plural, or starts with its entity's singular.
+`upgrade` writes a migration that renames each table in place, with its
+indexes, policies, triggers, constraints and sequences, so no row moves and
+nothing is dropped. The new names are in `TABLE_RENAMES`:
+
+| Block         | 0.46 tables                                                                                 | 0.47 tables                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `activities`  | `engagements`                                                                               | `activities`                                                                                                              |
+| `automations` | `rules`, `rule_defaults`, `rule_versions`, `rule_evaluations`, `rule_fields`                | `automations`, `automation_defaults`, `automation_versions`, `automation_evaluations`, `automation_fields`                |
+| `catalog`     | `categories`, `price_lists`, `storefronts`                                                  | `catalog_categories`, `catalog_price_lists`, `catalog_storefronts`                                                        |
+| `collections` | `favorites`                                                                                 | `collection_favorites`                                                                                                    |
+| `compliance`  | `policies`                                                                                  | `compliance_policies`                                                                                                     |
+| `domains`     | `organization_hostnames`                                                                    | `hostnames`                                                                                                               |
+| `goals`       | `targets`                                                                                   | `goals`                                                                                                                   |
+| `idempotency` | `leases`                                                                                    | `idempotency_leases`                                                                                                      |
+| `inbox`       | `message_deliveries`, `conversation_events`, `inbound_events`, `message_templates`          | `inbox_message_deliveries`, `inbox_conversation_events`, `inbox_inbound_events`, `inbox_message_templates`                |
+| `incidents`   | `status_components`, `status_component_history`, `status_pages`                             | `incident_status_components`, `incident_status_component_history`, `incident_status_pages`                                |
+| `leases`      | `lease_agreements`                                                                          | `leases`                                                                                                                  |
+| `memory`      | `ai_message_embeddings`                                                                     | `memory_message_embeddings`                                                                                               |
+| `orders`      | `fulfillments`, `fulfillment_lines`, `shipping_rates`, `kitchen_stations`, `kitchen_routes` | `order_fulfillments`, `order_fulfillment_lines`, `order_shipping_rates`, `order_kitchen_stations`, `order_kitchen_routes` |
+| `sso`         | `organization_domains`, `organization_sso_providers`                                        | `sso_domains`, `sso_providers`                                                                                            |
+| `tasks`       | `work_items`, `work_item_assignees`, `work_item_checklist_items`                            | `tasks`, `task_assignees`, `task_checklist_items`                                                                         |
+| `timeline`    | `activity_entries`                                                                          | `timeline_entries`                                                                                                        |
+
+The idempotency `leases` table is renamed before the leases block takes the
+name. A table you adopted (`blocks.<name>.tables`) keeps its name, and so
+does every table of an entity you renamed: with `names: { task: "work_item" }`
+the tasks block still writes `work_items`. Foreign key columns such as
+`work_item_id` keep their names.
+The codemod lists queries on an old `better_supabase` table for review;
+rename them in your own SQL, views and `queryRaw` calls.
 
 ## The SQL modules
 

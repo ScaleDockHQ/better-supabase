@@ -5,7 +5,7 @@ description: An activity feed per tenant and a timeline per record, filled from 
 
 The `timeline` block keeps a tenant's activity feed and each record's
 timeline. An outbox sink, `activitySink`, writes outbox events into
-`activity_entries`, and `createTimeline().list` reads the feed or one
+`timeline_entries`, and `createTimeline().list` reads the feed or one
 record's timeline, joined with the record's audit entries, notification
 deliveries and workflow runs when those blocks are installed.
 
@@ -19,7 +19,7 @@ The crm, projects, helpdesk and docs [presets](/docs/presets) include it.
 
 | Table              | Holds                                                                                                        |
 | ------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `activity_entries` | One row per outbox event: `type`, `actor_id`, `subject_type`, `subject_id`, `summary`, `data`, `occurred_at` |
+| `timeline_entries` | One row per outbox event: `type`, `actor_id`, `subject_type`, `subject_id`, `summary`, `data`, `occurred_at` |
 
 | Permission      | Lets a member                   | Default roles     |
 | --------------- | ------------------------------- | ----------------- |
@@ -29,7 +29,7 @@ The crm, projects, helpdesk and docs [presets](/docs/presets) include it.
 
 ## Writing the feed
 
-`activitySink` is an outbox sink that writes events into `activity_entries`.
+`activitySink` is an outbox sink that writes events into `timeline_entries`.
 Run it as a consumer with a service-role transport, since
 `record_activity()` is granted to `service_role` only:
 
@@ -95,7 +95,7 @@ const rows = useTimeline({ limit: 50 });
 ```
 
 `limit` defaults to 50 and is at most 500, and `cursor` (an instant) pages
-back. Each entry carries a `source`: `event` for a row of `activity_entries`,
+back. Each entry carries a `source`: `event` for a row of `timeline_entries`,
 `audit` for an audit log entry, `delivery` for a notification delivery,
 `run` for a workflow run, `transition` for a status change and `message`
 for a message about the record (see below). Pass `sources` to keep some of them:
@@ -111,7 +111,7 @@ const sent = await activity
 With the `subjects` module of the
 [subject registry](/docs/blocks/sql#subject-registry) installed, the feed only
 shows a caller the entries on records they can read. The read policy on
-`activity_entries` checks `can_subject(subject_type, subject_id, 'read')` row
+`timeline_entries` checks `can_subject(subject_type, subject_id, 'read')` row
 by row for every subject type in the registry, so the tenant feed, the
 record timeline and `activityListQuery` all leave out entries on records the
 caller can't read, and entries on a deleted record. `list_activity` returns
@@ -180,7 +180,7 @@ stored rows, since no read-time source runs for them.
 
 ## A list query
 
-`activityListQuery` reads `activity_entries` as a cursor-paged
+`activityListQuery` reads `timeline_entries` as a cursor-paged
 [list query](/docs/platform/list) filtered by type, actor and subject,
 newest first (sorts `newest` and `oldest`, facets `type`, `actor`,
 `subjectType` and `subjectId`). Generate types for the `better_supabase`

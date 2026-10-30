@@ -20,6 +20,7 @@ import {
 } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { subjectCascades } from "../subjects.ts";
+import { tableMoves } from "../table-renames.ts";
 import {
   collectionExtras,
   collectionFunctions,
@@ -71,6 +72,7 @@ const EVENTS: BlockSqlEvents<CollectionsEvents> = {
 };
 
 const NAMES: BlockSqlNames = {
+  migrations: tableMoves("collections", 1),
   entities: {
     subject_collection: {
       table: "collections",
@@ -124,7 +126,7 @@ const NAMES: BlockSqlNames = {
       optional: ["addedBy", "addedAt"],
     },
     favorites: {
-      name: "favorites",
+      name: "collection_favorites",
       lifecycle: { tenant: "tenant", user: "user", export: true },
       columns: {
         user: "user_id",
@@ -219,8 +221,8 @@ create table if not exists ${t("favorites")} (
   ${fa("rank")} text collate "C" not null,${line("favorites", "createdAt", () => `${fa("createdAt")} timestamptz not null default now()`)}
   primary key (${fa("user")}, ${fa("subjectType")}, ${fa("subjectId")})
 );${unique("favorites", "subject", `${fa("user")}, ${fa("subjectType")}, ${fa("subjectId")}`)}
-create index if not exists favorites_user_rank_idx on ${t("favorites")} (${fa("user")}, ${fa("tenant")}, ${fa("rank")});
-create index if not exists favorites_subject_idx on ${t("favorites")} (${fa("subjectType")}, ${fa("subjectId")});
+create index if not exists ${sqlIdent(`${ctx.tableName("favorites").name}_user_rank_idx`)} on ${t("favorites")} (${fa("user")}, ${fa("tenant")}, ${fa("rank")});
+create index if not exists ${sqlIdent(`${ctx.tableName("favorites").name}_subject_idx`)} on ${t("favorites")} (${fa("subjectType")}, ${fa("subjectId")});
 ${lockTable(t("favorites"), { read: true })}
 
 create table if not exists ${t("savedItems")} (
@@ -283,7 +285,7 @@ ${renderPolicy(
 ${renderPolicy(
   makePolicy({
     table: t("favorites"),
-    name: "favorites_read",
+    name: sqlIdent(`${ctx.tableName("favorites").name}_read`),
     command: "select",
     roles: ["authenticated"],
     using: `${fa("user")} = (select auth.uid())
@@ -466,7 +468,7 @@ export const COLLECTIONS: BlockSqlDefinition = {
   integrates: ["outbox", "teams"],
   target: "schema",
   modes: ["managed", "custom"],
-  version: 1,
+  version: 2,
   names: NAMES,
   contract,
   build,

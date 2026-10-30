@@ -36,11 +36,11 @@ select set_config('test.restricted', better_supabase.log_activity(
 
 select ok(
   (select locked_at > now() and locked_at <= now() + interval '24 hours'
-   from better_supabase.engagements where id = current_setting('test.team')::uuid),
+   from better_supabase.activities where id = current_setting('test.team')::uuid),
   'a note locks 24 hours after it is logged'
 );
 select is(
-  (select restricted_roles from better_supabase.engagements where id = current_setting('test.restricted')::uuid),
+  (select restricted_roles from better_supabase.activities where id = current_setting('test.restricted')::uuid),
   array['lead'],
   'a restricted note keeps its roles'
 );
@@ -69,13 +69,13 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (select count(*)::int from better_supabase.engagements
+  (select count(*)::int from better_supabase.activities
    where id in (current_setting('test.team')::uuid, current_setting('test.subject')::uuid)),
   2,
   'a member reads team and subject notes'
 );
 select is(
-  (select count(*)::int from better_supabase.engagements where id = current_setting('test.restricted')::uuid),
+  (select count(*)::int from better_supabase.activities where id = current_setting('test.restricted')::uuid),
   0,
   'a member outside the named roles does not read a restricted note'
 );
@@ -100,7 +100,7 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (select count(*)::int from better_supabase.engagements where id = current_setting('test.restricted')::uuid),
+  (select count(*)::int from better_supabase.activities where id = current_setting('test.restricted')::uuid),
   0,
   'team membership in another role does not open a restricted note'
 );
@@ -124,7 +124,7 @@ select set_config(
 set local role authenticated;
 
 select is(
-  (select count(*)::int from better_supabase.engagements where id = current_setting('test.restricted')::uuid),
+  (select count(*)::int from better_supabase.activities where id = current_setting('test.restricted')::uuid),
   1,
   'a lead on the customer''s team reads the restricted note'
 );
@@ -164,7 +164,7 @@ select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000
 set local role authenticated;
 
 select results_eq(
-  $$select id from better_supabase.engagements$$,
+  $$select id from better_supabase.activities$$,
   format($$values ('%s'::uuid)$$, current_setting('test.subject')),
   'a guest reads only the subject note'
 );
@@ -177,7 +177,7 @@ select is(
 
 -- The team note's lock passes.
 reset role;
-update better_supabase.engagements set locked_at = now() - interval '1 minute'
+update better_supabase.activities set locked_at = now() - interval '1 minute'
 where id = current_setting('test.team')::uuid;
 
 select set_config(

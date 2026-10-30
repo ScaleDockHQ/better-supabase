@@ -8,7 +8,7 @@ select plan(12);
 insert into auth.users (id, email, email_confirmed_at, aud, role, instance_id) values
   ('00000000-0000-4000-8000-0000000000e2', 'someone@example.test', now(), 'authenticated', 'authenticated', '00000000-0000-0000-0000-000000000000');
 
-insert into better_supabase.engagements (id, tenant_id, type, title, created_by) values
+insert into better_supabase.activities (id, tenant_id, type, title, created_by) values
   ('00000000-0000-4000-8000-00000000d001', '00000000-0000-4000-8000-000000000001', 'call', 'Discovery call', '00000000-0000-4000-8000-0000000000a1');
 insert into better_supabase.ai_files (id, organization_id, owner_id, bucket, filename, media_type, byte_size, status) values
   ('00000000-0000-4000-8000-00000000d101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', 'ai-files', 'call.webm', 'audio/webm', 3, 'ready'),

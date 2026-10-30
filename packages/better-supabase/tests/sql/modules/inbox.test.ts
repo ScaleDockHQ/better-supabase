@@ -31,11 +31,11 @@ describe("inbox module", () => {
       "contacts",
       "contact_identities",
       "inbox_conversations",
-      "conversation_events",
+      "inbox_conversation_events",
       "inbox_message_details",
-      "message_deliveries",
-      "inbound_events",
-      "message_templates",
+      "inbox_message_deliveries",
+      "inbox_inbound_events",
+      "inbox_message_templates",
     ]) {
       expect(sql).toContain(
         `alter table "better_supabase"."${table}" enable row level security;`,
