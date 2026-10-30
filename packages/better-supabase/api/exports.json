@@ -9585,6 +9585,8 @@
       "IncidentUpdatedEventData",
       "IncidentUpdateInput",
       "Postmortem",
+      "PostmortemAction",
+      "PostmortemActionInput",
       "PostmortemInput",
       "PostmortemPublishedEventData",
       "PostmortemStatus",
