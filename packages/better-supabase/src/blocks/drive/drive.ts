@@ -4,6 +4,7 @@ import type { BlockHooks } from "../../core/block-hooks.ts";
 import type { BlockTransport } from "../../core/block-transport.ts";
 import type { ErrorMapper } from "../../core/errors.ts";
 import type { Logger } from "../../core/logger.ts";
+import type { Result } from "../../core/result.ts";
 import type { StandardSchemaV1 } from "../../core/standard.ts";
 import type { ApprovalStatus } from "../approvals/approvals.ts";
 import type {
@@ -13,6 +14,11 @@ import type {
   AttachmentStorage,
 } from "../attachments/attachments.ts";
 import type { BlockTemporalOptions } from "../shared.ts";
+import type {
+  DriveContribution,
+  DriveFileRequest,
+  DriveRequestUpload,
+} from "./requests.ts";
 
 import { blockFields } from "../../core/block-fields.ts";
 import { DEFAULT_BLOCK_SCHEMA } from "../../core/block-helpers.ts";
@@ -35,7 +41,9 @@ import {
   approvalOf,
   batchOf,
   binEntryOf,
+  committedOf,
   connectionOf,
+  contributionOf,
   connectionsOf,
   driveGrantOf,
   driveOf,
@@ -46,9 +54,11 @@ import {
   nodesOf,
   objectsOf,
   previewsOf,
+  requestUploadOf,
   revisionOf,
   withFields,
 } from "./parse.ts";
+import { putRequestFile } from "./requests.ts";
 
 const noAttachments = () =>
   dbError(
@@ -524,6 +534,52 @@ export interface Drive<F extends object = Record<never, never>> {
   ): AsyncResult<DriveUpload<F>>;
   /** Confirms an upload and makes it the file's content. */
   commit(id: string, attachmentId: string): AsyncResult<DriveNode<F>>;
+  /**
+   * Adds a file to a folder for a caller with only `options.uploadRole` on it.
+   * The file takes a free name, and the result names it without its content. A
+   * caller with the write role gets the same result.
+   */
+  contribute(
+    organizationId: string,
+    file: {
+      readonly parentId: string;
+      readonly name: string;
+      readonly mimeType: string;
+      readonly size: number;
+    },
+  ): AsyncResult<DriveContribution>;
+  /** Confirms a contribution's upload, or a new revision of one. */
+  commitContribution(
+    id: string,
+    attachmentId: string,
+  ): AsyncResult<{ readonly id: string; readonly attachmentId: string }>;
+  /**
+   * Creates a file request on a folder: a share link with role `upload` that
+   * lets anyone holding the token send files into it. Needs the share role.
+   */
+  createFileRequest(
+    folderId: string,
+    options?: {
+      readonly expiresAt?: Temporal.Instant;
+      readonly maxUses?: number;
+      readonly password?: string;
+    },
+  ): AsyncResult<DriveFileRequest>;
+  /**
+   * Server only, on a client made with the service transport and storage: sends
+   * one file through a file request token, uploads it and commits it. Each call
+   * counts one use of the link.
+   */
+  uploadToRequest(
+    token: string,
+    file: Blob,
+    options: {
+      readonly name: string;
+      /** Default: the blob's type. */
+      readonly mimeType?: string;
+      readonly password?: string;
+    },
+  ): AsyncResult<DriveRequestUpload>;
   /** A signed URL for the file's current content, behind the scan gate. */
   download(
     id: string,
@@ -642,6 +698,17 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
       })),
     );
   };
+
+  const claimed = (attachmentId: string): AsyncResult<unknown> =>
+    storage === undefined || !claimsUploads(storage)
+      ? AsyncResult.ok(undefined)
+      : call("get_attachment", { id: attachmentId }, (value) =>
+          isRecord(value) ? attachmentOf(value) : undefined,
+        ).andThen((attachment) =>
+          attachment === undefined || attachment.uploadedAt !== undefined
+            ? AsyncResult.ok(undefined)
+            : claimUpload(storage, attachment, CLAIM_HINTS),
+        );
 
   const page = (
     fn: string,
@@ -898,25 +965,100 @@ export function createDrive<S extends StandardSchemaV1 | undefined = undefined>(
           signed("drive_upload_revision"),
         ),
       ),
-    commit: (id, attachmentId) => {
-      const committed = () =>
+    commit: (id, attachmentId) =>
+      claimed(attachmentId).andThen(() =>
         call("drive_commit", { node: id, attachment: attachmentId }, (value) =>
           nodeOf(value, "drive_commit"),
-        );
-
-      if (storage === undefined || !claimsUploads(storage)) {
-        return committed();
+        ),
+      ),
+    contribute: (organizationId, file) => {
+      if (storage === undefined) {
+        return AsyncResult.err(noStorage());
       }
 
-      return call("get_attachment", { id: attachmentId }, (value) =>
-        isRecord(value) ? attachmentOf(value) : undefined,
-      )
-        .andThen((attachment) =>
-          attachment === undefined || attachment.uploadedAt !== undefined
-            ? AsyncResult.ok(undefined)
-            : claimUpload(storage, attachment, CLAIM_HINTS),
-        )
-        .andThen(committed);
+      return call(
+        "drive_create_file",
+        {
+          tenant: organizationId,
+          parent: file.parentId,
+          name: file.name,
+          mime_type: file.mimeType,
+          size: file.size,
+          conflict: "rename",
+          fields: null,
+          drive: null,
+        },
+        (value) => contributionOf(value, "drive_create_file"),
+      ).andThen(({ id, attachment }) =>
+        stored(
+          storage
+            .from(attachment.bucket)
+            .createSignedUploadUrl(attachment.path),
+        ).map((url) => ({
+          id,
+          attachment,
+          signedUrl: url.signedUrl,
+          token: url.token,
+        })),
+      );
+    },
+    commitContribution: (id, attachmentId) =>
+      claimed(attachmentId).andThen(() =>
+        call(
+          "drive_commit",
+          { node: id, attachment: attachmentId },
+          committedOf,
+        ),
+      ),
+    createFileRequest: (folderId, request = {}) =>
+      call(
+        "drive_request_files",
+        {
+          folder: folderId,
+          expires_at: request.expiresAt?.toString() ?? null,
+          max_uses: request.maxUses ?? null,
+          password: request.password ?? null,
+        },
+        (value) => {
+          const row = recordOf(value, "drive_request_files");
+
+          return { id: textOf(row["id"]), token: textOf(row["token"]) };
+        },
+      ),
+    uploadToRequest: (token, file, upload) => {
+      if (storage === undefined) {
+        return AsyncResult.err(noStorage());
+      }
+
+      return call(
+        "drive_link_upload",
+        {
+          token,
+          name: upload.name,
+          mime_type:
+            upload.mimeType ?? (file.type || "application/octet-stream"),
+          size: file.size,
+          password: upload.password ?? null,
+        },
+        requestUploadOf,
+      ).andThen(async (pending): Promise<Result<DriveRequestUpload>> => {
+        if (pending === undefined) {
+          return ok({ passwordRequired: true });
+        }
+
+        const sent = await putRequestFile(storage, pending.attachment, file);
+
+        if (!sent.ok) {
+          return sent;
+        }
+
+        return client
+          .commitContribution(pending.id, pending.attachment.id)
+          .map((committed): DriveRequestUpload => ({
+            passwordRequired: false,
+            ...committed,
+          }));
+      });
     },
     download: (id, download = {}) => {
       if (attachments === undefined) {

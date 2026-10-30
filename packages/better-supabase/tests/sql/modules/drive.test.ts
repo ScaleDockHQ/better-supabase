@@ -212,6 +212,46 @@ describe("drive module", () => {
     expect(full).toContain("trash_restore_batch");
   });
 
+  it("lets the upload role add files to a folder it can't read", () => {
+    const modules = [
+      "drive",
+      "attachments",
+      "share-links",
+      "rate-limit",
+    ] as const;
+
+    const plain = sqlOf(modules, "drive") + sqlOf(modules, "drive-files");
+
+    expect(plain).toContain("drive_can_upload");
+    expect(plain).not.toContain("drive_uploaded_own");
+    expect(plain).toContain("drive_request_files");
+    expect(plain).toContain("drive_link_upload");
+    expect(plain).toContain("'drive_link_upload'");
+
+    const layout = withOptions({ uploadRole: "contributor" });
+    const core = sqlOf(modules, "drive", layout);
+    const files = sqlOf(modules, "drive-files", layout);
+
+    expect(core).toContain("array['viewer', 'editor', 'owner', 'contributor']");
+    expect(core).toContain("'the upload role is for folders'");
+    expect(core).toContain("drive_uploaded_own");
+    expect(files).toContain("{ id, attachment } and no node");
+    expect(files).toContain("'committed', true");
+    expect(files).toContain("drive_uploaded_own");
+
+    const unlimited = sqlOf(
+      ["drive", "attachments", "share-links"],
+      "drive-files",
+      layout,
+    );
+
+    expect(unlimited).toContain("drive_link_upload");
+    expect(unlimited).not.toContain("hit_rate_limit");
+    expect(sqlOf(["drive"], "drive-files", layout)).not.toContain(
+      "drive_link_upload",
+    );
+  });
+
   it("runs over the app's node table without files and untyped user and team grants", () => {
     const names = resolveBlocks(["drive"], APP_DRIVE).map(
       (module) => module.name,
@@ -514,6 +554,20 @@ describe("drive module", () => {
     );
     expect(fails({ drives: true, sources: [] })).toThrow(/sources/);
     expect(fails({ drives: true, sources: ["internal"] })).toThrow(/sources/);
+    expect(fails({ drives: true, sources: ["request"] })).toThrow(/sources/);
+    expect(fails({ uploadRole: 3 })).toThrow(/uploadRole/);
+    expect(fails({ uploadRole: "Contributor" })).toThrow(/uploadRole/);
+    expect(fails({ uploadRole: "viewer" })).toThrow(/uploadRole/);
+    expect(() =>
+      sqlOf(
+        ["drive"],
+        "drive",
+        managed({
+          options: { uploadRole: "contributor" },
+          columns: { nodes: { createdBy: null } },
+        }),
+      ),
+    ).toThrow(/uploadRole needs blocks\.drive\.columns\.nodes\.createdBy/);
     expect(fails({ drives: true, sources: ["Google Drive"] })).toThrow(
       /sources/,
     );
