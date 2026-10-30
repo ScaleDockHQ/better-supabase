@@ -183,7 +183,7 @@ describe.skipIf(!live)("doctor on the installed fixture", () => {
         // The latest upgrade drops list_comments, which gains an
         // include_deleted argument, and the schema files create it again.
         "warning BS235": [
-          "supabase/migrations/20261030012139_better_supabase_block_upgrade.sql:4",
+          "supabase/migrations/20261030122601_better_supabase_block_upgrade.sql:4",
         ],
         // The adopt options that keep CentraKit's own token storage, secret column,
         // audit values and event sources.
